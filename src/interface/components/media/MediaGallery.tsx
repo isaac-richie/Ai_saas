@@ -1,0 +1,285 @@
+/* eslint-disable @next/next/no-img-element */
+"use client"
+
+import { Card } from "@/interface/components/ui/card"
+import { Input } from "@/interface/components/ui/input"
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/interface/components/ui/dialog" // We can reuse Dialog or make a specific Preview component
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
+import { Play, ImageIcon } from "lucide-react"
+import { useMemo, useState } from "react"
+import { Button } from "@/interface/components/ui/button"
+import { deleteGalleryAsset } from "@/core/actions/gallery"
+import { toast } from "sonner"
+
+// Define a type for Media Asset based on our schema usage (shot_options mostly)
+// We need to fetch this data. For now, let's assume we pass in a list of assets.
+export interface MediaAsset {
+    id: string
+    url: string
+    type: 'image' | 'video'
+    prompt: string
+    shotName: string
+    sceneName?: string
+    projectName?: string
+}
+
+interface MediaGalleryProps {
+    assets: MediaAsset[]
+}
+
+export function MediaGallery({ assets }: MediaGalleryProps) {
+    const [query, setQuery] = useState("")
+    const [filter, setFilter] = useState<"all" | "image" | "video">("all")
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+    const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+
+    const counts = useMemo(() => {
+        const images = assets.filter((asset) => asset.type === "image").length
+        const videos = assets.filter((asset) => asset.type === "video").length
+        return { total: assets.length, images, videos }
+    }, [assets])
+
+    const filteredAssets = useMemo(() => {
+        const normalizedQuery = query.trim().toLowerCase()
+        return assets.filter((asset) => {
+            if (filter !== "all" && asset.type !== filter) return false
+            if (!normalizedQuery) return true
+            return [
+                asset.prompt,
+                asset.shotName,
+                asset.sceneName,
+                asset.projectName,
+            ]
+                .filter(Boolean)
+                .some((field) => field!.toLowerCase().includes(normalizedQuery))
+        })
+    }, [assets, filter, query])
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }
+
+    const selectAllFiltered = () => {
+        setSelectedIds(new Set(filteredAssets.map((asset) => asset.id)))
+    }
+
+    const handleDelete = async (ids: string[]) => {
+        if (ids.length === 0) return
+        if (!confirm(`Delete ${ids.length} asset${ids.length > 1 ? "s" : ""}?`)) return
+
+        setDeletingIds((prev) => {
+            const next = new Set(prev)
+            ids.forEach((id) => next.add(id))
+            return next
+        })
+
+        try {
+            for (const id of ids) {
+                const res = await deleteGalleryAsset(id)
+                if (res.error) throw new Error(res.error)
+            }
+            toast.success("Assets deleted")
+            setSelectedIds(new Set())
+            window.location.reload()
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Delete failed"
+            toast.error(message)
+        } finally {
+            setDeletingIds(new Set())
+        }
+    }
+
+    if (assets.length === 0) {
+        return (
+            <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
+                <ImageIcon className="h-8 w-8 text-white/35" />
+                <h3 className="mt-4 text-sm font-medium text-white">No media generated yet</h3>
+                <p className="text-xs text-white/50">Generate shots to see them here.</p>
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-[#0b0b0d] px-4 py-3">
+                <div className="flex flex-1 min-w-[220px]">
+                    <Input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search by prompt, shot, scene, or project..."
+                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                    />
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                    {(["all", "image", "video"] as const).map((type) => (
+                        <button
+                            key={type}
+                            onClick={() => setFilter(type)}
+                            className={`rounded-full border px-3 py-1 uppercase tracking-[0.2em] ${
+                                filter === type
+                                    ? "border-white/30 bg-white/15 text-white"
+                                    : "border-white/10 bg-white/5 text-white/55 hover:bg-white/10"
+                            }`}
+                        >
+                            {type}
+                        </button>
+                    ))}
+                </div>
+                <div className="ml-auto flex flex-wrap gap-2 text-xs text-white/50">
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Total: {counts.total}</span>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Images: {counts.images}</span>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Videos: {counts.videos}</span>
+                </div>
+            </div>
+
+            {selectedIds.size > 0 && (
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#0b0b0d] px-4 py-3 text-sm text-white/70">
+                    <span>{selectedIds.size} selected</span>
+                    <div className="flex gap-2">
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                            onClick={() => setSelectedIds(new Set())}
+                        >
+                            Clear
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                            onClick={selectAllFiltered}
+                        >
+                            Select All
+                        </Button>
+                        <Button
+                            size="sm"
+                            className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                            onClick={() => handleDelete(Array.from(selectedIds))}
+                        >
+                            Delete Selected
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {filteredAssets.length === 0 ? (
+                <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
+                    <ImageIcon className="h-8 w-8 text-white/35" />
+                    <h3 className="mt-4 text-sm font-medium text-white">No matches</h3>
+                    <p className="text-xs text-white/50">Try adjusting filters or search terms.</p>
+                </div>
+            ) : (
+                <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                    {filteredAssets.map((asset) => (
+                        <Dialog key={asset.id}>
+                            <DialogTrigger asChild>
+                                <Card className="aspect-square relative cursor-pointer overflow-hidden group border border-white/10 bg-[#0b0b0d] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
+                                    <button
+                                        type="button"
+                                        onClick={(event) => {
+                                            event.stopPropagation()
+                                            toggleSelect(asset.id)
+                                        }}
+                                        onMouseDown={(event) => event.stopPropagation()}
+                                        className={`absolute top-2 right-2 z-10 h-7 w-7 rounded-full border text-xs ${
+                                            selectedIds.has(asset.id)
+                                                ? "border-cyan-400 bg-cyan-400/20 text-cyan-100"
+                                                : "border-white/20 bg-black/40 text-white/60 hover:bg-white/10"
+                                        }`}
+                                        title={selectedIds.has(asset.id) ? "Deselect" : "Select"}
+                                    >
+                                        {selectedIds.has(asset.id) ? "✓" : "○"}
+                                    </button>
+                                    <div className="absolute top-2 left-2 z-10 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-white/80 backdrop-blur">
+                                        {asset.type}
+                                    </div>
+                                    {asset.type === 'image' ? (
+                                        <img
+                                            src={asset.url}
+                                            alt={asset.prompt}
+                                            className="object-cover w-full h-full transition-transform group-hover:scale-105"
+                                            loading="lazy"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full relative bg-muted">
+                                            <video
+                                                src={asset.url}
+                                                className="object-cover w-full h-full transition-transform group-hover:scale-105"
+                                                autoPlay
+                                                muted
+                                                loop
+                                                playsInline
+                                            />
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-transparent transition-colors">
+                                                <Play className="h-8 w-8 text-white opacity-80 drop-shadow-md" />
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
+                                        <div>
+                                            <p className="text-xs text-white line-clamp-1 font-medium">{asset.shotName}</p>
+                                            {asset.sceneName ? <p className="text-[10px] text-white/70 line-clamp-1">{asset.sceneName}</p> : null}
+                                            {asset.projectName ? <p className="text-[10px] text-white/50 line-clamp-1">{asset.projectName}</p> : null}
+                                        </div>
+                                    </div>
+                                </Card>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-5xl overflow-hidden border-white/10 bg-black/95 p-0 text-white">
+                                <VisuallyHidden.Root>
+                                    <DialogTitle>Media Preview</DialogTitle>
+                                </VisuallyHidden.Root>
+                                <div className="grid min-h-[70vh] grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                                    <div className="relative flex items-center justify-center bg-black">
+                                        {asset.type === 'image' ? (
+                                            <img src={asset.url} alt={asset.prompt} className="max-w-full max-h-full object-contain" />
+                                        ) : (
+                                            <video
+                                                src={asset.url}
+                                                className="max-w-full max-h-full object-contain"
+                                                controls
+                                                autoPlay
+                                                loop
+                                                playsInline
+                                            />
+                                        )}
+                                    </div>
+                                    <div className="space-y-4 border-l border-white/10 bg-[#0b0b0d] p-5">
+                                        <div>
+                                            <div className="text-xs uppercase tracking-[0.2em] text-white/50">Shot</div>
+                                            <div className="mt-1 text-lg font-semibold">{asset.shotName}</div>
+                                        </div>
+                                        <div className="space-y-1 text-sm text-white/60">
+                                            {asset.projectName && <div>Project: <span className="text-white/85">{asset.projectName}</span></div>}
+                                            {asset.sceneName && <div>Scene: <span className="text-white/85">{asset.sceneName}</span></div>}
+                                            <div>Type: <span className="text-white/85">{asset.type}</span></div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs uppercase tracking-[0.2em] text-white/50">Prompt</div>
+                                            <p className="mt-2 text-sm text-white/70 leading-relaxed">{asset.prompt}</p>
+                                        </div>
+                                        <div className="pt-2">
+                                            <Button
+                                                size="sm"
+                                                className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                                                disabled={deletingIds.has(asset.id)}
+                                                onClick={() => handleDelete([asset.id])}
+                                            >
+                                                {deletingIds.has(asset.id) ? "Deleting..." : "Delete Asset"}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}

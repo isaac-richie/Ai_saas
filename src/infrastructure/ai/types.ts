@@ -1,0 +1,25 @@
+export interface GenerationRequest {
+    prompt: string;
+    negative_prompt?: string;
+    image_prompt?: string; // Used for image-to-video as starting frame or reference
+    output_type?: 'image' | 'video';
+    width?: number;
+    height?: number;
+    aspect_ratio?: string;
+    seed?: number;
+    model?: string;
+}
+
+export interface GenerationResult {
+    id?: string;
+    url?: string;
+    content_type: 'image' | 'video';
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    error?: string;
+    provider_check_id?: string; // ID to poll status if async
+}
+
+export interface ProviderConfig {
+    apiKey: string;
+    baseUrl?: string;
+}

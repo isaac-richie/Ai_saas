@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN status TEXT DEFAULT 'active' NOT NULL;
