@@ -3,9 +3,6 @@ const { createClient } = require("@supabase/supabase-js");
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-// MUST use service role to bypass RLS since the script isn't logged in as the user
-const supabaseKey = "REDACTED";
-
 const supabase = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
     auth: { autoRefreshToken: false, persistSession: false }
 });

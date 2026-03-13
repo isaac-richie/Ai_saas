@@ -2,9 +2,6 @@ require("dotenv").config({ path: ".env.local" });
 const { createClient } = require("@supabase/supabase-js");
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-// Use service role to bypass RLS for debugging scripts
-const supabaseKey = "REDACTED";
-
 const supabase = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
     auth: { autoRefreshToken: false, persistSession: false }
 });
