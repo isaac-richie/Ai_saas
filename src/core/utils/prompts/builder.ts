@@ -42,10 +42,7 @@ export function generatePrompt(params: ShotParams): string {
         segments.push(params.lighting);
     }
 
-    // 6. Mandatory Cinematic Keywords
-    segments.push("cinematic lighting, photorealistic, 8k, highly detailed");
-
-    // 7. Aspect Ratio (usually a suffix for Midjourney)
+    // 6. Aspect Ratio (usually a suffix for Midjourney)
     if (params.aspectRatio) {
         segments.push(params.aspectRatio);
     }

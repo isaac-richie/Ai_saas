@@ -155,6 +155,10 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
         },
     })
 
+    const handleOptionalSelect = (value: string, onChange: (value: string | undefined) => void) => {
+        onChange(value === "__none__" ? undefined : value)
+    }
+
     const watchedValues = useWatch({ control: form.control })
 
     const promptPreview = useMemo(() => {
@@ -321,13 +325,14 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="text-white/80">Shot Size</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
                                                         <SelectValue placeholder="Select size" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                    <SelectItem value="__none__">Clear</SelectItem>
                                                     <SelectItem value="Extreme Wide Shot">Extreme Wide Shot</SelectItem>
                                                     <SelectItem value="Wide Shot">Wide Shot</SelectItem>
                                                     <SelectItem value="Medium Shot">Medium Shot</SelectItem>
@@ -345,13 +350,14 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="text-white/80">Angle</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
                                                         <SelectValue placeholder="Select angle" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                    <SelectItem value="__none__">Clear</SelectItem>
                                                     <SelectItem value="Eye Level">Eye Level</SelectItem>
                                                     <SelectItem value="Low Angle">Low Angle</SelectItem>
                                                     <SelectItem value="High Angle">High Angle</SelectItem>
@@ -369,13 +375,14 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="text-white/80">Camera</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
                                                         <SelectValue placeholder="Select camera" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                    <SelectItem value="__none__">Clear</SelectItem>
                                                     {cameras.map((camera) => (
                                                         <SelectItem key={camera.id} value={camera.id}>{camera.name}</SelectItem>
                                                     ))}
@@ -391,13 +398,14 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="text-white/80">Lens</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
                                                         <SelectValue placeholder="Select lens" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                    <SelectItem value="__none__">Clear</SelectItem>
                                                     {lenses.map((lens) => (
                                                         <SelectItem key={lens.id} value={lens.id}>{lens.name}</SelectItem>
                                                     ))}
@@ -415,13 +423,14 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="text-white/80">Movement</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
                                                         <SelectValue placeholder="Select movement" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                    <SelectItem value="__none__">Clear</SelectItem>
                                                     <SelectItem value="Static">Static</SelectItem>
                                                     <SelectItem value="Handheld">Handheld</SelectItem>
                                                     <SelectItem value="Dolly In">Dolly In</SelectItem>
@@ -442,13 +451,14 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel className="text-white/80">Lighting</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
                                                         <SelectValue placeholder="Select lighting" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                    <SelectItem value="__none__">Clear</SelectItem>
                                                     <SelectItem value="Natural Lighting">Natural Lighting</SelectItem>
                                                     <SelectItem value="Golden Hour">Golden Hour</SelectItem>
                                                     <SelectItem value="Blue Hour">Blue Hour</SelectItem>
