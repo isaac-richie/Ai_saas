@@ -13,7 +13,6 @@ import { generateShot, generateVideoShot, pollShotStatus } from "@/core/actions/
 import { batchGenerate } from "@/core/actions/batch"
 import { updateShotStatus, removeShot } from "@/core/actions/shots"
 import { addShotsToSequence, appendShotToSequence, createSequence, VideoSequence } from "@/core/actions/sequences"
-import { addShotReference, deleteShotReference, getShotReferences } from "@/core/actions/references"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -42,13 +41,6 @@ type ShotOption = {
     steps?: number | null
 }
 
-type ShotReference = {
-    id: string
-    shot_id: string
-    url: string
-    type: string | null
-}
-
 type SelectionPayload = {
     subject?: string
     selections?: Record<string, { label?: string }>
@@ -60,8 +52,6 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
     const [selectedShots, setSelectedShots] = useState<string[]>([])
     const [batchLoading, setBatchLoading] = useState(false)
     const [isMounted, setIsMounted] = useState(false)
-    const [referenceMap, setReferenceMap] = useState<Record<string, ShotReference[]>>({})
-    const [referenceInputs, setReferenceInputs] = useState<Record<string, string>>({})
     const [selectedShotId, setSelectedShotId] = useState<string | null>(null)
     const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null)
     const [compareTargets, setCompareTargets] = useState<ShotOption[]>([])
@@ -145,29 +135,6 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         }
     }, [sequences, selectedSequenceId])
 
-    useEffect(() => {
-        let active = true
-        const loadReferences = async () => {
-            const entries = await Promise.all(
-                shots.map(async (shot) => {
-                    const res = await getShotReferences(shot.id)
-                    return [shot.id, res.data || []] as const
-                })
-            )
-            if (!active) return
-            const nextMap: Record<string, ShotReference[]> = {}
-            for (const [shotId, refs] of entries) {
-                nextMap[shotId] = refs
-            }
-            setReferenceMap(nextMap)
-        }
-        if (shots.length > 0) {
-            loadReferences()
-        }
-        return () => {
-            active = false
-        }
-    }, [shots])
 
     const toggleSelect = (id: string) => {
         if (selectedShots.includes(id)) {
@@ -251,37 +218,6 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         }
     }
 
-    const handleAddReference = async (shotId: string) => {
-        const input = referenceInputs[shotId]?.trim()
-        if (!input) return
-        const existing = referenceMap[shotId] || []
-        if (existing.some((ref) => ref.url === input)) {
-            toast.error("Reference already added")
-            return
-        }
-        const res = await addShotReference(shotId, input, "image")
-        if (res.error || !res.data) {
-            toast.error(`Failed to add reference: ${res.error || "Unknown error"}`)
-            return
-        }
-        setReferenceMap((prev) => ({
-            ...prev,
-            [shotId]: [res.data as ShotReference, ...(prev[shotId] || [])],
-        }))
-        setReferenceInputs((prev) => ({ ...prev, [shotId]: "" }))
-    }
-
-    const handleRemoveReference = async (shotId: string, refId: string) => {
-        const res = await deleteShotReference(refId)
-        if (res.error) {
-            toast.error(`Failed to remove reference: ${res.error}`)
-            return
-        }
-        setReferenceMap((prev) => ({
-            ...prev,
-            [shotId]: (prev[shotId] || []).filter((ref) => ref.id !== refId),
-        }))
-    }
 
     const handleGenerateVideo = async (optionId: string) => {
         setGeneratingId(optionId)
@@ -471,9 +407,6 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
                         <div className="flex flex-wrap gap-3 text-xs text-white/55">
                             <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                References: {(referenceMap[selectedShot.id] || []).length}
-                            </div>
-                            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                                 Options: {selectedShot.options?.length || 0}
                             </div>
                             {selectedAspectRatio && (
@@ -542,7 +475,6 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                     ?.filter((opt) => opt.status === "completed" && opt.output_url && !opt.output_url.endsWith(".mp4"))
                     .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0];
                 const animateCandidate = approvedOption || latestCompletedImage;
-                const references = referenceMap[shot.id] || []
                 const selectionPayload = shot.selection_payload as SelectionPayload | null
                 const selections = selectionPayload?.selections || {}
                 const shotLabel = selections.shot?.label || shot.shot_type
@@ -646,45 +578,6 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 </Button>
                             </div>
                         </CardContent>
-
-                        <div className="border-t border-white/10 px-3 py-2 bg-white/[0.02]">
-                            <div className="flex flex-wrap items-center gap-2">
-                                <div className="text-xs uppercase tracking-[0.12em] text-white/45">References</div>
-                                {references.length === 0 && (
-                                    <span className="text-xs text-white/40">No references yet.</span>
-                                )}
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                                {references.map((ref) => (
-                                    <button
-                                        key={ref.id}
-                                        type="button"
-                                        onClick={() => handleRemoveReference(shot.id, ref.id)}
-                                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60 hover:bg-white/10"
-                                        title="Remove reference"
-                                    >
-                                        {ref.url}
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="mt-2 flex gap-2">
-                                <input
-                                    value={referenceInputs[shot.id] || ""}
-                                    onChange={(event) =>
-                                        setReferenceInputs((prev) => ({ ...prev, [shot.id]: event.target.value }))
-                                    }
-                                    placeholder="Add reference URL"
-                                    className="h-8 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 text-xs text-white/80 placeholder:text-white/35"
-                                />
-                                <Button
-                                    size="sm"
-                                    className="h-8 rounded-xl border border-white/10 bg-white/10 text-xs text-white/80 hover:bg-white/15"
-                                    onClick={() => handleAddReference(shot.id)}
-                                >
-                                    Add
-                                </Button>
-                            </div>
-                        </div>
 
                         {/* Rendering Expanded Options */}
                         {(shot.options && shot.options.length > 0) && (

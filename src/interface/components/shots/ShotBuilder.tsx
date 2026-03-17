@@ -28,7 +28,6 @@ import { assemblePrompt, PROMPT_ORDER, PromptCategory, PromptPreset } from "@/co
 import { createShot } from "@/core/actions/shots"
 import { attachElementToShot } from "@/core/actions/elements"
 import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
-import { addShotReference } from "@/core/actions/references"
 import { Loader2, Plus, Sparkles, Layers } from "lucide-react"
 import { toast } from "sonner"
 
@@ -144,8 +143,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     const [isSavingPreset, setIsSavingPreset] = useState(false)
     const [newPresetName, setNewPresetName] = useState("")
     const [newPresetDescription, setNewPresetDescription] = useState("")
-    const [referenceInput, setReferenceInput] = useState("")
-    const [referenceUrls, setReferenceUrls] = useState<string[]>([])
     const [presetOptions, setPresetOptions] = useState<PresetMap | null>(null)
     const [loadingOptions, setLoadingOptions] = useState(true)
 
@@ -210,20 +207,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         setSelectedElementIds(newSet)
     }
 
-    const addReferenceUrl = () => {
-        const trimmed = referenceInput.trim()
-        if (!trimmed) return
-        if (referenceUrls.includes(trimmed)) {
-            toast.error("Reference already added")
-            return
-        }
-        setReferenceUrls((prev) => [...prev, trimmed])
-        setReferenceInput("")
-    }
-
-    const removeReferenceUrl = (url: string) => {
-        setReferenceUrls((prev) => prev.filter((item) => item !== url))
-    }
 
     const form = useForm<ShotFormValues>({
         resolver: zodResolver(shotSchema) as unknown as Resolver<ShotFormValues>,
@@ -363,9 +346,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                 await attachElementToShot(res.data.id, elId)
             }
 
-            for (const url of referenceUrls) {
-                await addShotReference(res.data.id, url, "image")
-            }
         }
 
         setIsSaving(false)
@@ -380,8 +360,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                 variations: 1,
             })
             setSelectedElementIds(new Set())
-            setReferenceUrls([])
-            setReferenceInput("")
             onShotCreated?.()
         }
     }
@@ -483,42 +461,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                     </div>
                                 </div>
                             )}
-
-                            <div className="space-y-2 pt-2 border-t border-white/10">
-                                <label className="text-sm font-medium text-white/80">
-                                    Shot References (URLs)
-                                </label>
-                                <div className="flex gap-2">
-                                    <Input
-                                        value={referenceInput}
-                                        onChange={(e) => setReferenceInput(e.target.value)}
-                                        placeholder="https://example.com/reference.jpg"
-                                        className="flex-1 rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
-                                    />
-                                    <Button
-                                        type="button"
-                                        onClick={addReferenceUrl}
-                                        className="rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15"
-                                    >
-                                        Add
-                                    </Button>
-                                </div>
-                                {referenceUrls.length > 0 && (
-                                    <div className="flex flex-wrap gap-2">
-                                        {referenceUrls.map((url) => (
-                                            <button
-                                                key={url}
-                                                type="button"
-                                                onClick={() => removeReferenceUrl(url)}
-                                                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60 hover:bg-white/10"
-                                                title="Remove reference"
-                                            >
-                                                {url}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
 
                             <div className="space-y-3 border-t border-white/10 pt-4">
                                 <div className="flex items-center justify-between">
@@ -759,8 +701,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                             <Button
                                 type="button"
                                 onClick={handleSavePreset}
-                                disabled={isSavingPreset}
-                                className="w-full rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15"
+                                disabled={isSavingPreset || !newPresetName.trim()}
+                                className="w-full rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 {isSavingPreset ? (
                                     <>
