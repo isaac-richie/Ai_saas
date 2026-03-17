@@ -311,7 +311,10 @@ export async function generateVideoShot(shotOptionId: string) {
         return { error: "Kie.ai API key missing. Add it to .env.local or settings." };
     }
 
-    const promptText = `Generate a cinematic video sequence based on the original shot: ${shotOption.prompt || "cinematic scene"}`;
+    const rawPrompt = shotOption.prompt || "cinematic scene";
+    const basePrompt = `Generate a cinematic video sequence based on the original shot: ${rawPrompt}`;
+    // Kie.ai prompt length limits are strict; keep it short to avoid failures.
+    const promptText = basePrompt.length > 600 ? `${basePrompt.slice(0, 597)}...` : basePrompt;
 
     try {
         const provider = ProviderFactory.create("kie", { apiKey: apiKey });

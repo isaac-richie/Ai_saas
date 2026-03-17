@@ -353,12 +353,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             toast.error(`Error creating shot: ${res.error}`)
         } else {
             toast.success("Shot created successfully!")
-            form.reset({
-                subject: "",
-                durationSeconds: 5,
-                seedLocked: true,
-                variations: 1,
-            })
+            // Keep the current prompt/choices until user manually clears or refreshes.
+            form.setValue("subject", data.subject)
             setSelectedElementIds(new Set())
             onShotCreated?.()
         }
