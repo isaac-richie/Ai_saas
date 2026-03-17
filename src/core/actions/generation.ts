@@ -180,11 +180,13 @@ export async function generateShot(shotId: string) {
     }
 
     const selectionPayload = (shot.selection_payload as Record<string, unknown> | null) ?? null;
+    const subject = typeof selectionPayload?.subject === "string" ? selectionPayload.subject : "";
+    const selections = (selectionPayload?.selections as Record<string, { label?: string }> | undefined) ?? {};
     const prompt = shot.prompt_text
-        || (selectionPayload?.subject
+        || (subject
             ? assemblePrompt({
-                subject: selectionPayload.subject,
-                selections: selectionPayload.selections || {},
+                subject,
+                selections,
             })
             : (shot.description || ""));
 

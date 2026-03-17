@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
-import { useForm, useWatch } from "react-hook-form"
+import { useForm, useWatch, Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/interface/components/ui/button"
@@ -41,6 +41,8 @@ const numericOptional = z.preprocess(
     z.number().optional()
 )
 
+const numericOptionalZod = z.coerce.number().optional()
+
 const shotSchema = z.object({
     subject: z.string().min(3, "Subject is required"),
     shot: z.string().optional(),
@@ -54,17 +56,38 @@ const shotSchema = z.object({
     depthOfField: z.string().optional(),
     aspectRatio: z.string().optional(),
     genreMood: z.string().optional(),
-    durationSeconds: numericOptional,
+    durationSeconds: numericOptionalZod,
     model: z.string().optional(),
     negativePrompt: z.string().optional(),
-    seed: numericOptional,
+    seed: numericOptionalZod,
     seedLocked: z.boolean().optional(),
-    cfgScale: numericOptional,
-    steps: numericOptional,
-    variations: numericOptional,
+    cfgScale: numericOptionalZod,
+    steps: numericOptionalZod,
+    variations: numericOptionalZod,
 })
 
-type ShotFormValues = z.infer<typeof shotSchema>
+type ShotFormValues = {
+    subject: string
+    shot?: string
+    angle?: string
+    camera?: string
+    lens?: string
+    movement?: string
+    lighting?: string
+    timeOfDay?: string
+    colorGrade?: string
+    depthOfField?: string
+    aspectRatio?: string
+    genreMood?: string
+    durationSeconds?: number
+    model?: string
+    negativePrompt?: string
+    seed?: number
+    seedLocked?: boolean
+    cfgScale?: number
+    steps?: number
+    variations?: number
+}
 
 type PresetData = Partial<Record<PromptCategory, string>>
 
@@ -203,7 +226,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     }
 
     const form = useForm<ShotFormValues>({
-        resolver: zodResolver(shotSchema),
+        resolver: zodResolver(shotSchema) as unknown as Resolver<ShotFormValues>,
         defaultValues: {
             subject: "",
             durationSeconds: 5,
@@ -222,7 +245,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         const map: Partial<Record<PromptCategory, PromptPreset>> = {}
         if (!presetOptions) return map
         for (const category of PROMPT_ORDER) {
-            const key = (watchedValues as Record<string, string | undefined>)[category]
+            const raw = watchedValues[category as keyof ShotFormValues]
+            const key = typeof raw === "string" ? raw : undefined
             if (!key) continue
             const preset = presetOptions[category]?.find((item) => item.key === key)
             if (preset) {
@@ -246,7 +270,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     const buildPresetData = (values: ShotFormValues): PresetData => {
         const data: PresetData = {}
         PROMPT_ORDER.forEach((category) => {
-            const value = (values as Record<string, string | undefined>)[category]
+            const raw = values[category as keyof ShotFormValues]
+            const value = typeof raw === "string" ? raw : undefined
             if (value) data[category] = value
         })
         return data

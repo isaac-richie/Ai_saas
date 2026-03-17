@@ -368,6 +368,10 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
     const selectedShot = selectedShotId ? shots.find((shot) => shot.id === selectedShotId) : null
     const selectedSettings = selectedShot?.generation_settings as Record<string, unknown> | null
+    const selectedAspectRatio = typeof selectedSettings?.aspect_ratio === "string" ? selectedSettings.aspect_ratio : null
+    const selectedDuration = typeof selectedSettings?.duration_seconds === "number" ? selectedSettings.duration_seconds : null
+    const selectedModel = typeof selectedSettings?.model === "string" ? selectedSettings.model : null
+    const selectedVariations = typeof selectedSettings?.variations === "number" ? selectedSettings.variations : null
 
     return (
         <div ref={listRef} className="grid gap-4">
@@ -472,24 +476,24 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                             <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                                 Options: {selectedShot.options?.length || 0}
                             </div>
-                            {selectedSettings?.aspect_ratio && (
+                            {selectedAspectRatio && (
                                 <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                    Ratio: {String(selectedSettings.aspect_ratio)}
+                                    Ratio: {selectedAspectRatio}
                                 </div>
                             )}
-                            {selectedSettings?.duration_seconds && (
+                            {selectedDuration !== null && (
                                 <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                    Duration: {String(selectedSettings.duration_seconds)}s
+                                    Duration: {selectedDuration}s
                                 </div>
                             )}
-                            {selectedSettings?.model && (
+                            {selectedModel && (
                                 <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                    Model: {String(selectedSettings.model)}
+                                    Model: {selectedModel}
                                 </div>
                             )}
-                            {selectedSettings?.variations && (
+                            {selectedVariations !== null && (
                                 <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                                    Variations: {String(selectedSettings.variations)}
+                                    Variations: {selectedVariations}
                                 </div>
                             )}
                         </div>
