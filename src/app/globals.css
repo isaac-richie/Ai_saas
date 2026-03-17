@@ -190,6 +190,60 @@
     opacity: 1;
     animation: beamFlow 2.4s linear infinite;
   }
+
+  .film-grain {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.05), rgba(255,255,255,0.05) 1px, transparent 1px, transparent 2px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.03) 1px, transparent 1px, transparent 2px);
+    opacity: 0.08;
+    mix-blend-mode: soft-light;
+    animation: grainShift 6s steps(6) infinite;
+  }
+
+  .vignette {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(120% 120% at 50% 40%, transparent 40%, rgba(0,0,0,0.6) 100%);
+    opacity: 0.6;
+  }
+
+  .viewfinder-corners {
+    position: relative;
+  }
+
+  .viewfinder-corners > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .viewfinder-corners::before,
+  .viewfinder-corners::after {
+    content: "";
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border: 1px solid rgba(255,255,255,0.2);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .viewfinder-corners::before {
+    top: 12px;
+    left: 12px;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .viewfinder-corners::after {
+    bottom: 12px;
+    right: 12px;
+    border-left: none;
+    border-top: none;
+  }
 }
 
 @keyframes auroraShift {
@@ -226,6 +280,14 @@
   100% {
     background-position: 200% 50%;
   }
+}
+
+@keyframes grainShift {
+  0% { transform: translate3d(0,0,0); }
+  25% { transform: translate3d(-2%, 1%, 0); }
+  50% { transform: translate3d(1%, -2%, 0); }
+  75% { transform: translate3d(2%, 2%, 0); }
+  100% { transform: translate3d(0,0,0); }
 }
 
 @layer utilities {

@@ -85,6 +85,9 @@ export interface Database {
                     camera_movement: string | null
                     sequence_order: number
                     estimated_duration: number | null
+                    generation_settings: Json | null
+                    prompt_text: string | null
+                    selection_payload: Json | null
                     created_at: string
                     updated_at: string
                 }
@@ -99,6 +102,9 @@ export interface Database {
                     camera_movement?: string | null
                     sequence_order?: number
                     estimated_duration?: number | null
+                    generation_settings?: Json | null
+                    prompt_text?: string | null
+                    selection_payload?: Json | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -113,6 +119,9 @@ export interface Database {
                     camera_movement?: string | null
                     sequence_order?: number
                     estimated_duration?: number | null
+                    generation_settings?: Json | null
+                    prompt_text?: string | null
+                    selection_payload?: Json | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -236,6 +245,38 @@ export interface Database {
                 }
             }
             shot_options: {
+                Row: {
+                    id: string
+                    category: string
+                    key: string
+                    label: string
+                    descriptor: string
+                    sort_order: number
+                    active: boolean
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    category: string
+                    key: string
+                    label: string
+                    descriptor: string
+                    sort_order?: number
+                    active?: boolean
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    category?: string
+                    key?: string
+                    label?: string
+                    descriptor?: string
+                    sort_order?: number
+                    active?: boolean
+                    created_at?: string
+                }
+            }
+            shot_generations: {
                 Row: {
                     id: string
                     shot_id: string

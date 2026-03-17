@@ -33,7 +33,7 @@ export async function deleteGalleryAsset(optionId: string) {
 
     if (!user) return { error: "Unauthorized" };
 
-    const { error } = await supabase.from("shot_options").delete().eq("id", optionId);
+    const { error } = await supabase.from("shot_generations").delete().eq("id", optionId);
     if (error) return { error: error.message };
     return { success: true };
 }
@@ -60,7 +60,7 @@ export async function getGalleryAssets(projectId?: string) {
                 shots (
                     id,
                     name,
-                    shot_options (
+                    shot_generations (
                         id,
                         prompt,
                         status,
@@ -102,7 +102,7 @@ export async function getGalleryAssets(projectId?: string) {
                 if (!isRecord(shotRow)) continue;
 
                 const shotName = getString(shotRow.name) ?? "Untitled Shot";
-                const options = Array.isArray(shotRow.shot_options) ? shotRow.shot_options : [];
+                const options = Array.isArray(shotRow.shot_generations) ? shotRow.shot_generations : [];
 
                 for (const option of options) {
                     if (!isRecord(option)) continue;
@@ -136,6 +136,7 @@ export async function getGalleryAssets(projectId?: string) {
                         type: isVideo ? "video" : "image",
                         prompt: getString(option.prompt) ?? "",
                         shotName,
+                        shotId: getString(shotRow.id) ?? undefined,
                         projectId: currentProjectId,
                         projectName: currentProjectName,
                         sceneId: currentSceneId,

@@ -38,6 +38,7 @@ export async function ElementList({ projectId }: ElementListProps) {
                         {element.description ? (
                             <p className="mt-1 line-clamp-2 text-xs text-white/45">{element.description}</p>
                         ) : null}
+                        <p className="mt-2 text-[11px] text-white/40">Use this in the Shot Builder reference tags.</p>
                     </div>
                     <ElementDeleteButton projectId={projectId} elementId={element.id} />
                 </div>

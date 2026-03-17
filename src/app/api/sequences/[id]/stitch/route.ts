@@ -61,7 +61,7 @@ export async function POST(
 
     for (const entry of sequenceShots) {
         const { data: option } = await supabase
-            .from("shot_options")
+            .from("shot_generations")
             .select("output_url, status, created_at")
             .eq("shot_id", entry.shot_id)
             .eq("status", "completed")

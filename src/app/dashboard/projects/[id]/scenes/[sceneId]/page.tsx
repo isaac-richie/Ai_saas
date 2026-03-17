@@ -1,4 +1,4 @@
-import { getCinematicGear, getShots } from "@/core/actions/shots";
+import { getShots } from "@/core/actions/shots";
 import { getActiveGenerationProvider } from "@/core/actions/generation";
 import { getSequences } from "@/core/actions/sequences";
 import { ShotBuilder } from "@/interface/components/shots/ShotBuilder";
@@ -21,7 +21,6 @@ interface ScenePageProps {
 
 export default async function ScenePage(props: ScenePageProps) {
     const params = await props.params;
-    const { cameras, lenses } = await getCinematicGear();
     const shotsResult = await getShots(params.sceneId);
     const sequencesResult = await getSequences(params.sceneId);
     const providerResult = await getActiveGenerationProvider();
@@ -68,21 +67,36 @@ export default async function ScenePage(props: ScenePageProps) {
                                 Active Provider: {providerLabel} ({providerSourceLabel})
                             </Badge>
                         </div>
-                        <ShotBuilder projectId={params.id} sceneId={params.sceneId} cameras={cameras} lenses={lenses} />
+                        <ShotBuilder projectId={params.id} sceneId={params.sceneId} />
                     </div>
 
                     <div>
                         <h2 className="mb-3 text-lg font-semibold">Shot List ({shots.length})</h2>
-                        <ShotList projectId={params.id} sceneId={params.sceneId} shots={shots} />
+                        <ShotList projectId={params.id} sceneId={params.sceneId} shots={shots} sequences={sequences} />
                     </div>
                 </section>
 
                 <aside data-reveal="card" className="space-y-4">
                     <div className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-4 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Workflow Notes</h3>
-                        <p className="mt-3 text-sm text-white/50">
-                            Keep shot descriptions concise and concrete. Use movement, lens, and lighting to define mood.
-                        </p>
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Workflow</h3>
+                        <ol className="mt-3 space-y-2 text-sm text-white/55">
+                            <li className="flex items-start gap-2">
+                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[11px] text-white/70">1</span>
+                                Project → Scene → Shot
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[11px] text-white/70">2</span>
+                                Add references + confirm prompt
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[11px] text-white/70">3</span>
+                                Generate → Approve → Animate
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[11px] text-white/70">4</span>
+                                Add to sequence → Export
+                            </li>
+                        </ol>
                     </div>
 
                     <ElementUpload projectId={params.id} />

@@ -29,6 +29,12 @@ export default async function DashboardPage() {
                                 <p className="max-w-2xl text-sm text-white/50 md:text-base">
                                     Plan, prompt, and generate shots from one workspace tuned for production workflows.
                                 </p>
+                                <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/55">
+                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">1. Create project</span>
+                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">2. Add scenes</span>
+                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">3. Generate shots</span>
+                                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">4. Approve + export</span>
+                                </div>
                             </div>
                             <CreateProjectDialog />
                         </div>

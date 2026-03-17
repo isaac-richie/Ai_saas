@@ -14,13 +14,21 @@ export class OpenAIProvider extends BaseProvider {
 
     async generate(request: GenerationRequest): Promise<GenerationResult> {
         try {
+            const ratio = request.aspect_ratio || "1:1";
+            const size =
+                ratio === "16:9"
+                    ? "1792x1024"
+                    : ratio === "9:16"
+                        ? "1024x1792"
+                        : "1024x1024";
+
             const response = await this.client.images.generate({
-                model: "dall-e-3",
+                model: request.model || "dall-e-3",
                 prompt: request.prompt,
                 n: 1,
                 // DALL-E 3 supports 1024x1024, 1024x1792, 1792x1024. 
                 // We will map generic aspect ratios or stick to default for MVP.
-                size: "1024x1024",
+                size,
                 response_format: "url",
             });
 

@@ -45,6 +45,11 @@ export default async function ProjectPage(props: ProjectPageProps) {
 
     const project = projectRes.data;
     const scenes = scenesRes.data || [];
+    const sceneCount = scenes.length;
+    const shotCount = scenes.reduce((total, scene) => {
+        const count = (scene as { shots?: { count: number }[] }).shots?.[0]?.count ?? 0;
+        return total + count;
+    }, 0);
     const assets: MediaAsset[] = [];
 
     return (
@@ -57,6 +62,13 @@ export default async function ProjectPage(props: ProjectPageProps) {
                         <p className="mt-2 text-sm text-white/50 md:text-base">
                             {project.description || "Project workspace for scenes, prompts, and generated outputs."}
                         </p>
+                        <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/55">
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Scenes {sceneCount}</span>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Shots {shotCount}</span>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                Updated {new Date(project.updated_at || project.created_at).toLocaleDateString()}
+                            </span>
+                        </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <Link href={scenes[0] ? `/dashboard/projects/${project.id}/scenes/${scenes[0].id}` : `/dashboard/projects/${project.id}`} className="rounded-xl border border-white/10 bg-white/10 px-3.5 py-2 text-xs text-white hover:bg-white/15">

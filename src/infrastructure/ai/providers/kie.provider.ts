@@ -9,8 +9,8 @@ export class KieProvider extends BaseProvider {
             const body = {
                 prompt: request.prompt,
                 image_url: request.image_prompt,
-                duration: 5,
-                ratio: "16:9",
+                duration: request.duration_seconds ?? 5,
+                ratio: request.aspect_ratio || "16:9",
                 quality: "1080p"
             };
 

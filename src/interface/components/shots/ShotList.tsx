@@ -1,16 +1,18 @@
 /* eslint-disable @next/next/no-img-element */
 "use client"
 
-import { Shot } from "@/core/actions/shots"
+import { Shot, duplicateShot } from "@/core/actions/shots"
 import { Badge } from "@/interface/components/ui/badge"
 import { Card, CardContent } from "@/interface/components/ui/card"
 import { Button } from "@/interface/components/ui/button"
 import { Checkbox } from "@/interface/components/ui/checkbox"
+import { Dialog, DialogContent, DialogTitle } from "@/interface/components/ui/dialog"
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
 import { GripVertical, Camera, Aperture, Wand2, Loader2, Play, Sparkles, Check, Video, Trash2, ChevronRight, X } from "lucide-react"
 import { generateShot, generateVideoShot, pollShotStatus } from "@/core/actions/generation"
 import { batchGenerate } from "@/core/actions/batch"
 import { updateShotStatus, removeShot } from "@/core/actions/shots"
-import { addShotsToSequence, createSequence } from "@/core/actions/sequences"
+import { addShotsToSequence, appendShotToSequence, createSequence, VideoSequence } from "@/core/actions/sequences"
 import { addShotReference, deleteShotReference, getShotReferences } from "@/core/actions/references"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
@@ -23,6 +25,7 @@ interface ShotListProps {
         lens?: { name: string } | null,
         options?: ShotOption[]
     })[]
+    sequences?: VideoSequence[]
 }
 
 type ShotOption = {
@@ -31,6 +34,12 @@ type ShotOption = {
     output_url?: string | null
     created_at: string
     status: string
+    model_version?: string | null
+    provider?: { name: string; slug: string } | null
+    negative_prompt?: string | null
+    seed?: number | null
+    cfg_scale?: number | null
+    steps?: number | null
 }
 
 type ShotReference = {
@@ -40,7 +49,12 @@ type ShotReference = {
     type: string | null
 }
 
-export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
+type SelectionPayload = {
+    subject?: string
+    selections?: Record<string, { label?: string }>
+}
+
+export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps) {
     const [generatingId, setGeneratingId] = useState<string | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [selectedShots, setSelectedShots] = useState<string[]>([])
@@ -49,7 +63,21 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
     const [referenceMap, setReferenceMap] = useState<Record<string, ShotReference[]>>({})
     const [referenceInputs, setReferenceInputs] = useState<Record<string, string>>({})
     const [selectedShotId, setSelectedShotId] = useState<string | null>(null)
+    const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null)
+    const [compareTargets, setCompareTargets] = useState<ShotOption[]>([])
+    const [compareSet, setCompareSet] = useState<string[]>([])
     const listRef = useRef<HTMLDivElement>(null)
+
+    const getOutputType = (option: ShotOption) => {
+        if (!option.output_url) return "Pending"
+        if (option.output_url?.endsWith(".mp4")) return "Video"
+        return "Image"
+    }
+
+    const getVideoProxyUrl = (url?: string | null) => {
+        if (!url) return ""
+        return `/api/media/proxy?url=${encodeURIComponent(url)}`
+    }
 
     useEffect(() => {
         if (!listRef.current || shots.length === 0) return
@@ -110,6 +138,12 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
     useEffect(() => {
         setIsMounted(true)
     }, [])
+
+    useEffect(() => {
+        if (!selectedSequenceId && sequences && sequences.length > 0) {
+            setSelectedSequenceId(sequences[0].id)
+        }
+    }, [sequences, selectedSequenceId])
 
     useEffect(() => {
         let active = true
@@ -263,6 +297,53 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
         }
     }
 
+    const handleDuplicate = async (shotId: string) => {
+        const res = await duplicateShot(shotId)
+        if (res.error) {
+            toast.error(res.error)
+            return
+        }
+        toast.success("Shot duplicated")
+    }
+
+    const handleAppendToSequence = async (shotId: string) => {
+        if (!selectedSequenceId) {
+            toast.error("Select a sequence first")
+            return
+        }
+        const duration = shots.find((shot) => shot.id === shotId)?.estimated_duration ?? null
+        const res = await appendShotToSequence(selectedSequenceId, shotId, duration)
+        if (res.error) {
+            toast.error(res.error)
+            return
+        }
+        toast.success("Added to sequence")
+    }
+
+    const handleCompare = (option: ShotOption) => {
+        setCompareTargets((prev) => {
+            if (prev.find((item) => item.id === option.id)) {
+                return prev.filter((item) => item.id !== option.id)
+            }
+            if (prev.length >= 2) {
+                return [option]
+            }
+            return [...prev, option]
+        })
+    }
+
+    const toggleCompareSet = (option: ShotOption) => {
+        setCompareSet((prev) => {
+            if (prev.includes(option.id)) {
+                return prev.filter((id) => id !== option.id)
+            }
+            if (prev.length >= 3) {
+                return [...prev.slice(1), option.id]
+            }
+            return [...prev, option.id]
+        })
+    }
+
     const handleApprove = async (shotId: string, optionId: string, newStatus: string) => {
         setGeneratingId(shotId) // Using shotId for loading state, assuming it's tied to the parent shot
         try {
@@ -286,6 +367,7 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
     }
 
     const selectedShot = selectedShotId ? shots.find((shot) => shot.id === selectedShotId) : null
+    const selectedSettings = selectedShot?.generation_settings as Record<string, unknown> | null
 
     return (
         <div ref={listRef} className="grid gap-4">
@@ -310,24 +392,78 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
                             </Button>
                         </div>
 
+                        {(() => {
+                            const payload = selectedShot.selection_payload as SelectionPayload | null
+                            const selections = payload?.selections || {}
+                            const shotLabel = selections.shot?.label || selectedShot.shot_type || "—"
+                            const movementLabel = selections.movement?.label || selectedShot.camera_movement || "—"
+                            const cameraLabel = selections.camera?.label || "—"
+                            const lensLabel = selections.lens?.label || "—"
+                            const angleLabel = selections.angle?.label || "—"
+                            const lightingLabel = selections.lighting?.label || "—"
+                            return (
                         <div className="grid gap-3 sm:grid-cols-2">
                             <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Shot Type</div>
-                                <div className="mt-1 font-medium text-white/90">{selectedShot.shot_type || "—"}</div>
+                                <div className="mt-1 font-medium text-white/90">{shotLabel}</div>
                             </div>
                             <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Movement</div>
-                                <div className="mt-1 font-medium text-white/90">{selectedShot.camera_movement || "—"}</div>
+                                <div className="mt-1 font-medium text-white/90">{movementLabel}</div>
                             </div>
                             <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Camera</div>
-                                <div className="mt-1 font-medium text-white/90">{selectedShot.camera?.name || "—"}</div>
+                                <div className="mt-1 font-medium text-white/90">{cameraLabel}</div>
                             </div>
                             <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Lens</div>
-                                <div className="mt-1 font-medium text-white/90">{selectedShot.lens?.name || "—"}</div>
+                                <div className="mt-1 font-medium text-white/90">{lensLabel}</div>
+                            </div>
+                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                                <div className="text-xs uppercase tracking-[0.12em] text-white/45">Angle</div>
+                                <div className="mt-1 font-medium text-white/90">{angleLabel}</div>
+                            </div>
+                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                                <div className="text-xs uppercase tracking-[0.12em] text-white/45">Lighting</div>
+                                <div className="mt-1 font-medium text-white/90">{lightingLabel}</div>
                             </div>
                         </div>
+                            )
+                        })()}
+
+                        {(() => {
+                            const latestOption = selectedShot.options
+                                ?.filter((option) => option.created_at)
+                                .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0]
+                            if (!latestOption) return null
+                            return (
+                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
+                                <div className="text-[11px] uppercase tracking-[0.2em] text-white/45">Latest Output Settings</div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {latestOption.model_version && (
+                                        <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1">
+                                            Model {latestOption.model_version}
+                                        </span>
+                                    )}
+                                    {latestOption.seed !== null && latestOption.seed !== undefined && (
+                                        <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1">
+                                            Seed {latestOption.seed}
+                                        </span>
+                                    )}
+                                    {latestOption.cfg_scale !== null && latestOption.cfg_scale !== undefined && (
+                                        <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1">
+                                            CFG {latestOption.cfg_scale}
+                                        </span>
+                                    )}
+                                    {latestOption.steps !== null && latestOption.steps !== undefined && (
+                                        <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1">
+                                            Steps {latestOption.steps}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            )
+                        })()}
 
                         <div className="flex flex-wrap gap-3 text-xs text-white/55">
                             <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
@@ -336,14 +472,79 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
                             <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                                 Options: {selectedShot.options?.length || 0}
                             </div>
+                            {selectedSettings?.aspect_ratio && (
+                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                    Ratio: {String(selectedSettings.aspect_ratio)}
+                                </div>
+                            )}
+                            {selectedSettings?.duration_seconds && (
+                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                    Duration: {String(selectedSettings.duration_seconds)}s
+                                </div>
+                            )}
+                            {selectedSettings?.model && (
+                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                    Model: {String(selectedSettings.model)}
+                                </div>
+                            )}
+                            {selectedSettings?.variations && (
+                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                    Variations: {String(selectedSettings.variations)}
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
             )}
 
+            {sequences && sequences.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0b0b0d] px-4 py-3 text-xs text-white/60">
+                    <span className="text-[11px] uppercase tracking-[0.2em] text-white/45">Sequence Target</span>
+                    <select
+                        value={selectedSequenceId ?? ""}
+                        onChange={(event) => setSelectedSequenceId(event.target.value)}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80"
+                    >
+                        {sequences.map((sequence) => (
+                            <option key={sequence.id} value={sequence.id}>
+                                {sequence.name}
+                            </option>
+                        ))}
+                    </select>
+                    <Button
+                        size="sm"
+                        className="rounded-full border border-white/10 bg-white/10 text-xs text-white/80 hover:bg-white/20"
+                        onClick={() => {
+                            const name = window.prompt("Sequence name", "New Sequence")
+                            if (!name || !name.trim()) return
+                            createSequence(projectId, sceneId, name.trim()).then((res) => {
+                                if (res.error || !res.data) {
+                                    toast.error(res.error || "Failed to create sequence")
+                                    return
+                                }
+                                setSelectedSequenceId(res.data.id)
+                                toast.success("Sequence created")
+                            })
+                        }}
+                    >
+                        New Sequence
+                    </Button>
+                </div>
+            )}
+
             {shots.map((shot) => {
                 const approvedOption = shot.options?.find(opt => opt.status === 'approved');
+                const latestCompletedImage = shot.options
+                    ?.filter((opt) => opt.status === "completed" && opt.output_url && !opt.output_url.endsWith(".mp4"))
+                    .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0];
+                const animateCandidate = approvedOption || latestCompletedImage;
                 const references = referenceMap[shot.id] || []
+                const selectionPayload = shot.selection_payload as SelectionPayload | null
+                const selections = selectionPayload?.selections || {}
+                const shotLabel = selections.shot?.label || shot.shot_type
+                const movementLabel = selections.movement?.label || shot.camera_movement
+                const cameraLabel = selections.camera?.label
+                const lensLabel = selections.lens?.label
                 return (
                     <Card key={shot.id} className="shot-card rounded-2xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] transition-all hover:border-white/20">
                         <CardContent className="flex items-center p-3.5">
@@ -364,22 +565,51 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2 text-sm text-white/55">
-                                        {shot.camera && (
+                                        {shotLabel && (
                                             <Badge variant="outline" className="flex items-center gap-1 border-white/10 bg-white/5 text-white/75">
-                                                <Camera className="h-3 w-3" />
-                                                {shot.camera.name}
+                                                {shotLabel}
                                             </Badge>
                                         )}
-                                        {shot.lens && (
+                                        {movementLabel && (
+                                            <Badge variant="outline" className="flex items-center gap-1 border-white/10 bg-white/5 text-white/75">
+                                                {movementLabel}
+                                            </Badge>
+                                        )}
+                                        {cameraLabel && (
+                                            <Badge variant="outline" className="flex items-center gap-1 border-white/10 bg-white/5 text-white/75">
+                                                <Camera className="h-3 w-3" />
+                                                {cameraLabel}
+                                            </Badge>
+                                        )}
+                                        {lensLabel && (
                                             <Badge variant="outline" className="flex items-center gap-1 border-white/10 bg-white/5 text-white/75">
                                                 <Aperture className="h-3 w-3" />
-                                                {shot.lens.name}
+                                                {lensLabel}
                                             </Badge>
                                         )}
                                     </div>
                                 </div>
                             </div>
                             <div className="ml-auto flex items-center gap-2">
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/10 rounded-xl"
+                                    onClick={() => handleAppendToSequence(shot.id)}
+                                    disabled={!selectedSequenceId}
+                                    title="Add to sequence"
+                                >
+                                    <Video className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/10 rounded-xl"
+                                    onClick={() => handleDuplicate(shot.id)}
+                                    title="Duplicate shot"
+                                >
+                                    <Sparkles className="h-4 w-4" />
+                                </Button>
                                 <Button
                                     size="icon"
                                     variant="ghost"
@@ -456,12 +686,16 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
                         {(shot.options && shot.options.length > 0) && (
                             <div className="border-t border-white/10 p-3 bg-white/[0.02]">
                                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                    {shot.options.map((opt) => (
-                                        <Card key={opt.id} className="overflow-hidden border-white/10 bg-[#0b0b0d]">
+                                    {shot.options.map((opt) => {
+                                        const outputType = getOutputType(opt);
+                                        const providerLabel = opt.provider?.name || "Provider";
+                                        const statusLabel = opt.status === "processing" ? "Processing" : opt.status;
+                                        return (
+                                        <Card key={opt.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b0d]">
                                             <div className="aspect-video relative bg-black/50">
                                                 {opt.output_url ? (
                                                     opt.status === 'completed' && opt.output_url.endsWith('.mp4') ? (
-                                                        <video src={opt.output_url} className="w-full h-full object-cover" controls playsInline loop muted />
+                                                        <video src={getVideoProxyUrl(opt.output_url)} className="w-full h-full object-cover" controls playsInline loop muted preload="metadata" />
                                                     ) : (
                                                         <a href={opt.output_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full cursor-zoom-in overflow-hidden">
                                                             <img src={opt.output_url} alt={opt.prompt || ""} className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
@@ -499,23 +733,75 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="p-2 flex justify-between items-center text-xs text-white/50 bg-[#111114]">
-                                                <span>{isMounted ? new Date(opt.created_at).toLocaleTimeString() : ""}</span>
-                                                {opt.status === 'processing' && <Badge variant="outline" className="text-[10px]">Processing</Badge>}
+                                            <div className="space-y-2 border-t border-white/10 bg-[#111114] p-3 text-xs text-white/55">
+                                                <div className="flex items-center justify-between">
+                                                    <span>{isMounted ? new Date(opt.created_at).toLocaleTimeString() : ""}</span>
+                                                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/70">
+                                                        {outputType}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/60">
+                                                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{providerLabel}</span>
+                                                    {opt.model_version && (
+                                                        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                                                            {opt.model_version}
+                                                        </span>
+                                                    )}
+                                                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 capitalize">
+                                                        {statusLabel}
+                                                    </span>
+                                                    {opt.output_url && (
+                                                        <a
+                                                            href={opt.output_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            download
+                                                            className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-white/80 hover:bg-white/20"
+                                                        >
+                                                            Download
+                                                        </a>
+                                                    )}
+                                                    {opt.output_url && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCompare(opt)}
+                                                            className={`rounded-full border px-2.5 py-1 ${
+                                                                compareTargets.find((item) => item.id === opt.id)
+                                                                    ? "border-cyan-400 bg-cyan-400/20 text-cyan-100"
+                                                                    : "border-white/10 bg-white/10 text-white/70 hover:bg-white/20"
+                                                            }`}
+                                                        >
+                                                            Compare
+                                                        </button>
+                                                    )}
+                                                    {opt.output_url && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleCompareSet(opt)}
+                                                            className={`rounded-full border px-2.5 py-1 ${
+                                                                compareSet.includes(opt.id)
+                                                                    ? "border-emerald-400 bg-emerald-400/20 text-emerald-100"
+                                                                    : "border-white/10 bg-white/10 text-white/70 hover:bg-white/20"
+                                                            }`}
+                                                        >
+                                                            Pin
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </Card>
-                                    ))}
+                                    )})}
                                 </div>
-                                {approvedOption && !approvedOption.output_url?.endsWith('.mp4') && (
+                                {animateCandidate && !animateCandidate.output_url?.endsWith('.mp4') && (
                                     <div className="mt-3 flex justify-end">
                                         <Button
                                             variant="secondary"
                                             size="sm"
-                                            onClick={() => handleGenerateVideo(approvedOption.id)}
-                                            disabled={generatingId === approvedOption.id || approvedOption.status === 'processing'}
+                                            onClick={() => handleGenerateVideo(animateCandidate.id)}
+                                            disabled={generatingId === animateCandidate.id || animateCandidate.status === 'processing'}
                                             className="h-8 gap-1 rounded-xl text-xs bg-white/10 hover:bg-white/20 text-white"
                                         >
-                                            {generatingId === approvedOption.id ? (
+                                            {generatingId === animateCandidate.id ? (
                                                 <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Generating Video...</>
                                             ) : (
                                                 <><Video className="mr-1.5 h-3.5 w-3.5" /> Animate via Kie.ai</>
@@ -545,6 +831,52 @@ export function ShotList({ shots, projectId, sceneId }: ShotListProps) {
                         Create Sequence
                     </Button>
                 </div>
+            )}
+
+            {compareTargets.length === 2 && (
+                <Dialog open onOpenChange={() => setCompareTargets([])}>
+                    <DialogContent className="max-w-6xl border-white/10 bg-black/95 p-0 text-white">
+                        <VisuallyHidden.Root>
+                            <DialogTitle>Compare Outputs</DialogTitle>
+                        </VisuallyHidden.Root>
+                        <div className="grid min-h-[60vh] grid-cols-1 lg:grid-cols-2">
+                            {compareTargets.map((target) => (
+                                <div key={target.id} className="relative flex items-center justify-center border-r border-white/10 bg-black p-4 last:border-r-0">
+                                    {target.output_url?.endsWith(".mp4") ? (
+                                        <video src={getVideoProxyUrl(target.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay loop playsInline preload="metadata" />
+                                    ) : (
+                                        <img src={target.output_url || ""} alt={target.prompt || ""} className="max-h-full max-w-full object-contain" />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
+
+            {compareSet.length > 0 && (
+                <Dialog open onOpenChange={() => setCompareSet([])}>
+                    <DialogContent className="max-w-6xl border-white/10 bg-black/95 p-0 text-white">
+                        <VisuallyHidden.Root>
+                            <DialogTitle>Compare Set</DialogTitle>
+                        </VisuallyHidden.Root>
+                        <div className="grid min-h-[60vh] grid-cols-1 lg:grid-cols-3">
+                            {compareSet.map((id) => {
+                                const option = shots.flatMap((shot) => shot.options || []).find((opt) => opt.id === id)
+                                if (!option) return null
+                                return (
+                                    <div key={id} className="relative flex items-center justify-center border-r border-white/10 bg-black p-4 last:border-r-0">
+                                        {option.output_url?.endsWith(".mp4") ? (
+                                            <video src={getVideoProxyUrl(option.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay loop playsInline preload="metadata" />
+                                        ) : (
+                                            <img src={option.output_url || ""} alt={option.prompt || ""} className="max-h-full max-w-full object-contain" />
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </DialogContent>
+                </Dialog>
             )}
         </div >
     )

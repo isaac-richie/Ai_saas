@@ -6,7 +6,11 @@ import { revalidatePath } from "next/cache";
 import { Database } from "@/core/types/db";
 import { createProjectSchema } from "@/core/validation/schemas";
 
-export type Project = Database["public"]["Tables"]["projects"]["Row"];
+export type Project = Database["public"]["Tables"]["projects"]["Row"] & {
+    scene_count?: number;
+    shot_count?: number;
+    thumbnail_url?: string | null;
+};
 
 function getErrorMessage(error: unknown): string {
     if (error instanceof Error) return error.message;

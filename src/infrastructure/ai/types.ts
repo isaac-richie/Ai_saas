@@ -8,6 +8,10 @@ export interface GenerationRequest {
     aspect_ratio?: string;
     seed?: number;
     model?: string;
+    duration_seconds?: number;
+    steps?: number;
+    cfg_scale?: number;
+    variations?: number;
 }
 
 export interface GenerationResult {

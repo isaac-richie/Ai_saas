@@ -20,6 +20,27 @@ export async function createShot(sceneId: string, formData: FormData) {
         estimated_duration: parseInt(formData.get("estimated_duration") as string) || 0,
         camera_id: formData.get("camera_id") || null,
         lens_id: formData.get("lens_id") || null,
+        generation_settings: (() => {
+            const raw = formData.get("generation_settings");
+            if (!raw) return undefined;
+            if (typeof raw !== "string") return undefined;
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return undefined;
+            }
+        })(),
+        prompt_text: formData.get("prompt_text") || undefined,
+        selection_payload: (() => {
+            const raw = formData.get("selection_payload");
+            if (!raw) return undefined;
+            if (typeof raw !== "string") return undefined;
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return undefined;
+            }
+        })(),
     };
 
     const validationResult = createShotSchema.safeParse(rawData);
@@ -38,9 +59,12 @@ export async function createShot(sceneId: string, formData: FormData) {
             description: data.description || null,
             shot_type: data.shot_type || null,
             camera_movement: data.camera_movement || null,
-            estimated_duration: data.estimated_duration,
+            estimated_duration: data.generation_settings?.duration_seconds ?? data.estimated_duration,
             camera_id: data.camera_id || null,
             lens_id: data.lens_id || null,
+            generation_settings: data.generation_settings ?? null,
+            prompt_text: typeof data.prompt_text === "string" ? data.prompt_text : null,
+            selection_payload: data.selection_payload ?? null,
             sequence_order: nextSequence
         });
 
@@ -69,7 +93,7 @@ export async function updateShotStatus(shotId: string, optionId: string, status:
     if (!user) return { error: "Unauthorized" };
 
     const { error: updateError } = await supabase
-        .from("shot_options")
+        .from("shot_generations")
         .update({ status: status })
         .eq("id", optionId)
         .eq("shot_id", shotId); // Extra check for safety
@@ -140,6 +164,50 @@ export async function removeShot(shotId: string) {
         return { success: true };
     } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Failed to delete shot";
+        return { error: message };
+    }
+}
+
+export async function duplicateShot(shotId: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { error: "Unauthorized" };
+
+    try {
+        const shot = await ShotRepo.getShotById(shotId);
+        if (!shot) return { error: "Shot not found" };
+
+        const nextSequence = await ShotRepo.getNextSequenceOrder(shot.scene_id);
+        const name = shot.name.length > 80 ? `${shot.name.slice(0, 80)} Copy` : `${shot.name} Copy`;
+
+        const duplicated = await ShotRepo.createShot({
+            scene_id: shot.scene_id,
+            name,
+            description: shot.description || null,
+            shot_type: shot.shot_type || null,
+            camera_movement: shot.camera_movement || null,
+            estimated_duration: shot.estimated_duration ?? null,
+            camera_id: shot.camera_id || null,
+            lens_id: shot.lens_id || null,
+            generation_settings: shot.generation_settings ?? null,
+            sequence_order: nextSequence,
+        });
+
+        const { data: scene } = await supabase
+            .from("scenes")
+            .select("id, project_id")
+            .eq("id", shot.scene_id)
+            .single();
+
+        if (scene?.project_id) {
+            revalidatePath(`/dashboard/projects/${scene.project_id}/scenes/${scene.id}`);
+            revalidatePath(`/dashboard/projects/${scene.project_id}`);
+        }
+
+        return { data: duplicated };
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Failed to duplicate shot";
         return { error: message };
     }
 }

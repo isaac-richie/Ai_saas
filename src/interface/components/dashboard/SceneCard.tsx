@@ -130,6 +130,10 @@ export function SceneCard({ scene, projectId, isFirst, isLast }: SceneCardProps)
                     <p className="line-clamp-2 text-xs text-white/55">
                         {scene.description || "No description."}
                     </p>
+                    <div className="mt-3 flex items-center justify-between text-[11px] text-white/45">
+                        <span>Updated {new Date(scene.updated_at || scene.created_at).toLocaleDateString()}</span>
+                        <span>{shotCount} shots</span>
+                    </div>
                 </CardContent>
             </Card>
         </Link>

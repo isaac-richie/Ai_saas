@@ -1,16 +1,46 @@
 import Link from "next/link";
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Badge } from "@/interface/components/ui/badge";
 import { CreateProjectDialog } from "@/interface/components/dashboard/CreateProjectDialog";
 import { getProjects } from "@/core/actions/projects";
 import { getScenes } from "@/core/actions/scenes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components/ui/card";
+import { createClient } from "@/infrastructure/supabase/server";
 
 export const metadata: Metadata = {
     title: "Studio | AI Cinematography Dashboard",
 };
 
-export default async function StudioPage() {
+interface StudioPageProps {
+    searchParams?: Promise<{
+        overview?: string;
+    }>;
+}
+
+export default async function StudioPage(props: StudioPageProps) {
+    const searchParams = props.searchParams ? await props.searchParams : undefined;
+    const showOverview = searchParams?.overview === "1";
+
+    if (!showOverview) {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+            const { data: latestScene } = await supabase
+                .from("scenes")
+                .select("id, project_id, created_at, projects!inner(user_id)")
+                .eq("projects.user_id", user.id)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (latestScene?.id && latestScene.project_id) {
+                redirect(`/dashboard/projects/${latestScene.project_id}/scenes/${latestScene.id}`);
+            }
+        }
+    }
+
     const projectsResult = await getProjects();
     const projects = projectsResult.data || [];
 

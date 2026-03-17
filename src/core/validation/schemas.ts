@@ -19,4 +19,7 @@ export const createShotSchema = z.object({
     estimated_duration: z.number().int().min(0).default(0),
     camera_id: z.string().uuid().optional().nullable(),
     lens_id: z.string().uuid().optional().nullable(),
+    generation_settings: z.any().optional().nullable(),
+    prompt_text: z.string().optional(),
+    selection_payload: z.any().optional().nullable(),
 });

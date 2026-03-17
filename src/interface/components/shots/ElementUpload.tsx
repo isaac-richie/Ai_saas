@@ -82,7 +82,10 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-white/10 bg-[#0b0b0d] p-5">
-            <h3 className="text-sm font-semibold text-white">Upload New Reference Element</h3>
+            <div>
+                <h3 className="text-sm font-semibold text-white">Upload Reference Element</h3>
+                <p className="mt-1 text-xs text-white/50">Save reusable characters, props, or environments for quick shot assembly.</p>
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-3">

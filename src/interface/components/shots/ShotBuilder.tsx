@@ -22,8 +22,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/interface/components/ui/select"
+import { Checkbox } from "@/interface/components/ui/checkbox"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/interface/components/ui/card"
-import { generatePrompt, ShotParams } from "@/core/utils/prompts/builder"
+import { assemblePrompt, PROMPT_ORDER, PromptCategory, PromptPreset } from "@/core/utils/prompts/builder"
 import { createShot } from "@/core/actions/shots"
 import { attachElementToShot } from "@/core/actions/elements"
 import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
@@ -31,26 +32,41 @@ import { addShotReference } from "@/core/actions/references"
 import { Loader2, Plus, Sparkles, Layers } from "lucide-react"
 import { toast } from "sonner"
 
+const numericOptional = z.preprocess(
+    (val) => {
+        if (val === "" || val === null || val === undefined) return undefined
+        const num = Number(val)
+        return Number.isNaN(num) ? undefined : num
+    },
+    z.number().optional()
+)
+
 const shotSchema = z.object({
-    description: z.string().min(3, "Description is required"),
-    shotSize: z.string().optional(),
+    subject: z.string().min(3, "Subject is required"),
+    shot: z.string().optional(),
     angle: z.string().optional(),
-    movement: z.string().optional(),
     camera: z.string().optional(),
     lens: z.string().optional(),
+    movement: z.string().optional(),
     lighting: z.string().optional(),
+    timeOfDay: z.string().optional(),
+    colorGrade: z.string().optional(),
+    depthOfField: z.string().optional(),
+    aspectRatio: z.string().optional(),
+    genreMood: z.string().optional(),
+    durationSeconds: numericOptional,
+    model: z.string().optional(),
+    negativePrompt: z.string().optional(),
+    seed: numericOptional,
+    seedLocked: z.boolean().optional(),
+    cfgScale: numericOptional,
+    steps: numericOptional,
+    variations: numericOptional,
 })
 
 type ShotFormValues = z.infer<typeof shotSchema>
 
-type PresetData = {
-    shotSize?: string
-    angle?: string
-    movement?: string
-    camera?: string
-    lens?: string
-    lighting?: string
-}
+type PresetData = Partial<Record<PromptCategory, string>>
 
 type ShotPreset = {
     id: string
@@ -62,8 +78,6 @@ type ShotPreset = {
 interface ShotBuilderProps {
     projectId: string
     sceneId: string
-    cameras: { id: string; name: string }[]
-    lenses: { id: string; name: string }[]
     onShotCreated?: () => void
 }
 
@@ -72,7 +86,32 @@ type AvailableElement = {
     name: string
 }
 
-export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated }: ShotBuilderProps) {
+type PresetOption = {
+    id: string
+    category: PromptCategory
+    key: string
+    label: string
+    descriptor: string
+    sort_order?: number
+}
+
+type PresetMap = Record<PromptCategory, PresetOption[]>
+
+const CATEGORY_LABELS: Record<PromptCategory, string> = {
+    shot: "Shot Size",
+    angle: "Camera Angle",
+    camera: "Camera Sensor",
+    lens: "Lens Character",
+    movement: "Camera Movement",
+    lighting: "Lighting",
+    timeOfDay: "Time of Day",
+    colorGrade: "Color Grade",
+    depthOfField: "Depth of Field",
+    aspectRatio: "Aspect Ratio",
+    genreMood: "Genre / Mood",
+}
+
+export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderProps) {
     const [isSaving, setIsSaving] = useState(false)
     const [availableElements, setAvailableElements] = useState<AvailableElement[]>([])
     const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set())
@@ -84,9 +123,30 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
     const [newPresetDescription, setNewPresetDescription] = useState("")
     const [referenceInput, setReferenceInput] = useState("")
     const [referenceUrls, setReferenceUrls] = useState<string[]>([])
+    const [presetOptions, setPresetOptions] = useState<PresetMap | null>(null)
+    const [loadingOptions, setLoadingOptions] = useState(true)
 
     useEffect(() => {
         setIsMounted(true)
+    }, [])
+
+    useEffect(() => {
+        let active = true
+        fetch("/api/shot-options")
+            .then((res) => res.json())
+            .then((data) => {
+                if (!active) return
+                setPresetOptions(data.data || null)
+            })
+            .catch(() => {
+                if (active) setPresetOptions(null)
+            })
+            .finally(() => {
+                if (active) setLoadingOptions(false)
+            })
+        return () => {
+            active = false
+        }
     }, [])
 
     // Fetch elements on mount
@@ -145,13 +205,10 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
     const form = useForm<ShotFormValues>({
         resolver: zodResolver(shotSchema),
         defaultValues: {
-            description: "",
-            shotSize: "Medium Shot",
-            angle: "Eye Level",
-            movement: "Static",
-            lighting: "Natural Lighting",
-            camera: cameras[0]?.id,
-            lens: lenses[0]?.id,
+            subject: "",
+            durationSeconds: 5,
+            seedLocked: true,
+            variations: 1,
         },
     })
 
@@ -161,40 +218,46 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
 
     const watchedValues = useWatch({ control: form.control })
 
-    const promptPreview = useMemo(() => {
-        const cameraName = cameras.find((c) => c.id === watchedValues.camera)?.name
-        const lensName = lenses.find((l) => l.id === watchedValues.lens)?.name
-
-        const params: ShotParams = {
-            description: watchedValues.description || "",
-            shotSize: watchedValues.shotSize,
-            angle: watchedValues.angle,
-            movement: watchedValues.movement,
-            lighting: watchedValues.lighting,
-            camera: cameraName,
-            lens: lensName,
+    const selections = useMemo(() => {
+        const map: Partial<Record<PromptCategory, PromptPreset>> = {}
+        if (!presetOptions) return map
+        for (const category of PROMPT_ORDER) {
+            const key = (watchedValues as Record<string, string | undefined>)[category]
+            if (!key) continue
+            const preset = presetOptions[category]?.find((item) => item.key === key)
+            if (preset) {
+                map[category] = {
+                    key: preset.key,
+                    label: preset.label,
+                    descriptor: preset.descriptor,
+                }
+            }
         }
+        return map
+    }, [presetOptions, watchedValues])
 
-        return generatePrompt(params)
-    }, [watchedValues, cameras, lenses])
+    const promptPreview = useMemo(() => {
+        return assemblePrompt({
+            subject: watchedValues.subject || "",
+            selections,
+        })
+    }, [watchedValues.subject, selections])
 
-    const buildPresetData = (values: ShotFormValues): PresetData => ({
-        shotSize: values.shotSize,
-        angle: values.angle,
-        movement: values.movement,
-        camera: values.camera,
-        lens: values.lens,
-        lighting: values.lighting,
-    })
+    const buildPresetData = (values: ShotFormValues): PresetData => {
+        const data: PresetData = {}
+        PROMPT_ORDER.forEach((category) => {
+            const value = (values as Record<string, string | undefined>)[category]
+            if (value) data[category] = value
+        })
+        return data
+    }
 
     const applyPreset = (preset: ShotPreset) => {
         const data = preset.data || {}
-        if (data.shotSize) form.setValue("shotSize", data.shotSize)
-        if (data.angle) form.setValue("angle", data.angle)
-        if (data.movement) form.setValue("movement", data.movement)
-        if (data.camera) form.setValue("camera", data.camera)
-        if (data.lens) form.setValue("lens", data.lens)
-        if (data.lighting) form.setValue("lighting", data.lighting)
+        PROMPT_ORDER.forEach((category) => {
+            const value = data[category]
+            if (value) form.setValue(category, value)
+        })
         toast.success(`Applied preset: ${preset.name}`)
     }
 
@@ -238,22 +301,41 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
     async function onSubmit(data: ShotFormValues) {
         setIsSaving(true)
 
-        const name = `${data.shotSize || "Shot"} of ${data.description.substring(0, 20)}...`
+        const shotLabel = selections.shot?.label || "Shot"
+        const name = `${shotLabel} of ${data.subject.substring(0, 20)}...`
+
+        const selectionPayload = {
+            subject: data.subject,
+            selections,
+        }
+
+        const generationSettings = {
+            aspect_ratio: selections.aspectRatio?.label || data.aspectRatio || undefined,
+            duration_seconds: data.durationSeconds ? Number(data.durationSeconds) : undefined,
+            model: data.model?.trim() || undefined,
+            negative_prompt: data.negativePrompt?.trim() || undefined,
+            seed: data.seed !== undefined ? Number(data.seed) : undefined,
+            seed_locked: Boolean(data.seedLocked),
+            cfg_scale: data.cfgScale !== undefined ? Number(data.cfgScale) : undefined,
+            steps: data.steps !== undefined ? Number(data.steps) : undefined,
+            variations: data.variations !== undefined ? Number(data.variations) : undefined,
+        }
 
         const formData = new FormData()
         formData.append("name", name)
-        formData.append("description", data.description)
-        formData.append("shot_type", data.shotSize || "")
-        formData.append("camera_movement", data.movement || "")
-        if (data.camera) formData.append("camera_id", data.camera)
-        if (data.lens) formData.append("lens_id", data.lens)
+        formData.append("description", data.subject)
+        formData.append("shot_type", selections.shot?.label || "")
+        formData.append("camera_movement", selections.movement?.label || "")
+        formData.append("estimated_duration", String(data.durationSeconds || 0))
+        formData.append("generation_settings", JSON.stringify(generationSettings))
+        formData.append("prompt_text", promptPreview)
+        formData.append("selection_payload", JSON.stringify(selectionPayload))
 
         const res = await createShot(sceneId, formData)
 
         if (!res.error && res.data) {
-            // Attach selected elements
             for (const elId of Array.from(selectedElementIds)) {
-                await attachElementToShot(res.data.id, elId) // res.data needs to return the shot in createShot
+                await attachElementToShot(res.data.id, elId)
             }
 
             for (const url of referenceUrls) {
@@ -267,13 +349,10 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
         } else {
             toast.success("Shot created successfully!")
             form.reset({
-                description: "",
-                shotSize: "Medium Shot",
-                angle: "Eye Level",
-                movement: "Static",
-                lighting: "Natural Lighting",
-                camera: cameras[0]?.id,
-                lens: lenses[0]?.id,
+                subject: "",
+                durationSeconds: 5,
+                seedLocked: true,
+                variations: 1,
             })
             setSelectedElementIds(new Set())
             setReferenceUrls([])
@@ -302,13 +381,13 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
                             <FormField
                                 control={form.control}
-                                name="description"
+                                name="subject"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="text-white/80">Subject / Action</FormLabel>
                                         <FormControl>
                                             <Textarea
-                                                placeholder="A cyberpunk detective walking in the rain..."
+                                                placeholder="A lone astronaut on a red planet..."
                                                 className="resize-none rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
                                                 {...field}
                                             />
@@ -318,162 +397,45 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                                 )}
                             />
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <FormField
-                                    control={form.control}
-                                    name="shotSize"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-white/80">Shot Size</FormLabel>
-                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
-                                                        <SelectValue placeholder="Select size" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent className="border-white/10 bg-[#111114] text-white">
-                                                    <SelectItem value="__none__">Clear</SelectItem>
-                                                    <SelectItem value="Extreme Wide Shot">Extreme Wide Shot</SelectItem>
-                                                    <SelectItem value="Wide Shot">Wide Shot</SelectItem>
-                                                    <SelectItem value="Medium Shot">Medium Shot</SelectItem>
-                                                    <SelectItem value="Close-up">Close-up</SelectItem>
-                                                    <SelectItem value="Extreme Close-up">Extreme Close-up</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </FormItem>
-                                    )}
-                                />
+                            {loadingOptions ? (
+                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/50">
+                                    Loading presets...
+                                </div>
+                            ) : (
+                                <div className="grid gap-3">
+                                    {PROMPT_ORDER.map((category) => (
+                                        <FormField
+                                            key={category}
+                                            control={form.control}
+                                            name={category}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-white/80">{CATEGORY_LABELS[category]}</FormLabel>
+                                                    <Select
+                                                        onValueChange={(value) => handleOptionalSelect(value, field.onChange)}
+                                                        defaultValue={field.value}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
+                                                                <SelectValue placeholder={`Select ${CATEGORY_LABELS[category].toLowerCase()}`} />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                            <SelectItem value="__none__">Clear</SelectItem>
+                                                            {(presetOptions?.[category] || []).map((option) => (
+                                                                <SelectItem key={option.id} value={option.key}>
+                                                                    {option.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    ))}
+                                </div>
+                            )}
 
-                                <FormField
-                                    control={form.control}
-                                    name="angle"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-white/80">Angle</FormLabel>
-                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
-                                                        <SelectValue placeholder="Select angle" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent className="border-white/10 bg-[#111114] text-white">
-                                                    <SelectItem value="__none__">Clear</SelectItem>
-                                                    <SelectItem value="Eye Level">Eye Level</SelectItem>
-                                                    <SelectItem value="Low Angle">Low Angle</SelectItem>
-                                                    <SelectItem value="High Angle">High Angle</SelectItem>
-                                                    <SelectItem value="Overhead">Overhead</SelectItem>
-                                                    <SelectItem value="Dutch Angle">Dutch Angle</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="camera"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-white/80">Camera</FormLabel>
-                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
-                                                        <SelectValue placeholder="Select camera" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent className="border-white/10 bg-[#111114] text-white">
-                                                    <SelectItem value="__none__">Clear</SelectItem>
-                                                    {cameras.map((camera) => (
-                                                        <SelectItem key={camera.id} value={camera.id}>{camera.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="lens"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-white/80">Lens</FormLabel>
-                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
-                                                        <SelectValue placeholder="Select lens" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent className="border-white/10 bg-[#111114] text-white">
-                                                    <SelectItem value="__none__">Clear</SelectItem>
-                                                    {lenses.map((lens) => (
-                                                        <SelectItem key={lens.id} value={lens.id}>{lens.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <FormField
-                                    control={form.control}
-                                    name="movement"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-white/80">Movement</FormLabel>
-                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
-                                                        <SelectValue placeholder="Select movement" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent className="border-white/10 bg-[#111114] text-white">
-                                                    <SelectItem value="__none__">Clear</SelectItem>
-                                                    <SelectItem value="Static">Static</SelectItem>
-                                                    <SelectItem value="Handheld">Handheld</SelectItem>
-                                                    <SelectItem value="Dolly In">Dolly In</SelectItem>
-                                                    <SelectItem value="Dolly Out">Dolly Out</SelectItem>
-                                                    <SelectItem value="Pan Right">Pan Right</SelectItem>
-                                                    <SelectItem value="Pan Left">Pan Left</SelectItem>
-                                                    <SelectItem value="Tilt Up">Tilt Up</SelectItem>
-                                                    <SelectItem value="Tilt Down">Tilt Down</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <FormField
-                                    control={form.control}
-                                    name="lighting"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-white/80">Lighting</FormLabel>
-                                            <Select onValueChange={(value) => handleOptionalSelect(value, field.onChange)} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
-                                                        <SelectValue placeholder="Select lighting" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent className="border-white/10 bg-[#111114] text-white">
-                                                    <SelectItem value="__none__">Clear</SelectItem>
-                                                    <SelectItem value="Natural Lighting">Natural Lighting</SelectItem>
-                                                    <SelectItem value="Golden Hour">Golden Hour</SelectItem>
-                                                    <SelectItem value="Blue Hour">Blue Hour</SelectItem>
-                                                    <SelectItem value="Studio Lighting">Studio Lighting</SelectItem>
-                                                    <SelectItem value="Cinematic">Cinematic</SelectItem>
-                                                    <SelectItem value="Neon Noir">Neon Noir</SelectItem>
-                                                    <SelectItem value="Rembrandt">Rembrandt</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-
-                            {/* Elements Selection logic */}
                             {availableElements.length > 0 && (
                                 <div className="space-y-2 pt-2 border-t border-white/10">
                                     <label className="text-sm font-medium text-white/80 flex items-center">
@@ -533,6 +495,184 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                                 )}
                             </div>
 
+                            <div className="space-y-3 border-t border-white/10 pt-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="text-sm font-medium text-white/80">Advanced Controls</div>
+                                        <p className="text-xs text-white/45">Aspect ratio, model, seed lock, and quality tuning.</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <FormField
+                                        control={form.control}
+                                        name="durationSeconds"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-white/80">Duration (sec)</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        min={1}
+                                                        max={60}
+                                                        value={field.value ?? ""}
+                                                        onChange={(event) =>
+                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
+                                                        }
+                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name="model"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-white/80">Model (optional)</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    placeholder="e.g. dall-e-3"
+                                                    value={field.value ?? ""}
+                                                    onChange={(event) => field.onChange(event.target.value)}
+                                                    className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
+                                    name="negativePrompt"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-white/80">Negative Prompt</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    placeholder="Avoid clutter, distorted faces, oversaturated neon..."
+                                                    className="resize-none rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                                    value={field.value ?? ""}
+                                                    onChange={(event) => field.onChange(event.target.value)}
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <FormField
+                                        control={form.control}
+                                        name="seed"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-white/80">Seed</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        value={field.value ?? ""}
+                                                        onChange={(event) =>
+                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
+                                                        }
+                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="variations"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-white/80">Variations</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        min={1}
+                                                        max={6}
+                                                        value={field.value ?? ""}
+                                                        onChange={(event) =>
+                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
+                                                        }
+                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <FormField
+                                        control={form.control}
+                                        name="cfgScale"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-white/80">CFG Scale</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        max={30}
+                                                        value={field.value ?? ""}
+                                                        onChange={(event) =>
+                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
+                                                        }
+                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="steps"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-white/80">Steps</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="number"
+                                                        min={1}
+                                                        max={200}
+                                                        value={field.value ?? ""}
+                                                        onChange={(event) =>
+                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
+                                                        }
+                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name="seedLocked"
+                                    render={({ field }) => (
+                                        <FormItem className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                                            <div>
+                                                <FormLabel className="text-white/80">Lock Seed</FormLabel>
+                                                <p className="text-xs text-white/45">Keep seed consistent across variations.</p>
+                                            </div>
+                                            <FormControl>
+                                                <Checkbox
+                                                    checked={field.value ?? false}
+                                                    onCheckedChange={(value) => field.onChange(Boolean(value))}
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
                             <Button type="submit" disabled={isSaving} className="w-full rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15">
                                 {isSaving ? (
                                     <>
@@ -566,7 +706,7 @@ export function ShotBuilder({ projectId, sceneId, cameras, lenses, onShotCreated
                     </CardContent>
                     <CardFooter>
                         <p className="text-xs text-white/50">
-                            This prompt will be sent to the AI image generator.
+                            Descriptors are assembled in the exact order required for cinematic prompts.
                         </p>
                     </CardFooter>
                 </Card>

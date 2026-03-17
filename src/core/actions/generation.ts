@@ -3,7 +3,7 @@
 import { createClient } from "@/infrastructure/supabase/server";
 import { ProviderFactory } from "@/infrastructure/ai/factory";
 import { decrypt } from "@/core/utils/security/encryption";
-import { generatePrompt } from "@/core/utils/prompts/builder";
+import { assemblePrompt } from "@/core/utils/prompts/builder";
 import { revalidatePath } from "next/cache";
 import * as ShotRepo from "@/infrastructure/repositories/shot.repository";
 import { Database } from "@/core/types/db";
@@ -20,7 +20,7 @@ type ProviderResolution = {
     source: "user_key" | "env";
 };
 
-type ShotOptionUpdate = Database["public"]["Tables"]["shot_options"]["Update"];
+type ShotOptionUpdate = Database["public"]["Tables"]["shot_generations"]["Update"];
 
 const getSceneFromJoin = (shots: { scene_id: string } | { scene_id: string }[] | null | undefined) => {
     if (!shots) return null;
@@ -179,33 +179,60 @@ export async function generateShot(shotId: string) {
         return { error: resolved.error ?? "No provider configured" };
     }
 
-    // 5. Build Prompt
-    const prompt = generatePrompt({
-        description: shot.description || "",
-        shotSize: shot.shot_type || undefined,
-        movement: shot.camera_movement || undefined,
-        camera: shot.camera?.name,
-        lens: shot.lens?.name,
-    });
+    const selectionPayload = (shot.selection_payload as Record<string, unknown> | null) ?? null;
+    const prompt = shot.prompt_text
+        || (selectionPayload?.subject
+            ? assemblePrompt({
+                subject: selectionPayload.subject,
+                selections: selectionPayload.selections || {},
+            })
+            : (shot.description || ""));
 
     // 6. Call Provider
     try {
         const provider = ProviderFactory.create(resolved.data.slug, { apiKey: resolved.data.apiKey });
-        const result = await provider.generate({ prompt });
+        const settings = (shot.generation_settings as Record<string, unknown> | null) ?? {};
+        const variations = Math.max(1, Math.min(Number(settings.variations ?? 1), 6));
+        const baseSeed = typeof settings.seed === "number" ? settings.seed : undefined;
+        const seedLocked = Boolean(settings.seed_locked);
 
-        if (result.status === 'failed') {
-            return { error: result.error || "Generation failed" };
+        let lastUrl: string | undefined;
+
+        for (let i = 0; i < variations; i += 1) {
+            const requestSeed = baseSeed !== undefined && !seedLocked ? baseSeed + i : baseSeed;
+            const result = await provider.generate({
+                prompt,
+                negative_prompt: typeof settings.negative_prompt === "string" ? settings.negative_prompt : undefined,
+                aspect_ratio: typeof settings.aspect_ratio === "string" ? settings.aspect_ratio : undefined,
+                model: typeof settings.model === "string" ? settings.model : undefined,
+                seed: typeof requestSeed === "number" ? requestSeed : undefined,
+                steps: typeof settings.steps === "number" ? settings.steps : undefined,
+                cfg_scale: typeof settings.cfg_scale === "number" ? settings.cfg_scale : undefined,
+                duration_seconds: typeof settings.duration_seconds === "number" ? settings.duration_seconds : undefined,
+                variations,
+            });
+
+            if (result.status === 'failed') {
+                return { error: result.error || "Generation failed" };
+            }
+
+            const { error: saveError } = await supabase.from("shot_generations").insert({
+                shot_id: shotId,
+                prompt: prompt,
+                negative_prompt: typeof settings.negative_prompt === "string" ? settings.negative_prompt : null,
+                seed: typeof requestSeed === "number" ? requestSeed : null,
+                cfg_scale: typeof settings.cfg_scale === "number" ? settings.cfg_scale : null,
+                steps: typeof settings.steps === "number" ? settings.steps : null,
+                model_version: typeof settings.model === "string" ? settings.model : null,
+                provider_id: resolved.data.providerId || null,
+                status: result.status,
+                output_url: result.url,
+                parameters: settings,
+            });
+
+            if (saveError) console.error("Failed to save generation result:", saveError);
+            lastUrl = result.url;
         }
-
-        const { error: saveError } = await supabase.from("shot_options").insert({
-            shot_id: shotId,
-            prompt: prompt,
-            provider_id: resolved.data.providerId || null,
-            status: result.status,
-            output_url: result.url
-        });
-
-        if (saveError) console.error("Failed to save generation result:", saveError);
 
         const { data: scene } = await supabase
             .from("scenes")
@@ -217,7 +244,7 @@ export async function generateShot(shotId: string) {
             revalidatePath(`/dashboard/projects/${scene.project_id}/scenes/${scene.id}`, "page");
         }
 
-        return { success: true, url: result.url };
+        return { success: true, url: lastUrl };
 
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Generation failed";
@@ -234,8 +261,8 @@ export async function generateVideoShot(shotOptionId: string) {
     }
 
     // 1. Fetch the underlying shot_option to get the image URL and original Prompt
-    const { data: shotOption, error: optionError } = await supabase
-        .from("shot_options")
+        const { data: shotOption, error: optionError } = await supabase
+        .from("shot_generations")
         .select(`
             *,
             shots (
@@ -302,7 +329,7 @@ export async function generateVideoShot(shotOptionId: string) {
             console.log(`\n\n=== KIE.AI VIDEO TASK STARTED ===\nTASK ID: ${result.provider_check_id}\n=================================\n\n`);
         }
 
-        const { error: saveError } = await supabase.from("shot_options").insert({
+        const { error: saveError } = await supabase.from("shot_generations").insert({
             shot_id: shotOption.shot_id, // Linked to the same generic shot
             prompt: promptText,
             provider_id: providerRow ? providerRow.id : null,
@@ -323,7 +350,7 @@ export async function generateVideoShot(shotOptionId: string) {
                 .single();
 
             if (sceneData?.project_id) {
-                revalidatePath(`/dashboard/projects/${sceneData.project_id}/scenes/${sceneData.id}`, "page");
+                revalidatePath(`/dashboard/gallery`, "page");
             }
         }
 
@@ -345,7 +372,7 @@ export async function pollShotStatus(shotOptionId: string) {
 
     // 1. Fetch the shot_option
     const { data: option, error } = await supabase
-        .from("shot_options")
+        .from("shot_generations")
         .select(`
             id, 
             status, 
@@ -431,7 +458,7 @@ export async function pollShotStatus(shotOptionId: string) {
             }
 
             const { error: updateError } = await supabase
-                .from("shot_options")
+                .from("shot_generations")
                 .update(updatePayload)
                 .eq("id", option.id);
 

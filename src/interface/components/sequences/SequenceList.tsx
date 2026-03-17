@@ -62,6 +62,12 @@ export function SequenceList({ sequences }: SequenceListProps) {
                     <CardContent className="flex flex-wrap items-center justify-between gap-3 text-sm text-white/55">
                         <span>{new Date(sequence.created_at).toLocaleDateString()}</span>
                         <div className="flex gap-2">
+                            <a
+                                href={`/dashboard/sequences/${sequence.id}`}
+                                className="rounded-lg border border-white/10 bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
+                            >
+                                Open Builder
+                            </a>
                             {sequence.output_url && (
                                 <a
                                     href={sequence.output_url}

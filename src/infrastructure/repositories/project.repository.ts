@@ -2,18 +2,68 @@ import { createClient } from "@/infrastructure/supabase/server";
 import { Database } from "@/core/types/db";
 
 type Project = Database["public"]["Tables"]["projects"]["Row"];
+type ProjectWithStats = Project & {
+    scene_count: number;
+    shot_count: number;
+    thumbnail_url?: string | null;
+};
 type NewProject = Database["public"]["Tables"]["projects"]["Insert"];
 
-export const getProjects = async (userId: string): Promise<Project[]> => {
+export const getProjects = async (userId: string): Promise<ProjectWithStats[]> => {
     const supabase = await createClient();
     const { data, error } = await supabase
         .from("projects")
-        .select("*")
+        .select(`
+            *,
+            scenes:scenes(
+                id,
+                shots:shots(count)
+            )
+        `)
         .eq("user_id", userId)
         .order("updated_at", { ascending: false });
 
     if (error) throw new Error(error.message);
-    return data;
+    const { data: previewRows } = await supabase
+        .from("shot_generations")
+        .select(`
+            output_url,
+            created_at,
+            shots!inner(
+                scene_id,
+                scenes!inner(project_id)
+            )
+        `)
+        .not("output_url", "is", null)
+        .order("created_at", { ascending: false });
+
+    const thumbnailByProject = new Map<string, string>();
+    (previewRows || []).forEach((row) => {
+        const record = row as {
+            output_url?: string | null;
+            shots?: { scenes?: { project_id?: string | null } | null } | null;
+        };
+        const projectId = record.shots?.scenes?.project_id ?? null;
+        const url = record.output_url ?? null;
+        if (!projectId || !url) return;
+        if (!thumbnailByProject.has(projectId)) {
+            thumbnailByProject.set(projectId, url);
+        }
+    });
+
+    return (data || []).map((project) => {
+        const scenes = (project as { scenes?: { shots?: { count: number }[] }[] }).scenes || [];
+        const scene_count = scenes.length;
+        const shot_count = scenes.reduce((total, scene) => total + (scene.shots?.[0]?.count ?? 0), 0);
+        const { scenes: _scenes, ...rest } = project as Project & { scenes?: unknown };
+        void _scenes;
+        return {
+            ...rest,
+            scene_count,
+            shot_count,
+            thumbnail_url: thumbnailByProject.get(project.id) ?? null,
+        };
+    });
 };
 
 export const getProjectById = async (id: string): Promise<Project | null> => {

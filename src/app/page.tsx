@@ -55,6 +55,11 @@ export default function Home() {
         }}
       />
 
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <div className="film-grain" />
+        <div className="vignette" />
+      </div>
+
       <div className="pointer-events-none absolute -left-[12%] top-[-10%] z-0 h-[520px] w-[520px] rounded-full bg-cyan-400/12 blur-[160px]" />
       <div className="pointer-events-none absolute right-[-10%] top-[8%] z-0 h-[460px] w-[460px] rounded-full bg-orange-400/12 blur-[160px]" />
       <div className="neon-aurora pointer-events-none absolute -left-20 top-10 z-0 h-[44vh] w-[46vw]" />
@@ -62,7 +67,7 @@ export default function Home() {
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6">
         <header className="sticky top-4 z-40 py-6">
-          <nav className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#070708]/85 px-3 py-2.5 backdrop-blur-xl">
+          <nav className="relative flex items-center justify-between rounded-2xl border border-white/10 bg-[#070708]/85 px-3 py-2.5 backdrop-blur-xl">
             <Link href="/" className="inline-flex items-center gap-2.5">
               <span className="inline-flex h-6 w-8 items-center justify-center">
                 <svg viewBox="0 0 48 26" className="h-3.5 w-6" aria-hidden="true">
@@ -107,7 +112,7 @@ export default function Home() {
         <main className="pb-24 pt-10 lg:pt-14">
           <section data-reveal="hero" className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="pt-6">
-              <h1 className="text-5xl leading-[0.98] tracking-tight md:text-7xl">
+              <h1 className="text-5xl leading-[0.95] tracking-[-0.03em] md:text-7xl">
                 <span className="block font-semibold text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.5)]">Studio control</span>
                 <span className="mt-1 block font-serif text-[0.82em] italic font-normal tracking-normal text-white/90">for</span>
                 <span className="neon-flow-text block text-[1.03em] font-medium tracking-[-0.02em]">AI shot design.</span>

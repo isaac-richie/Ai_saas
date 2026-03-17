@@ -7,7 +7,9 @@ export type ShotWithDetails = Database["public"]["Tables"]["shots"]["Row"] & {
     options?: ShotOption[];
 };
 
-type ShotOption = Database["public"]["Tables"]["shot_options"]["Row"];
+type ShotOption = Database["public"]["Tables"]["shot_generations"]["Row"] & {
+    provider?: { name: string; slug: string } | null;
+};
 
 type NewShot = Database["public"]["Tables"]["shots"]["Insert"];
 
@@ -19,7 +21,7 @@ export const getShotsBySceneId = async (sceneId: string): Promise<ShotWithDetail
             *,
             camera:cameras(name),
             lens:lenses(name),
-            options:shot_options(*)
+            options:shot_generations(*, provider:providers(name, slug))
         `)
         .eq("scene_id", sceneId)
         .order("sequence_order", { ascending: true });
