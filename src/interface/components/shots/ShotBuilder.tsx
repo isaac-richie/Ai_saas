@@ -133,6 +133,40 @@ const CATEGORY_LABELS: Record<PromptCategory, string> = {
     genreMood: "Genre / Mood",
 }
 
+const QUICK_STYLE_PRESETS: Array<{
+    id: string
+    name: string
+    hints: Partial<Record<PromptCategory, string[]>>
+}> = [
+        {
+            id: "noir",
+            name: "Noir",
+            hints: {
+                lighting: ["noir", "hard", "contrast", "shadow"],
+                colorGrade: ["noir", "monochrome", "b&w", "black", "desatur"],
+                camera: ["arri", "cinema"],
+            },
+        },
+        {
+            id: "anamorphic",
+            name: "Anamorphic",
+            hints: {
+                lens: ["anamorphic", "scope", "cinema"],
+                aspectRatio: ["21:9", "2.39", "16:9"],
+                colorGrade: ["cinematic", "film"],
+            },
+        },
+        {
+            id: "golden-hour",
+            name: "Golden Hour",
+            hints: {
+                lighting: ["golden", "sunset", "warm"],
+                colorGrade: ["warm", "amber", "kodak", "portra"],
+                timeOfDay: ["sunset", "dusk", "golden"],
+            },
+        },
+    ]
+
 export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderProps) {
     const [isSaving, setIsSaving] = useState(false)
     const [availableElements, setAvailableElements] = useState<AvailableElement[]>([])
@@ -221,6 +255,31 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
 
     const handleOptionalSelect = (value: string, onChange: (value: string | undefined) => void) => {
         onChange(value === "__none__" ? undefined : value)
+    }
+
+    const applyQuickStyle = (styleId: string) => {
+        if (!presetOptions) {
+            toast.error("Presets are still loading")
+            return
+        }
+
+        const style = QUICK_STYLE_PRESETS.find((item) => item.id === styleId)
+        if (!style) return
+
+        Object.entries(style.hints).forEach(([category, hints]) => {
+            if (!hints || hints.length === 0) return
+            const typedCategory = category as PromptCategory
+            const options = presetOptions[typedCategory] || []
+            const match = options.find((option) => {
+                const haystack = `${option.label} ${option.descriptor}`.toLowerCase()
+                return hints.some((hint) => haystack.includes(hint.toLowerCase()))
+            })
+            if (match) {
+                form.setValue(typedCategory, match.key)
+            }
+        })
+
+        toast.success(`Applied ${style.name} quick style`)
     }
 
     const watchedValues = useWatch({ control: form.control })
@@ -438,6 +497,22 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                     </FormItem>
                                 )}
                             />
+
+                            <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                                <div className="text-xs uppercase tracking-[0.16em] text-white/50">Quick Styles</div>
+                                <div className="flex flex-wrap gap-2">
+                                    {QUICK_STYLE_PRESETS.map((style) => (
+                                        <button
+                                            key={style.id}
+                                            type="button"
+                                            onClick={() => applyQuickStyle(style.id)}
+                                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+                                        >
+                                            {style.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
                             {loadingOptions ? (
                                 <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/50">

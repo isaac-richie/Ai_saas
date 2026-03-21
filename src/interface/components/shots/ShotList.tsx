@@ -311,8 +311,25 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
     if (shots.length === 0) {
         return (
-            <div className="flex h-28 w-full items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-sm text-white/55">
-                No shots added yet. Create one above.
+            <div className="rounded-2xl border border-dashed border-white/15 bg-[#0f1012] p-4">
+                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-white/45">Shot Board</div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <div className="h-3 w-24 animate-pulse rounded bg-white/15" />
+                        <div className="mt-3 aspect-video animate-pulse rounded-lg bg-white/10" />
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <div className="h-3 w-20 animate-pulse rounded bg-white/15" />
+                        <div className="mt-3 aspect-video animate-pulse rounded-lg bg-white/10" />
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <div className="h-3 w-28 animate-pulse rounded bg-white/15" />
+                        <div className="mt-3 aspect-video animate-pulse rounded-lg bg-white/10" />
+                    </div>
+                </div>
+                <p className="mt-4 text-sm text-white/55">
+                    No shots added yet. Build your first shot in the panel above and it will appear here.
+                </p>
             </div>
         )
     }
@@ -596,7 +613,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                         </CardContent>
 
                         {/* Rendering Expanded Options */}
-                        {(shot.options && shot.options.length > 0) && (
+                        {(shot.options && shot.options.length > 0) ? (
                             <div className="border-t border-white/10 bg-white/[0.02] p-3">
                                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                     {shot.options.map((opt) => {
@@ -727,6 +744,20 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                         </Button>
                                     </div>
                                 )}
+                            </div>
+                        ) : (
+                            <div className="border-t border-white/10 bg-white/[0.02] p-3">
+                                <div className="rounded-2xl border border-dashed border-white/15 bg-[#0f1012] p-4">
+                                    <div className="mb-2 text-xs uppercase tracking-[0.16em] text-white/45">Awaiting First Render</div>
+                                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                        <div className="aspect-video animate-pulse rounded-xl border border-white/10 bg-white/5" />
+                                        <div className="aspect-video animate-pulse rounded-xl border border-white/10 bg-white/5" />
+                                        <div className="aspect-video animate-pulse rounded-xl border border-white/10 bg-white/5" />
+                                    </div>
+                                    <p className="mt-3 text-xs text-white/55">
+                                        Click <span className="text-white/80">Generate</span> to create the first visual for this shot.
+                                    </p>
+                                </div>
                             </div>
                         )}
                     </Card>
