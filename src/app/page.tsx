@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Camera,
   Check,
+  X,
   Film,
   Github,
   KeyRound,
@@ -167,26 +168,26 @@ export default function Home() {
 
             <div className="space-y-3" data-reveal="card">
               <article className="overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015]">
-                <div className="grid grid-cols-[0.9fr_1fr_1.5fr] text-xs">
+                <div className="grid grid-cols-[1fr_0.9fr_1.2fr] text-xs">
                   <div className="border-b border-r border-white/10 px-3 py-2 text-white/40" />
                   <div className="border-b border-r border-white/10 px-3 py-2 text-white/55">Old way</div>
-                  <div className="border-b border-white/10 px-3 py-2 font-medium text-cyan-300">Visiowave Studio Control</div>
+                  <div className="border-b border-white/10 px-3 py-2 font-medium text-cyan-300">Visiowave</div>
 
                   <div className="border-b border-r border-white/10 px-3 py-2 font-medium text-white/75">Credits</div>
-                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55">Expire</div>
-                  <div className="border-b border-white/10 px-3 py-2 text-white/90">One-Time Keys</div>
+                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55"><span className="inline-flex items-center gap-1"><X className="h-3.5 w-3.5 text-red-300" /> Expire</span></div>
+                  <div className="border-b border-white/10 px-3 py-2 text-white/90"><span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-300" /> One-time keys</span></div>
 
-                  <div className="border-b border-r border-white/10 px-3 py-2 font-medium text-white/75">Models</div>
-                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55">Limited</div>
-                  <div className="border-b border-white/10 px-3 py-2 text-white/90">Multiple (NanoBanana, Kling, Veo 3)</div>
+                  <div className="border-b border-r border-white/10 px-3 py-2 font-medium text-white/75">Model access</div>
+                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55"><span className="inline-flex items-center gap-1"><X className="h-3.5 w-3.5 text-red-300" /> Limited</span></div>
+                  <div className="border-b border-white/10 px-3 py-2 text-white/90"><span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-300" /> Multi-provider</span></div>
 
-                  <div className="border-b border-r border-white/10 px-3 py-2 font-medium text-white/75">Prompts</div>
-                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55">Generic</div>
-                  <div className="border-b border-white/10 px-3 py-2 text-white/90">Cinematic (ARRI/Zeiss terms)</div>
+                  <div className="border-b border-r border-white/10 px-3 py-2 font-medium text-white/75">Prompt quality</div>
+                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55"><span className="inline-flex items-center gap-1"><X className="h-3.5 w-3.5 text-red-300" /> Generic</span></div>
+                  <div className="border-b border-white/10 px-3 py-2 text-white/90"><span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-300" /> Cinematic presets</span></div>
 
-                  <div className="border-r border-white/10 px-3 py-2 font-medium text-white/75">Structure</div>
-                  <div className="border-r border-white/10 px-3 py-2 text-white/55">Single box</div>
-                  <div className="px-3 py-2 text-white/90">Projects-Scenes-Shots</div>
+                  <div className="border-r border-white/10 px-3 py-2 font-medium text-white/75">Organization</div>
+                  <div className="border-r border-white/10 px-3 py-2 text-white/55"><span className="inline-flex items-center gap-1"><X className="h-3.5 w-3.5 text-red-300" /> Single box</span></div>
+                  <div className="px-3 py-2 text-white/90"><span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-300" /> Project-based workflow</span></div>
                 </div>
               </article>
 
@@ -208,8 +209,8 @@ export default function Home() {
                     <p className="mt-1 text-3xl font-semibold">$0</p>
                     <p className="text-xs text-white/55">Start Free (5 projects)</p>
                     <ul className="mt-3 space-y-1.5 text-xs text-white/65">
+                      <li>✓ BYOK provider control (no double GPU charges)</li>
                       <li>✓ Create up to 5 projects</li>
-                      <li>✓ BYOK provider routing</li>
                       <li>✓ Core shot builder workflow</li>
                     </ul>
                   </div>
