@@ -16,10 +16,15 @@ export default async function DashboardPage() {
     const activeCount = projects.filter((project) => project.status === "active").length;
 
     return (
-        <div className="mx-auto w-full max-w-7xl space-y-6 py-2 md:py-3">
+        <div className="mx-auto w-full max-w-7xl space-y-5 py-2 md:py-3">
             <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-                <Card data-reveal="hero" className="overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
-                    <div className="p-5 md:p-6">
+                <Card data-reveal="hero" className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_24px_50px_-38px_rgba(0,0,0,0.95)]">
+                    <div className="pointer-events-none absolute inset-0">
+                        <div className="absolute -left-24 -top-14 h-60 w-60 rounded-full bg-[#d9a066]/15 blur-[80px]" />
+                        <div className="absolute -right-20 top-1/3 h-60 w-60 rounded-full bg-[#6e8a8f]/10 blur-[90px]" />
+                        <div className="data-grid-bg absolute inset-0 opacity-[0.22]" />
+                    </div>
+                    <div className="relative p-5 md:p-6">
                         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                             <div className="space-y-2">
                                 <Badge className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-white/90">
@@ -42,7 +47,7 @@ export default async function DashboardPage() {
                 </Card>
 
                 <div className="grid gap-4">
-                    <Card data-reveal="hero" className="rounded-3xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                    <Card data-reveal="hero" className="rounded-3xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
                         <CardHeader className="pb-1">
                             <CardTitle className="text-sm font-medium text-white/55">Projects</CardTitle>
                         </CardHeader>
@@ -51,7 +56,7 @@ export default async function DashboardPage() {
                             <FolderKanban className="h-5 w-5 text-white/45" />
                         </CardContent>
                     </Card>
-                    <Card data-reveal="hero" className="rounded-3xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                    <Card data-reveal="hero" className="rounded-3xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
                         <CardHeader className="pb-1">
                             <CardTitle className="text-sm font-medium text-white/55">Active Productions</CardTitle>
                         </CardHeader>
@@ -60,7 +65,7 @@ export default async function DashboardPage() {
                             <Clapperboard className="h-5 w-5 text-white/45" />
                         </CardContent>
                     </Card>
-                    <Card data-reveal="hero" className="rounded-3xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                    <Card data-reveal="hero" className="rounded-3xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
                         <CardContent className="flex items-center gap-3 py-4 text-sm text-white/50">
                             <Sparkles className="h-4 w-4 text-white/45" />
                             Tip: build scene templates to speed up shot consistency.

@@ -97,7 +97,7 @@ export function PreferredProviderCard() {
   };
 
   return (
-    <Card data-reveal="card" className="rounded-2xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+    <Card data-reveal="card" className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
       <CardHeader>
         <CardTitle className="text-base">Preferred Generation Provider</CardTitle>
       </CardHeader>

@@ -88,7 +88,7 @@ export function ApiKeyList() {
     }
 
     return (
-        <div ref={tableRef} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+        <div ref={tableRef} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
             <Table>
                 <TableHeader>
                     <TableRow className="border-white/10">
@@ -113,7 +113,7 @@ export function ApiKeyList() {
                                 <TableCell className="font-medium">{provider.name}</TableCell>
                                 <TableCell>
                                     {provider.isConnected ? (
-                                        <Badge className="border border-white/15 bg-white/10 text-white hover:bg-white/20">Connected</Badge>
+                                        <Badge className="border border-emerald-400/35 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25">Connected</Badge>
                                     ) : (
                                         <Badge className="border border-white/10 bg-white/5 text-white/90">Not Connected</Badge>
                                     )}

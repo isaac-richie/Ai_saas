@@ -13,7 +13,7 @@ interface ProjectListProps {
 export function ProjectList({ projects }: ProjectListProps) {
     if (projects.length === 0) {
         return (
-            <div data-reveal="card" className="flex h-60 flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-[#0b0b0d] text-center text-white">
+            <div data-reveal="card" className="flex h-60 flex-col items-center justify-center rounded-3xl border border-dashed border-white/15 bg-[#0f1012] text-center text-white">
                 <div className="grid size-12 place-items-center rounded-2xl bg-white/10 text-white/55">
                     <Folder className="h-7 w-7" />
                 </div>
@@ -27,7 +27,7 @@ export function ProjectList({ projects }: ProjectListProps) {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {projects.map((project) => (
                 <Link key={project.id} href={`/dashboard/projects/${project.id}`} className="group block h-full" data-reveal="card">
-                    <Card className="h-full overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
+                    <Card className="h-full overflow-hidden rounded-3xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
                         <div className="relative aspect-[16/8] overflow-hidden border-b border-white/10 bg-white/[0.03]">
                             {project.thumbnail_url ? (
                                 project.thumbnail_url.endsWith(".mp4") ? (
@@ -52,7 +52,7 @@ export function ProjectList({ projects }: ProjectListProps) {
                                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-white/10" />
                             )}
                             <div className="absolute inset-0 flex items-end justify-between p-4">
-                                <Badge className={project.status === "active" ? "border border-white/15 bg-white/10 capitalize text-white" : "border border-white/10 bg-white/10 capitalize text-white/80"}>
+                                <Badge className={project.status === "active" ? "border border-emerald-400/35 bg-emerald-500/15 capitalize text-emerald-100" : "border border-white/10 bg-black/35 capitalize text-white/80"}>
                                     {project.status}
                                 </Badge>
                             </div>
