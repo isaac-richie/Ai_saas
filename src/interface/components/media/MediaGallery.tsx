@@ -8,7 +8,7 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
 import { Play, ImageIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
-import { deleteGalleryAsset } from "@/core/actions/gallery"
+import { deleteGalleryAsset, moveGalleryAssetsToProject } from "@/core/actions/gallery"
 import { toast } from "sonner"
 import { appendShotToSequence, VideoSequence } from "@/core/actions/sequences"
 
@@ -28,15 +28,17 @@ export interface MediaAsset {
 
 interface MediaGalleryProps {
     assets: MediaAsset[]
+    projectOptions?: { id: string; name: string }[]
 }
 
-export function MediaGallery({ assets }: MediaGalleryProps) {
+export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps) {
     const [query, setQuery] = useState("")
     const [filter, setFilter] = useState<"all" | "image" | "video">("all")
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
     const [sequenceTargets, setSequenceTargets] = useState<Record<string, string>>({})
     const [sequences, setSequences] = useState<Record<string, VideoSequence[]>>({})
+    const [moveProjectId, setMoveProjectId] = useState<string>(projectOptions[0]?.id || "")
 
     const getPreviewUrl = (asset: MediaAsset) => {
         if (asset.type !== "video") return asset.url
@@ -148,6 +150,27 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
         toast.success("Added to sequence")
     }
 
+    const handleMoveSelected = async () => {
+        const ids = Array.from(selectedIds)
+        if (ids.length === 0) {
+            toast.error("Select at least one asset")
+            return
+        }
+        if (!moveProjectId) {
+            toast.error("Choose a destination project")
+            return
+        }
+
+        const res = await moveGalleryAssetsToProject(ids, moveProjectId)
+        if (res.error) {
+            toast.error(res.error)
+            return
+        }
+        toast.success(`Moved ${res.data?.movedCount ?? 0} asset(s)`)
+        setSelectedIds(new Set())
+        window.location.reload()
+    }
+
     if (assets.length === 0) {
         return (
             <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
@@ -218,6 +241,29 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
                         >
                             Delete Selected
                         </Button>
+                        {projectOptions.length > 0 && (
+                            <>
+                                <select
+                                    value={moveProjectId}
+                                    onChange={(event) => setMoveProjectId(event.target.value)}
+                                    className="h-8 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs text-white/80"
+                                >
+                                    {projectOptions.map((project) => (
+                                        <option key={project.id} value={project.id}>
+                                            {project.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                                    onClick={handleMoveSelected}
+                                >
+                                    Move To Project
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

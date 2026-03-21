@@ -3,6 +3,7 @@ import { Metadata } from "next";
 import { Badge } from "@/interface/components/ui/badge";
 import { MediaGallery } from "@/interface/components/media/MediaGallery";
 import { getGalleryAssets } from "@/core/actions/gallery";
+import { getProjects } from "@/core/actions/projects";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,8 @@ export default async function GalleryPage(props: GalleryPageProps) {
     const assets = result.data || [];
     const hasError = typeof result.error === "string";
     const projectLabel = projectId ? assets[0]?.projectName || "Selected Project" : null;
+    const projectsResult = await getProjects();
+    const projectOptions = (projectsResult.data || []).map((project) => ({ id: project.id, name: project.name }));
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-5 py-2 md:py-3">
@@ -68,7 +71,7 @@ export default async function GalleryPage(props: GalleryPageProps) {
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-semibold text-white">Asset Library ({assets.length})</h2>
                     </div>
-                    <MediaGallery assets={assets} />
+                    <MediaGallery assets={assets} projectOptions={projectOptions} />
                 </section>
             )}
         </div>
