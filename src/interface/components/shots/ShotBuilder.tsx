@@ -414,7 +414,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
 
     return (
         <div className="grid gap-4 md:grid-cols-2">
-            <Card className="rounded-2xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+            <Card className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-lg tracking-tight">Shot Attributes</CardTitle>
                 </CardHeader>
@@ -698,7 +698,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             </Card>
 
             <div className="space-y-4">
-                <Card className="rounded-2xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                <Card className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
                     <CardHeader>
                         <CardTitle className="flex items-center text-sm font-medium uppercase tracking-wider text-white/55">
                             <Sparkles className="mr-2 h-4 w-4 text-white/45" />
@@ -706,7 +706,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="rounded-xl border border-white/10 bg-white/5 p-4 font-mono text-sm leading-relaxed text-white/80">
+                        <div className="max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-4 font-mono text-sm leading-relaxed text-white/80">
                             {promptPreview || <span className="italic text-white/45">Start building your shot...</span>}
                         </div>
                     </CardContent>
@@ -717,7 +717,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                     </CardFooter>
                 </Card>
 
-                <Card className="rounded-2xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                <Card className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium uppercase tracking-wider text-white/55">
                             Shot Presets

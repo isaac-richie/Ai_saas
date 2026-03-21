@@ -64,6 +64,13 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         return "Image"
     }
 
+    const getStatusBadgeClass = (status: string) => {
+        if (status === "approved") return "border-emerald-400/35 bg-emerald-500/15 text-emerald-200"
+        if (status === "processing" || status === "pending") return "border-amber-400/35 bg-amber-500/15 text-amber-200"
+        if (status === "failed") return "border-red-400/35 bg-red-500/15 text-red-200"
+        return "border-white/10 bg-white/5 text-white/70"
+    }
+
     const getVideoProxyUrl = (url?: string | null) => {
         if (!url) return ""
         return `/api/media/proxy?url=${encodeURIComponent(url)}`
@@ -490,25 +497,26 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                 const cameraLabel = selections.camera?.label
                 const lensLabel = selections.lens?.label
                 return (
-                    <Card key={shot.id} className="shot-card rounded-2xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] transition-all hover:border-white/20">
-                        <CardContent className="flex items-center p-3.5">
-                            <div className="flex items-center gap-2">
+                <Card key={shot.id} className="shot-card rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] transition-all hover:border-white/20">
+                        <CardContent className="flex flex-col gap-3 p-3.5 md:flex-row md:items-center">
+                            <div className="flex min-w-0 items-center gap-2">
                                 <Checkbox
                                     id={`select-${shot.id}`}
                                     checked={selectedShots.includes(shot.id)}
                                     onCheckedChange={() => toggleSelect(shot.id)}
                                 />
                                 <GripVertical className="h-4 w-4 text-white/35" />
-                                <div className="grid gap-1">
+                                <div className="grid min-w-0 gap-1">
                                     <div className="flex items-center gap-2">
-                                        <div className="font-medium">{shot.name}</div>
+                                        <div className="truncate font-medium">{shot.name}</div>
                                         {approvedOption && (
-                                            <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200">
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200">
+                                                <Check className="h-3 w-3" />
                                                 Approved
                                             </span>
                                         )}
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm text-white/55">
+                                    <div className="flex flex-wrap items-center gap-2 text-sm text-white/55">
                                         {shotLabel && (
                                             <Badge variant="outline" className="flex items-center gap-1 border-white/10 bg-white/5 text-white/75">
                                                 {shotLabel}
@@ -534,7 +542,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                     </div>
                                 </div>
                             </div>
-                            <div className="ml-auto flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 md:ml-auto md:justify-end">
                                 <Button
                                     size="icon"
                                     variant="ghost"
@@ -589,21 +597,21 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
                         {/* Rendering Expanded Options */}
                         {(shot.options && shot.options.length > 0) && (
-                            <div className="border-t border-white/10 p-3 bg-white/[0.02]">
+                            <div className="border-t border-white/10 bg-white/[0.02] p-3">
                                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                     {shot.options.map((opt) => {
                                         const outputType = getOutputType(opt);
                                         const providerLabel = opt.provider?.name || "Provider";
                                         const statusLabel = opt.status === "processing" ? "Processing" : opt.status;
                                         return (
-                                        <Card key={opt.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0b0b0d]">
-                                            <div className="aspect-video relative bg-black/50">
+                                        <Card key={opt.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0f1012]">
+                                            <div className="relative aspect-video bg-black/50">
                                                 {opt.output_url ? (
                                                     opt.status === 'completed' && opt.output_url.endsWith('.mp4') ? (
-                                                        <video src={getVideoProxyUrl(opt.output_url)} className="w-full h-full object-cover" controls playsInline loop muted preload="metadata" />
+                                                        <video src={getVideoProxyUrl(opt.output_url)} className="h-full w-full object-contain" controls playsInline loop muted preload="metadata" />
                                                     ) : (
                                                         <a href={opt.output_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full cursor-zoom-in overflow-hidden">
-                                                            <img src={opt.output_url} alt={opt.prompt || ""} className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
+                                                            <img src={opt.output_url} alt={opt.prompt || ""} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
                                                         </a>
                                                     )
                                                 ) : (
@@ -645,6 +653,11 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                         {outputType}
                                                     </span>
                                                 </div>
+                                                {opt.prompt && (
+                                                    <div className="max-h-16 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-2 text-[11px] leading-relaxed text-white/65">
+                                                        {opt.prompt}
+                                                    </div>
+                                                )}
                                                 <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/60">
                                                     <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{providerLabel}</span>
                                                     {opt.model_version && (
@@ -652,7 +665,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                             {opt.model_version}
                                                         </span>
                                                     )}
-                                                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 capitalize">
+                                                    <span className={`rounded-full border px-2.5 py-1 capitalize ${getStatusBadgeClass(opt.status)}`}>
                                                         {statusLabel}
                                                     </span>
                                                     {opt.output_url && (
