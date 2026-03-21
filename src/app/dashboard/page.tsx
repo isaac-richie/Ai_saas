@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components
 import { Badge } from "@/interface/components/ui/badge";
 import { Clapperboard, FolderKanban, Sparkles } from "lucide-react";
 import { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
     title: "Dashboard | AI Cinematography Dashboard",
@@ -41,7 +42,15 @@ export default async function DashboardPage() {
                                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">4. Approve + export</span>
                                 </div>
                             </div>
-                            <CreateProjectDialog />
+                            <div className="flex flex-wrap items-center gap-2">
+                                <CreateProjectDialog />
+                                <Link
+                                    href="/dashboard/fast-video"
+                                    className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15"
+                                >
+                                    Open Fast Track
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </Card>

@@ -12,6 +12,7 @@ import {
     MenuSquare,
     Clapperboard,
     Images,
+    Video,
 } from "lucide-react"
 import { logout } from "@/core/actions/auth"
 
@@ -24,6 +25,7 @@ const navItems = [
     { name: "Home", href: "/", icon: Home, isActive: (pathname: string) => pathname === "/" },
     { name: "Overview", href: "/dashboard", icon: LayoutDashboard, isActive: (pathname: string) => pathname === "/dashboard" || pathname.startsWith("/dashboard/projects") && !pathname.includes("/scenes/") },
     { name: "Studio", href: "/dashboard/studio", icon: Clapperboard, isActive: (pathname: string) => pathname.startsWith("/dashboard/studio") || pathname.includes("/scenes/") },
+    { name: "Fast Track", href: "/dashboard/fast-video", icon: Video, isActive: (pathname: string) => pathname.startsWith("/dashboard/fast-video") },
     { name: "Gallery", href: "/dashboard/gallery", icon: Images, isActive: (pathname: string) => pathname.startsWith("/dashboard/gallery") },
     { name: "Settings", href: "/dashboard/settings", icon: Settings, isActive: (pathname: string) => pathname.startsWith("/dashboard/settings") },
 ]
