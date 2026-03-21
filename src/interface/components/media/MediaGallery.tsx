@@ -255,29 +255,29 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
                                         <div className="absolute top-2 left-2 z-10 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-white/80 backdrop-blur">
                                             {asset.type}
                                         </div>
-                                        {asset.type === 'image' ? (
-                                            <img
+                                    {asset.type === 'image' ? (
+                                        <img
+                                            src={previewUrl}
+                                            alt={asset.prompt}
+                                            className="object-cover w-full h-full transition-transform group-hover:scale-105"
+                                            loading="lazy"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full relative bg-black">
+                                            <video
                                                 src={previewUrl}
-                                                alt={asset.prompt}
-                                                className="object-cover w-full h-full transition-transform group-hover:scale-105"
-                                                loading="lazy"
+                                                className="object-contain w-full h-full transition-transform group-hover:scale-[1.02]"
+                                                autoPlay
+                                                muted
+                                                loop
+                                                playsInline
+                                                preload="metadata"
                                             />
-                                        ) : (
-                                            <div className="w-full h-full relative bg-muted">
-                                                <video
-                                                    src={previewUrl}
-                                                    className="object-cover w-full h-full transition-transform group-hover:scale-105"
-                                                    autoPlay
-                                                    muted
-                                                    loop
-                                                    playsInline
-                                                    preload="metadata"
-                                                />
-                                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-transparent transition-colors">
-                                                    <Play className="h-8 w-8 text-white opacity-80 drop-shadow-md" />
-                                                </div>
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
+                                                <Play className="h-8 w-8 text-white opacity-80 drop-shadow-md" />
                                             </div>
-                                        )}
+                                        </div>
+                                    )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                                             <div>
                                                 <p className="text-xs text-white line-clamp-1 font-medium">{asset.shotName}</p>
@@ -292,22 +292,22 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
                                         <DialogTitle>Media Preview</DialogTitle>
                                     </VisuallyHidden.Root>
                                     <div className="grid min-h-[70vh] grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-                                        <div className="relative flex items-center justify-center bg-black">
-                                            {asset.type === 'image' ? (
-                                                <img src={previewUrl} alt={asset.prompt} className="max-w-full max-h-full object-contain" />
-                                            ) : (
-                                                <video
-                                                    src={previewUrl}
-                                                    className="max-w-full max-h-full object-contain"
-                                                    controls
-                                                    autoPlay
-                                                    loop
-                                                    playsInline
-                                                    preload="metadata"
-                                                />
-                                            )}
-                                        </div>
-                                        <div className="space-y-4 border-l border-white/10 bg-[#0b0b0d] p-5">
+                                    <div className="relative flex items-center justify-center bg-black overflow-hidden">
+                                        {asset.type === 'image' ? (
+                                            <img src={previewUrl} alt={asset.prompt} className="h-full w-full object-contain" />
+                                        ) : (
+                                            <video
+                                                src={previewUrl}
+                                                className="h-full w-full object-contain"
+                                                controls
+                                                autoPlay
+                                                loop
+                                                playsInline
+                                                preload="metadata"
+                                            />
+                                        )}
+                                    </div>
+                                    <div className="space-y-4 border-l border-white/10 bg-[#0b0b0d] p-5">
                                         <div>
                                             <div className="text-xs uppercase tracking-[0.2em] text-white/50">Shot</div>
                                             <div className="mt-1 text-lg font-semibold">{asset.shotName}</div>
@@ -319,7 +319,9 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
                                         </div>
                                         <div>
                                             <div className="text-xs uppercase tracking-[0.2em] text-white/50">Prompt</div>
-                                            <p className="mt-2 text-sm text-white/70 leading-relaxed">{asset.prompt}</p>
+                                            <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70 leading-relaxed">
+                                                {asset.prompt}
+                                            </div>
                                         </div>
                                         {asset.projectId && (
                                             <div className="space-y-2">
