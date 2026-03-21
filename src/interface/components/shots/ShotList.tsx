@@ -222,7 +222,15 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
     const handleGenerateVideo = async (optionId: string) => {
         setGeneratingId(optionId)
         try {
-            const res = await generateVideoShot(optionId)
+            const videoPrompt = window.prompt("Video prompt", "Cinematic motion, subtle camera move, natural lighting")
+            if (videoPrompt === null) {
+                return
+            }
+            const useSourceImage = window.confirm("Use selected image as start frame?\nOK = Image-to-video\nCancel = Prompt-to-video")
+            const res = await generateVideoShot(optionId, {
+                customPrompt: videoPrompt,
+                useSourceImage,
+            })
             if (res.error) throw new Error(res.error)
             toast.success("Video generation started! This may take a few minutes. Refresh later to see the result.")
         } catch (error: unknown) {

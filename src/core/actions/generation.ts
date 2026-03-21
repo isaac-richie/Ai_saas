@@ -28,6 +28,51 @@ const getSceneFromJoin = (shots: { scene_id: string } | { scene_id: string }[] |
     return shots;
 };
 
+const persistRemoteMedia = async (
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    input: {
+        url?: string;
+        userId: string;
+        shotId: string;
+        kind: "image" | "video";
+    }
+) => {
+    if (!input.url) return null;
+    if (input.url.includes("/storage/v1/object/public/renders/")) return input.url;
+
+    try {
+        const response = await fetch(input.url);
+        if (!response.ok) return input.url;
+
+        const contentTypeHeader = response.headers.get("content-type") || "";
+        const contentType = contentTypeHeader || (input.kind === "video" ? "video/mp4" : "image/png");
+        const ext =
+            input.kind === "video"
+                ? "mp4"
+                : contentType.includes("jpeg") || contentType.includes("jpg")
+                    ? "jpg"
+                    : contentType.includes("webp")
+                        ? "webp"
+                        : "png";
+        const key = `${input.userId}/shots/${input.shotId}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+        const buffer = Buffer.from(await response.arrayBuffer());
+
+        const { error } = await supabase.storage
+            .from("renders")
+            .upload(key, buffer, { contentType, upsert: false });
+
+        if (error) return input.url;
+
+        const { data: { publicUrl } } = supabase.storage
+            .from("renders")
+            .getPublicUrl(key);
+
+        return publicUrl || input.url;
+    } catch {
+        return input.url;
+    }
+};
+
 async function resolveGenerationProvider(userId: string): Promise<{ data?: ProviderResolution; error?: string }> {
     const supabase = await createClient();
 
@@ -218,6 +263,13 @@ export async function generateShot(shotId: string) {
                 return { error: result.error || "Generation failed" };
             }
 
+            const stableUrl = await persistRemoteMedia(supabase, {
+                url: result.url,
+                userId: user.id,
+                shotId,
+                kind: "image",
+            });
+
             const { error: saveError } = await supabase.from("shot_generations").insert({
                 shot_id: shotId,
                 prompt: prompt,
@@ -228,12 +280,12 @@ export async function generateShot(shotId: string) {
                 model_version: typeof settings.model === "string" ? settings.model : null,
                 provider_id: resolved.data.providerId || null,
                 status: result.status,
-                output_url: result.url,
+                output_url: stableUrl,
                 parameters: settings,
             });
 
             if (saveError) console.error("Failed to save generation result:", saveError);
-            lastUrl = result.url;
+            lastUrl = stableUrl || result.url;
         }
 
         const { data: scene } = await supabase
@@ -254,7 +306,10 @@ export async function generateShot(shotId: string) {
     }
 }
 
-export async function generateVideoShot(shotOptionId: string) {
+export async function generateVideoShot(
+    shotOptionId: string,
+    options?: { customPrompt?: string; useSourceImage?: boolean }
+) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -279,7 +334,8 @@ export async function generateVideoShot(shotOptionId: string) {
         return { error: "Original shot image not found." };
     }
 
-    if (!shotOption.output_url) {
+    const shouldUseSourceImage = options?.useSourceImage !== false;
+    if (shouldUseSourceImage && !shotOption.output_url) {
         return { error: "Cannot generate video from a shot option without an image." };
     }
 
@@ -311,8 +367,8 @@ export async function generateVideoShot(shotOptionId: string) {
         return { error: "Kie.ai API key missing. Add it to .env.local or settings." };
     }
 
-    const rawPrompt = shotOption.prompt || "cinematic scene";
-    const basePrompt = `Generate a cinematic video sequence based on the original shot: ${rawPrompt}`;
+    const rawPrompt = options?.customPrompt?.trim() || shotOption.prompt || "cinematic scene";
+    const basePrompt = rawPrompt;
     // Kie.ai prompt length limits are strict; keep it short to avoid failures.
     const promptText = basePrompt.length > 600 ? `${basePrompt.slice(0, 597)}...` : basePrompt;
 
@@ -322,7 +378,7 @@ export async function generateVideoShot(shotOptionId: string) {
         // Use the output_url of the previous option as the input image prompt.
         const result = await provider.generate({
             prompt: promptText,
-            image_prompt: shotOption.output_url,
+            image_prompt: shouldUseSourceImage ? shotOption.output_url : undefined,
             output_type: "video"
         });
 
@@ -334,13 +390,20 @@ export async function generateVideoShot(shotOptionId: string) {
             console.log(`\n\n=== KIE.AI VIDEO TASK STARTED ===\nTASK ID: ${result.provider_check_id}\n=================================\n\n`);
         }
 
+        const stableUrl = await persistRemoteMedia(supabase, {
+            url: result.url,
+            userId: user.id,
+            shotId: shotOption.shot_id,
+            kind: "video",
+        });
+
         const { error: saveError } = await supabase.from("shot_generations").insert({
             shot_id: shotOption.shot_id, // Linked to the same generic shot
             prompt: promptText,
             provider_id: providerRow ? providerRow.id : null,
             status: result.status,
-            output_url: result.url || 'pending_generation', // URL is usually null when processing async
-            parameters: { task_id: result.provider_check_id } // Store in JSONB column
+            output_url: stableUrl || result.url || 'pending_generation', // URL is usually null when processing async
+            parameters: { task_id: result.provider_check_id, use_source_image: shouldUseSourceImage } // Store in JSONB column
         });
 
         if (saveError) console.error("Failed to save generation result:", saveError);
@@ -380,6 +443,7 @@ export async function pollShotStatus(shotOptionId: string) {
         .from("shot_generations")
         .select(`
             id, 
+            shot_id,
             status, 
             output_url,
             parameters, 
@@ -455,7 +519,13 @@ export async function pollShotStatus(shotOptionId: string) {
             };
 
             if (result.url && result.status !== "failed") {
-                updatePayload.output_url = result.url;
+                const persisted = await persistRemoteMedia(supabase, {
+                    url: result.url,
+                    userId: user.id,
+                    shotId: option.shot_id,
+                    kind: "video",
+                });
+                updatePayload.output_url = persisted || result.url;
             } else if (result.status === "failed") {
                 updatePayload.output_url = null;
                 // Optionally log error in parameters

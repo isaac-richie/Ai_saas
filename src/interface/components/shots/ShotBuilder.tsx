@@ -145,6 +145,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     const [newPresetDescription, setNewPresetDescription] = useState("")
     const [presetOptions, setPresetOptions] = useState<PresetMap | null>(null)
     const [loadingOptions, setLoadingOptions] = useState(true)
+    const draftStorageKey = `shot-builder-draft:${sceneId}`
 
     useEffect(() => {
         setIsMounted(true)
@@ -223,6 +224,48 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     }
 
     const watchedValues = useWatch({ control: form.control })
+
+    useEffect(() => {
+        if (!isMounted) return
+        try {
+            const raw = window.localStorage.getItem(draftStorageKey)
+            if (!raw) return
+            const parsed = JSON.parse(raw) as Partial<ShotFormValues>
+            form.reset({
+                subject: parsed.subject ?? "",
+                shot: parsed.shot,
+                angle: parsed.angle,
+                camera: parsed.camera,
+                lens: parsed.lens,
+                movement: parsed.movement,
+                lighting: parsed.lighting,
+                timeOfDay: parsed.timeOfDay,
+                colorGrade: parsed.colorGrade,
+                depthOfField: parsed.depthOfField,
+                aspectRatio: parsed.aspectRatio,
+                genreMood: parsed.genreMood,
+                durationSeconds: parsed.durationSeconds ?? 5,
+                model: parsed.model,
+                negativePrompt: parsed.negativePrompt,
+                seed: parsed.seed,
+                seedLocked: parsed.seedLocked ?? true,
+                cfgScale: parsed.cfgScale,
+                steps: parsed.steps,
+                variations: parsed.variations ?? 1,
+            })
+        } catch {
+            // Ignore malformed local draft payloads.
+        }
+    }, [draftStorageKey, form, isMounted])
+
+    useEffect(() => {
+        if (!isMounted) return
+        try {
+            window.localStorage.setItem(draftStorageKey, JSON.stringify(watchedValues))
+        } catch {
+            // Ignore quota/storage write failures.
+        }
+    }, [draftStorageKey, isMounted, watchedValues])
 
     const selections = useMemo(() => {
         const map: Partial<Record<PromptCategory, PromptPreset>> = {}
@@ -412,7 +455,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                                     <FormLabel className="text-white/80">{CATEGORY_LABELS[category]}</FormLabel>
                                                     <Select
                                                         onValueChange={(value) => handleOptionalSelect(value, field.onChange)}
-                                                        defaultValue={field.value}
+                                                        value={field.value ?? undefined}
                                                     >
                                                         <FormControl>
                                                             <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
