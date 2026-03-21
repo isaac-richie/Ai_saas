@@ -9,6 +9,7 @@ import { Play, ImageIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
 import { deleteGalleryAsset, moveGalleryAssetsToProject } from "@/core/actions/gallery"
+import { queueGalleryExport } from "@/core/actions/exports"
 import { toast } from "sonner"
 import { appendShotToSequence, VideoSequence } from "@/core/actions/sequences"
 
@@ -20,6 +21,8 @@ export interface MediaAsset {
     type: 'image' | 'video'
     prompt: string
     shotName: string
+    shotType?: string
+    lensName?: string
     sceneName?: string
     projectName?: string
     shotId?: string
@@ -39,6 +42,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
     const [sequenceTargets, setSequenceTargets] = useState<Record<string, string>>({})
     const [sequences, setSequences] = useState<Record<string, VideoSequence[]>>({})
     const [moveProjectId, setMoveProjectId] = useState<string>(projectOptions[0]?.id || "")
+    const [exportProfile, setExportProfile] = useState<"master_16_9" | "social_9_16" | "square_1_1">("master_16_9")
 
     const getPreviewUrl = (asset: MediaAsset) => {
         if (asset.type !== "video") return asset.url
@@ -171,6 +175,23 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
         window.location.reload()
     }
 
+    const handleQueueExport = async () => {
+        const ids = Array.from(selectedIds)
+        if (ids.length === 0) {
+            toast.error("Select at least one asset")
+            return
+        }
+
+        const res = await queueGalleryExport(ids, exportProfile)
+        if (res.error) {
+            toast.error(res.error)
+            return
+        }
+
+        toast.success(`Export queued (${res.data?.itemCount ?? 0} assets)`)
+        setSelectedIds(new Set())
+    }
+
     if (assets.length === 0) {
         return (
             <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
@@ -264,6 +285,23 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                 </Button>
                             </>
                         )}
+                        <select
+                            value={exportProfile}
+                            onChange={(event) => setExportProfile(event.target.value as typeof exportProfile)}
+                            className="h-8 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs text-white/80"
+                        >
+                            <option value="master_16_9">Export 16:9 Master</option>
+                            <option value="social_9_16">Export TikTok 9:16</option>
+                            <option value="square_1_1">Export Square 1:1</option>
+                        </select>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                            onClick={handleQueueExport}
+                        >
+                            Batch Export
+                        </Button>
                     </div>
                 </div>
             )}
@@ -329,6 +367,18 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                                 <p className="text-xs text-white line-clamp-1 font-medium">{asset.shotName}</p>
                                                 {asset.sceneName ? <p className="text-[10px] text-white/70 line-clamp-1">{asset.sceneName}</p> : null}
                                                 {asset.projectName ? <p className="text-[10px] text-white/50 line-clamp-1">{asset.projectName}</p> : null}
+                                                <div className="mt-1 flex flex-wrap gap-1">
+                                                    {asset.shotType ? (
+                                                        <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
+                                                            {asset.shotType}
+                                                        </span>
+                                                    ) : null}
+                                                    {asset.lensName ? (
+                                                        <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
+                                                            {asset.lensName}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                         </div>
                                     </Card>
@@ -362,6 +412,8 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                             {asset.projectName && <div>Project: <span className="text-white/85">{asset.projectName}</span></div>}
                                             {asset.sceneName && <div>Scene: <span className="text-white/85">{asset.sceneName}</span></div>}
                                             <div>Type: <span className="text-white/85">{asset.type}</span></div>
+                                            {asset.shotType && <div>Shot Type: <span className="text-white/85">{asset.shotType}</span></div>}
+                                            {asset.lensName && <div>Lens: <span className="text-white/85">{asset.lensName}</span></div>}
                                         </div>
                                         <div>
                                             <div className="text-xs uppercase tracking-[0.2em] text-white/50">Prompt</div>

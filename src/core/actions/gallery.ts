@@ -225,6 +225,8 @@ export async function getGalleryAssets(projectId?: string) {
                 shots (
                     id,
                     name,
+                    shot_type,
+                    lens:lenses(name),
                     shot_generations (
                         id,
                         prompt,
@@ -267,6 +269,9 @@ export async function getGalleryAssets(projectId?: string) {
                 if (!isRecord(shotRow)) continue;
 
                 const shotName = getString(shotRow.name) ?? "Untitled Shot";
+                const shotType = getString(shotRow.shot_type) ?? undefined;
+                const lens = isRecord(shotRow.lens) ? shotRow.lens : null;
+                const lensName = lens ? getString(lens.name) ?? undefined : undefined;
                 const options = Array.isArray(shotRow.shot_generations) ? shotRow.shot_generations : [];
 
                 for (const option of options) {
@@ -301,6 +306,8 @@ export async function getGalleryAssets(projectId?: string) {
                         type: isVideo ? "video" : "image",
                         prompt: getString(option.prompt) ?? "",
                         shotName,
+                        shotType,
+                        lensName,
                         shotId: getString(shotRow.id) ?? undefined,
                         projectId: currentProjectId,
                         projectName: currentProjectName,
