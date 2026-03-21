@@ -67,7 +67,7 @@ export default function Home() {
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6">
         <header className="sticky top-4 z-40 py-6">
-          <nav className="relative flex items-center justify-between rounded-2xl border border-white/10 bg-[#070708]/85 px-3 py-2.5 backdrop-blur-xl">
+          <nav className="relative flex items-center justify-between rounded-[1.15rem] border border-white/10 bg-[#070708]/85 px-3 py-2.5 shadow-[0_14px_28px_-24px_rgba(0,0,0,0.95)] backdrop-blur-xl">
             <Link href="/" className="inline-flex items-center gap-2.5">
               <span className="inline-flex h-6 w-8 items-center justify-center">
                 <svg viewBox="0 0 48 26" className="h-3.5 w-6" aria-hidden="true">
@@ -94,7 +94,7 @@ export default function Home() {
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="hidden items-center gap-4 lg:flex">
+              <div className="hidden items-center gap-5 lg:flex">
                 <Link href="/login" className="text-sm text-white/75 transition hover:text-white">
                   Sign in
                 </Link>
@@ -110,9 +110,9 @@ export default function Home() {
         </header>
 
         <main className="pb-24 pt-10 lg:pt-14">
-          <section data-reveal="hero" className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <section data-reveal="hero" className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:gap-10">
             <div className="pt-6">
-              <h1 className="text-5xl leading-[0.95] tracking-[-0.03em] md:text-7xl">
+              <h1 className="text-5xl leading-[0.93] tracking-[-0.035em] md:text-[5.5rem]">
                 <span className="block font-semibold text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.5)]">Studio control</span>
                 <span className="mt-1 block font-serif text-[0.82em] italic font-normal tracking-normal text-white/90">for</span>
                 <span className="neon-flow-text block text-[1.03em] font-medium tracking-[-0.02em]">AI shot design.</span>
@@ -132,32 +132,32 @@ export default function Home() {
               </div>
 
               <div className="mt-10 grid max-w-xl grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.06] to-white/[0.015] p-3" data-reveal="card">
+                <div className="rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
                   <p className="text-2xl font-semibold text-cyan-300">12x</p>
                   <p className="text-xs text-white/45">Faster scene iteration</p>
                 </div>
-                <div className="rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.06] to-white/[0.015] p-3" data-reveal="card">
+                <div className="rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
                   <p className="text-2xl font-semibold text-cyan-300">4K</p>
                   <p className="text-xs text-white/45">Prompt-ready outputs</p>
                 </div>
-                <div className="rounded-2xl border border-white/12 bg-gradient-to-b from-white/[0.06] to-white/[0.015] p-3" data-reveal="card">
+                <div className="rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
                   <p className="text-2xl font-semibold text-cyan-300">BYOK</p>
                   <p className="text-xs text-white/45">Provider routing control</p>
                 </div>
               </div>
 
               <div className="mt-8 grid gap-3 md:grid-cols-3">
-                <article className="rounded-2xl border border-white/12 bg-[#0b0b0d] p-4">
+                <article className="rounded-2xl border border-white/12 bg-[#0f1012] p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
                   <Camera className="mb-2 h-4 w-4 text-cyan-300" />
                   <p className="text-sm font-semibold">1. Pick Specs</p>
                   <p className="mt-1 text-xs text-white/50">Select camera body, lens, angle, and shot composition.</p>
                 </article>
-                <article className="rounded-2xl border border-white/12 bg-[#0b0b0d] p-4">
+                <article className="rounded-2xl border border-white/12 bg-[#0f1012] p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
                   <KeyRound className="mb-2 h-4 w-4 text-cyan-300" />
                   <p className="text-sm font-semibold">2. Connect Keys</p>
                   <p className="mt-1 text-xs text-white/50">Bring your own provider keys for full generation control.</p>
                 </article>
-                <article className="rounded-2xl border border-white/12 bg-[#0b0b0d] p-4">
+                <article className="rounded-2xl border border-white/12 bg-[#0f1012] p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
                   <WandSparkles className="mb-2 h-4 w-4 text-cyan-300" />
                   <p className="text-sm font-semibold">3. Generate & Export</p>
                   <p className="mt-1 text-xs text-white/50">Render frames and export directly to your sequence.</p>
@@ -190,12 +190,12 @@ export default function Home() {
                 </div>
               </article>
 
-              <article className="rounded-3xl border border-violet-400/40 bg-gradient-to-b from-violet-500/12 to-violet-500/5 p-4 shadow-[0_0_0_1px_rgba(167,139,250,0.08)]">
-                <p className="text-sm font-semibold text-white"><Users className="mr-2 inline h-4 w-4 text-violet-300" />Community Collabs — <span className="text-violet-300">Coming Soon</span></p>
+              <article className="rounded-3xl border border-cyan-400/25 bg-gradient-to-b from-cyan-500/10 via-cyan-500/5 to-transparent p-4 shadow-[0_0_0_1px_rgba(103,232,249,0.07)]">
+                <p className="text-sm font-semibold text-white"><Users className="mr-2 inline h-4 w-4 text-cyan-300" />Community Collabs — <span className="text-cyan-300">Coming Soon</span></p>
                 <ul className="mt-3 space-y-1.5 text-sm text-white/75">
-                  <li>💜 Neon Dreams (12 votes)</li>
-                  <li>🧠 Cyber Pulse (9 votes)</li>
-                  <li>🛰️ Future Echo (7 votes)</li>
+                  <li>Neon Dreams (12 votes)</li>
+                  <li>Cyber Pulse (9 votes)</li>
+                  <li>Future Echo (7 votes)</li>
                 </ul>
                 <p className="mt-3 text-xs text-white/55">Your votes: 2/2 (Free) | Upgrade for 10 votes/day</p>
                 <div className="mt-3 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-center text-xs text-white/45">Vote Now - Coming Soon</div>
