@@ -160,7 +160,7 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-[#0b0b0d] px-4 py-3">
+            <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-[#0f1012]/95 px-4 py-3 backdrop-blur">
                 <div className="flex flex-1 min-w-[220px]">
                     <Input
                         value={query}
@@ -192,7 +192,7 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
             </div>
 
             {selectedIds.size > 0 && (
-                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#0b0b0d] px-4 py-3 text-sm text-white/70">
+                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#0f1012] px-4 py-3 text-sm text-white/70 shadow-[0_18px_30px_-24px_rgba(0,0,0,0.85)]">
                     <span>{selectedIds.size} selected</span>
                     <div className="flex gap-2">
                         <Button
@@ -235,7 +235,7 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
                         return (
                             <Dialog key={asset.id}>
                                 <DialogTrigger asChild>
-                                    <Card className="aspect-square relative cursor-pointer overflow-hidden group border border-white/10 bg-[#0b0b0d] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
+                                    <Card className="aspect-square relative cursor-pointer overflow-hidden group border border-white/10 bg-[#0f1012] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
                                         <button
                                             type="button"
                                             onClick={(event) => {
@@ -287,7 +287,7 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
                                         </div>
                                     </Card>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-5xl overflow-hidden border-white/10 bg-black/95 p-0 text-white">
+                                <DialogContent className="max-w-5xl overflow-hidden border-white/10 bg-[#060607]/95 p-0 text-white">
                                     <VisuallyHidden.Root>
                                         <DialogTitle>Media Preview</DialogTitle>
                                     </VisuallyHidden.Root>
@@ -307,7 +307,7 @@ export function MediaGallery({ assets }: MediaGalleryProps) {
                                             />
                                         )}
                                     </div>
-                                    <div className="space-y-4 border-l border-white/10 bg-[#0b0b0d] p-5">
+                                    <div className="space-y-4 border-l border-white/10 bg-[#0f1012] p-5">
                                         <div>
                                             <div className="text-xs uppercase tracking-[0.2em] text-white/50">Shot</div>
                                             <div className="mt-1 text-lg font-semibold">{asset.shotName}</div>

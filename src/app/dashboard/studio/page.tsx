@@ -71,12 +71,12 @@ export default async function StudioPage(props: StudioPageProps) {
         .slice(0, 6);
 
     return (
-        <div className="mx-auto w-full max-w-7xl space-y-6 py-2 md:py-3">
-            <section data-reveal="hero" className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0d] p-5 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] md:p-6">
+        <div className="mx-auto w-full max-w-7xl space-y-5 py-2 md:py-3">
+            <section data-reveal="hero" className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0d] p-5 text-white shadow-[0_24px_50px_-38px_rgba(0,0,0,0.95)] md:p-6">
                 <div className="pointer-events-none absolute inset-0">
-                    <div className="neon-aurora absolute -left-24 top-[-20%] h-64 w-64 opacity-70" />
-                    <div className="neon-aurora neon-aurora-slow absolute -right-20 top-[10%] h-64 w-64 opacity-60" />
-                    <div className="data-grid-bg absolute inset-0 opacity-[0.35]" />
+                    <div className="absolute -left-24 -top-14 h-60 w-60 rounded-full bg-[#d9a066]/15 blur-[80px]" />
+                    <div className="absolute -right-20 top-1/3 h-60 w-60 rounded-full bg-[#6e8a8f]/10 blur-[90px]" />
+                    <div className="data-grid-bg absolute inset-0 opacity-[0.22]" />
                 </div>
                 <div className="relative flex flex-wrap items-end justify-between gap-4">
                     <div>
@@ -95,18 +95,18 @@ export default async function StudioPage(props: StudioPageProps) {
                 </div>
             </section>
 
-            <section data-reveal="card" className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-4 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+            <section data-reveal="card" className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-[#0f1012] p-4 text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
                     <div className="text-xs uppercase tracking-[0.2em] text-white/50">Projects</div>
                     <div className="mt-2 text-2xl font-semibold">{projects.length}</div>
                     <div className="mt-1 text-xs text-white/45">Active: {activeProjects}</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-4 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                <div className="rounded-2xl border border-white/10 bg-[#0f1012] p-4 text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
                     <div className="text-xs uppercase tracking-[0.2em] text-white/50">Scenes</div>
                     <div className="mt-2 text-2xl font-semibold">{totalScenes}</div>
                     <div className="mt-1 text-xs text-white/45">Across all projects</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-4 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                <div className="rounded-2xl border border-white/10 bg-[#0f1012] p-4 text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
                     <div className="text-xs uppercase tracking-[0.2em] text-white/50">Focus</div>
                     <div className="mt-2 text-2xl font-semibold">{recentScenes.length}</div>
                     <div className="mt-1 text-xs text-white/45">Recently updated scenes</div>
