@@ -261,7 +261,8 @@ async function handleWorker(supabase: any, request: Request, body: Record<string
     const requestedJobId =
         (typeof body?.jobId === "string" ? body.jobId : null) ||
         queryJobId
-    const limit = Math.max(1, Math.min(5, Number(body?.limit || queryLimit || 1)))
+    const requestedLimit = Number(body?.limit || queryLimit || (hasInternalAccess ? 3 : 1))
+    const limit = Math.max(1, Math.min(5, requestedLimit))
     const db = supabase
 
     let query = db
