@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Badge } from "@/interface/components/ui/badge"
 import { Button } from "@/interface/components/ui/button"
 import {
@@ -10,8 +10,9 @@ import {
     getExportJobItems,
     retryExportJob,
 } from "@/core/actions/exports"
-import { Loader2 } from "lucide-react"
+import { Loader2, RefreshCcw } from "lucide-react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 interface ExportJobsPanelProps {
     jobs: ExportJobRow[]
@@ -31,10 +32,12 @@ function statusClass(status: string) {
 }
 
 export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
+    const router = useRouter()
     const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
     const [itemsByJob, setItemsByJob] = useState<Record<string, ExportJobItemRow[]>>({})
     const [loadingItemsFor, setLoadingItemsFor] = useState<string | null>(null)
     const [actioningJobId, setActioningJobId] = useState<string | null>(null)
+    const [processingQueue, setProcessingQueue] = useState(false)
 
     const stats = useMemo(() => {
         return jobs.reduce(
@@ -49,6 +52,17 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
             { total: 0, queued: 0, processing: 0, completed: 0, failed: 0 }
         )
     }, [jobs])
+
+    useEffect(() => {
+        const hasActive = jobs.some((job) => job.status === "queued" || job.status === "processing")
+        if (!hasActive) return
+
+        const timer = window.setInterval(() => {
+            router.refresh()
+        }, 20000)
+
+        return () => window.clearInterval(timer)
+    }, [jobs, router])
 
     const handleToggleItems = async (jobId: string) => {
         if (expandedJobId === jobId) {
@@ -85,6 +99,34 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
         window.location.reload()
     }
 
+    const handleProcessQueue = async (jobId?: string) => {
+        setProcessingQueue(true)
+        try {
+            const response = await fetch("/api/exports/worker", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(jobId ? { jobId, limit: 1 } : { limit: 3 }),
+            })
+            const data = await response.json()
+            if (!response.ok) {
+                toast.error(data?.error || "Failed to process export queue")
+                return
+            }
+
+            const processed = Number(data?.processed || 0)
+            if (processed > 0) {
+                toast.success(`Processed ${processed} export job(s)`)
+            } else {
+                toast.message(data?.message || "No queued exports")
+            }
+            window.location.reload()
+        } catch {
+            toast.error("Failed to process export queue")
+        } finally {
+            setProcessingQueue(false)
+        }
+    }
+
     const handleCancel = async (jobId: string) => {
         setActioningJobId(jobId)
         const res = await cancelExportJob(jobId)
@@ -109,6 +151,32 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
 
     return (
         <div className="space-y-4">
+            <section className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#0f1012] px-3 py-2">
+                <p className="text-xs text-white/60">
+                    Run queue to process pending exports now.
+                </p>
+                <div className="flex items-center gap-2">
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-lg border border-white/10 text-white/75 hover:bg-white/10"
+                        onClick={() => window.location.reload()}
+                    >
+                        <RefreshCcw className="h-4 w-4" />
+                        Refresh
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                        onClick={() => handleProcessQueue()}
+                        disabled={processingQueue}
+                    >
+                        {processingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : "Process Queue"}
+                    </Button>
+                </div>
+            </section>
+
             <section className="grid gap-3 md:grid-cols-5">
                 <div className="rounded-xl border border-white/10 bg-[#0f1012] p-3 text-sm text-white/70">Total: {stats.total}</div>
                 <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-3 text-sm text-cyan-100">Queued: {stats.queued}</div>
@@ -159,6 +227,17 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                     >
                                         {isExpanded ? "Hide Items" : "View Items"}
                                     </Button>
+                                    {(job.status === "queued" || job.status === "processing") && (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                                            onClick={() => handleProcessQueue(job.id)}
+                                            disabled={processingQueue}
+                                        >
+                                            {processingQueue ? <Loader2 className="h-4 w-4 animate-spin" /> : "Run Now"}
+                                        </Button>
+                                    )}
                                     {job.status === "failed" && (
                                         <Button
                                             size="sm"
@@ -183,6 +262,19 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                     )}
                                 </div>
                             </div>
+
+                            {job.output_url && (
+                                <div className="mt-3">
+                                    <a
+                                        href={job.output_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+                                    >
+                                        Download / Open Export
+                                    </a>
+                                </div>
+                            )}
 
                             {isExpanded && (
                                 <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3">
