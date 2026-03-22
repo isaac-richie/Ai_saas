@@ -3,7 +3,7 @@
 import { createClient } from "@/infrastructure/supabase/server";
 import { revalidatePath } from "next/cache";
 
-const SUPPORTED_PROVIDER_SLUGS = ["openai", "runway"] as const;
+const SUPPORTED_PROVIDER_SLUGS = ["openai", "kie"] as const;
 type SupportedProviderSlug = typeof SUPPORTED_PROVIDER_SLUGS[number];
 
 function isSupportedProviderSlug(value: string): value is SupportedProviderSlug {

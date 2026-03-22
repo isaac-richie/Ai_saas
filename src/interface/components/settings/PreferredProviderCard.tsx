@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/interface/components/ui/select";
 
-type SupportedProviderSlug = "openai" | "runway";
+type SupportedProviderSlug = "openai" | "kie";
 
 type Provider = Database["public"]["Tables"]["providers"]["Row"] & {
   isConnected: boolean;
@@ -52,13 +52,17 @@ export function PreferredProviderCard() {
         const connected = keysRes.data
           .filter((provider) => provider.isConnected)
           .map((provider) => provider.slug)
-          .filter((slug): slug is SupportedProviderSlug => slug === "openai" || slug === "runway");
+          .filter((slug): slug is SupportedProviderSlug => slug === "openai" || slug === "kie");
 
         setConnectedSupported(connected);
       }
 
       if (typeof prefRes.data === "string") {
-        setPreferred(prefRes.data);
+        if (prefRes.data === "openai" || prefRes.data === "kie") {
+          setPreferred(prefRes.data);
+        } else {
+          setPreferred("auto");
+        }
       } else {
         setPreferred("auto");
       }
@@ -76,7 +80,7 @@ export function PreferredProviderCard() {
   const options = useMemo(() => {
     return connectedSupported.map((slug) => ({
       slug,
-      label: slug === "openai" ? "OpenAI" : "Runway",
+      label: slug === "openai" ? "OpenAI" : "Kie.ai",
     }));
   }, [connectedSupported]);
 
