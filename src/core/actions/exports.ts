@@ -2,7 +2,35 @@
 
 import { createClient } from "@/infrastructure/supabase/server"
 
-type ExportProfile = "master_16_9" | "social_9_16" | "square_1_1"
+export type ExportProfile = "master_16_9" | "social_9_16" | "square_1_1"
+export type ExportStatus = "queued" | "processing" | "completed" | "failed"
+
+export type ExportJobRow = {
+  id: string
+  user_id: string
+  project_id: string
+  profile: string
+  target_format: string
+  status: ExportStatus
+  progress: number
+  output_url: string | null
+  error_message: string | null
+  created_at: string
+  updated_at: string
+  projects?: { name?: string | null } | { name?: string | null }[] | null
+}
+
+export type ExportJobItemRow = {
+  id: string
+  job_id: string
+  shot_generation_id: string | null
+  source_url: string | null
+  output_url: string | null
+  status: ExportStatus
+  error_message: string | null
+  order_index: number
+  created_at: string
+}
 
 const PROFILE_TO_FORMAT: Record<ExportProfile, string> = {
   master_16_9: "16:9_h264_master",
@@ -16,7 +44,7 @@ function toProfile(value: string): ExportProfile {
   return "master_16_9"
 }
 
-export async function queueGalleryExport(optionIds: string[], profileRaw: string) {
+async function ensureSession() {
   const supabase = await createClient()
   let {
     data: { user },
@@ -27,7 +55,13 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
     user = data.user
   }
 
+  return { supabase, user }
+}
+
+export async function queueGalleryExport(optionIds: string[], profileRaw: string) {
+  const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
+  const db = supabase as any
 
   const profile = toProfile(profileRaw)
   const ids = Array.from(new Set(optionIds.filter(Boolean)))
@@ -87,19 +121,11 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
     groupedByProject.get(projectId)?.push(option)
   })
 
-  const db = supabase as unknown as {
-    from: (table: string) => {
-      insert: (input: unknown) => {
-        select: (fields: string) => { single: () => Promise<{ data: { id: string } | null; error: { message: string } | null }> }
-      }
-    }
-  }
-
   let createdJobs = 0
   let queuedItems = 0
 
   for (const [projectId, projectOptions] of groupedByProject.entries()) {
-    const insertJob = await db
+    const { data: insertJob, error: insertJobError } = await db
       .from("export_jobs")
       .insert({
         user_id: user.id,
@@ -111,21 +137,19 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
       .select("id")
       .single()
 
-    if (insertJob.error || !insertJob.data?.id) {
-      continue
-    }
+    if (insertJobError || !insertJob?.id) continue
 
     createdJobs += 1
 
     const itemsPayload = projectOptions.map((option, index) => ({
-      job_id: insertJob.data!.id,
+      job_id: insertJob.id,
       shot_generation_id: option.id,
       source_url: option.output_url,
       order_index: index,
       status: "queued",
     }))
 
-    const itemInsert = await (supabase as unknown as { from: (table: string) => { insert: (input: unknown) => Promise<{ error: { message: string } | null }> } })
+    const itemInsert = await db
       .from("export_job_items")
       .insert(itemsPayload)
 
@@ -133,4 +157,83 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
   }
 
   return { data: { jobCount: createdJobs, itemCount: queuedItems, profile } }
+}
+
+export async function listExportJobs(projectId?: string) {
+  const { supabase, user } = await ensureSession()
+  if (!user) return { data: [] as ExportJobRow[] }
+  const db = supabase as any
+
+  let query = db
+    .from("export_jobs")
+    .select("id, user_id, project_id, profile, target_format, status, progress, output_url, error_message, created_at, updated_at, projects(name)")
+
+  query = query.eq("user_id", user.id)
+  if (projectId) {
+    query = query.eq("project_id", projectId)
+  }
+
+  const { data, error } = await query.order("created_at", { ascending: false }) as { data: ExportJobRow[] | null; error: { message: string } | null }
+  if (error) return { error: error.message }
+  return { data: data || [] }
+}
+
+export async function getExportJobItems(jobId: string) {
+  const { supabase, user } = await ensureSession()
+  if (!user) return { error: "Unauthorized" }
+  const db = supabase as any
+
+  const { data: job, error: jobError } = await db
+    .from("export_jobs")
+    .select("id, user_id")
+    .eq("id", jobId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (jobError || !job?.id) return { error: "Export job not found" }
+
+  const { data, error } = await db
+    .from("export_job_items")
+    .select("id, job_id, shot_generation_id, source_url, output_url, status, error_message, order_index, created_at")
+    .eq("job_id", jobId)
+    .order("order_index", { ascending: true }) as { data: ExportJobItemRow[] | null; error: { message: string } | null }
+
+  if (error) return { error: error.message }
+  return { data: data || [] }
+}
+
+export async function retryExportJob(jobId: string) {
+  const { supabase, user } = await ensureSession()
+  if (!user) return { error: "Unauthorized" }
+  const db = supabase as any
+
+  const { error } = await db
+    .from("export_jobs")
+    .update({ status: "queued", progress: 0, error_message: null, updated_at: new Date().toISOString() })
+    .eq("id", jobId)
+    .eq("user_id", user.id)
+
+  if (error) return { error: error.message }
+
+  await db
+    .from("export_job_items")
+    .update({ status: "queued", error_message: null, updated_at: new Date().toISOString() })
+    .eq("job_id", jobId)
+
+  return { success: true }
+}
+
+export async function cancelExportJob(jobId: string) {
+  const { supabase, user } = await ensureSession()
+  if (!user) return { error: "Unauthorized" }
+  const db = supabase as any
+
+  const { error } = await db
+    .from("export_jobs")
+    .delete()
+    .eq("id", jobId)
+    .eq("user_id", user.id)
+
+  if (error) return { error: error.message }
+  return { success: true }
 }

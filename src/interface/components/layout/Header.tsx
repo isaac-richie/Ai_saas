@@ -18,6 +18,7 @@ export function Header({ toggleSidebar }: HeaderProps) {
         if (pathname.includes("/scenes/")) return "Scene Builder"
         if (pathname.includes("/studio")) return "Studio"
         if (pathname.includes("/gallery")) return "Gallery"
+        if (pathname.includes("/exports")) return "Exports"
         if (pathname.includes("/projects")) return "Project Workspace"
         return "Dashboard"
     }, [pathname])

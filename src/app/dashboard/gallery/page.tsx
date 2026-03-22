@@ -56,9 +56,14 @@ export default async function GalleryPage(props: GalleryPageProps) {
                             </div>
                         )}
                     </div>
-                    <Link href="/dashboard/studio" className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15">
-                        Open Studio
-                    </Link>
+                    <div className="flex items-center gap-2">
+                        <Link href="/dashboard/exports" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10">
+                            Open Exports
+                        </Link>
+                        <Link href="/dashboard/studio" className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15">
+                            Open Studio
+                        </Link>
+                    </div>
                 </div>
             </section>
 

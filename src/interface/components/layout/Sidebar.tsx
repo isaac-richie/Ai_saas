@@ -13,6 +13,7 @@ import {
     Clapperboard,
     Images,
     Video,
+    Download,
 } from "lucide-react"
 import { logout } from "@/core/actions/auth"
 
@@ -27,6 +28,7 @@ const navItems = [
     { name: "Studio", href: "/dashboard/studio", icon: Clapperboard, isActive: (pathname: string) => pathname.startsWith("/dashboard/studio") || pathname.includes("/scenes/") },
     { name: "Fast Track", href: "/dashboard/fast-video", icon: Video, isActive: (pathname: string) => pathname.startsWith("/dashboard/fast-video") },
     { name: "Gallery", href: "/dashboard/gallery", icon: Images, isActive: (pathname: string) => pathname.startsWith("/dashboard/gallery") },
+    { name: "Exports", href: "/dashboard/exports", icon: Download, isActive: (pathname: string) => pathname.startsWith("/dashboard/exports") },
     { name: "Settings", href: "/dashboard/settings", icon: Settings, isActive: (pathname: string) => pathname.startsWith("/dashboard/settings") },
 ]
 
