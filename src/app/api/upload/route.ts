@@ -35,6 +35,16 @@ export async function POST(request: Request) {
             .upload(filePath, file)
 
         if (uploadError) {
+            const message = uploadError.message || "Upload failed"
+            if (/bucket.*not found/i.test(message)) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Storage bucket 'elements' not found. Create 'elements' and 'renders' buckets in Supabase (or run migration 0011_storage_buckets.sql).",
+                    },
+                    { status: 500 }
+                )
+            }
             throw uploadError
         }
 
