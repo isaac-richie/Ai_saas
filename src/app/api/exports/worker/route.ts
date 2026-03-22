@@ -10,6 +10,7 @@ export const runtime = "nodejs"
 
 type WorkerJob = {
     id: string
+    user_id: string
     project_id: string
     profile: string
 }
@@ -213,20 +214,38 @@ async function processJob(supabase: any, userId: string, job: WorkerJob) {
 export async function POST(request: Request) {
     const supabase = await createClient()
     const body = await request.json().catch(() => ({}))
-    const configuredSecret = process.env.EXPORT_WORKER_SECRET
+    return handleWorker(supabase as any, request, body)
+}
+
+export async function GET(request: Request) {
+    const supabase = await createClient()
+    return handleWorker(supabase as any, request, {})
+}
+
+async function handleWorker(supabase: any, request: Request, body: Record<string, unknown>) {
+    const url = new URL(request.url)
+    const queryLimit = url.searchParams.get("limit")
+    const queryUserId = url.searchParams.get("userId")
+    const queryJobId = url.searchParams.get("jobId")
+
+    const configuredSecret = process.env.EXPORT_WORKER_SECRET || process.env.CRON_SECRET
     const receivedSecret = request.headers.get("x-export-worker-secret")
+    const authHeader = request.headers.get("authorization")
+    const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null
     const hasInternalAccess = Boolean(
         configuredSecret &&
-        receivedSecret &&
-        receivedSecret === configuredSecret
+        ((receivedSecret && receivedSecret === configuredSecret) || (bearerToken && bearerToken === configuredSecret))
     )
 
     let { data: { user } } = await supabase.auth.getUser()
     let effectiveUserId: string | null = user?.id ?? null
+    const requestedUserId =
+        (typeof body?.userId === "string" ? body.userId : null) ||
+        queryUserId
 
     if (!effectiveUserId) {
-        if (hasInternalAccess && typeof body?.userId === "string" && body.userId.length > 10) {
-            effectiveUserId = body.userId
+        if (hasInternalAccess && requestedUserId && requestedUserId.length > 10) {
+            effectiveUserId = requestedUserId
         } else {
             const { data, error } = await supabase.auth.signInAnonymously()
             if (!error && data.user?.id) {
@@ -235,21 +254,26 @@ export async function POST(request: Request) {
         }
     }
 
-    if (!effectiveUserId) {
+    if (!effectiveUserId && !hasInternalAccess) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const requestedJobId = typeof body?.jobId === "string" ? body.jobId : null
-    const limit = Math.max(1, Math.min(5, Number(body?.limit) || 1))
-    const db = supabase as any
+    const requestedJobId =
+        (typeof body?.jobId === "string" ? body.jobId : null) ||
+        queryJobId
+    const limit = Math.max(1, Math.min(5, Number(body?.limit || queryLimit || 1)))
+    const db = supabase
 
     let query = db
         .from("export_jobs")
-        .select("id, project_id, profile")
-        .eq("user_id", effectiveUserId)
+        .select("id, user_id, project_id, profile")
         .in("status", ["queued", "processing"])
         .order("created_at", { ascending: true })
         .limit(limit)
+
+    if (!hasInternalAccess || effectiveUserId) {
+        query = query.eq("user_id", effectiveUserId)
+    }
 
     if (requestedJobId) {
         query = query.eq("id", requestedJobId)
@@ -267,7 +291,7 @@ export async function POST(request: Request) {
 
     const results = []
     for (const job of jobs) {
-        const result = await processJob(db, effectiveUserId, job)
+        const result = await processJob(db, job.user_id, job)
         results.push({ jobId: job.id, ...result })
     }
 
