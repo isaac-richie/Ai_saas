@@ -1,16 +1,16 @@
 import crypto from 'crypto';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 const IV_LENGTH = 16; // For AES, this is always 16
 const ALGORITHM = "aes-256-cbc";
 
-if (!ENCRYPTION_KEY) {
-    throw new Error("ENCRYPTION_KEY is required. Set it in your environment.");
-}
-
 function getCipherKey() {
+    const encryptionKey = process.env.ENCRYPTION_KEY;
+    if (!encryptionKey) {
+        throw new Error("ENCRYPTION_KEY is required. Set it in your environment.");
+    }
+
     // Always derive a valid 32-byte key regardless of original secret length.
-    return crypto.createHash("sha256").update(ENCRYPTION_KEY as string).digest();
+    return crypto.createHash("sha256").update(encryptionKey).digest();
 }
 
 export function encrypt(text: string): string {

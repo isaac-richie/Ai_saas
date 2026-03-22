@@ -1,12 +1,18 @@
 import CryptoJS from 'crypto-js';
 
-const SECRET_KEY = process.env.ENCRYPTION_KEY || 'default_secret_key_for_development_replace_me';
+function getSecretKey(): string {
+    const key = process.env.ENCRYPTION_KEY;
+    if (!key) {
+        throw new Error("ENCRYPTION_KEY is required. Set it in your environment.");
+    }
+    return key;
+}
 
 export function encryptApiKey(plainKey: string): string {
-    return CryptoJS.AES.encrypt(plainKey, SECRET_KEY).toString();
+    return CryptoJS.AES.encrypt(plainKey, getSecretKey()).toString();
 }
 
 export function decryptApiKey(encryptedKey: string): string {
-    const bytes = CryptoJS.AES.decrypt(encryptedKey, SECRET_KEY);
+    const bytes = CryptoJS.AES.decrypt(encryptedKey, getSecretKey());
     return bytes.toString(CryptoJS.enc.Utf8);
 }
