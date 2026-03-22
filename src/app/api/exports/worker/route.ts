@@ -212,21 +212,33 @@ async function processJob(supabase: any, userId: string, job: WorkerJob) {
 
 export async function POST(request: Request) {
     const supabase = await createClient()
-    let { data: { user } } = await supabase.auth.getUser()
+    const body = await request.json().catch(() => ({}))
+    const configuredSecret = process.env.EXPORT_WORKER_SECRET
+    const receivedSecret = request.headers.get("x-export-worker-secret")
+    const hasInternalAccess = Boolean(
+        configuredSecret &&
+        receivedSecret &&
+        receivedSecret === configuredSecret
+    )
 
-    if (!user) {
-        const { data, error } = await supabase.auth.signInAnonymously()
-        if (error) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    let { data: { user } } = await supabase.auth.getUser()
+    let effectiveUserId: string | null = user?.id ?? null
+
+    if (!effectiveUserId) {
+        if (hasInternalAccess && typeof body?.userId === "string" && body.userId.length > 10) {
+            effectiveUserId = body.userId
+        } else {
+            const { data, error } = await supabase.auth.signInAnonymously()
+            if (!error && data.user?.id) {
+                effectiveUserId = data.user.id
+            }
         }
-        user = data.user
     }
 
-    if (!user) {
+    if (!effectiveUserId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = await request.json().catch(() => ({}))
     const requestedJobId = typeof body?.jobId === "string" ? body.jobId : null
     const limit = Math.max(1, Math.min(5, Number(body?.limit) || 1))
     const db = supabase as any
@@ -234,7 +246,7 @@ export async function POST(request: Request) {
     let query = db
         .from("export_jobs")
         .select("id, project_id, profile")
-        .eq("user_id", user.id)
+        .eq("user_id", effectiveUserId)
         .in("status", ["queued", "processing"])
         .order("created_at", { ascending: true })
         .limit(limit)
@@ -255,7 +267,7 @@ export async function POST(request: Request) {
 
     const results = []
     for (const job of jobs) {
-        const result = await processJob(db, user.id, job)
+        const result = await processJob(db, effectiveUserId, job)
         results.push({ jobId: job.id, ...result })
     }
 

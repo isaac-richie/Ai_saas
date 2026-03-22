@@ -189,6 +189,13 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
         }
 
         toast.success(`Export queued (${res.data?.itemCount ?? 0} assets)`)
+        fetch("/api/exports/worker", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ limit: 1 }),
+        }).catch(() => {
+            // Non-blocking kick-off; queue can still be processed from Exports page.
+        })
         setSelectedIds(new Set())
     }
 
