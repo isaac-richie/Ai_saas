@@ -41,6 +41,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [motionPresetId, setMotionPresetId] = useState<string>(MOTION_PRESETS[1]?.id || "")
   const [aspectRatio, setAspectRatio] = useState<FastVideoAspectRatio>("16:9")
   const [variation, setVariation] = useState<FastVideoVariation>("balanced")
+  const [durationSeconds, setDurationSeconds] = useState(5)
 
   const [referenceImageUrl, setReferenceImageUrl] = useState<string>("")
   const [isUploading, setIsUploading] = useState(false)
@@ -155,7 +156,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         variation_setting: variation,
       },
       settings: {
-        duration_seconds: 5,
+        duration_seconds: durationSeconds,
       },
     })
 
@@ -201,7 +202,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       finalPrompt: finalPrompt || subject,
       outputUrl: videoUrl,
       aspectRatio: aspectRatio,
-      durationSeconds: 5,
+      durationSeconds: durationSeconds,
       stylePresetId: stylePresetId || null,
       motionPresetId: motionPresetId || null,
       variationSetting: variation,
@@ -284,6 +285,32 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           </div>
 
           <div className="space-y-2">
+            <label className="text-xs uppercase tracking-[0.16em] text-white/50">Duration</label>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="mb-2 flex items-center justify-between text-xs text-white/65">
+                <span>Quick clip length</span>
+                <span className="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-white/80">
+                  {durationSeconds}s
+                </span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={15}
+                step={1}
+                value={durationSeconds}
+                onChange={(event) => setDurationSeconds(Number(event.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-cyan-300"
+              />
+              <div className="mt-2 flex justify-between text-[11px] text-white/45">
+                <span>5s</span>
+                <span>10s</span>
+                <span>15s</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <label className="text-xs uppercase tracking-[0.16em] text-white/50">Reference Image (optional)</label>
             <div className="rounded-xl border border-white/10 bg-white/5 p-3">
               <div className="flex items-center gap-2">
@@ -351,7 +378,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             className="w-full rounded-xl border border-white/10 bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] text-black hover:opacity-90"
           >
             {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            Generate 5s Quick Video
+            Generate {durationSeconds}s Quick Video
           </Button>
         </CardContent>
       </Card>
@@ -380,7 +407,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">Status: {status}</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">Aspect: {aspectRatio}</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">Variation: {variation}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">Duration: 5s</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/70">Duration: {durationSeconds}s</span>
             </div>
 
             <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/65">

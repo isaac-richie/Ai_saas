@@ -137,6 +137,7 @@ export async function generateFastVideo(input: unknown) {
   }
 
   const payload = parsed.data
+  const safeDuration = Math.max(5, Math.min(15, payload.settings.duration_seconds || 5))
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
 
@@ -153,7 +154,7 @@ export async function generateFastVideo(input: unknown) {
       image_prompt: payload.prompt_inputs.reference_image || undefined,
       output_type: "video",
       aspect_ratio: payload.prompt_inputs.aspect_ratio,
-      duration_seconds: payload.settings.duration_seconds,
+      duration_seconds: safeDuration,
     })
 
     if (result.status === "failed") {
@@ -176,6 +177,7 @@ export async function generateFastVideo(input: unknown) {
         negativePrompt: composed.negativePrompt,
         stylePresetName: composed.style?.name || null,
         motionPresetName: composed.motion?.name || null,
+        durationSeconds: safeDuration,
       },
     }
   } catch (error: unknown) {

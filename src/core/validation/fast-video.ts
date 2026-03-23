@@ -13,7 +13,7 @@ export const fastVideoRequestSchema = z.object({
     variation_setting: z.enum(FAST_VIDEO_VARIATIONS),
   }),
   settings: z.object({
-    duration_seconds: z.number().int().min(3).max(10).default(5),
+    duration_seconds: z.number().int().min(5).max(15).default(5),
   }),
 })
 
