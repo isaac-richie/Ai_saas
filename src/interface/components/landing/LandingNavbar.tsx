@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
 
@@ -51,19 +52,15 @@ export function LandingNavbar() {
                 className="relative flex items-center justify-between rounded-[1.15rem] border border-white/12 bg-[#070708]/82 px-3 py-2.5 shadow-[0_26px_40px_-32px_rgba(0,0,0,0.98),0_8px_20px_-16px_rgba(0,0,0,0.9)]"
             >
                 <Link href="/" className="inline-flex items-center gap-2.5">
-                    <span className="inline-flex h-6 w-8 items-center justify-center">
-                        <svg viewBox="0 0 48 26" className="h-3.5 w-6" aria-hidden="true">
-                            <defs>
-                                <linearGradient id="vwLogoGradNav" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#18E0FF" />
-                                    <stop offset="55%" stopColor="#3C8DFF" />
-                                    <stop offset="100%" stopColor="#B12EFF" />
-                                </linearGradient>
-                            </defs>
-                            <path d="M2 13 C10 2, 18 2, 24 13 C30 24, 38 24, 46 13" fill="none" stroke="url(#vwLogoGradNav)" strokeWidth="2" />
-                            <path d="M2 13 C10 24, 18 24, 24 13 C30 2, 38 2, 46 13" fill="none" stroke="url(#vwLogoGradNav)" strokeWidth="2" />
-                            <path d="M9 13 L14 13 L16 8 L19 18 L22 4 L25 22 L28 8 L31 16 L34 10 L37 13 L41 13" fill="none" stroke="url(#vwLogoGradNav)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                    <span className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/40">
+                        <Image
+                            src="/brand-logo.jpeg"
+                            alt="Visiowave logo"
+                            width={28}
+                            height={28}
+                            className="h-full w-full object-cover"
+                            priority
+                        />
                     </span>
                     <span className="text-sm font-medium text-white/90">VISIOWAVE Studio Control</span>
                 </Link>
