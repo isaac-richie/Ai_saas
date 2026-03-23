@@ -40,7 +40,9 @@ export function LandingNavbar() {
     }, [active])
 
     return (
-        <header className="sticky top-4 z-40 py-6">
+        <>
+            <div aria-hidden="true" className="h-24" />
+            <header className="fixed left-1/2 top-4 z-50 w-[min(1120px,calc(100%-3rem))] -translate-x-1/2">
             <motion.nav
                 animate={{
                     scale: compact ? 0.985 : 1,
@@ -48,7 +50,7 @@ export function LandingNavbar() {
                     backdropFilter: compact ? "blur(22px)" : "blur(14px)",
                 }}
                 transition={{ type: "spring", stiffness: 240, damping: 26 }}
-                className="relative flex items-center justify-between rounded-[1.15rem] border border-white/10 bg-[#070708]/85 px-3 py-2.5 shadow-[0_14px_28px_-24px_rgba(0,0,0,0.95)]"
+                className="relative flex items-center justify-between rounded-[1.15rem] border border-white/12 bg-[#070708]/82 px-3 py-2.5 shadow-[0_26px_40px_-32px_rgba(0,0,0,0.98),0_8px_20px_-16px_rgba(0,0,0,0.9)]"
             >
                 <Link href="/" className="inline-flex items-center gap-2.5">
                     <span className="inline-flex h-6 w-8 items-center justify-center">
@@ -100,6 +102,7 @@ export function LandingNavbar() {
                     </Link>
                 </div>
             </motion.nav>
-        </header>
+            </header>
+        </>
     )
 }
