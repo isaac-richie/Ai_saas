@@ -40,9 +40,7 @@ export function LandingNavbar() {
     }, [active])
 
     return (
-        <>
-            <div aria-hidden="true" className="h-24" />
-            <header className="fixed left-1/2 top-4 z-50 w-[min(1120px,calc(100%-3rem))] -translate-x-1/2">
+            <header className="sticky top-4 z-50 py-1">
             <motion.nav
                 animate={{
                     scale: compact ? 0.985 : 1,
@@ -103,6 +101,5 @@ export function LandingNavbar() {
                 </div>
             </motion.nav>
             </header>
-        </>
     )
 }
