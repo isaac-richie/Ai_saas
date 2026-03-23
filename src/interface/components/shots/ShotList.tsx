@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/interface/components/ui/card"
 import { Button } from "@/interface/components/ui/button"
 import { Checkbox } from "@/interface/components/ui/checkbox"
 import { Dialog, DialogContent, DialogTitle } from "@/interface/components/ui/dialog"
+import { Textarea } from "@/interface/components/ui/textarea"
+import { Label } from "@/interface/components/ui/label"
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
 import { GripVertical, Camera, Aperture, Wand2, Loader2, Play, Sparkles, Check, Video, Trash2, ChevronRight, X } from "lucide-react"
 import { generateShot, generateVideoShot, pollShotStatus } from "@/core/actions/generation"
@@ -56,6 +58,17 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
     const [selectedSequenceId, setSelectedSequenceId] = useState<string | null>(null)
     const [compareTargets, setCompareTargets] = useState<ShotOption[]>([])
     const [compareSet, setCompareSet] = useState<string[]>([])
+    const [videoPromptDialog, setVideoPromptDialog] = useState<{
+        open: boolean
+        optionId: string | null
+        prompt: string
+        useSourceImage: boolean
+    }>({
+        open: false,
+        optionId: null,
+        prompt: "Cinematic motion, subtle camera move, natural lighting",
+        useSourceImage: true,
+    })
     const listRef = useRef<HTMLDivElement>(null)
 
     const getOutputType = (option: ShotOption) => {
@@ -226,20 +239,26 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
     }
 
 
-    const handleGenerateVideo = async (optionId: string) => {
-        setGeneratingId(optionId)
+    const openVideoPromptDialog = (option: ShotOption) => {
+        setVideoPromptDialog({
+            open: true,
+            optionId: option.id,
+            prompt: option.prompt?.trim() || "Cinematic motion, subtle camera move, natural lighting",
+            useSourceImage: true,
+        })
+    }
+
+    const handleGenerateVideo = async () => {
+        if (!videoPromptDialog.optionId) return
+        setGeneratingId(videoPromptDialog.optionId)
         try {
-            const videoPrompt = window.prompt("Video prompt", "Cinematic motion, subtle camera move, natural lighting")
-            if (videoPrompt === null) {
-                return
-            }
-            const useSourceImage = window.confirm("Use selected image as start frame?\nOK = Image-to-video\nCancel = Prompt-to-video")
-            const res = await generateVideoShot(optionId, {
-                customPrompt: videoPrompt,
-                useSourceImage,
+            const res = await generateVideoShot(videoPromptDialog.optionId, {
+                customPrompt: videoPromptDialog.prompt,
+                useSourceImage: videoPromptDialog.useSourceImage,
             })
             if (res.error) throw new Error(res.error)
-            toast.success("Video generation started! This may take a few minutes. Refresh later to see the result.")
+            toast.success("Video generation started. You can continue working while it renders.")
+            setVideoPromptDialog((prev) => ({ ...prev, open: false }))
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Video generation failed"
             toast.error(`Video generation failed: ${message}`)
@@ -507,6 +526,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                     ?.filter((opt) => opt.status === "completed" && opt.output_url && !opt.output_url.endsWith(".mp4"))
                     .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0];
                 const animateCandidate = approvedOption || latestCompletedImage;
+                const isGeneratingShot = generatingId === shot.id;
                 const selectionPayload = shot.selection_payload as SelectionPayload | null
                 const selections = selectionPayload?.selections || {}
                 const shotLabel = selections.shot?.label || shot.shot_type
@@ -632,8 +652,22 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                         </a>
                                                     )
                                                 ) : (
-                                                    <div className="absolute inset-0 flex items-center justify-center text-white/30">
-                                                        {opt.status === 'processing' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
+                                                    <div className="absolute inset-0 overflow-hidden">
+                                                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-white/5 to-orange-400/10 animate-pulse" />
+                                                        <div className="absolute -inset-[45%] bg-[conic-gradient(from_180deg,rgba(34,211,238,0.12),rgba(251,146,60,0.12),rgba(255,255,255,0),rgba(34,211,238,0.12))] animate-[spin_9s_linear_infinite]" />
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-white/70">
+                                                            {opt.status === 'processing' ? (
+                                                                <>
+                                                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                                                    <span className="text-[10px] uppercase tracking-[0.18em] text-white/55">Rendering</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Sparkles className="h-5 w-5" />
+                                                                    <span className="text-[10px] uppercase tracking-[0.18em] text-white/55">Queued</span>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 )}
 
@@ -732,7 +766,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                         <Button
                                             variant="secondary"
                                             size="sm"
-                                            onClick={() => handleGenerateVideo(animateCandidate.id)}
+                                            onClick={() => openVideoPromptDialog(animateCandidate)}
                                             disabled={generatingId === animateCandidate.id || animateCandidate.status === 'processing'}
                                             className="h-8 gap-1 rounded-xl text-xs bg-white/10 hover:bg-white/20 text-white"
                                         >
@@ -749,14 +783,24 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                             <div className="border-t border-white/10 bg-white/[0.02] p-3">
                                 <div className="rounded-2xl border border-dashed border-white/15 bg-[#0f1012] p-4">
                                     <div className="mb-2 text-xs uppercase tracking-[0.16em] text-white/45">Awaiting First Render</div>
-                                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                        <div className="aspect-video animate-pulse rounded-xl border border-white/10 bg-white/5" />
-                                        <div className="aspect-video animate-pulse rounded-xl border border-white/10 bg-white/5" />
-                                        <div className="aspect-video animate-pulse rounded-xl border border-white/10 bg-white/5" />
-                                    </div>
-                                    <p className="mt-3 text-xs text-white/55">
-                                        Click <span className="text-white/80">Generate</span> to create the first visual for this shot.
-                                    </p>
+                                    {isGeneratingShot ? (
+                                        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40 p-5 text-center">
+                                            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-white/5 to-orange-400/10 animate-pulse" />
+                                            <div className="absolute -inset-[45%] bg-[conic-gradient(from_180deg,rgba(34,211,238,0.15),rgba(251,146,60,0.14),rgba(255,255,255,0),rgba(34,211,238,0.15))] animate-[spin_10s_linear_infinite]" />
+                                            <div className="relative z-10">
+                                                <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-white/80" />
+                                                <p className="text-xs uppercase tracking-[0.2em] text-white/65">Generating frame...</p>
+                                                <p className="mt-1 text-[11px] text-white/45">Your first output will appear here automatically.</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-xl border border-white/10 bg-white/5 p-5 text-center">
+                                            <Sparkles className="mx-auto mb-2 h-5 w-5 text-white/35" />
+                                            <p className="text-xs text-white/55">
+                                                Click <span className="text-white/80">Generate</span> to create the first visual for this shot.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -827,6 +871,73 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                     </DialogContent>
                 </Dialog>
             )}
+
+            <Dialog
+                open={videoPromptDialog.open}
+                onOpenChange={(open) => setVideoPromptDialog((prev) => ({ ...prev, open }))}
+            >
+                <DialogContent className="max-w-xl border-white/10 bg-[#111114] text-white">
+                    <VisuallyHidden.Root>
+                        <DialogTitle>Video Generation Prompt</DialogTitle>
+                    </VisuallyHidden.Root>
+                    <div className="space-y-4">
+                        <div>
+                            <h3 className="text-base font-semibold">Edit Video Prompt</h3>
+                            <p className="text-sm text-white/55">
+                                Fine-tune the prompt here before generating video.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="video-prompt">Prompt</Label>
+                            <Textarea
+                                id="video-prompt"
+                                value={videoPromptDialog.prompt}
+                                onChange={(event) =>
+                                    setVideoPromptDialog((prev) => ({ ...prev, prompt: event.target.value }))
+                                }
+                                rows={5}
+                                className="border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                placeholder="Describe camera motion, pacing, and visual style..."
+                            />
+                        </div>
+                        <label className="flex items-center gap-2 text-sm text-white/75">
+                            <Checkbox
+                                checked={videoPromptDialog.useSourceImage}
+                                onCheckedChange={(checked) =>
+                                    setVideoPromptDialog((prev) => ({ ...prev, useSourceImage: Boolean(checked) }))
+                                }
+                            />
+                            Use selected image as start frame (image-to-video)
+                        </label>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                variant="ghost"
+                                className="rounded-xl border border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                                onClick={() => setVideoPromptDialog((prev) => ({ ...prev, open: false }))}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                className="rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/20"
+                                disabled={generatingId === videoPromptDialog.optionId || !videoPromptDialog.prompt.trim()}
+                                onClick={handleGenerateVideo}
+                            >
+                                {generatingId === videoPromptDialog.optionId ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Generating...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Video className="mr-2 h-4 w-4" />
+                                        Generate Video
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div >
     )
 }

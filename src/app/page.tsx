@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Camera,
   Check,
-  X,
   Film,
   Github,
   KeyRound,
@@ -12,11 +11,13 @@ import {
   PlayCircle,
   Send,
   Sparkles,
-  Users,
   WandSparkles,
   Workflow,
   Youtube,
 } from "lucide-react"
+import { LandingNavbar } from "@/interface/components/landing/LandingNavbar"
+import { LandingSpotlight } from "@/interface/components/landing/LandingSpotlight"
+import { InteractiveComparisonCard, InteractiveCommunityCard } from "@/interface/components/landing/InteractiveWidgets"
 
 const logos = ["A24 LAB", "FRAMEFORGE", "NORTHLIGHT", "SIGNAL HOUSE", "FIFTH UNIT"]
 const footerNav = {
@@ -60,6 +61,7 @@ export default function Home() {
         <div className="film-grain" />
         <div className="vignette" />
       </div>
+      <LandingSpotlight />
 
       <div className="pointer-events-none absolute -left-[12%] top-[-10%] z-0 h-[520px] w-[520px] rounded-full bg-cyan-400/12 blur-[160px]" />
       <div className="pointer-events-none absolute right-[-10%] top-[8%] z-0 h-[460px] w-[460px] rounded-full bg-orange-400/12 blur-[160px]" />
@@ -67,48 +69,7 @@ export default function Home() {
       <div className="neon-aurora neon-aurora-slow pointer-events-none absolute bottom-[-10vh] right-[-8vw] z-0 h-[52vh] w-[52vw]" />
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6">
-        <header className="sticky top-4 z-40 py-6">
-          <nav className="relative flex items-center justify-between rounded-[1.15rem] border border-white/10 bg-[#070708]/85 px-3 py-2.5 shadow-[0_14px_28px_-24px_rgba(0,0,0,0.95)] backdrop-blur-xl">
-            <Link href="/" className="inline-flex items-center gap-2.5">
-              <span className="inline-flex h-6 w-8 items-center justify-center">
-                <svg viewBox="0 0 48 26" className="h-3.5 w-6" aria-hidden="true">
-                  <defs>
-                    <linearGradient id="vwLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#18E0FF" />
-                      <stop offset="55%" stopColor="#3C8DFF" />
-                      <stop offset="100%" stopColor="#B12EFF" />
-                    </linearGradient>
-                  </defs>
-                  <path d="M2 13 C10 2, 18 2, 24 13 C30 24, 38 24, 46 13" fill="none" stroke="url(#vwLogoGrad)" strokeWidth="2" />
-                  <path d="M2 13 C10 24, 18 24, 24 13 C30 2, 38 2, 46 13" fill="none" stroke="url(#vwLogoGrad)" strokeWidth="2" />
-                  <path d="M9 13 L14 13 L16 8 L19 18 L22 4 L25 22 L28 8 L31 16 L34 10 L37 13 L41 13" fill="none" stroke="url(#vwLogoGrad)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </span>
-              <span className="text-sm font-medium text-white/90">VISIOWAVE Studio Control</span>
-            </Link>
-
-            <div className="hidden items-center gap-7 text-sm text-white/55 md:flex">
-              <a href="#showcase" className="transition hover:text-white">Showcase</a>
-              <a href="#workflow" className="transition hover:text-white">Workflow</a>
-              <a href="#pricing" className="transition hover:text-white">Pricing</a>
-              <a href="#docs" className="transition hover:text-white">Docs</a>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="hidden items-center gap-5 lg:flex">
-                <Link href="/login" className="text-sm text-white/75 transition hover:text-white">
-                  Sign in
-                </Link>
-                <Link href="/signup" className="text-sm text-cyan-300 transition hover:text-cyan-200">
-                  Sign up
-                </Link>
-              </div>
-              <Link href="/dashboard" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/85 transition hover:bg-white/10 hover:text-white">
-                Open Dashboard
-              </Link>
-            </div>
-          </nav>
-        </header>
+        <LandingNavbar />
 
         <main className="pb-24 pt-10 lg:pt-14">
           <section data-reveal="hero" className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:gap-10">
@@ -167,40 +128,8 @@ export default function Home() {
             </div>
 
             <div className="space-y-3" data-reveal="card">
-              <article className="overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015]">
-                <div className="grid grid-cols-[1fr_0.9fr_1.2fr] text-xs">
-                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/40" />
-                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55">Old way</div>
-                  <div className="border-b border-white/10 px-3 py-2 font-medium text-cyan-300">Visiowave</div>
-
-                  <div className="border-b border-r border-white/10 px-3 py-2 font-medium text-white/75">Credits</div>
-                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55"><span className="inline-flex items-center gap-1"><X className="h-3.5 w-3.5 text-red-300" /> Expire</span></div>
-                  <div className="border-b border-white/10 px-3 py-2 text-white/90"><span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-300" /> One-time keys</span></div>
-
-                  <div className="border-b border-r border-white/10 px-3 py-2 font-medium text-white/75">Model access</div>
-                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55"><span className="inline-flex items-center gap-1"><X className="h-3.5 w-3.5 text-red-300" /> Limited</span></div>
-                  <div className="border-b border-white/10 px-3 py-2 text-white/90"><span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-300" /> Multi-provider</span></div>
-
-                  <div className="border-b border-r border-white/10 px-3 py-2 font-medium text-white/75">Prompt quality</div>
-                  <div className="border-b border-r border-white/10 px-3 py-2 text-white/55"><span className="inline-flex items-center gap-1"><X className="h-3.5 w-3.5 text-red-300" /> Generic</span></div>
-                  <div className="border-b border-white/10 px-3 py-2 text-white/90"><span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-300" /> Cinematic presets</span></div>
-
-                  <div className="border-r border-white/10 px-3 py-2 font-medium text-white/75">Organization</div>
-                  <div className="border-r border-white/10 px-3 py-2 text-white/55"><span className="inline-flex items-center gap-1"><X className="h-3.5 w-3.5 text-red-300" /> Single box</span></div>
-                  <div className="px-3 py-2 text-white/90"><span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-300" /> Project-based workflow</span></div>
-                </div>
-              </article>
-
-              <article className="rounded-3xl border border-cyan-400/25 bg-gradient-to-b from-cyan-500/10 via-cyan-500/5 to-transparent p-4 shadow-[0_0_0_1px_rgba(103,232,249,0.07)]">
-                <p className="text-sm font-semibold text-white"><Users className="mr-2 inline h-4 w-4 text-cyan-300" />Community Collabs — <span className="text-cyan-300">Coming Soon</span></p>
-                <ul className="mt-3 space-y-1.5 text-sm text-white/75">
-                  <li>Neon Dreams (12 votes)</li>
-                  <li>Cyber Pulse (9 votes)</li>
-                  <li>Future Echo (7 votes)</li>
-                </ul>
-                <p className="mt-3 text-xs text-white/55">Your votes: 2/2 (Free) | Upgrade for 10 votes/day</p>
-                <div className="mt-3 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-center text-xs text-white/45">Vote Now - Coming Soon</div>
-              </article>
+              <InteractiveComparisonCard />
+              <InteractiveCommunityCard />
 
               <article className="overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015]">
                 <div className="grid grid-cols-2 gap-0 border-b border-white/10">
