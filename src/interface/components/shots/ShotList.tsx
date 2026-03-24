@@ -705,7 +705,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                     </span>
                                                 </div>
                                                 {opt.prompt && (
-                                                    <div className="max-h-16 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-2 text-[11px] leading-relaxed text-white/65">
+                                                    <div className="max-h-16 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-2 text-[11px] leading-relaxed text-white/65 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                                                         {opt.prompt}
                                                     </div>
                                                 )}

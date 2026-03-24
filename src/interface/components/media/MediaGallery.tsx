@@ -320,13 +320,14 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                     <p className="text-xs text-white/50">Try adjusting filters or search terms.</p>
                 </div>
             ) : (
-                <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
                     {filteredAssets.map((asset) => {
                         const previewUrl = getPreviewUrl(asset)
+                        const promptPreview = asset.prompt?.replace(/\s+/g, " ").trim() || ""
                         return (
                             <Dialog key={asset.id}>
                                 <DialogTrigger asChild>
-                                    <Card className="aspect-square relative cursor-pointer overflow-hidden group border border-white/10 bg-[#0f1012] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
+                                    <Card className="group relative aspect-square min-w-0 cursor-pointer overflow-hidden border border-white/10 bg-[#0f1012] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
                                         <button
                                             type="button"
                                             onClick={(event) => {
@@ -350,14 +351,14 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                         <img
                                             src={previewUrl}
                                             alt={asset.prompt}
-                                            className="object-cover w-full h-full transition-transform group-hover:scale-105"
+                                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                             loading="lazy"
                                         />
                                     ) : (
-                                        <div className="w-full h-full relative bg-black">
+                                        <div className="relative h-full w-full bg-black">
                                             <video
                                                 src={previewUrl}
-                                                className="object-contain w-full h-full transition-transform group-hover:scale-[1.02]"
+                                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                                                 autoPlay
                                                 muted
                                                 loop
@@ -369,11 +370,14 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                             </div>
                                         </div>
                                     )}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
-                                            <div>
-                                                <p className="text-xs text-white line-clamp-1 font-medium">{asset.shotName}</p>
-                                                {asset.sceneName ? <p className="text-[10px] text-white/70 line-clamp-1">{asset.sceneName}</p> : null}
-                                                {asset.projectName ? <p className="text-[10px] text-white/50 line-clamp-1">{asset.projectName}</p> : null}
+                                        <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-black/15 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+                                            <div className="min-w-0">
+                                                <p className="line-clamp-1 text-xs font-medium text-white">{asset.shotName}</p>
+                                                {asset.sceneName ? <p className="line-clamp-1 text-[10px] text-white/70">{asset.sceneName}</p> : null}
+                                                {asset.projectName ? <p className="line-clamp-1 text-[10px] text-white/50">{asset.projectName}</p> : null}
+                                                {promptPreview ? (
+                                                    <p className="mt-1 line-clamp-1 text-[10px] text-white/45">{promptPreview}</p>
+                                                ) : null}
                                                 <div className="mt-1 flex flex-wrap gap-1">
                                                     {asset.shotType ? (
                                                         <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
@@ -410,12 +414,12 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                             />
                                         )}
                                     </div>
-                                    <div className="space-y-4 border-l border-white/10 bg-[#0f1012] p-5">
+                                    <div className="min-w-0 space-y-4 border-l border-white/10 bg-[#0f1012] p-5">
                                         <div>
                                             <div className="text-xs uppercase tracking-[0.2em] text-white/50">Shot</div>
-                                            <div className="mt-1 text-lg font-semibold">{asset.shotName}</div>
+                                            <div className="mt-1 truncate text-lg font-semibold">{asset.shotName}</div>
                                         </div>
-                                        <div className="space-y-1 text-sm text-white/60">
+                                        <div className="space-y-1 text-sm text-white/60 [&>div]:break-words [&>div]:[overflow-wrap:anywhere]">
                                             {asset.projectName && <div>Project: <span className="text-white/85">{asset.projectName}</span></div>}
                                             {asset.sceneName && <div>Scene: <span className="text-white/85">{asset.sceneName}</span></div>}
                                             <div>Type: <span className="text-white/85">{asset.type}</span></div>
@@ -424,7 +428,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                         </div>
                                         <div>
                                             <div className="text-xs uppercase tracking-[0.2em] text-white/50">Prompt</div>
-                                            <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70 leading-relaxed">
+                                            <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-relaxed text-white/70 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                                                 {asset.prompt}
                                             </div>
                                         </div>
