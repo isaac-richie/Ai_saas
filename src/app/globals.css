@@ -48,6 +48,8 @@
 }
 
 :root {
+  --font-body: "Sora", "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  --font-display: "Syne", "Clash Display", "Avenir Next Demi Bold", "Trebuchet MS", sans-serif;
   --radius: 0.875rem;
   --background: oklch(0.98 0.012 88.7);
   --foreground: oklch(0.21 0.022 248.5);

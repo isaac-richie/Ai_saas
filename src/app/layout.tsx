@@ -1,21 +1,8 @@
 import type { Metadata } from "next";
-import { Sora, Syne } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/interface/providers/theme-provider";
 import { AppShell } from "@/interface/components/layout/AppShell";
 import { Toaster } from "@/interface/components/ui/sonner";
-
-const bodyFont = Sora({
-  subsets: ["latin"],
-  variable: "--font-body",
-  display: "swap",
-});
-
-const displayFont = Syne({
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "AI Cinematography Dashboard",
@@ -29,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${bodyFont.variable} ${displayFont.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
