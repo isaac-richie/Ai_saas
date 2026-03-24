@@ -84,7 +84,7 @@ async function validateProviderKey(slug: string, apiKey: string): Promise<{ ok: 
     }
 
     if (normalized === "kie" || normalized === "kie-runway") {
-        const res = await fetch("https://api.kie.ai/api/v1/runway/record-detail?taskId=health-check", {
+        const res = await fetch("https://api.kie.ai/api/v1/jobs/recordInfo?taskId=health-check", {
             headers: { Authorization: `Bearer ${apiKey}` },
         });
         if (res.status === 401 || res.status === 403) return { ok: false, message: "Kie key unauthorized" };

@@ -155,6 +155,7 @@ export async function generateFastVideo(input: unknown) {
       output_type: "video",
       aspect_ratio: payload.prompt_inputs.aspect_ratio,
       duration_seconds: safeDuration,
+      model: payload.settings.model?.trim() || undefined,
     })
 
     if (result.status === "failed") {
@@ -178,6 +179,7 @@ export async function generateFastVideo(input: unknown) {
         stylePresetName: composed.style?.name || null,
         motionPresetName: composed.motion?.name || null,
         durationSeconds: safeDuration,
+        model: payload.settings.model?.trim() || null,
       },
     }
   } catch (error: unknown) {

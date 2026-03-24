@@ -308,7 +308,7 @@ export async function generateShot(shotId: string) {
 
 export async function generateVideoShot(
     shotOptionId: string,
-    options?: { customPrompt?: string; useSourceImage?: boolean }
+    options?: { customPrompt?: string; useSourceImage?: boolean; model?: string }
 ) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -372,6 +372,13 @@ export async function generateVideoShot(
     // Kie.ai prompt length limits are strict; keep it short to avoid failures.
     const promptText = basePrompt.length > 600 ? `${basePrompt.slice(0, 597)}...` : basePrompt;
 
+    const optionParameters = (shotOption.parameters as Record<string, unknown> | null) ?? null;
+    const configuredModel =
+        options?.model?.trim()
+        || (typeof optionParameters?.video_model === "string" ? optionParameters.video_model : undefined)
+        || (typeof optionParameters?.model === "string" ? optionParameters.model : undefined)
+        || undefined;
+
     try {
         const provider = ProviderFactory.create("kie", { apiKey: apiKey });
 
@@ -379,7 +386,8 @@ export async function generateVideoShot(
         const result = await provider.generate({
             prompt: promptText,
             image_prompt: shouldUseSourceImage ? shotOption.output_url : undefined,
-            output_type: "video"
+            output_type: "video",
+            model: configuredModel,
         });
 
         if (result.status === 'failed') {
@@ -403,7 +411,11 @@ export async function generateVideoShot(
             provider_id: providerRow ? providerRow.id : null,
             status: result.status,
             output_url: stableUrl || result.url || 'pending_generation', // URL is usually null when processing async
-            parameters: { task_id: result.provider_check_id, use_source_image: shouldUseSourceImage } // Store in JSONB column
+            parameters: {
+                task_id: result.provider_check_id,
+                use_source_image: shouldUseSourceImage,
+                model: configuredModel || null,
+            } // Store in JSONB column
         });
 
         if (saveError) console.error("Failed to save generation result:", saveError);

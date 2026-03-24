@@ -14,6 +14,7 @@ export const fastVideoRequestSchema = z.object({
   }),
   settings: z.object({
     duration_seconds: z.number().int().min(5).max(15).default(5),
+    model: z.string().optional().nullable(),
   }),
 })
 
