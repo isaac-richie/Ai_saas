@@ -52,16 +52,14 @@ export function LandingNavbar() {
                 className="relative flex items-center justify-between rounded-[1.15rem] border border-white/12 bg-[#070708]/82 px-3 py-2.5 shadow-[0_26px_40px_-32px_rgba(0,0,0,0.98),0_8px_20px_-16px_rgba(0,0,0,0.9)]"
             >
                 <Link href="/" className="inline-flex items-center gap-2.5">
-                    <span className="inline-flex h-7 w-7 items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black/40">
-                        <Image
-                            src="/brand-logo.jpeg"
-                            alt="Visiowave logo"
-                            width={28}
-                            height={28}
-                            className="h-full w-full object-cover"
-                            priority
-                        />
-                    </span>
+                    <Image
+                        src="/brand-logo.jpeg"
+                        alt="Visiowave logo"
+                        width={36}
+                        height={36}
+                        className="h-9 w-9 shrink-0 scale-[1.28] object-contain"
+                        priority
+                    />
                     <span className="text-sm font-medium text-white/90">VISIOWAVE Studio Control</span>
                 </Link>
 
