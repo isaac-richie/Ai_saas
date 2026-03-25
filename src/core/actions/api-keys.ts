@@ -150,7 +150,7 @@ export async function testApiKeyConnection(providerId: string) {
         validation = { ok: false, message };
     }
 
-    await (supabase as any)
+    await supabase
         .from("user_api_keys")
         .update({
             last_test_status: validation.ok ? "valid" : "invalid",

@@ -22,6 +22,12 @@ export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
     mode: "text-to-image",
   },
   {
+    slug: "kling/v2-5-turbo-text-to-video-pro",
+    type: "video",
+    label: "Kling 2.5 Turbo (T2V Pro)",
+    mode: "text-to-video",
+  },
+  {
     slug: "kling/v2-5-turbo-image-to-video-pro",
     type: "video",
     label: "Kling 2.5 Turbo (I2V Pro)",
@@ -43,8 +49,13 @@ export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
 
 export const DEFAULT_KIE_IMAGE_MODEL =
   process.env.KIE_DEFAULT_IMAGE_MODEL || "qwen/qwen-image";
-export const DEFAULT_KIE_VIDEO_MODEL =
-  process.env.KIE_DEFAULT_VIDEO_MODEL || "kling/v2-5-turbo-image-to-video-pro";
+export const DEFAULT_KIE_VIDEO_MODEL_I2V =
+  process.env.KIE_DEFAULT_VIDEO_MODEL_I2V
+  || process.env.KIE_DEFAULT_VIDEO_MODEL
+  || "kling/v2-5-turbo-image-to-video-pro";
+export const DEFAULT_KIE_VIDEO_MODEL_T2V =
+  process.env.KIE_DEFAULT_VIDEO_MODEL_T2V
+  || "kling/v2-5-turbo-text-to-video-pro";
 
 export function inferKieOutputType(model?: string): KieMediaType | null {
   if (!model) return null;
@@ -62,4 +73,3 @@ export function inferKieOutputType(model?: string): KieMediaType | null {
   }
   return null;
 }
-

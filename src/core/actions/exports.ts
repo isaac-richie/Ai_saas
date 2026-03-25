@@ -61,7 +61,7 @@ async function ensureSession() {
 export async function queueGalleryExport(optionIds: string[], profileRaw: string) {
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
-  const db = supabase as any
+  const db = supabase
 
   const profile = toProfile(profileRaw)
   const ids = Array.from(new Set(optionIds.filter(Boolean)))
@@ -162,7 +162,7 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
 export async function listExportJobs(projectId?: string) {
   const { supabase, user } = await ensureSession()
   if (!user) return { data: [] as ExportJobRow[] }
-  const db = supabase as any
+  const db = supabase
 
   let query = db
     .from("export_jobs")
@@ -181,7 +181,7 @@ export async function listExportJobs(projectId?: string) {
 export async function getExportJobItems(jobId: string) {
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
-  const db = supabase as any
+  const db = supabase
 
   const { data: job, error: jobError } = await db
     .from("export_jobs")
@@ -205,7 +205,7 @@ export async function getExportJobItems(jobId: string) {
 export async function retryExportJob(jobId: string) {
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
-  const db = supabase as any
+  const db = supabase
 
   const { error } = await db
     .from("export_jobs")
@@ -226,7 +226,7 @@ export async function retryExportJob(jobId: string) {
 export async function cancelExportJob(jobId: string) {
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
-  const db = supabase as any
+  const db = supabase
 
   const { error } = await db
     .from("export_jobs")

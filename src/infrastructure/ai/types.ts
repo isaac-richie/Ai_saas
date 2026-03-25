@@ -12,6 +12,7 @@ export interface GenerationRequest {
     steps?: number;
     cfg_scale?: number;
     variations?: number;
+    quality?: string;
 }
 
 export interface GenerationResult {
@@ -21,6 +22,7 @@ export interface GenerationResult {
     status: 'pending' | 'processing' | 'completed' | 'failed';
     error?: string;
     provider_check_id?: string; // ID to poll status if async
+    debug?: Record<string, unknown>;
 }
 
 export interface ProviderConfig {

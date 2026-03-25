@@ -31,15 +31,6 @@ import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
 import { Loader2, Plus, Sparkles, Layers } from "lucide-react"
 import { toast } from "sonner"
 
-const numericOptional = z.preprocess(
-    (val) => {
-        if (val === "" || val === null || val === undefined) return undefined
-        const num = Number(val)
-        return Number.isNaN(num) ? undefined : num
-    },
-    z.number().optional()
-)
-
 const numericOptionalZod = z.coerce.number().optional()
 
 const shotSchema = z.object({
@@ -56,7 +47,9 @@ const shotSchema = z.object({
     aspectRatio: z.string().optional(),
     genreMood: z.string().optional(),
     durationSeconds: numericOptionalZod,
+    providerSlug: z.enum(["auto", "openai", "kie"]).optional(),
     model: z.string().optional(),
+    quality: z.string().optional(),
     negativePrompt: z.string().optional(),
     seed: numericOptionalZod,
     seedLocked: z.boolean().optional(),
@@ -79,7 +72,9 @@ type ShotFormValues = {
     aspectRatio?: string
     genreMood?: string
     durationSeconds?: number
+    providerSlug?: "auto" | "openai" | "kie"
     model?: string
+    quality?: string
     negativePrompt?: string
     seed?: number
     seedLocked?: boolean
@@ -179,7 +174,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     const [newPresetDescription, setNewPresetDescription] = useState("")
     const [presetOptions, setPresetOptions] = useState<PresetMap | null>(null)
     const [loadingOptions, setLoadingOptions] = useState(true)
-    const draftStorageKey = `shot-builder-draft:${sceneId}`
 
     useEffect(() => {
         setIsMounted(true)
@@ -248,6 +242,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         defaultValues: {
             subject: "",
             durationSeconds: 5,
+            providerSlug: "auto",
+            quality: "standard",
             seedLocked: true,
             variations: 1,
         },
@@ -282,49 +278,38 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         toast.success(`Applied ${style.name} quick style`)
     }
 
+    const clearAllFields = () => {
+        const resetValues: ShotFormValues = {
+            subject: "",
+            shot: undefined,
+            angle: undefined,
+            camera: undefined,
+            lens: undefined,
+            movement: undefined,
+            lighting: undefined,
+            timeOfDay: undefined,
+            colorGrade: undefined,
+            depthOfField: undefined,
+            aspectRatio: undefined,
+            genreMood: undefined,
+            durationSeconds: 5,
+            providerSlug: "auto",
+            model: undefined,
+            quality: "standard",
+            negativePrompt: undefined,
+            seed: undefined,
+            seedLocked: true,
+            cfgScale: undefined,
+            steps: undefined,
+            variations: 1,
+        }
+        form.reset(resetValues)
+        setSelectedElementIds(new Set())
+        toast.success("Shot builder cleared")
+    }
+
     const watchedValues = useWatch({ control: form.control })
-
-    useEffect(() => {
-        if (!isMounted) return
-        try {
-            const raw = window.localStorage.getItem(draftStorageKey)
-            if (!raw) return
-            const parsed = JSON.parse(raw) as Partial<ShotFormValues>
-            form.reset({
-                subject: parsed.subject ?? "",
-                shot: parsed.shot,
-                angle: parsed.angle,
-                camera: parsed.camera,
-                lens: parsed.lens,
-                movement: parsed.movement,
-                lighting: parsed.lighting,
-                timeOfDay: parsed.timeOfDay,
-                colorGrade: parsed.colorGrade,
-                depthOfField: parsed.depthOfField,
-                aspectRatio: parsed.aspectRatio,
-                genreMood: parsed.genreMood,
-                durationSeconds: parsed.durationSeconds ?? 5,
-                model: parsed.model,
-                negativePrompt: parsed.negativePrompt,
-                seed: parsed.seed,
-                seedLocked: parsed.seedLocked ?? true,
-                cfgScale: parsed.cfgScale,
-                steps: parsed.steps,
-                variations: parsed.variations ?? 1,
-            })
-        } catch {
-            // Ignore malformed local draft payloads.
-        }
-    }, [draftStorageKey, form, isMounted])
-
-    useEffect(() => {
-        if (!isMounted) return
-        try {
-            window.localStorage.setItem(draftStorageKey, JSON.stringify(watchedValues))
-        } catch {
-            // Ignore quota/storage write failures.
-        }
-    }, [draftStorageKey, isMounted, watchedValues])
+    const selectedProvider = watchedValues.providerSlug || "auto"
 
     const selections = useMemo(() => {
         const map: Partial<Record<PromptCategory, PromptPreset>> = {}
@@ -346,8 +331,10 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     }, [presetOptions, watchedValues])
 
     const promptPreview = useMemo(() => {
+        const subject = (watchedValues.subject || "").trim()
+        if (!subject) return ""
         return assemblePrompt({
-            subject: watchedValues.subject || "",
+            subject,
             selections,
         })
     }, [watchedValues.subject, selections])
@@ -422,7 +409,9 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         const generationSettings = {
             aspect_ratio: selections.aspectRatio?.label || data.aspectRatio || undefined,
             duration_seconds: data.durationSeconds ? Number(data.durationSeconds) : undefined,
+            provider_slug: data.providerSlug && data.providerSlug !== "auto" ? data.providerSlug : undefined,
             model: data.model?.trim() || undefined,
+            quality: data.quality?.trim() || undefined,
             negative_prompt: data.negativePrompt?.trim() || undefined,
             seed: data.seed !== undefined ? Number(data.seed) : undefined,
             seed_locked: Boolean(data.seedLocked),
@@ -499,7 +488,18 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                             />
 
                             <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
-                                <div className="text-xs uppercase tracking-[0.16em] text-white/50">Quick Styles</div>
+                                <div className="flex items-center justify-between">
+                                    <div className="text-xs uppercase tracking-[0.16em] text-white/50">Quick Styles</div>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={clearAllFields}
+                                        className="h-7 rounded-lg border border-white/10 bg-white/5 px-2.5 text-[11px] text-white/70 hover:bg-white/10"
+                                    >
+                                        Clear All
+                                    </Button>
+                                </div>
                                 <div className="flex flex-wrap gap-2">
                                     {QUICK_STYLE_PRESETS.map((style) => (
                                         <button
@@ -584,6 +584,57 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                     </div>
                                 </div>
 
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:items-end">
+                                    <FormField
+                                        control={form.control}
+                                        name="providerSlug"
+                                        render={({ field }) => (
+                                            <FormItem className="min-w-0">
+                                                <FormLabel className="text-white/80">Provider</FormLabel>
+                                                <Select
+                                                    onValueChange={field.onChange}
+                                                    value={field.value ?? "auto"}
+                                                >
+                                                    <FormControl>
+                                                        <SelectTrigger className="min-w-0 rounded-xl border-white/10 bg-white/5 text-white [&>span]:truncate">
+                                                            <SelectValue placeholder="Auto" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                        <SelectItem value="auto">Auto</SelectItem>
+                                                        <SelectItem value="openai">OpenAI</SelectItem>
+                                                        <SelectItem value="kie">Kie.ai</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="quality"
+                                        render={({ field }) => (
+                                            <FormItem className="min-w-0">
+                                                <FormLabel className="text-white/80">Quality</FormLabel>
+                                                <Select
+                                                    onValueChange={field.onChange}
+                                                    value={field.value ?? "standard"}
+                                                >
+                                                    <FormControl>
+                                                        <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white [&>span]:truncate">
+                                                            <SelectValue placeholder="standard" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                        <SelectItem value="standard">Standard</SelectItem>
+                                                        <SelectItem value="hd">HD</SelectItem>
+                                                        <SelectItem value="high">High</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-3">
                                     <FormField
                                         control={form.control}
@@ -616,7 +667,13 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                             <FormLabel className="text-white/80">Model (optional)</FormLabel>
                                             <FormControl>
                                                 <Input
-                                                    placeholder="e.g. dall-e-3"
+                                                    placeholder={
+                                                        selectedProvider === "kie"
+                                                            ? "e.g. qwen/qwen-image"
+                                                            : selectedProvider === "openai"
+                                                                ? "e.g. dall-e-3"
+                                                                : "e.g. dall-e-3 or qwen/qwen-image"
+                                                    }
                                                     value={field.value ?? ""}
                                                     onChange={(event) => field.onChange(event.target.value)}
                                                     className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"

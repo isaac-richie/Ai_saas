@@ -12,6 +12,17 @@ export class OpenAIProvider extends BaseProvider {
         });
     }
 
+    private normalizeImageQuality(raw?: string): "standard" | "hd" | undefined {
+        if (!raw) return undefined;
+        const value = raw.trim().toLowerCase();
+        if (!value) return undefined;
+        if (value === "hd") return "hd";
+        if (value === "standard") return "standard";
+        if (value === "high") return "hd";
+        if (value === "medium" || value === "low") return "standard";
+        return undefined;
+    }
+
     async generate(request: GenerationRequest): Promise<GenerationResult> {
         try {
             const ratio = request.aspect_ratio || "1:1";
@@ -22,15 +33,23 @@ export class OpenAIProvider extends BaseProvider {
                         ? "1024x1792"
                         : "1024x1024";
 
-            const response = await this.client.images.generate({
-                model: request.model || "dall-e-3",
+            const model = request.model || "dall-e-3";
+            const quality = this.normalizeImageQuality(request.quality);
+            const payload: OpenAI.Images.ImageGenerateParamsNonStreaming = {
+                model,
                 prompt: request.prompt,
                 n: 1,
-                // DALL-E 3 supports 1024x1024, 1024x1792, 1792x1024. 
-                // We will map generic aspect ratios or stick to default for MVP.
                 size,
                 response_format: "url",
-            });
+                stream: false,
+            };
+
+            // OpenAI image quality accepts only standard|hd for image generation.
+            if (quality) {
+                payload.quality = quality;
+            }
+
+            const response = await this.client.images.generate(payload);
 
             const url = response?.data?.[0]?.url;
 

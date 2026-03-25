@@ -23,10 +23,16 @@ export async function GET(request: NextRequest) {
     }
 
     const range = request.headers.get("range") ?? undefined;
-    const upstream = await fetch(target.toString(), {
-        headers: range ? { Range: range } : undefined,
-        redirect: "follow",
-    });
+    let upstream: Response;
+    try {
+        upstream = await fetch(target.toString(), {
+            headers: range ? { Range: range } : undefined,
+            redirect: "follow",
+            signal: AbortSignal.timeout(60000),
+        });
+    } catch {
+        return new Response("Upstream fetch timeout", { status: 504 });
+    }
 
     if (!upstream.ok || !upstream.body) {
         return new Response("Upstream error", { status: upstream.status });

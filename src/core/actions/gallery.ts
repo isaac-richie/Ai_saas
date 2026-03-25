@@ -23,16 +23,36 @@ export type GalleryAsset = MediaAsset & {
     createdAt: string;
 };
 
-export async function deleteGalleryAsset(optionId: string) {
+async function resolveGalleryUser() {
     const supabase = await createClient();
-    let { data: { user } } = await supabase.auth.getUser();
+    const {
+        data: { user: existingUser },
+    } = await supabase.auth.getUser();
 
-    if (!user) {
-        const { data } = await supabase.auth.signInAnonymously();
-        user = data.user;
+    if (existingUser) return { supabase, user: existingUser, error: null as string | null };
+
+    try {
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (error) {
+            return {
+                supabase,
+                user: null,
+                error: `No active session. Enable Supabase Anonymous auth or sign in. (${error.message})`,
+            };
+        }
+        return { supabase, user: data.user, error: null as string | null };
+    } catch {
+        return {
+            supabase,
+            user: null,
+            error: "No active session. Enable Supabase Anonymous auth or sign in.",
+        };
     }
+}
 
-    if (!user) return { error: "Unauthorized" };
+export async function deleteGalleryAsset(optionId: string) {
+    const { supabase, user, error: sessionError } = await resolveGalleryUser();
+    if (!user) return { error: sessionError || "Unauthorized" };
 
     const { error } = await supabase.from("shot_generations").delete().eq("id", optionId);
     if (error) return { error: error.message };
@@ -40,15 +60,8 @@ export async function deleteGalleryAsset(optionId: string) {
 }
 
 export async function moveGalleryAssetsToProject(optionIds: string[], targetProjectId: string) {
-    const supabase = await createClient();
-    let { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        const { data } = await supabase.auth.signInAnonymously();
-        user = data.user;
-    }
-
-    if (!user) return { error: "Unauthorized" };
+    const { supabase, user, error: sessionError } = await resolveGalleryUser();
+    if (!user) return { error: sessionError || "Unauthorized" };
 
     const dedupedIds = Array.from(new Set(optionIds.filter(Boolean)));
     if (dedupedIds.length === 0) return { error: "No assets selected" };
@@ -204,14 +217,7 @@ export async function moveGalleryAssetsToProject(optionIds: string[], targetProj
 }
 
 export async function getGalleryAssets(projectId?: string) {
-    const supabase = await createClient();
-    let { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        const { data } = await supabase.auth.signInAnonymously();
-        user = data.user;
-    }
-
+    const { supabase, user } = await resolveGalleryUser();
     if (!user) return { data: [] as GalleryAsset[] };
 
     let query = supabase
@@ -294,6 +300,7 @@ export async function getGalleryAssets(projectId?: string) {
                     }
 
                     if (!outputUrl || outputUrl === 'pending_generation') continue;
+                    if (!/^https?:\/\//i.test(outputUrl) && !outputUrl.startsWith("/storage/")) continue;
 
                     const isVideo = outputUrl.includes('.mp4') || outputUrl.includes('tempfile.aiquickdraw.com/p/');
                     if (process.env.NODE_ENV !== "production") {

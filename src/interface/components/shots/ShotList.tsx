@@ -16,6 +16,7 @@ import { batchGenerate } from "@/core/actions/batch"
 import { updateShotStatus, removeShot } from "@/core/actions/shots"
 import { addShotsToSequence, appendShotToSequence, createSequence, VideoSequence } from "@/core/actions/sequences"
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 
 interface ShotListProps {
@@ -49,6 +50,7 @@ type SelectionPayload = {
 }
 
 export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps) {
+    const router = useRouter()
     const [generatingId, setGeneratingId] = useState<string | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [selectedShots, setSelectedShots] = useState<string[]>([])
@@ -69,11 +71,31 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         prompt: "Cinematic motion, subtle camera move, natural lighting",
         useSourceImage: true,
     })
+    const [deleteDialog, setDeleteDialog] = useState<{
+        open: boolean
+        shotId: string | null
+        shotName: string
+    }>({
+        open: false,
+        shotId: null,
+        shotName: "",
+    })
     const listRef = useRef<HTMLDivElement>(null)
 
+    const isMediaUrl = (url?: string | null) => {
+        if (!url) return false
+        if (url === "pending_generation") return false
+        return /^https?:\/\//i.test(url) || url.startsWith("/storage/")
+    }
+
+    const isVideoUrl = (url?: string | null) => {
+        if (!isMediaUrl(url)) return false
+        return /\.mp4($|\?)/i.test(url || "")
+    }
+
     const getOutputType = (option: ShotOption) => {
-        if (!option.output_url) return "Pending"
-        if (option.output_url?.endsWith(".mp4")) return "Video"
+        if (!isMediaUrl(option.output_url)) return "Pending"
+        if (isVideoUrl(option.output_url)) return "Video"
         return "Image"
     }
 
@@ -136,14 +158,18 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
         if (processingOptIds.length === 0) return;
 
-        const interval = setInterval(() => {
-            processingOptIds.forEach(async (id) => {
-                await pollShotStatus(id);
-            });
+        const interval = setInterval(async () => {
+            const results = await Promise.all(
+                processingOptIds.map(async (id) => pollShotStatus(id))
+            );
+            const hasUpdates = results.some((res) => res?.data && (res.data as { updated?: boolean }).updated);
+            if (hasUpdates) {
+                router.refresh();
+            }
         }, 5000);
 
         return () => clearInterval(interval);
-    }, [shots, isMounted])
+    }, [shots, isMounted, router])
 
     useEffect(() => {
         setIsMounted(true)
@@ -222,14 +248,27 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         }
     }
 
-    const handleDelete = async (shotId: string) => {
-        if (!confirm("Are you sure you want to delete this shot?")) return;
+    const openDeleteDialog = (shotId: string, shotName: string) => {
+        setDeleteDialog({
+            open: true,
+            shotId,
+            shotName,
+        })
+    }
 
+    const handleDeleteConfirm = async () => {
+        if (!deleteDialog.shotId) return
+        const shotId = deleteDialog.shotId
         setDeletingId(shotId)
         try {
             const res = await removeShot(shotId)
             if (res.error) throw new Error(res.error)
             toast.success("Shot removed")
+            setDeleteDialog({
+                open: false,
+                shotId: null,
+                shotName: "",
+            })
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Delete failed"
             toast.error(`Delete failed: ${message}`)
@@ -240,6 +279,10 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
 
     const openVideoPromptDialog = (option: ShotOption) => {
+        if (option.status !== "approved") {
+            toast.error("Approve an image first before generating video.")
+            return
+        }
         setVideoPromptDialog({
             open: true,
             optionId: option.id,
@@ -525,7 +568,8 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                 const latestCompletedImage = shot.options
                     ?.filter((opt) => opt.status === "completed" && opt.output_url && !opt.output_url.endsWith(".mp4"))
                     .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0];
-                const animateCandidate = approvedOption || latestCompletedImage;
+                const animateCandidate = approvedOption;
+                const hasUnapprovedRenderableImage = !approvedOption && Boolean(latestCompletedImage);
                 const isGeneratingShot = generatingId === shot.id;
                 const selectionPayload = shot.selection_payload as SelectionPayload | null
                 const selections = selectionPayload?.selections || {}
@@ -612,7 +656,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                     variant="ghost"
                                     className="h-8 w-8 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-xl"
                                     disabled={deletingId === shot.id}
-                                    onClick={() => handleDelete(shot.id)}
+                                    onClick={() => openDeleteDialog(shot.id, shot.name)}
                                 >
                                     {deletingId === shot.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                 </Button>
@@ -638,17 +682,18 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                     {shot.options.map((opt) => {
                                         const outputType = getOutputType(opt);
+                                        const mediaUrl = isMediaUrl(opt.output_url) ? opt.output_url : undefined;
                                         const providerLabel = opt.provider?.name || "Provider";
                                         const statusLabel = opt.status === "processing" ? "Processing" : opt.status;
                                         return (
                                         <Card key={opt.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0f1012]">
                                             <div className="relative aspect-video bg-black/50">
-                                                {opt.output_url ? (
-                                                    opt.status === 'completed' && opt.output_url.endsWith('.mp4') ? (
-                                                        <video src={getVideoProxyUrl(opt.output_url)} className="h-full w-full object-contain" controls playsInline loop muted preload="metadata" />
+                                                {mediaUrl ? (
+                                                    opt.status === 'completed' && isVideoUrl(mediaUrl) ? (
+                                                        <video src={getVideoProxyUrl(mediaUrl)} className="h-full w-full object-contain" controls playsInline loop muted preload="metadata" />
                                                     ) : (
-                                                        <a href={opt.output_url} target="_blank" rel="noopener noreferrer" className="block w-full h-full cursor-zoom-in overflow-hidden">
-                                                            <img src={opt.output_url} alt={opt.prompt || ""} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
+                                                        <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full cursor-zoom-in overflow-hidden">
+                                                            <img src={mediaUrl} alt={opt.prompt || ""} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
                                                         </a>
                                                     )
                                                 ) : (
@@ -672,7 +717,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                 )}
 
                                                 {/* Approve Overlay */}
-                                                {opt.status !== 'approved' && opt.status === 'completed' && !opt.output_url?.endsWith('.mp4') && (
+                                                {opt.status !== 'approved' && opt.status === 'completed' && !isVideoUrl(opt.output_url) && (
                                                     <div className="absolute top-3 right-3 z-10 transition-all duration-300 hover:scale-105">
                                                         <Button
                                                             size="icon"
@@ -719,9 +764,9 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                     <span className={`rounded-full border px-2.5 py-1 capitalize ${getStatusBadgeClass(opt.status)}`}>
                                                         {statusLabel}
                                                     </span>
-                                                    {opt.output_url && (
+                                                    {mediaUrl && (
                                                         <a
-                                                            href={opt.output_url}
+                                                            href={mediaUrl}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             download
@@ -730,7 +775,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                             Download
                                                         </a>
                                                     )}
-                                                    {opt.output_url && (
+                                                    {mediaUrl && (
                                                         <button
                                                             type="button"
                                                             onClick={() => handleCompare(opt)}
@@ -743,7 +788,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                             Compare
                                                         </button>
                                                     )}
-                                                    {opt.output_url && (
+                                                    {mediaUrl && (
                                                         <button
                                                             type="button"
                                                             onClick={() => toggleCompareSet(opt)}
@@ -775,6 +820,19 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                             ) : (
                                                 <><Video className="mr-1.5 h-3.5 w-3.5" /> Animate via Kie.ai</>
                                             )}
+                                        </Button>
+                                    </div>
+                                )}
+                                {hasUnapprovedRenderableImage && (
+                                    <div className="mt-3 flex items-center justify-end gap-2">
+                                        <span className="text-[11px] text-amber-200/80">Approve one generated image to unlock video generation.</span>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            disabled
+                                            className="h-8 gap-1 rounded-xl text-xs bg-white/5 text-white/45"
+                                        >
+                                            <Video className="mr-1.5 h-3.5 w-3.5" /> Animate via Kie.ai
                                         </Button>
                                     </div>
                                 )}
@@ -871,6 +929,47 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                     </DialogContent>
                 </Dialog>
             )}
+
+            <Dialog
+                open={deleteDialog.open}
+                onOpenChange={(open) => {
+                    if (!open && deletingId) return
+                    setDeleteDialog((prev) => ({ ...prev, open }))
+                }}
+            >
+                <DialogContent className="max-w-md border-white/10 bg-[#111114] text-white">
+                    <DialogTitle className="text-base font-semibold">Delete Shot?</DialogTitle>
+                    <p className="mt-2 text-sm text-white/70">
+                        This will permanently remove <span className="font-medium text-white">{deleteDialog.shotName || "this shot"}</span> and all generated outputs attached to it.
+                    </p>
+                    <div className="mt-5 flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            className="rounded-xl border border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                            disabled={Boolean(deletingId)}
+                            onClick={() => setDeleteDialog({ open: false, shotId: null, shotName: "" })}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            className="rounded-xl bg-red-500/90 text-white hover:bg-red-500"
+                            disabled={Boolean(deletingId)}
+                            onClick={handleDeleteConfirm}
+                        >
+                            {deletingId ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Deleting...
+                                </>
+                            ) : (
+                                "Delete Shot"
+                            )}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <Dialog
                 open={videoPromptDialog.open}

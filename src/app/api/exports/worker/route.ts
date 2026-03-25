@@ -7,6 +7,7 @@ import { promisify } from "util"
 
 const execFileAsync = promisify(execFile)
 export const runtime = "nodejs"
+type ServerSupabase = Awaited<ReturnType<typeof createClient>>
 
 type WorkerJob = {
     id: string
@@ -43,7 +44,7 @@ function isVideoExt(ext: string): boolean {
     return ext === "mp4" || ext === "mov" || ext === "webm" || ext === "m4v"
 }
 
-async function processJob(supabase: any, userId: string, job: WorkerJob) {
+async function processJob(supabase: ServerSupabase, userId: string, job: WorkerJob) {
     await supabase
         .from("export_jobs")
         .update({ status: "processing", progress: 5, error_message: null, updated_at: new Date().toISOString() })
@@ -214,15 +215,15 @@ async function processJob(supabase: any, userId: string, job: WorkerJob) {
 export async function POST(request: Request) {
     const supabase = await createClient()
     const body = await request.json().catch(() => ({}))
-    return handleWorker(supabase as any, request, body)
+    return handleWorker(supabase, request, body)
 }
 
 export async function GET(request: Request) {
     const supabase = await createClient()
-    return handleWorker(supabase as any, request, {})
+    return handleWorker(supabase, request, {})
 }
 
-async function handleWorker(supabase: any, request: Request, body: Record<string, unknown>) {
+async function handleWorker(supabase: ServerSupabase, request: Request, body: Record<string, unknown>) {
     const url = new URL(request.url)
     const queryLimit = url.searchParams.get("limit")
     const queryUserId = url.searchParams.get("userId")
@@ -237,7 +238,7 @@ async function handleWorker(supabase: any, request: Request, body: Record<string
         ((receivedSecret && receivedSecret === configuredSecret) || (bearerToken && bearerToken === configuredSecret))
     )
 
-    let { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
     let effectiveUserId: string | null = user?.id ?? null
     const requestedUserId =
         (typeof body?.userId === "string" ? body.userId : null) ||

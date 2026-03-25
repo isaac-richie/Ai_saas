@@ -18,6 +18,31 @@ const VARIATION_HINTS: Record<FastVideoVariation, string> = {
   creative: "allow expressive cinematic reinterpretation while preserving primary subject intent",
 }
 
+type FastVideoDebugEvent = {
+  at: string
+  step: string
+  details?: Record<string, unknown>
+}
+
+const createFastVideoDebug = () => {
+  const traceId = crypto.randomUUID()
+  const events: FastVideoDebugEvent[] = []
+
+  const push = (step: string, details?: Record<string, unknown>) => {
+    const event: FastVideoDebugEvent = { at: new Date().toISOString(), step, details }
+    events.push(event)
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[FastVideo][${traceId}] ${step}`, details || {})
+    }
+  }
+
+  return {
+    traceId,
+    events,
+    push,
+  }
+}
+
 async function ensureSession() {
   const supabase = await createClient()
   let {
@@ -131,23 +156,46 @@ const persistRemoteMedia = async (
 }
 
 export async function generateFastVideo(input: unknown) {
+  const debug = createFastVideoDebug()
+  debug.push("request.received")
+
   const parsed = fastVideoRequestSchema.safeParse(input)
   if (!parsed.success) {
+    debug.push("request.invalid", { issue: parsed.error.issues[0]?.message || "Invalid request payload" })
     return { error: parsed.error.issues[0]?.message || "Invalid request payload" }
   }
 
   const payload = parsed.data
   const safeDuration = Math.max(5, Math.min(15, payload.settings.duration_seconds || 5))
+  debug.push("request.validated", {
+    hasReference: Boolean(payload.prompt_inputs.reference_image),
+    model: payload.settings.model?.trim() || null,
+    durationSeconds: safeDuration,
+    aspectRatio: payload.prompt_inputs.aspect_ratio,
+  })
   const { supabase, user } = await ensureSession()
-  if (!user) return { error: "Unauthorized" }
+  if (!user) {
+    debug.push("session.missing_user")
+    return { error: "Unauthorized" }
+  }
+  debug.push("session.resolved", { userId: user.id })
 
   const kie = await resolveKieConfig(user.id)
-  if (!kie.data) return { error: kie.error }
+  if (!kie.data) {
+    debug.push("provider.missing_key", { message: kie.error || "Kie key missing" })
+    return { error: kie.error }
+  }
+  debug.push("provider.ready", { providerId: kie.data.providerId })
 
   const composed = assembleFastVideoPrompt(payload)
+  debug.push("prompt.assembled", {
+    promptLength: composed.prompt.length,
+    negativePromptLength: composed.negativePrompt.length,
+  })
 
   try {
     const provider = ProviderFactory.create("kie", { apiKey: kie.data.apiKey })
+    debug.push("provider.generate.start")
     const result = await provider.generate({
       prompt: composed.prompt,
       negative_prompt: composed.negativePrompt,
@@ -157,8 +205,15 @@ export async function generateFastVideo(input: unknown) {
       duration_seconds: safeDuration,
       model: payload.settings.model?.trim() || undefined,
     })
+    debug.push("provider.generate.done", {
+      status: result.status,
+      taskId: result.provider_check_id || result.id || null,
+      url: result.url || null,
+      providerDebug: result.debug || null,
+    })
 
     if (result.status === "failed") {
+      debug.push("provider.generate.failed", { error: result.error || "Fast video generation failed" })
       return { error: result.error || "Fast video generation failed" }
     }
 
@@ -167,6 +222,10 @@ export async function generateFastVideo(input: unknown) {
       userId: user.id,
       shotId: result.provider_check_id || crypto.randomUUID(),
       kind: "video",
+    })
+    debug.push("media.persist.complete", {
+      hadProviderUrl: Boolean(result.url),
+      persistedUrl: stableUrl || null,
     })
 
     return {
@@ -180,47 +239,87 @@ export async function generateFastVideo(input: unknown) {
         motionPresetName: composed.motion?.name || null,
         durationSeconds: safeDuration,
         model: payload.settings.model?.trim() || null,
+        debug: {
+          traceId: debug.traceId,
+          events: debug.events,
+        },
       },
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Fast video generation failed"
+    debug.push("provider.generate.exception", { message })
     return { error: message }
   }
 }
 
-export async function pollFastVideoStatus(taskId: string) {
+export async function pollFastVideoStatus(taskId: string, traceId?: string) {
+  const debug = createFastVideoDebug()
+  const activeTraceId = traceId || debug.traceId
   if (!taskId?.trim()) return { error: "Missing task id" }
+  debug.push("poll.received", { taskId, traceId: activeTraceId })
 
-  const { supabase, user } = await ensureSession()
+  const { user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
+  debug.push("poll.session.resolved", { userId: user.id })
 
   const kie = await resolveKieConfig(user.id)
   if (!kie.data) return { error: kie.error }
+  debug.push("poll.provider.ready")
 
   try {
     const provider = ProviderFactory.create("kie", { apiKey: kie.data.apiKey })
     if (!provider.checkStatus) return { error: "Provider does not support polling" }
 
     const result = await provider.checkStatus(taskId)
+    debug.push("poll.provider.status", {
+      status: result.status,
+      url: result.url || null,
+      error: result.error || null,
+      providerDebug: result.debug || null,
+    })
     if (result.status === "failed") {
-      return { data: { status: "failed", url: null, error: result.error || "Generation failed" } }
+      return {
+        data: {
+          status: "failed",
+          url: null,
+          error: result.error || "Generation failed",
+          debug: { traceId: activeTraceId, events: debug.events },
+        },
+      }
     }
 
-    const stableUrl = await persistRemoteMedia(supabase, {
-      url: result.url,
-      userId: user.id,
-      shotId: taskId,
-      kind: "video",
+    if (result.status === "completed" && !result.url) {
+      debug.push("poll.waiting_for_url")
+      return {
+        data: {
+          status: "processing",
+          url: null,
+          message: "Finalizing video file...",
+          waitingForUrl: true,
+          debug: { traceId: activeTraceId, events: debug.events },
+        },
+      }
+    }
+
+    // Return provider URL immediately for responsive playback.
+    // Persisting large remote videos here can block for many seconds and cause overlapping poll calls.
+    const stableUrl = result.url || null
+    debug.push("poll.media.persist.complete", {
+      providerUrl: result.url || null,
+      stableUrl,
+      persisted: false,
     })
 
     return {
       data: {
         status: result.status,
         url: stableUrl || result.url || null,
+        debug: { traceId: activeTraceId, events: debug.events },
       },
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Polling failed"
+    debug.push("poll.exception", { message })
     return { error: message }
   }
 }

@@ -25,11 +25,14 @@ All model selection is done through the `model` field in the createTask payload.
 
 - Image default: `qwen/qwen-image`
 - Video default: `kling/v2-5-turbo-image-to-video-pro`
+- Video text-to-video default: `kling/v2-5-turbo-text-to-video-pro`
 
 Override with env vars:
 
 - `KIE_DEFAULT_IMAGE_MODEL`
-- `KIE_DEFAULT_VIDEO_MODEL`
+- `KIE_DEFAULT_VIDEO_MODEL` (legacy fallback)
+- `KIE_DEFAULT_VIDEO_MODEL_I2V` (image-to-video default)
+- `KIE_DEFAULT_VIDEO_MODEL_T2V` (text-to-video default)
 
 Optional callback:
 
@@ -40,4 +43,3 @@ Optional callback:
 - Shot Builder model field can pass any valid Kie model slug.
 - Fast Video now accepts optional `settings.model`.
 - Some Kie families (like Veo dedicated APIs) may use separate endpoints in Kie docs. Market-style models use the unified jobs flow above.
-

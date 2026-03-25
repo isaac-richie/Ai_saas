@@ -16,7 +16,7 @@ import {
   type FastVideoVariation,
 } from "@/core/config/fast-video-presets"
 import { generateFastVideo, pollFastVideoStatus, promoteFastVideoToScene } from "@/core/actions/fast-video"
-import { Loader2, Sparkles, Film, Clapperboard } from "lucide-react"
+import { Loader2, Sparkles, Film, Clapperboard, Trash2 } from "lucide-react"
 
 type SceneOption = {
   id: string
@@ -32,6 +32,26 @@ type ProjectOption = {
 interface FastVideoStudioProps {
   projects: ProjectOption[]
 }
+
+type FastVideoDebugEvent = {
+  at: string
+  step: string
+  details?: Record<string, unknown>
+}
+
+type SavedFastClip = {
+  id: string
+  taskId: string | null
+  url: string
+  subject: string
+  prompt: string
+  aspectRatio: FastVideoAspectRatio
+  variation: FastVideoVariation
+  durationSeconds: number
+  createdAt: string
+}
+
+const FAST_VIDEO_STORAGE_KEY = "aisas.fast-video.v1"
 
 export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const router = useRouter()
@@ -49,8 +69,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [status, setStatus] = useState<"idle" | "processing" | "completed" | "failed">("idle")
   const [statusMessage, setStatusMessage] = useState("Ready")
   const [taskId, setTaskId] = useState<string | null>(null)
+  const [traceId, setTraceId] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [useDirectVideoUrl, setUseDirectVideoUrl] = useState(false)
+  const [debugEvents, setDebugEvents] = useState<FastVideoDebugEvent[]>([])
   const [finalPrompt, setFinalPrompt] = useState<string>("")
+  const [savedClips, setSavedClips] = useState<SavedFastClip[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isPromoting, setIsPromoting] = useState(false)
 
@@ -61,6 +85,94 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     () => projects.find((project) => project.id === selectedProjectId) || null,
     [projects, selectedProjectId]
   )
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(FAST_VIDEO_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as {
+        subject?: string
+        stylePresetId?: string
+        motionPresetId?: string
+        aspectRatio?: FastVideoAspectRatio
+        variation?: FastVideoVariation
+        durationSeconds?: number
+        referenceImageUrl?: string
+        status?: "idle" | "processing" | "completed" | "failed"
+        statusMessage?: string
+        taskId?: string | null
+        traceId?: string | null
+        videoUrl?: string | null
+        finalPrompt?: string
+        savedClips?: SavedFastClip[]
+      }
+
+      if (typeof parsed.subject === "string") setSubject(parsed.subject)
+      if (typeof parsed.stylePresetId === "string") setStylePresetId(parsed.stylePresetId)
+      if (typeof parsed.motionPresetId === "string") setMotionPresetId(parsed.motionPresetId)
+      if (parsed.aspectRatio) setAspectRatio(parsed.aspectRatio)
+      if (parsed.variation) setVariation(parsed.variation)
+      if (typeof parsed.durationSeconds === "number") setDurationSeconds(parsed.durationSeconds)
+      if (typeof parsed.referenceImageUrl === "string") setReferenceImageUrl(parsed.referenceImageUrl)
+      if (parsed.status) setStatus(parsed.status)
+      if (typeof parsed.statusMessage === "string") setStatusMessage(parsed.statusMessage)
+      if (typeof parsed.taskId === "string" || parsed.taskId === null) setTaskId(parsed.taskId ?? null)
+      if (typeof parsed.traceId === "string" || parsed.traceId === null) setTraceId(parsed.traceId ?? null)
+      if (typeof parsed.videoUrl === "string" || parsed.videoUrl === null) setVideoUrl(parsed.videoUrl ?? null)
+      if (typeof parsed.finalPrompt === "string") setFinalPrompt(parsed.finalPrompt)
+      if (Array.isArray(parsed.savedClips)) setSavedClips(parsed.savedClips.slice(0, 24))
+    } catch {
+      // Ignore bad local cache
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        FAST_VIDEO_STORAGE_KEY,
+        JSON.stringify({
+          subject,
+          stylePresetId,
+          motionPresetId,
+          aspectRatio,
+          variation,
+          durationSeconds,
+          referenceImageUrl,
+          status,
+          statusMessage,
+          taskId,
+          traceId,
+          videoUrl,
+          finalPrompt,
+          savedClips: savedClips.slice(0, 24),
+        })
+      )
+    } catch {
+      // Ignore write failure
+    }
+  }, [
+    subject,
+    stylePresetId,
+    motionPresetId,
+    aspectRatio,
+    variation,
+    durationSeconds,
+    referenceImageUrl,
+    status,
+    statusMessage,
+    taskId,
+    traceId,
+    videoUrl,
+    finalPrompt,
+    savedClips,
+  ])
+
+  const saveClip = (clip: SavedFastClip) => {
+    setSavedClips((prev) => {
+      const dedup = prev.filter((item) => item.id !== clip.id && !(item.taskId && clip.taskId && item.taskId === clip.taskId) && item.url !== clip.url)
+      return [clip, ...dedup].slice(0, 24)
+    })
+  }
 
   useEffect(() => {
     if (!selectedProject) {
@@ -75,36 +187,68 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   useEffect(() => {
     if (!taskId || (status !== "processing" && status !== "idle")) return
 
+    let attempts = 0
+    let inFlight = false
+    const maxAttempts = 120 // ~10 minutes @ 5s polling for longer Kie queues/renders
     const interval = setInterval(async () => {
-      const res = await pollFastVideoStatus(taskId)
-      if (res.error) {
-        setStatus("failed")
-        setStatusMessage(res.error)
-        clearInterval(interval)
-        return
-      }
+      if (inFlight) return
+      inFlight = true
+      attempts += 1
+      try {
+        const res = await pollFastVideoStatus(taskId, traceId || undefined)
+        if (res.error) {
+          setStatus("failed")
+          setStatusMessage(res.error)
+          clearInterval(interval)
+          return
+        }
 
-      const nextStatus = res.data?.status
-      const nextUrl = res.data?.url || null
+        const nextStatus = res.data?.status
+        const nextUrl = res.data?.url || null
+        const waitingForUrl = Boolean((res.data as { waitingForUrl?: boolean } | undefined)?.waitingForUrl)
+        const providerMessage = (res.data as { message?: string } | undefined)?.message
+        const pollDebug = (res.data as { debug?: { events?: FastVideoDebugEvent[] } } | undefined)?.debug?.events || []
+        if (pollDebug.length > 0) {
+          setDebugEvents((prev) => [...prev, ...pollDebug])
+        }
 
-      if (nextStatus === "completed" && nextUrl) {
-        setStatus("completed")
-        setStatusMessage("Complete")
-        setVideoUrl(nextUrl)
-        clearInterval(interval)
-        toast.success("Fast video ready")
-      } else if (nextStatus === "failed") {
-        setStatus("failed")
-        setStatusMessage(res.data?.error || "Generation failed")
-        clearInterval(interval)
-      } else {
-        setStatus("processing")
-        setStatusMessage("Sampling frames...")
+        if (nextStatus === "completed" && nextUrl) {
+          setStatus("completed")
+          setStatusMessage("Complete")
+          setVideoUrl(nextUrl)
+          setUseDirectVideoUrl(false)
+          saveClip({
+            id: crypto.randomUUID(),
+            taskId,
+            url: nextUrl,
+            subject: subject.trim(),
+            prompt: finalPrompt || subject.trim(),
+            aspectRatio,
+            variation,
+            durationSeconds,
+            createdAt: new Date().toISOString(),
+          })
+          clearInterval(interval)
+          toast.success("Fast video ready")
+        } else if (nextStatus === "failed") {
+          setStatus("failed")
+          setStatusMessage(res.data?.error || "Generation failed")
+          clearInterval(interval)
+        } else if (attempts >= maxAttempts) {
+          setStatus("failed")
+          setStatusMessage("Generation timed out after extended polling. Kie may still be processing; try again in a moment.")
+          clearInterval(interval)
+        } else {
+          setStatus("processing")
+          setStatusMessage(waitingForUrl ? (providerMessage || "Finalizing video file...") : `Sampling frames... (${attempts}/${maxAttempts})`)
+        }
+      } finally {
+        inFlight = false
       }
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [taskId, status])
+  }, [taskId, status, traceId, aspectRatio, durationSeconds, finalPrompt, subject, variation])
 
   const handleUploadReference = async (file?: File | null) => {
     if (!file) return
@@ -142,7 +286,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setStatus("processing")
     setStatusMessage("Initializing...")
     setVideoUrl(null)
+    setUseDirectVideoUrl(false)
     setTaskId(null)
+    setTraceId(null)
+    setDebugEvents([])
 
     const res = await generateFastVideo({
       request_type: "fast_video",
@@ -170,12 +317,38 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
 
     setFinalPrompt(res.data.prompt || "")
+    const initialDebug = (res.data as { debug?: { traceId?: string; events?: FastVideoDebugEvent[] } }).debug
+    if (initialDebug?.traceId) {
+      setTraceId(initialDebug.traceId)
+    }
+    if (initialDebug?.events?.length) {
+      setDebugEvents(initialDebug.events)
+    }
 
     if (res.data.url && res.data.status === "completed") {
       setVideoUrl(res.data.url)
+      setUseDirectVideoUrl(false)
       setStatus("completed")
       setStatusMessage("Complete")
+      saveClip({
+        id: crypto.randomUUID(),
+        taskId: res.data.taskId || null,
+        url: res.data.url,
+        subject: subject.trim(),
+        prompt: res.data.prompt || subject.trim(),
+        aspectRatio,
+        variation,
+        durationSeconds,
+        createdAt: new Date().toISOString(),
+      })
       toast.success("Fast video ready")
+      return
+    }
+
+    if (!res.data.taskId) {
+      setStatus("failed")
+      setStatusMessage("Provider did not return a task id. Please try another model or prompt.")
+      toast.error("Generation did not start. No task id from provider.")
       return
     }
 
@@ -217,6 +390,26 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
     toast.success("Added to main scene builder")
     router.push(`/dashboard/projects/${res.data.projectId}/scenes/${selectedSceneId}`)
+  }
+
+  const handleClearSession = () => {
+    setStatus("idle")
+    setStatusMessage("Ready")
+    setTaskId(null)
+    setTraceId(null)
+    setVideoUrl(null)
+    setUseDirectVideoUrl(false)
+    setDebugEvents([])
+    setFinalPrompt("")
+  }
+
+  const handleClearAllClips = () => {
+    setSavedClips([])
+    toast.success("Saved clips cleared")
+  }
+
+  const handleDeleteClip = (id: string) => {
+    setSavedClips((prev) => prev.filter((clip) => clip.id !== id))
   }
 
   return (
@@ -391,7 +584,20 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           <CardContent className="space-y-3">
             <div className="aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black/70">
               {videoUrl ? (
-                <video src={`/api/media/proxy?url=${encodeURIComponent(videoUrl)}`} className="h-full w-full object-contain" controls autoPlay loop playsInline preload="metadata" />
+                <video
+                  src={useDirectVideoUrl ? videoUrl : `/api/media/proxy?url=${encodeURIComponent(videoUrl)}`}
+                  className="h-full w-full object-contain"
+                  controls
+                  autoPlay
+                  loop
+                  playsInline
+                  preload="metadata"
+                  onError={() => {
+                    if (!useDirectVideoUrl) {
+                      setUseDirectVideoUrl(true)
+                    }
+                  }}
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-white/45">
                   {status === "processing" ? (
@@ -413,6 +619,90 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/65">
               <p className="mb-1 uppercase tracking-[0.16em] text-white/45">Pipeline</p>
               <p>{status === "processing" ? "Initializing -> Sampling -> Finalizing" : "Ready"}</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClearSession}
+                className="h-8 rounded-lg border-white/10 bg-white/5 px-3 text-xs text-white/80 hover:bg-white/10"
+              >
+                Clear Current
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClearAllClips}
+                className="h-8 rounded-lg border-white/10 bg-white/5 px-3 text-xs text-white/80 hover:bg-white/10"
+              >
+                Clear Saved
+              </Button>
+            </div>
+
+            <details className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/70">
+              <summary className="cursor-pointer select-none text-white/80">
+                Fast Video Debug
+                {traceId ? ` · ${traceId.slice(0, 8)}` : ""}
+              </summary>
+              <div className="mt-2 max-h-48 space-y-2 overflow-y-auto pr-1 font-mono text-[11px] leading-relaxed text-white/65">
+                {debugEvents.length === 0 ? (
+                  <p>No debug events yet.</p>
+                ) : (
+                  debugEvents.map((event, index) => (
+                    <div key={`${event.at}-${event.step}-${index}`} className="rounded border border-white/10 bg-white/5 p-2">
+                      <div className="text-cyan-300">{event.step}</div>
+                      <div className="text-white/40">{event.at}</div>
+                      {event.details ? <pre className="mt-1 whitespace-pre-wrap break-words">{JSON.stringify(event.details, null, 2)}</pre> : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </details>
+
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.16em] text-white/45">Saved Outputs</p>
+                <p className="text-xs text-white/45">{savedClips.length}</p>
+              </div>
+              {savedClips.length === 0 ? (
+                <p className="text-xs text-white/50">Generated clips stay here until you clear them.</p>
+              ) : (
+                <div className="grid gap-2">
+                  {savedClips.map((clip) => (
+                    <div key={clip.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-2">
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() => {
+                          setVideoUrl(clip.url)
+                          setFinalPrompt(clip.prompt)
+                          setSubject(clip.subject)
+                          setAspectRatio(clip.aspectRatio)
+                          setVariation(clip.variation)
+                          setDurationSeconds(clip.durationSeconds)
+                          setStatus("completed")
+                          setStatusMessage("Loaded from saved clips")
+                          setTaskId(clip.taskId)
+                          setUseDirectVideoUrl(false)
+                        }}
+                      >
+                        <p className="truncate text-xs font-medium text-white">{clip.subject || "Saved clip"}</p>
+                        <p className="text-[11px] text-white/45">{new Date(clip.createdAt).toLocaleString()}</p>
+                      </button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 rounded-md text-white/60 hover:bg-white/10 hover:text-white"
+                        onClick={() => handleDeleteClip(clip.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

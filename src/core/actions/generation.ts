@@ -73,7 +73,10 @@ const persistRemoteMedia = async (
     }
 };
 
-async function resolveGenerationProvider(userId: string): Promise<{ data?: ProviderResolution; error?: string }> {
+async function resolveGenerationProvider(
+    userId: string,
+    forcedSlug?: SupportedProviderSlug
+): Promise<{ data?: ProviderResolution; error?: string }> {
     const supabase = await createClient();
 
     const { data: providers, error: providersError } = await supabase
@@ -123,9 +126,11 @@ async function resolveGenerationProvider(userId: string): Promise<{ data?: Provi
             ? preferredSlugRaw
             : null;
 
-    const orderedProviderSlugs: SupportedProviderSlug[] = preferredSlug
-        ? [preferredSlug, ...SUPPORTED_PROVIDER_PRIORITY.filter((slug) => slug !== preferredSlug)]
-        : [...SUPPORTED_PROVIDER_PRIORITY];
+    const orderedProviderSlugs: SupportedProviderSlug[] = forcedSlug
+        ? [forcedSlug, ...SUPPORTED_PROVIDER_PRIORITY.filter((slug) => slug !== forcedSlug)]
+        : preferredSlug
+            ? [preferredSlug, ...SUPPORTED_PROVIDER_PRIORITY.filter((slug) => slug !== preferredSlug)]
+            : [...SUPPORTED_PROVIDER_PRIORITY];
 
     for (const slug of orderedProviderSlugs) {
         const provider = providerBySlug.get(slug);
@@ -219,7 +224,14 @@ export async function generateShot(shotId: string) {
         return { error: "Shot not found" };
     }
 
-    const resolved = await resolveGenerationProvider(user.id);
+    const settings = (shot.generation_settings as Record<string, unknown> | null) ?? {};
+    const forcedProviderRaw = typeof settings.provider_slug === "string" ? settings.provider_slug : undefined;
+    const forcedProvider =
+        forcedProviderRaw === "openai" || forcedProviderRaw === "kie"
+            ? forcedProviderRaw
+            : undefined;
+
+    const resolved = await resolveGenerationProvider(user.id, forcedProvider);
     if (!resolved.data) {
         return { error: resolved.error ?? "No provider configured" };
     }
@@ -238,7 +250,6 @@ export async function generateShot(shotId: string) {
     // 6. Call Provider
     try {
         const provider = ProviderFactory.create(resolved.data.slug, { apiKey: resolved.data.apiKey });
-        const settings = (shot.generation_settings as Record<string, unknown> | null) ?? {};
         const variations = Math.max(1, Math.min(Number(settings.variations ?? 1), 6));
         const baseSeed = typeof settings.seed === "number" ? settings.seed : undefined;
         const seedLocked = Boolean(settings.seed_locked);
@@ -256,6 +267,7 @@ export async function generateShot(shotId: string) {
                 steps: typeof settings.steps === "number" ? settings.steps : undefined,
                 cfg_scale: typeof settings.cfg_scale === "number" ? settings.cfg_scale : undefined,
                 duration_seconds: typeof settings.duration_seconds === "number" ? settings.duration_seconds : undefined,
+                quality: typeof settings.quality === "string" ? settings.quality : undefined,
                 variations,
             });
 
@@ -410,7 +422,7 @@ export async function generateVideoShot(
             prompt: promptText,
             provider_id: providerRow ? providerRow.id : null,
             status: result.status,
-            output_url: stableUrl || result.url || 'pending_generation', // URL is usually null when processing async
+            output_url: stableUrl || result.url || null, // Async providers can return no URL at creation time
             parameters: {
                 task_id: result.provider_check_id,
                 use_source_image: shouldUseSourceImage,
@@ -470,14 +482,24 @@ export async function pollShotStatus(shotOptionId: string) {
     }
 
     // If it's already done and NOT stuck pending, we don't need to poll
-    if (option.status !== "processing" && option.status !== "pending" && option.output_url !== 'pending_generation') {
+    if (option.status !== "processing" && option.status !== "pending") {
         return { data: { status: option.status, url: option.output_url } };
     }
 
     const parameters = (option.parameters as Record<string, unknown> | null) ?? null;
     const taskId = typeof parameters?.task_id === "string" ? parameters.task_id : null;
     if (!taskId) {
-        return { error: "No task_id found to poll" };
+        const updatePayload: ShotOptionUpdate = {
+            status: "failed",
+            output_url: null,
+            parameters: { ...(parameters || {}), error: "No task_id found to poll" },
+        };
+        await supabase
+            .from("shot_generations")
+            .update(updatePayload)
+            .eq("id", option.id);
+
+        return { data: { status: "failed", url: null, updated: true } };
     }
 
     // 2. Resolve Provider & Key
@@ -520,9 +542,17 @@ export async function pollShotStatus(shotOptionId: string) {
             return { error: "Provider does not support async polling." };
         }
 
-        const result = await provider.checkStatus(taskId);
+        const rawResult = await provider.checkStatus(taskId);
+        const waitingForUrl = rawResult.status === "completed" && !rawResult.url;
+        const result =
+            waitingForUrl
+                ? {
+                    ...rawResult,
+                    status: "processing" as const,
+                }
+                : rawResult;
 
-        const shouldUpdate = result.status !== option.status || (result.url && option.output_url === 'pending_generation');
+        const shouldUpdate = result.status !== option.status || Boolean(result.url);
 
         // 4. Update Database if status changed or URL was freshly discovered
         if (shouldUpdate) {
@@ -570,7 +600,14 @@ export async function pollShotStatus(shotOptionId: string) {
             }
         }
 
-        return { data: { status: result.status, url: result.url } };
+        return {
+            data: {
+                status: result.status,
+                url: result.url,
+                updated: shouldUpdate,
+                waitingForUrl,
+            },
+        };
 
     } catch (err: unknown) {
         return { error: err instanceof Error ? err.message : "Polling failed" };

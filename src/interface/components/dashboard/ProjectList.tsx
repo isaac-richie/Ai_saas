@@ -5,6 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/interfac
 import { Badge } from "@/interface/components/ui/badge"
 import { Input } from "@/interface/components/ui/input"
 import Link from "next/link"
+import Image from "next/image"
 import { Clock4, Folder, Layers, Film, Search } from "lucide-react"
 import { useMemo, useState } from "react"
 
@@ -108,10 +109,12 @@ export function ProjectList({ projects }: ProjectListProps) {
                                         preload="metadata"
                                     />
                                 ) : (
-                                    <img
+                                    <Image
                                         src={project.thumbnail_url}
                                         alt={project.name}
-                                        className="h-full w-full object-cover"
+                                        fill
+                                        sizes="(max-width: 1280px) 100vw, 33vw"
+                                        className="object-cover"
                                         loading="lazy"
                                     />
                                 )

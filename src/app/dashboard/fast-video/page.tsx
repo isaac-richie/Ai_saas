@@ -44,14 +44,14 @@ export default async function FastVideoPage() {
       </section>
 
       {projectsWithScenes.length === 0 ? (
-        <section className="rounded-2xl border border-dashed border-white/15 bg-[#0f1012] p-6 text-sm text-white/60">
-          Create a project and at least one scene first. Fast Video can then promote generated clips directly into your main scene workflow.
+        <section className="rounded-2xl border border-dashed border-white/15 bg-[#0f1012] p-4 text-sm text-white/60">
+          No project/scene yet. You can still generate in Fast Video now; create a scene later to promote clips into Studio.
         </section>
-      ) : (
-        <section data-reveal="card">
-          <FastVideoStudio projects={projectsWithScenes} />
-        </section>
-      )}
+      ) : null}
+
+      <section data-reveal="card">
+        <FastVideoStudio projects={projectsWithScenes} />
+      </section>
     </div>
   )
 }
