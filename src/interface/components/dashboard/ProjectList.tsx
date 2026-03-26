@@ -95,7 +95,7 @@ export function ProjectList({ projects }: ProjectListProps) {
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {filteredProjects.map((project) => (
                 <Link key={project.id} href={`/dashboard/projects/${project.id}`} className="group block h-full" data-reveal="card">
-                    <Card className="h-full overflow-hidden rounded-3xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
+                    <Card className="hover-lift h-full overflow-hidden rounded-3xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] duration-300 hover:border-white/20">
                         <div className="relative aspect-[16/8] overflow-hidden border-b border-white/10 bg-white/[0.03]">
                             {project.thumbnail_url ? (
                                 project.thumbnail_url.endsWith(".mp4") ? (

@@ -3,6 +3,8 @@ import { CreateProjectDialog } from "@/interface/components/dashboard/CreateProj
 import { ProjectList } from "@/interface/components/dashboard/ProjectList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components/ui/card";
 import { Badge } from "@/interface/components/ui/badge";
+import { NewUserChecklist } from "@/interface/components/onboarding/NewUserChecklist";
+import { StartTourButton } from "@/interface/components/onboarding/StartTourButton";
 import { Clapperboard, FolderKanban, Sparkles } from "lucide-react";
 import { Metadata } from "next";
 import Link from "next/link";
@@ -15,6 +17,8 @@ export default async function DashboardPage() {
     const result = await getProjects();
     const projects = result.data || [];
     const activeCount = projects.filter((project) => project.status === "active").length;
+    const totalScenes = projects.reduce((sum, project) => sum + (project.scene_count ?? 0), 0);
+    const hasGeneratedAsset = projects.some((project) => (project.shot_count ?? 0) > 0);
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-5 py-2 md:py-3">
@@ -88,6 +92,29 @@ export default async function DashboardPage() {
                     <h2 className="text-lg font-semibold">Recent Projects</h2>
                 </div>
                 <ProjectList projects={projects} />
+            </section>
+
+            <NewUserChecklist projectCount={projects.length} sceneCount={totalScenes} hasGeneratedAsset={hasGeneratedAsset} />
+
+            <section data-reveal="card" className="rounded-2xl border border-white/10 bg-[#0f1012] p-4 text-white">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-white/45">User Education</p>
+                        <h3 className="mt-1 text-base font-semibold">Quick Start Guide</h3>
+                    </div>
+                    <StartTourButton />
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                    <Link href="/dashboard/studio" className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 hover:bg-white/10">
+                        1. Build shot specs in Studio
+                    </Link>
+                    <Link href="/dashboard/fast-video" className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 hover:bg-white/10">
+                        2. Generate direct clips in Fast Video
+                    </Link>
+                    <Link href="/dashboard/gallery" className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/80 hover:bg-white/10">
+                        3. Review, compare, and export from Gallery
+                    </Link>
+                </div>
             </section>
         </div>
     );

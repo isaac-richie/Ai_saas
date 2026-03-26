@@ -4,6 +4,7 @@ import { Badge } from "@/interface/components/ui/badge";
 import { MediaGallery } from "@/interface/components/media/MediaGallery";
 import { getGalleryAssets } from "@/core/actions/gallery";
 import { getProjects } from "@/core/actions/projects";
+import { EmptyStatePanel, ErrorStatePanel } from "@/interface/components/ui/state-panels";
 
 export const dynamic = "force-dynamic";
 
@@ -68,9 +69,11 @@ export default async function GalleryPage(props: GalleryPageProps) {
             </section>
 
             {hasError ? (
-                <section className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-4 text-sm text-white/70">
-                    Unable to load gallery right now.
-                </section>
+                <ErrorStatePanel
+                    compact
+                    title="Unable to load gallery"
+                    description="Try refreshing the page. If this persists, confirm your session and provider keys."
+                />
             ) : (
                 <section data-reveal="card" className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -79,6 +82,19 @@ export default async function GalleryPage(props: GalleryPageProps) {
                     <MediaGallery assets={assets} projectOptions={projectOptions} />
                 </section>
             )}
+
+            {!hasError && assets.length === 0 ? (
+                <EmptyStatePanel
+                    compact
+                    title="No generated media yet"
+                    description="Create or open a scene in Studio and generate the first frame to populate your gallery."
+                    action={
+                        <Link href="/dashboard/studio" className="rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15">
+                            Open Studio
+                        </Link>
+                    }
+                />
+            ) : null}
         </div>
     );
 }

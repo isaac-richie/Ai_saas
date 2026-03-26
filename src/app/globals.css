@@ -139,9 +139,34 @@
     font-family: var(--font-display), sans-serif;
     letter-spacing: -0.02em;
   }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 70%, white);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer utilities {
+  .hover-lift {
+    transition: transform 180ms ease, box-shadow 220ms ease, border-color 220ms ease;
+    will-change: transform;
+  }
+
+  .hover-lift:hover {
+    transform: translate3d(0, -2px, 0);
+  }
+
   .glass-panel {
     @apply border border-white/10 bg-card/70 backdrop-blur-xl shadow-[0_20px_60px_-36px_rgba(0,0,0,0.7)];
   }
@@ -331,4 +356,11 @@
   .neon-flow-text-soft {
     animation: none !important;
   }
+}
+
+.tour-highlight-target {
+  position: relative;
+  z-index: 72;
+  filter: brightness(1.35) saturate(1.12);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
 }

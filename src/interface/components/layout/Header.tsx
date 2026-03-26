@@ -4,7 +4,8 @@ import { useMemo } from "react"
 import { usePathname } from "next/navigation"
 import { Button } from "@/interface/components/ui/button"
 import { Badge } from "@/interface/components/ui/badge"
-import { Menu, Sparkles } from "lucide-react"
+import { Menu, Sparkles, HelpCircle } from "lucide-react"
+import { CommandPalette } from "./CommandPalette"
 
 interface HeaderProps {
     toggleSidebar: () => void
@@ -34,6 +35,17 @@ export function Header({ toggleSidebar }: HeaderProps) {
                 </div>
             </div>
             <div className="ml-auto flex items-center gap-2">
+                <CommandPalette />
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                    onClick={() => window.dispatchEvent(new CustomEvent("aisas:start-tour"))}
+                >
+                    <HelpCircle className="h-3.5 w-3.5" />
+                    Tour
+                </Button>
                 <Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-normal text-white hover:bg-white/10">
                     <Sparkles className="mr-1 h-3 w-3" />
                     Creative Mode

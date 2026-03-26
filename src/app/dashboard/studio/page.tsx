@@ -7,6 +7,7 @@ import { getProjects } from "@/core/actions/projects";
 import { getScenes } from "@/core/actions/scenes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components/ui/card";
 import { createClient } from "@/infrastructure/supabase/server";
+import { EmptyStatePanel } from "@/interface/components/ui/state-panels";
 
 export const metadata: Metadata = {
     title: "Studio | AI Cinematography Dashboard",
@@ -116,9 +117,7 @@ export default async function StudioPage(props: StudioPageProps) {
             <section data-reveal="card" className="space-y-3">
                 <h2 className="text-lg font-semibold text-white">Recent Scenes</h2>
                 {recentScenes.length === 0 ? (
-                    <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-sm text-white/55">
-                        No scenes yet. Create one to start building shots.
-                    </div>
+                    <EmptyStatePanel compact title="No scenes yet" description="Create one scene to start composing shots and generating visuals." />
                 ) : (
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         {recentScenes.map((scene) => (
@@ -152,9 +151,7 @@ export default async function StudioPage(props: StudioPageProps) {
             <section data-reveal="card" className="space-y-3">
                 <h2 className="text-lg font-semibold text-white">Projects in Studio</h2>
                 {projects.length === 0 ? (
-                    <div className="flex h-44 items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-sm text-white/55">
-                        No projects yet. Create one to start in Studio.
-                    </div>
+                    <EmptyStatePanel compact title="No projects yet" description="Create your first project to open Studio workflows." />
                 ) : (
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {projects.map((project) => {

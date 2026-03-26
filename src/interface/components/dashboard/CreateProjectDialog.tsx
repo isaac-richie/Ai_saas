@@ -39,7 +39,7 @@ export function CreateProjectDialog() {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button className="rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                <Button data-tour="create-project" className="rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15">
                     <Plus className="mr-2 h-4 w-4" />
                     New Project
                 </Button>

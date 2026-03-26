@@ -23,13 +23,13 @@ interface SidebarProps {
 }
 
 const navItems = [
-    { name: "Home", href: "/", icon: Home, isActive: (pathname: string) => pathname === "/" },
-    { name: "Overview", href: "/dashboard", icon: LayoutDashboard, isActive: (pathname: string) => pathname === "/dashboard" || pathname.startsWith("/dashboard/projects") && !pathname.includes("/scenes/") },
-    { name: "Studio", href: "/dashboard/studio", icon: Clapperboard, isActive: (pathname: string) => pathname.startsWith("/dashboard/studio") || pathname.includes("/scenes/") },
-    { name: "Fast Track", href: "/dashboard/fast-video", icon: Video, isActive: (pathname: string) => pathname.startsWith("/dashboard/fast-video") },
-    { name: "Gallery", href: "/dashboard/gallery", icon: Images, isActive: (pathname: string) => pathname.startsWith("/dashboard/gallery") },
-    { name: "Exports", href: "/dashboard/exports", icon: Download, isActive: (pathname: string) => pathname.startsWith("/dashboard/exports") },
-    { name: "Settings", href: "/dashboard/settings", icon: Settings, isActive: (pathname: string) => pathname.startsWith("/dashboard/settings") },
+    { name: "Home", href: "/", icon: Home, tour: "nav-home", isActive: (pathname: string) => pathname === "/" },
+    { name: "Overview", href: "/dashboard", icon: LayoutDashboard, tour: "nav-overview", isActive: (pathname: string) => pathname === "/dashboard" || pathname.startsWith("/dashboard/projects") && !pathname.includes("/scenes/") },
+    { name: "Studio", href: "/dashboard/studio", icon: Clapperboard, tour: "nav-studio", isActive: (pathname: string) => pathname.startsWith("/dashboard/studio") || pathname.includes("/scenes/") },
+    { name: "Fast Track", href: "/dashboard/fast-video", icon: Video, tour: "nav-fast-video", isActive: (pathname: string) => pathname.startsWith("/dashboard/fast-video") },
+    { name: "Gallery", href: "/dashboard/gallery", icon: Images, tour: "nav-gallery", isActive: (pathname: string) => pathname.startsWith("/dashboard/gallery") },
+    { name: "Exports", href: "/dashboard/exports", icon: Download, tour: "nav-exports", isActive: (pathname: string) => pathname.startsWith("/dashboard/exports") },
+    { name: "Settings", href: "/dashboard/settings", icon: Settings, tour: "nav-settings", isActive: (pathname: string) => pathname.startsWith("/dashboard/settings") },
 ]
 
 export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
@@ -58,6 +58,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                             <Link
                                 key={item.href}
                                 href={item.href}
+                                data-tour={item.tour}
                                 onClick={() => setIsOpen(false)}
                                 className={cn(
                                     "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
