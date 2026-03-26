@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState } from "react"
 
-interface CounterValueProps {
+interface AnimatedCounterProps {
   end: number
   durationMs?: number
+  prefix?: string
   suffix?: string
 }
 
-export function CounterValue({ end, durationMs = 1200, suffix = "" }: CounterValueProps) {
+export function AnimatedCounter({ end, durationMs = 1200, prefix = "", suffix = "" }: AnimatedCounterProps) {
   const ref = useRef<HTMLSpanElement | null>(null)
   const [value, setValue] = useState(0)
 
@@ -29,12 +30,14 @@ export function CounterValue({ end, durationMs = 1200, suffix = "" }: CounterVal
           const progress = Math.min((timestamp - startedAt) / durationMs, 1)
           const eased = 1 - Math.pow(1 - progress, 3)
           setValue(Math.round(end * eased))
-          if (progress < 1) raf = window.requestAnimationFrame(step)
+          if (progress < 1) {
+            raf = window.requestAnimationFrame(step)
+          }
         }
         raf = window.requestAnimationFrame(step)
         observer.disconnect()
       },
-      { threshold: 0.4 }
+      { threshold: 0.35 }
     )
 
     observer.observe(element)
@@ -46,6 +49,7 @@ export function CounterValue({ end, durationMs = 1200, suffix = "" }: CounterVal
 
   return (
     <span ref={ref}>
+      {prefix}
       {value}
       {suffix}
     </span>

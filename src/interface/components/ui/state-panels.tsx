@@ -1,5 +1,6 @@
 import { ReactNode } from "react"
 import { AlertTriangle, Inbox, Loader2 } from "lucide-react"
+import { CinematicSkeleton } from "@/interface/components/ui/CinematicSkeleton"
 
 interface StatePanelProps {
   title: string
@@ -37,6 +38,11 @@ export function LoadingStatePanel({ title = "Loading", description = "Preparing 
       <Loader2 className="mx-auto h-5 w-5 animate-spin text-white/60" />
       <h3 className="mt-3 text-sm font-semibold text-white">{title}</h3>
       <p className="mt-1 text-xs text-white/55">{description}</p>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <CinematicSkeleton className="h-16" />
+        <CinematicSkeleton className="h-16" />
+        <CinematicSkeleton className="h-16" />
+      </div>
     </div>
   )
 }

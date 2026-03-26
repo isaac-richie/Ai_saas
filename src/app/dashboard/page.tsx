@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components
 import { Badge } from "@/interface/components/ui/badge";
 import { NewUserChecklist } from "@/interface/components/onboarding/NewUserChecklist";
 import { StartTourButton } from "@/interface/components/onboarding/StartTourButton";
+import { AnimatedCounter } from "@/interface/components/ui/AnimatedCounter";
 import { Clapperboard, FolderKanban, Sparkles } from "lucide-react";
 import { Metadata } from "next";
 import Link from "next/link";
@@ -65,7 +66,7 @@ export default async function DashboardPage() {
                             <CardTitle className="text-sm font-medium text-white/55">Projects</CardTitle>
                         </CardHeader>
                         <CardContent className="flex items-end justify-between">
-                            <p className="text-3xl font-semibold">{projects.length}</p>
+                            <p className="text-3xl font-semibold"><AnimatedCounter end={projects.length} /></p>
                             <FolderKanban className="h-5 w-5 text-white/45" />
                         </CardContent>
                     </Card>
@@ -74,14 +75,17 @@ export default async function DashboardPage() {
                             <CardTitle className="text-sm font-medium text-white/55">Active Productions</CardTitle>
                         </CardHeader>
                         <CardContent className="flex items-end justify-between">
-                            <p className="text-3xl font-semibold">{activeCount}</p>
+                            <p className="text-3xl font-semibold"><AnimatedCounter end={activeCount} /></p>
                             <Clapperboard className="h-5 w-5 text-white/45" />
                         </CardContent>
                     </Card>
                     <Card data-reveal="hero" className="rounded-3xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
-                        <CardContent className="flex items-center gap-3 py-4 text-sm text-white/50">
-                            <Sparkles className="h-4 w-4 text-white/45" />
-                            Tip: build scene templates to speed up shot consistency.
+                        <CardHeader className="pb-1">
+                            <CardTitle className="text-sm font-medium text-white/55">Scenes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex items-end justify-between">
+                            <p className="text-3xl font-semibold"><AnimatedCounter end={totalScenes} /></p>
+                            <Sparkles className="h-5 w-5 text-white/45" />
                         </CardContent>
                     </Card>
                 </div>

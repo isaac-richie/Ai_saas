@@ -18,7 +18,9 @@ import {
 import { LandingNavbar } from "@/interface/components/landing/LandingNavbar"
 import { LandingSpotlight } from "@/interface/components/landing/LandingSpotlight"
 import { InteractiveComparisonCard, InteractiveCommunityCard } from "@/interface/components/landing/InteractiveWidgets"
-import { CounterValue } from "@/interface/components/landing/CounterValue"
+import { AnimatedCounter } from "@/interface/components/ui/AnimatedCounter"
+import { HeroEntrance } from "@/interface/components/landing/HeroEntrance"
+import { MagneticButton } from "@/interface/components/landing/MagneticButton"
 
 const logos = ["A24 LAB", "FRAMEFORGE", "NORTHLIGHT", "SIGNAL HOUSE", "FIFTH UNIT"]
 const footerNav = {
@@ -63,6 +65,7 @@ export default function Home() {
         <div className="vignette" />
       </div>
       <LandingSpotlight />
+      <HeroEntrance />
 
       <div className="pointer-events-none absolute -left-[12%] top-[-10%] z-0 h-[520px] w-[520px] rounded-full bg-cyan-400/12 blur-[160px]" />
       <div className="pointer-events-none absolute right-[-10%] top-[8%] z-0 h-[460px] w-[460px] rounded-full bg-orange-400/12 blur-[160px]" />
@@ -76,34 +79,40 @@ export default function Home() {
           <section data-reveal="hero" className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:gap-10">
             <div className="pt-6">
               <h1 className="text-5xl leading-[0.93] tracking-[-0.035em] md:text-[5.5rem]">
-                <span className="block font-semibold text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.5)]">Studio control</span>
-                <span className="mt-1 block font-serif text-[0.82em] italic font-normal tracking-normal text-white/90">for</span>
-                <span className="neon-flow-text block text-[1.03em] font-medium tracking-[-0.02em]">AI shot design.</span>
+                <span data-hero-line="line1" className="block font-semibold text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.5)]">Studio control</span>
+                <span data-hero-line="line2" className="mt-1 block font-serif text-[0.82em] italic font-normal tracking-normal text-white/90">for</span>
+                <span data-hero-line="line3" className="neon-flow-text block text-[1.03em] font-medium tracking-[-0.02em]">AI shot design.</span>
               </h1>
 
               <p className="mt-6 max-w-lg text-lg font-light leading-relaxed text-white/65">
                 Build cinematic shots with ARRI cameras + Zeiss lenses. Real film vocabulary, consistent frames, one seamless workflow.
               </p>
-              <p className="mt-3 text-sm text-white/50">Trusted by 50+ creators (beta).</p>
+              <p className="mt-3 text-sm text-white/50">
+                Trusted by <AnimatedCounter end={50} suffix="+" /> creators (beta).
+              </p>
 
               <div className="mt-10 flex flex-wrap gap-4">
-                <Link href="/signup" className="beam-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]">
-                  Launch Studio
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-                <a href="#showcase" className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm transition hover:bg-white/10">See Product Tour</a>
+                <MagneticButton className="inline-flex" >
+                  <Link data-hero-cta className="beam-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]" href="/signup">
+                    Launch Studio
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </MagneticButton>
+                <MagneticButton className="inline-flex">
+                  <a data-hero-cta href="#showcase" className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm transition hover:bg-white/10">See Product Tour</a>
+                </MagneticButton>
               </div>
 
               <div className="mt-10 grid max-w-xl grid-cols-3 gap-3">
-                <div className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
-                  <p className="text-2xl font-semibold text-cyan-300"><CounterValue end={12} suffix="x" /></p>
+                <div data-hero-stat className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
+                  <p className="text-2xl font-semibold text-cyan-300"><AnimatedCounter end={12} suffix="x" /></p>
                   <p className="text-xs text-white/45">Faster scene iteration</p>
                 </div>
-                <div className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
-                  <p className="text-2xl font-semibold text-cyan-300"><CounterValue end={4} suffix="K" /></p>
+                <div data-hero-stat className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
+                  <p className="text-2xl font-semibold text-cyan-300"><AnimatedCounter end={4} suffix="K" /></p>
                   <p className="text-xs text-white/45">Prompt-ready outputs</p>
                 </div>
-                <div className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
+                <div data-hero-stat className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
                   <p className="text-2xl font-semibold text-cyan-300">BYOK</p>
                   <p className="text-xs text-white/45">Provider routing control</p>
                 </div>
@@ -212,6 +221,23 @@ export default function Home() {
           </section>
 
           <section id="workflow" className="mt-24 scroll-mt-24">
+            <article
+              data-reveal="card"
+              className="group mb-8 perspective-[1200px]"
+            >
+              <div className="relative overflow-hidden rounded-3xl border border-white/12 bg-[#0f1012] p-6 transition-transform duration-500 ease-out will-change-transform group-hover:[transform:rotateX(4deg)_rotateY(-7deg)]">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(20,241,230,0.15),transparent_38%),radial-gradient(circle_at_80%_80%,rgba(255,138,31,0.15),transparent_34%)]" />
+                <p className="relative text-xs uppercase tracking-[0.16em] text-white/45">Director Preview</p>
+                <h3 className="relative mt-2 text-xl font-semibold">Interactive Shot Preview</h3>
+                <p className="relative mt-2 max-w-xl text-sm text-white/55">
+                  Hover to inspect depth. This preview card mimics on-set monitor motion for faster shot validation.
+                </p>
+                <div className="relative mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/60">
+                  <div className="aspect-[21/9] bg-[linear-gradient(120deg,rgba(12,22,28,0.92),rgba(44,23,10,0.78))]" />
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.52),transparent_46%)]" />
+                </div>
+              </div>
+            </article>
             <SectionLabel>Workflow</SectionLabel>
             <h2 className="mb-8 text-3xl font-medium tracking-tight">
               Three steps from idea to <span className="text-cyan-300">directed frame.</span>

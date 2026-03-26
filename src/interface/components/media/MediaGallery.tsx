@@ -13,6 +13,7 @@ import { queueGalleryExport } from "@/core/actions/exports"
 import { toast } from "sonner"
 import { appendShotToSequence, VideoSequence } from "@/core/actions/sequences"
 import { buildMediaFilename } from "@/lib/download-filename"
+import { motion } from "framer-motion"
 
 // Define a type for Media Asset based on our schema usage (shot_generations mostly)
 // We need to fetch this data. For now, let's assume we pass in a list of assets.
@@ -329,14 +330,14 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                     <p className="text-xs text-white/50">Try adjusting filters or search terms.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                <div className="columns-1 gap-4 space-y-4 sm:columns-2 lg:columns-3 xl:columns-4">
                     {filteredAssets.map((asset) => {
                         const previewUrl = getPreviewUrl(asset)
                         const promptPreview = asset.prompt?.replace(/\s+/g, " ").trim() || ""
                         return (
                             <Dialog key={asset.id}>
                                 <DialogTrigger asChild>
-                                    <Card className="group relative aspect-square min-w-0 cursor-pointer overflow-hidden border border-white/10 bg-[#0f1012] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
+                                    <Card className="group relative mb-4 min-w-0 break-inside-avoid cursor-pointer overflow-hidden border border-white/10 bg-[#0f1012] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
                                         <button
                                             type="button"
                                             onClick={(event) => {
@@ -356,48 +357,50 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                         <div className="absolute top-2 left-2 z-10 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-white/80 backdrop-blur">
                                             {asset.type}
                                         </div>
-                                    {asset.type === 'image' ? (
-                                        <img
-                                            src={previewUrl}
-                                            alt={asset.prompt}
-                                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                            loading="lazy"
-                                        />
-                                    ) : (
-                                        <div className="relative h-full w-full bg-black">
-                                            <video
-                                                src={previewUrl}
-                                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                                                autoPlay
-                                                muted
-                                                loop
-                                                playsInline
-                                                preload="metadata"
-                                            />
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
-                                                <Play className="h-8 w-8 text-white opacity-80 drop-shadow-md" />
-                                            </div>
-                                        </div>
-                                    )}
-                                        <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-black/15 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
-                                            <div className="min-w-0">
-                                                <p className="line-clamp-1 text-xs font-medium text-white">{asset.shotName}</p>
-                                                {asset.sceneName ? <p className="line-clamp-1 text-[10px] text-white/70">{asset.sceneName}</p> : null}
-                                                {asset.projectName ? <p className="line-clamp-1 text-[10px] text-white/50">{asset.projectName}</p> : null}
-                                                {promptPreview ? (
-                                                    <p className="mt-1 line-clamp-1 text-[10px] text-white/45">{promptPreview}</p>
-                                                ) : null}
-                                                <div className="mt-1 flex flex-wrap gap-1">
-                                                    {asset.shotType ? (
-                                                        <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
-                                                            {asset.shotType}
-                                                        </span>
+                                        <div className={asset.type === "video" ? "relative aspect-video w-full bg-black" : "relative aspect-[4/5] w-full"}>
+                                            {asset.type === 'image' ? (
+                                                <img
+                                                    src={previewUrl}
+                                                    alt={asset.prompt}
+                                                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                                    loading="lazy"
+                                                />
+                                            ) : (
+                                                <div className="relative h-full w-full bg-black">
+                                                    <video
+                                                        src={previewUrl}
+                                                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                                                        autoPlay
+                                                        muted
+                                                        loop
+                                                        playsInline
+                                                        preload="metadata"
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
+                                                        <Play className="h-8 w-8 text-white opacity-80 drop-shadow-md" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-black/15 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+                                                <div className="min-w-0">
+                                                    <p className="line-clamp-1 text-xs font-medium text-white">{asset.shotName}</p>
+                                                    {asset.sceneName ? <p className="line-clamp-1 text-[10px] text-white/70">{asset.sceneName}</p> : null}
+                                                    {asset.projectName ? <p className="line-clamp-1 text-[10px] text-white/50">{asset.projectName}</p> : null}
+                                                    {promptPreview ? (
+                                                        <p className="mt-1 line-clamp-1 text-[10px] text-white/45">{promptPreview}</p>
                                                     ) : null}
-                                                    {asset.lensName ? (
-                                                        <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
-                                                            {asset.lensName}
-                                                        </span>
-                                                    ) : null}
+                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                        {asset.shotType ? (
+                                                            <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
+                                                                {asset.shotType}
+                                                            </span>
+                                                        ) : null}
+                                                        {asset.lensName ? (
+                                                            <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
+                                                                {asset.lensName}
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -407,7 +410,12 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                     <VisuallyHidden.Root>
                                         <DialogTitle>Media Preview</DialogTitle>
                                     </VisuallyHidden.Root>
-                                    <div className="grid min-h-[70vh] grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.98, y: 8 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                                        className="grid min-h-[70vh] grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+                                    >
                                     <div className="relative flex items-center justify-center bg-black overflow-hidden">
                                         {asset.type === 'image' ? (
                                             <img src={previewUrl} alt={asset.prompt} className="h-full w-full object-contain" />
@@ -514,7 +522,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                             </div>
                                         </div>
                                     </div>
-                                </div>
+                                </motion.div>
                                 </DialogContent>
                             </Dialog>
                         )

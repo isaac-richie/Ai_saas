@@ -22,6 +22,7 @@ interface SequenceTimelineProps {
 
 export function SequenceTimeline({ sequenceId, items }: SequenceTimelineProps) {
     const [draggingId, setDraggingId] = useState<string | null>(null)
+    const [playheadIndex, setPlayheadIndex] = useState(0)
     const ordered = useMemo(() => [...items].sort((a, b) => a.order_index - b.order_index), [items])
 
     const getVideoProxyUrl = (url?: string | null) => {
@@ -63,6 +64,23 @@ export function SequenceTimeline({ sequenceId, items }: SequenceTimelineProps) {
                     <p className="mt-1 text-sm text-white/70">Drag to reorder or remove shots.</p>
                 </div>
             </div>
+            <div className="mb-4 rounded-2xl border border-white/10 bg-black/30 p-3">
+                <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.14em] text-white/45">
+                    <span>Playhead</span>
+                    <span>
+                        Frame {Math.min(playheadIndex + 1, Math.max(ordered.length, 1))}/{Math.max(ordered.length, 1)}
+                    </span>
+                </div>
+                <input
+                    type="range"
+                    min={0}
+                    max={Math.max(ordered.length - 1, 0)}
+                    step={1}
+                    value={Math.min(playheadIndex, Math.max(ordered.length - 1, 0))}
+                    onChange={(event) => setPlayheadIndex(Number(event.target.value))}
+                    className="w-full accent-cyan-300"
+                />
+            </div>
             <div className="flex gap-3 overflow-x-auto pb-3">
                 {ordered.map((item, index) => (
                     <div
@@ -77,10 +95,15 @@ export function SequenceTimeline({ sequenceId, items }: SequenceTimelineProps) {
                             }
                             setDraggingId(null)
                         }}
-                        className={`group relative w-[160px] shrink-0 rounded-2xl border border-white/10 bg-black/40 ${
-                            draggingId === item.id ? "ring-2 ring-cyan-400/60" : ""
+                        className={`group relative w-[160px] shrink-0 rounded-2xl border bg-black/40 ${
+                            draggingId === item.id
+                                ? "border-cyan-300/50 ring-2 ring-cyan-400/60"
+                                : playheadIndex === index
+                                    ? "border-cyan-300/35 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]"
+                                    : "border-white/10"
                         }`}
                     >
+                        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1 [background-image:repeating-linear-gradient(90deg,rgba(255,255,255,0.22),rgba(255,255,255,0.22)_8px,transparent_8px,transparent_12px)]" />
                         <div className="relative aspect-video overflow-hidden rounded-2xl">
                             {item.preview_url ? (
                                 item.preview_url.endsWith(".mp4") ? (
