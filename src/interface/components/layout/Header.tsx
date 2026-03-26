@@ -4,14 +4,16 @@ import { useMemo } from "react"
 import { usePathname } from "next/navigation"
 import { Button } from "@/interface/components/ui/button"
 import { Badge } from "@/interface/components/ui/badge"
-import { Menu, Sparkles, HelpCircle } from "lucide-react"
+import { Menu, Sparkles, HelpCircle, Gauge } from "lucide-react"
 import { CommandPalette } from "./CommandPalette"
 
 interface HeaderProps {
     toggleSidebar: () => void
+    motionReduced: boolean
+    onToggleMotion: () => void
 }
 
-export function Header({ toggleSidebar }: HeaderProps) {
+export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderProps) {
     const pathname = usePathname()
 
     const title = useMemo(() => {
@@ -45,6 +47,17 @@ export function Header({ toggleSidebar }: HeaderProps) {
                 >
                     <HelpCircle className="h-3.5 w-3.5" />
                     Tour
+                </Button>
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                    onClick={onToggleMotion}
+                    title={motionReduced ? "Enable motion effects" : "Reduce motion effects"}
+                >
+                    <Gauge className="h-3.5 w-3.5" />
+                    {motionReduced ? "Motion: Off" : "Motion: On"}
                 </Button>
                 <Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-normal text-white hover:bg-white/10">
                     <Sparkles className="mr-1 h-3 w-3" />

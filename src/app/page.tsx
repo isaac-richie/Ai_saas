@@ -18,6 +18,7 @@ import {
 import { LandingNavbar } from "@/interface/components/landing/LandingNavbar"
 import { LandingSpotlight } from "@/interface/components/landing/LandingSpotlight"
 import { InteractiveComparisonCard, InteractiveCommunityCard } from "@/interface/components/landing/InteractiveWidgets"
+import { CounterValue } from "@/interface/components/landing/CounterValue"
 
 const logos = ["A24 LAB", "FRAMEFORGE", "NORTHLIGHT", "SIGNAL HOUSE", "FIFTH UNIT"]
 const footerNav = {
@@ -94,15 +95,15 @@ export default function Home() {
               </div>
 
               <div className="mt-10 grid max-w-xl grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
-                  <p className="text-2xl font-semibold text-cyan-300">12x</p>
+                <div className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
+                  <p className="text-2xl font-semibold text-cyan-300"><CounterValue end={12} suffix="x" /></p>
                   <p className="text-xs text-white/45">Faster scene iteration</p>
                 </div>
-                <div className="rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
-                  <p className="text-2xl font-semibold text-cyan-300">4K</p>
+                <div className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
+                  <p className="text-2xl font-semibold text-cyan-300"><CounterValue end={4} suffix="K" /></p>
                   <p className="text-xs text-white/45">Prompt-ready outputs</p>
                 </div>
-                <div className="rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
+                <div className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
                   <p className="text-2xl font-semibold text-cyan-300">BYOK</p>
                   <p className="text-xs text-white/45">Provider routing control</p>
                 </div>

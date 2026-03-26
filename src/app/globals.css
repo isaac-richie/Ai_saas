@@ -364,3 +364,39 @@
   filter: brightness(1.35) saturate(1.12);
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
 }
+
+.motion-reduce-user *,
+.motion-reduce-user *::before,
+.motion-reduce-user *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+.generation-track {
+  position: relative;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.generation-track::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(20, 241, 230, 0.9), rgba(53, 166, 255, 0.9), rgba(255, 122, 89, 0.9));
+  animation: generationSweep 1.25s ease-in-out infinite;
+}
+
+@keyframes generationSweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
+}

@@ -1,5 +1,6 @@
 import { ApiKeyList } from "@/interface/components/settings/ApiKeyList";
 import { PreferredProviderCard } from "@/interface/components/settings/PreferredProviderCard";
+import { MotionSettingsCard } from "@/interface/components/settings/MotionSettingsCard";
 import { Badge } from "@/interface/components/ui/badge";
 import { Card, CardContent } from "@/interface/components/ui/card";
 import { KeyRound, ShieldCheck } from "lucide-react";
@@ -44,6 +45,7 @@ export default function SettingsPage() {
             </section>
 
             <PreferredProviderCard />
+            <MotionSettingsCard />
 
             <section data-reveal="card" className="space-y-3">
                 <h2 className="text-lg font-semibold">AI Providers</h2>

@@ -18,6 +18,7 @@ import { addShotsToSequence, appendShotToSequence, createSequence, VideoSequence
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { buildMediaFilename } from "@/lib/download-filename"
 
 interface ShotListProps {
     projectId: string
@@ -685,6 +686,18 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                         const mediaUrl = isMediaUrl(opt.output_url) ? opt.output_url : undefined;
                                         const providerLabel = opt.provider?.name || "Provider";
                                         const statusLabel = opt.status === "processing" ? "Processing" : opt.status;
+                                        const isVideo = mediaUrl ? isVideoUrl(mediaUrl) : false;
+                                        const defaultFilename = mediaUrl
+                                            ? buildMediaFilename({
+                                                base: shot.name || "shot",
+                                                kind: isVideo ? "video" : "image",
+                                                url: mediaUrl,
+                                                suffix: outputType,
+                                            })
+                                            : null;
+                                        const downloadUrl = mediaUrl && defaultFilename
+                                            ? `/api/media/proxy?url=${encodeURIComponent(mediaUrl)}&filename=${encodeURIComponent(defaultFilename)}`
+                                            : null;
                                         return (
                                         <Card key={opt.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0f1012]">
                                             <div className="relative aspect-video bg-black/50">
@@ -764,12 +777,10 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                     <span className={`rounded-full border px-2.5 py-1 capitalize ${getStatusBadgeClass(opt.status)}`}>
                                                         {statusLabel}
                                                     </span>
-                                                    {mediaUrl && (
+                                                    {downloadUrl && defaultFilename && (
                                                         <a
-                                                            href={mediaUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            download
+                                                            href={downloadUrl}
+                                                            download={defaultFilename}
                                                             className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-white/80 hover:bg-white/20"
                                                         >
                                                             Download
@@ -802,6 +813,15 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                         </button>
                                                     )}
                                                 </div>
+                                                {opt.status === "processing" && (
+                                                    <div className="pt-1">
+                                                        <div className="generation-track" />
+                                                        <div className="mt-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-white/45">
+                                                            <span>Rendering</span>
+                                                            <span>Please wait</span>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </Card>
                                     )})}
@@ -849,6 +869,14 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                 <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-white/80" />
                                                 <p className="text-xs uppercase tracking-[0.2em] text-white/65">Generating frame...</p>
                                                 <p className="mt-1 text-[11px] text-white/45">Your first output will appear here automatically.</p>
+                                                <div className="mx-auto mt-3 max-w-[220px]">
+                                                    <div className="generation-track" />
+                                                    <div className="mt-2 grid grid-cols-3 text-[10px] uppercase tracking-[0.14em] text-white/45">
+                                                        <span>Queue</span>
+                                                        <span className="text-cyan-200">Render</span>
+                                                        <span>Save</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     ) : (

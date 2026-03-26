@@ -7,9 +7,13 @@ import { Header } from "./Header"
 import { cn } from "@/core/utils"
 import { createClient as createBrowserSupabaseClient } from "@/infrastructure/supabase/client"
 import { GuidedTour } from "@/interface/components/onboarding/GuidedTour"
+import { AnimatePresence, motion } from "framer-motion"
+
+const REDUCE_MOTION_STORAGE_KEY = "aisas.motion.reduce"
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+    const [motionReduced, setMotionReduced] = useState(false)
     const pathname = usePathname()
     const router = useRouter()
     const mainRef = useRef<HTMLElement>(null)
@@ -21,6 +25,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }, [])
 
     useEffect(() => {
+        try {
+            const saved = window.localStorage.getItem(REDUCE_MOTION_STORAGE_KEY) === "1"
+            setMotionReduced(saved)
+            document.documentElement.classList.toggle("motion-reduce-user", saved)
+        } catch {
+            // no-op
+        }
+    }, [])
+
+    const toggleMotion = () => {
+        setMotionReduced((prev) => {
+            const next = !prev
+            try {
+                window.localStorage.setItem(REDUCE_MOTION_STORAGE_KEY, next ? "1" : "0")
+            } catch {
+                // no-op
+            }
+            document.documentElement.classList.toggle("motion-reduce-user", next)
+            return next
+        })
+    }
+
+    useEffect(() => {
         let active = true
         let revert: (() => void) | undefined
 
@@ -29,7 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 if (!active || !mainRef.current) {
                     return
                 }
-                if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                if (motionReduced || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
                     return
                 }
 
@@ -89,7 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             active = false
             if (revert) revert()
         }
-    }, [pathname])
+    }, [motionReduced, pathname])
 
     const isAuthRoute =
         pathname.startsWith("/login") ||
@@ -139,7 +166,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         isAuthRoute ? "mx-auto flex min-h-[calc(100vh-5rem)] max-w-xl items-center justify-center" : "max-w-none"
                     )}
                 >
-                    {children}
+                    <AnimatePresence mode="wait" initial={false}>
+                        <motion.div
+                            key={pathname}
+                            initial={motionReduced ? false : { opacity: 0, y: 10, filter: "blur(6px)" }}
+                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
+                            exit={motionReduced ? { opacity: 1 } : { opacity: 0, y: -8, filter: "blur(5px)" }}
+                            transition={{ duration: motionReduced ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            {children}
+                        </motion.div>
+                    </AnimatePresence>
                 </main>
             </div>
         )
@@ -177,9 +214,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     isSidebarOpen ? "ml-0 md:ml-72" : "ml-0 md:ml-20"
                 )}
             >
-                <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
+                <Header
+                    toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                    motionReduced={motionReduced}
+                    onToggleMotion={toggleMotion}
+                />
                 <main id="main-content" ref={mainRef} className="flex-1 overflow-y-auto px-4 pb-10 pt-6 md:px-8 lg:px-10">
-                    {children}
+                    <AnimatePresence mode="wait" initial={false}>
+                        <motion.div
+                            key={pathname}
+                            initial={motionReduced ? false : { opacity: 0, y: 10, filter: "blur(6px)" }}
+                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
+                            exit={motionReduced ? { opacity: 1 } : { opacity: 0, y: -8, filter: "blur(5px)" }}
+                            transition={{ duration: motionReduced ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }}
+                        >
+                            {children}
+                        </motion.div>
+                    </AnimatePresence>
                 </main>
                 <footer className="border-t border-white/10 px-4 py-3 text-xs text-white/45 md:px-8 lg:px-10">
                     <div className="flex flex-wrap items-center justify-between gap-2">

@@ -12,6 +12,7 @@ import { deleteGalleryAsset, moveGalleryAssetsToProject } from "@/core/actions/g
 import { queueGalleryExport } from "@/core/actions/exports"
 import { toast } from "sonner"
 import { appendShotToSequence, VideoSequence } from "@/core/actions/sequences"
+import { buildMediaFilename } from "@/lib/download-filename"
 
 // Define a type for Media Asset based on our schema usage (shot_generations mostly)
 // We need to fetch this data. For now, let's assume we pass in a list of assets.
@@ -43,6 +44,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
     const [sequences, setSequences] = useState<Record<string, VideoSequence[]>>({})
     const [moveProjectId, setMoveProjectId] = useState<string>(projectOptions[0]?.id || "")
     const [exportProfile, setExportProfile] = useState<"master_16_9" | "social_9_16" | "square_1_1">("master_16_9")
+    const [downloadNames, setDownloadNames] = useState<Record<string, string>>({})
 
     const getPreviewUrl = (asset: MediaAsset) => {
         if (asset.type !== "video") return asset.url
@@ -57,6 +59,13 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
             toast.error("Failed to copy URL")
         }
     }
+
+    const getDefaultDownloadName = (asset: MediaAsset) =>
+        buildMediaFilename({
+            base: asset.shotName || asset.projectName || "visiowave-asset",
+            kind: asset.type,
+            url: asset.url,
+        })
 
     const counts = useMemo(() => {
         const images = assets.filter((asset) => asset.type === "image").length
@@ -469,6 +478,23 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                         )}
                                         <div className="pt-2">
                                             <div className="flex flex-wrap gap-2">
+                                                <div className="flex min-w-[220px] flex-1 items-center gap-2">
+                                                    <Input
+                                                        value={downloadNames[asset.id] ?? getDefaultDownloadName(asset)}
+                                                        onChange={(event) =>
+                                                            setDownloadNames((prev) => ({ ...prev, [asset.id]: event.target.value }))
+                                                        }
+                                                        className="h-8 rounded-lg border-white/10 bg-white/5 text-xs text-white placeholder:text-white/35"
+                                                        placeholder="File name"
+                                                    />
+                                                    <a
+                                                        href={`/api/media/proxy?url=${encodeURIComponent(asset.url)}&filename=${encodeURIComponent(downloadNames[asset.id] ?? getDefaultDownloadName(asset))}`}
+                                                        download={downloadNames[asset.id] ?? getDefaultDownloadName(asset)}
+                                                        className="inline-flex h-8 items-center rounded-lg border border-white/10 bg-white/10 px-3 text-xs text-white/85 hover:bg-white/20"
+                                                    >
+                                                        Download
+                                                    </a>
+                                                </div>
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"

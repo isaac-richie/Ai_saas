@@ -17,6 +17,7 @@ import {
 } from "@/core/config/fast-video-presets"
 import { generateFastVideo, pollFastVideoStatus, promoteFastVideoToScene } from "@/core/actions/fast-video"
 import { Loader2, Sparkles, Film, Clapperboard, Trash2 } from "lucide-react"
+import { buildMediaFilename } from "@/lib/download-filename"
 
 type SceneOption = {
   id: string
@@ -75,6 +76,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [debugEvents, setDebugEvents] = useState<FastVideoDebugEvent[]>([])
   const [finalPrompt, setFinalPrompt] = useState<string>("")
   const [savedClips, setSavedClips] = useState<SavedFastClip[]>([])
+  const [downloadName, setDownloadName] = useState<string>("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [isPromoting, setIsPromoting] = useState(false)
 
@@ -85,6 +87,27 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     () => projects.find((project) => project.id === selectedProjectId) || null,
     [projects, selectedProjectId]
   )
+
+  const pipelineStage = useMemo(() => {
+    if (status === "completed") return 3
+    const normalized = statusMessage.toLowerCase()
+    if (normalized.includes("final")) return 3
+    if (normalized.includes("sample")) return 2
+    if (status === "processing") return 1
+    return 0
+  }, [status, statusMessage])
+
+  useEffect(() => {
+    if (!videoUrl) return
+    setDownloadName((current) => {
+      if (current.trim()) return current
+      return buildMediaFilename({
+        base: subject || "fast-video",
+        kind: "video",
+        url: videoUrl,
+      })
+    })
+  }, [subject, videoUrl])
 
   useEffect(() => {
     try {
@@ -619,9 +642,52 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/65">
               <p className="mb-1 uppercase tracking-[0.16em] text-white/45">Pipeline</p>
               <p>{status === "processing" ? "Initializing -> Sampling -> Finalizing" : "Ready"}</p>
+              <div className="mt-2 space-y-2">
+                <div className={status === "processing" ? "generation-track" : "generation-track opacity-30"} />
+                <div className="grid grid-cols-3 gap-2 text-[10px] uppercase tracking-[0.14em]">
+                  <span className={pipelineStage >= 1 ? "text-cyan-200" : "text-white/35"}>Init</span>
+                  <span className={pipelineStage >= 2 ? "text-cyan-200" : "text-white/35"}>Sampling</span>
+                  <span className={pipelineStage >= 3 ? "text-cyan-200" : "text-white/35"}>Finalizing</span>
+                </div>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <div className="flex min-w-[230px] flex-1 items-center gap-2">
+                <Input
+                  value={downloadName}
+                  onChange={(event) => setDownloadName(event.target.value)}
+                  placeholder="File name"
+                  className="h-8 rounded-lg border-white/10 bg-white/5 text-xs text-white placeholder:text-white/35"
+                />
+                <a
+                  href={
+                    videoUrl
+                      ? `/api/media/proxy?url=${encodeURIComponent(videoUrl)}&filename=${encodeURIComponent(downloadName || buildMediaFilename({
+                        base: subject || "fast-video",
+                        kind: "video",
+                        url: videoUrl,
+                      }))}`
+                      : "#"
+                  }
+                  download={
+                    videoUrl
+                      ? (downloadName || buildMediaFilename({
+                        base: subject || "fast-video",
+                        kind: "video",
+                        url: videoUrl,
+                      }))
+                      : undefined
+                  }
+                  className={`inline-flex h-8 items-center rounded-lg border px-3 text-xs ${
+                    videoUrl
+                      ? "border-white/10 bg-white/10 text-white/85 hover:bg-white/20"
+                      : "pointer-events-none border-white/10 bg-white/5 text-white/35"
+                  }`}
+                >
+                  Download
+                </a>
+              </div>
               <Button
                 type="button"
                 variant="outline"

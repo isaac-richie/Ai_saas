@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { sanitizeFilename } from "@/lib/download-filename";
 
 const ALLOWED_HOSTS = new Set([
     "tempfile.aiquickdraw.com",
@@ -7,6 +8,7 @@ const ALLOWED_HOSTS = new Set([
 
 export async function GET(request: NextRequest) {
     const url = request.nextUrl.searchParams.get("url");
+    const requestedFilename = request.nextUrl.searchParams.get("filename");
     if (!url) {
         return new Response("Missing url", { status: 400 });
     }
@@ -48,7 +50,12 @@ export async function GET(request: NextRequest) {
     if (contentLength) headers.set("Content-Length", contentLength);
     if (contentRange) headers.set("Content-Range", contentRange);
     if (acceptRanges) headers.set("Accept-Ranges", acceptRanges);
-    headers.set("Content-Disposition", "inline");
+    if (requestedFilename) {
+        const safeFilename = sanitizeFilename(requestedFilename) || "visiowave-download";
+        headers.set("Content-Disposition", `attachment; filename="${safeFilename}"`);
+    } else {
+        headers.set("Content-Disposition", "inline");
+    }
     headers.set("Cache-Control", "public, max-age=3600");
 
     return new Response(upstream.body, {
