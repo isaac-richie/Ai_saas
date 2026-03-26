@@ -48,7 +48,7 @@ export function CreateSceneDialog({ projectId }: CreateSceneDialogProps) {
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] border-white/10 bg-[#111114] text-white">
-                <form action={onSubmit}>
+                <form action={onSubmit} autoComplete="off">
                     <DialogHeader>
                         <DialogTitle>Add Scene</DialogTitle>
                         <DialogDescription className="text-white/60">
@@ -58,15 +58,36 @@ export function CreateSceneDialog({ projectId }: CreateSceneDialogProps) {
                     <div className="grid gap-4 py-4">
                         <div className="grid gap-2">
                             <Label htmlFor="name" className="text-white/85">Scene Name</Label>
-                            <Input id="name" name="name" placeholder="INT. DINER - NIGHT" required className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35" />
+                            <Input
+                                id="name"
+                                name="name"
+                                autoComplete="new-password"
+                                placeholder="INT. DINER - NIGHT"
+                                required
+                                className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                            />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="sequence_order" className="text-white/85">Sequence #</Label>
-                            <Input id="sequence_order" name="sequence_order" type="number" defaultValue="1" required className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35" />
+                            <Input
+                                id="sequence_order"
+                                name="sequence_order"
+                                autoComplete="off"
+                                type="number"
+                                defaultValue="1"
+                                required
+                                className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                            />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="description" className="text-white/85">Description (Optional)</Label>
-                            <Textarea id="description" name="description" placeholder="Characters discuss the heist plan..." className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35" />
+                            <Textarea
+                                id="description"
+                                name="description"
+                                autoComplete="off"
+                                placeholder="Characters discuss the heist plan..."
+                                className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                            />
                         </div>
                     </div>
                     <DialogFooter>
