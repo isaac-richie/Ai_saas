@@ -11,6 +11,7 @@ import {
   type FastVideoVariation,
 } from "@/core/config/fast-video-presets"
 import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
+import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
   strict: "preserve subject identity and scene composition with minimal deviation",
@@ -213,8 +214,9 @@ export async function generateFastVideo(input: unknown) {
     })
 
     if (result.status === "failed") {
-      debug.push("provider.generate.failed", { error: result.error || "Fast video generation failed" })
-      return { error: result.error || "Fast video generation failed" }
+      const normalizedError = normalizeGenerationError(result.error, "Fast video generation failed")
+      debug.push("provider.generate.failed", { error: normalizedError, rawError: result.error || null })
+      return { error: normalizedError }
     }
 
     const stableUrl = await persistRemoteMedia(supabase, {
@@ -246,7 +248,10 @@ export async function generateFastVideo(input: unknown) {
       },
     }
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Fast video generation failed"
+    const message = normalizeGenerationError(
+      error instanceof Error ? error.message : undefined,
+      "Fast video generation failed"
+    )
     debug.push("provider.generate.exception", { message })
     return { error: message }
   }
@@ -278,11 +283,12 @@ export async function pollFastVideoStatus(taskId: string, traceId?: string) {
       providerDebug: result.debug || null,
     })
     if (result.status === "failed") {
+      const normalizedError = normalizeGenerationError(result.error, "Generation failed")
       return {
         data: {
           status: "failed",
           url: null,
-          error: result.error || "Generation failed",
+          error: normalizedError,
           debug: { traceId: activeTraceId, events: debug.events },
         },
       }
@@ -318,7 +324,7 @@ export async function pollFastVideoStatus(taskId: string, traceId?: string) {
       },
     }
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Polling failed"
+    const message = normalizeGenerationError(error instanceof Error ? error.message : undefined, "Polling failed")
     debug.push("poll.exception", { message })
     return { error: message }
   }

@@ -6,6 +6,7 @@ import {
     DEFAULT_KIE_VIDEO_MODEL_T2V,
     inferKieOutputType,
 } from "./kie.models";
+import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
 
 export class KieProvider extends BaseProvider {
     private baseUrl = "https://api.kie.ai/api/v1";
@@ -311,9 +312,10 @@ export class KieProvider extends BaseProvider {
             return {
                 content_type: request.output_type || "image",
                 status: "failed",
-                error: message,
+                error: normalizeGenerationError(message, "Kie.ai request failed"),
                 debug: {
                     stage: "generate",
+                    rawError: message,
                 },
             };
         }
@@ -368,10 +370,11 @@ export class KieProvider extends BaseProvider {
                     return {
                         content_type: "video",
                         status: "failed",
-                        error: message,
+                        error: normalizeGenerationError(message, "Generation failed"),
                         debug: {
                             polledTaskId: pollId,
                             originalTaskId: taskId,
+                            rawError: message,
                         },
                     };
                 }
@@ -449,7 +452,10 @@ export class KieProvider extends BaseProvider {
                         id: pollId,
                         content_type: outputType,
                         status: "failed",
-                        error: taskData?.failMsg || taskData?.error || data?.msg || "Generation failed",
+                        error: normalizeGenerationError(
+                            String(taskData?.failMsg || taskData?.error || data?.msg || ""),
+                            "Generation failed"
+                        ),
                         provider_check_id: pollId,
                         debug: debugPayload,
                     };
@@ -462,7 +468,7 @@ export class KieProvider extends BaseProvider {
                 return {
                     content_type: "video",
                     status: "failed",
-                    error: lastTransportError,
+                    error: normalizeGenerationError(lastTransportError, "Generation failed"),
                     debug: {
                         originalTaskId: taskId,
                         attemptedTaskIds: taskIdCandidates,
@@ -489,9 +495,10 @@ export class KieProvider extends BaseProvider {
             return {
                 content_type: "video",
                 status: "failed",
-                error: message,
+                error: normalizeGenerationError(message, "Kie.ai status check failed"),
                 debug: {
                     stage: "checkStatus",
+                    rawError: message,
                 },
             };
         }

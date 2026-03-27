@@ -7,6 +7,7 @@ import { assemblePrompt } from "@/core/utils/prompts/builder";
 import { revalidatePath } from "next/cache";
 import * as ShotRepo from "@/infrastructure/repositories/shot.repository";
 import { Database } from "@/core/types/db";
+import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
 
 const SUPPORTED_PROVIDER_PRIORITY = ["openai", "kie"] as const;
 
@@ -272,7 +273,7 @@ export async function generateShot(shotId: string) {
             });
 
             if (result.status === 'failed') {
-                return { error: result.error || "Generation failed" };
+                return { error: normalizeGenerationError(result.error, "Generation failed") };
             }
 
             const stableUrl = await persistRemoteMedia(supabase, {
@@ -313,7 +314,7 @@ export async function generateShot(shotId: string) {
         return { success: true, url: lastUrl };
 
     } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Generation failed";
+        const message = normalizeGenerationError(err instanceof Error ? err.message : undefined, "Generation failed");
         return { error: message };
     }
 }
@@ -404,7 +405,7 @@ export async function generateVideoShot(
         });
 
         if (result.status === 'failed') {
-            return { error: result.error || "Generation failed" };
+            return { error: normalizeGenerationError(result.error, "Generation failed") };
         }
 
         if (process.env.NODE_ENV !== "production") {
@@ -451,7 +452,7 @@ export async function generateVideoShot(
         return { success: true, status: result.status };
 
     } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Video Generation failed";
+        const message = normalizeGenerationError(err instanceof Error ? err.message : undefined, "Video generation failed");
         return { error: message };
     }
 }
@@ -573,7 +574,10 @@ export async function pollShotStatus(shotOptionId: string) {
             } else if (result.status === "failed") {
                 updatePayload.output_url = null;
                 // Optionally log error in parameters
-                updatePayload.parameters = { ...(parameters || {}), error: result.error };
+                updatePayload.parameters = {
+                    ...(parameters || {}),
+                    error: normalizeGenerationError(result.error, "Generation failed"),
+                };
             }
 
             const { error: updateError } = await supabase
@@ -612,6 +616,8 @@ export async function pollShotStatus(shotOptionId: string) {
         };
 
     } catch (err: unknown) {
-        return { error: err instanceof Error ? err.message : "Polling failed" };
+        return {
+            error: normalizeGenerationError(err instanceof Error ? err.message : undefined, "Polling failed"),
+        };
     }
 }
