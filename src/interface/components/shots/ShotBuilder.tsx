@@ -46,7 +46,6 @@ const shotSchema = z.object({
     depthOfField: z.string().optional(),
     aspectRatio: z.string().optional(),
     genreMood: z.string().optional(),
-    durationSeconds: numericOptionalZod,
     providerSlug: z.enum(["auto", "openai", "kie"]).optional(),
     model: z.string().optional(),
     quality: z.string().optional(),
@@ -71,7 +70,6 @@ type ShotFormValues = {
     depthOfField?: string
     aspectRatio?: string
     genreMood?: string
-    durationSeconds?: number
     providerSlug?: "auto" | "openai" | "kie"
     model?: string
     quality?: string
@@ -241,7 +239,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         resolver: zodResolver(shotSchema) as unknown as Resolver<ShotFormValues>,
         defaultValues: {
             subject: "",
-            durationSeconds: 5,
             providerSlug: "auto",
             quality: "standard",
             seedLocked: true,
@@ -292,7 +289,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             depthOfField: undefined,
             aspectRatio: undefined,
             genreMood: undefined,
-            durationSeconds: 5,
             providerSlug: "auto",
             model: undefined,
             quality: "standard",
@@ -408,7 +404,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
 
         const generationSettings = {
             aspect_ratio: selections.aspectRatio?.label || data.aspectRatio || undefined,
-            duration_seconds: data.durationSeconds ? Number(data.durationSeconds) : undefined,
             provider_slug: data.providerSlug && data.providerSlug !== "auto" ? data.providerSlug : undefined,
             model: data.model?.trim() || undefined,
             quality: data.quality?.trim() || undefined,
@@ -425,7 +420,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         formData.append("description", data.subject)
         formData.append("shot_type", selections.shot?.label || "")
         formData.append("camera_movement", selections.movement?.label || "")
-        formData.append("estimated_duration", String(data.durationSeconds || 0))
+        formData.append("estimated_duration", "5")
         formData.append("generation_settings", JSON.stringify(generationSettings))
         formData.append("prompt_text", promptPreview)
         formData.append("selection_payload", JSON.stringify(selectionPayload))
@@ -630,30 +625,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                                         <SelectItem value="high">High</SelectItem>
                                                     </SelectContent>
                                                 </Select>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name="durationSeconds"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-white/80">Duration (sec)</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        min={1}
-                                                        max={60}
-                                                        value={field.value ?? ""}
-                                                        onChange={(event) =>
-                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
-                                                        }
-                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
-                                                    />
-                                                </FormControl>
                                             </FormItem>
                                         )}
                                     />

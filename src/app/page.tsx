@@ -77,8 +77,8 @@ export default function Home() {
 
         <main className="pb-24 pt-10 lg:pt-14">
           <section data-reveal="hero" className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:gap-10">
-            <div className="pt-6">
-              <h1 className="text-5xl leading-[0.93] tracking-[-0.035em] md:text-[5.5rem]">
+            <div className="pt-3 sm:pt-6">
+              <h1 className="text-[2.7rem] leading-[0.95] tracking-[-0.035em] sm:text-5xl md:text-[5.5rem]">
                 <span data-hero-line="line1" className="block font-semibold text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.5)]">Studio control</span>
                 <span data-hero-line="line2" className="mt-1 block font-serif text-[0.82em] italic font-normal tracking-normal text-white/90">for</span>
                 <span data-hero-line="line3" className="neon-flow-text block text-[1.03em] font-medium tracking-[-0.02em]">AI shot design.</span>
@@ -91,7 +91,7 @@ export default function Home() {
                 Trusted by <AnimatedCounter end={50} suffix="+" /> creators (beta).
               </p>
 
-              <div className="mt-10 flex flex-wrap gap-4">
+              <div className="mt-8 flex flex-wrap gap-3 sm:mt-10 sm:gap-4">
                 <MagneticButton className="inline-flex" >
                   <Link data-hero-cta className="beam-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]" href="/signup">
                     Launch Studio
@@ -233,8 +233,34 @@ export default function Home() {
                   Hover to inspect depth. This preview card mimics on-set monitor motion for faster shot validation.
                 </p>
                 <div className="relative mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/60">
-                  <div className="aspect-[21/9] bg-[linear-gradient(120deg,rgba(12,22,28,0.92),rgba(44,23,10,0.78))]" />
-                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.52),transparent_46%)]" />
+                  <div className="aspect-[21/9] bg-black">
+                    <video
+                      src="/interactiveshot.mp4"
+                      className="h-full w-full object-cover"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                    />
+                  </div>
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_44%,rgba(20,241,230,0.22),transparent_34%),radial-gradient(circle_at_76%_60%,rgba(255,138,31,0.24),transparent_36%)]" />
+                  <div className="pointer-events-none absolute inset-0 opacity-[0.2] [background-image:linear-gradient(to_right,rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:38px_38px]" />
+                  <div className="pointer-events-none absolute left-5 top-5 hidden rounded-full border border-white/20 bg-black/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/80 md:block">
+                    Shot 08 · Dolly In
+                  </div>
+                  <div className="pointer-events-none absolute right-5 top-5 hidden rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-cyan-100 md:block">
+                    Arri Alexa · 35mm
+                  </div>
+                  <div className="pointer-events-none absolute inset-0 m-auto hidden h-12 w-12 rounded-full border border-white/25 md:block">
+                    <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/20" />
+                    <div className="absolute top-1/2 h-px w-full -translate-y-1/2 bg-white/20" />
+                  </div>
+                  <div className="pointer-events-none absolute bottom-4 left-4 right-4 hidden rounded-xl border border-white/15 bg-black/45 px-4 py-3 backdrop-blur-sm md:block">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/50">Frame Prompt</p>
+                    <p className="mt-1 text-sm text-white/85">Low-angle running subject, dramatic backlight, warm cinematic grade, controlled film grain.</p>
+                  </div>
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.62),transparent_48%)]" />
                 </div>
               </div>
             </article>

@@ -133,16 +133,16 @@ export function GuidedTour() {
       <div className="absolute inset-0 bg-black/70" />
       {targetRect ? (
         <div
-          className="absolute rounded-2xl border border-cyan-300/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] transition-all duration-300"
+          className="absolute hidden rounded-2xl border border-cyan-300/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] transition-all duration-300 md:block"
           style={spotlightStyle}
         />
       ) : null}
 
-      <div className="pointer-events-auto absolute bottom-6 right-6 w-[min(28rem,calc(100%-2rem))] rounded-2xl border border-white/15 bg-[#0b0c10] p-4 text-white shadow-2xl">
-        <div className="text-xs uppercase tracking-[0.2em] text-white/45">Product Tour</div>
-        <h3 className="mt-1 text-base font-semibold">{step.title}</h3>
-        <p className="mt-1 text-sm text-white/65">{step.description}</p>
-        <div className="mt-3 flex items-center justify-between text-xs text-white/45">
+      <div className="pointer-events-auto absolute inset-x-3 bottom-3 max-h-[68vh] overflow-y-auto rounded-2xl border border-white/15 bg-[#0b0c10] p-3 text-white shadow-2xl md:bottom-6 md:left-auto md:right-6 md:max-h-none md:w-[min(28rem,calc(100%-2rem))] md:overflow-visible md:p-4">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-white/45 md:text-xs">Product Tour</div>
+        <h3 className="mt-1 text-sm font-semibold md:text-base">{step.title}</h3>
+        <p className="mt-1 text-xs text-white/65 md:text-sm">{step.description}</p>
+        <div className="mt-3 flex items-center justify-between text-[11px] text-white/45 md:text-xs">
           <span>
             Step {stepIndex + 1} of {STEPS.length}
           </span>
@@ -157,7 +157,7 @@ export function GuidedTour() {
             Skip tour
           </button>
         </div>
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2 md:flex md:justify-end">
           <Button
             type="button"
             variant="ghost"

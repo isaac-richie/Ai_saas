@@ -320,7 +320,7 @@ export async function generateShot(shotId: string) {
 
 export async function generateVideoShot(
     shotOptionId: string,
-    options?: { customPrompt?: string; useSourceImage?: boolean; model?: string }
+    options?: { customPrompt?: string; useSourceImage?: boolean; model?: string; durationSeconds?: number }
 ) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -400,6 +400,7 @@ export async function generateVideoShot(
             image_prompt: shouldUseSourceImage ? shotOption.output_url : undefined,
             output_type: "video",
             model: configuredModel,
+            duration_seconds: typeof options?.durationSeconds === "number" ? options.durationSeconds : 5,
         });
 
         if (result.status === 'failed') {
@@ -427,6 +428,7 @@ export async function generateVideoShot(
                 task_id: result.provider_check_id,
                 use_source_image: shouldUseSourceImage,
                 model: configuredModel || null,
+                duration_seconds: typeof options?.durationSeconds === "number" ? options.durationSeconds : 5,
             } // Store in JSONB column
         });
 

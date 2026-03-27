@@ -66,11 +66,13 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         optionId: string | null
         prompt: string
         useSourceImage: boolean
+        durationSeconds: 5 | 10 | 15
     }>({
         open: false,
         optionId: null,
         prompt: "Cinematic motion, subtle camera move, natural lighting",
         useSourceImage: true,
+        durationSeconds: 5,
     })
     const [deleteDialog, setDeleteDialog] = useState<{
         open: boolean
@@ -289,6 +291,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
             optionId: option.id,
             prompt: option.prompt?.trim() || "Cinematic motion, subtle camera move, natural lighting",
             useSourceImage: true,
+            durationSeconds: 5,
         })
     }
 
@@ -299,6 +302,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
             const res = await generateVideoShot(videoPromptDialog.optionId, {
                 customPrompt: videoPromptDialog.prompt,
                 useSourceImage: videoPromptDialog.useSourceImage,
+                durationSeconds: videoPromptDialog.durationSeconds,
             })
             if (res.error) throw new Error(res.error)
             toast.success("Video generation started. You can continue working while it renders.")
@@ -1011,11 +1015,11 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                         <div>
                             <h3 className="text-base font-semibold">Edit Video Prompt</h3>
                             <p className="text-sm text-white/55">
-                                Fine-tune the prompt here before generating video.
+                                Tune motion, timing, and framing before video render.
                             </p>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="video-prompt">Prompt</Label>
+                        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                            <Label htmlFor="video-prompt" className="text-white/85">Video Prompt</Label>
                             <Textarea
                                 id="video-prompt"
                                 value={videoPromptDialog.prompt}
@@ -1026,16 +1030,42 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 className="border-white/10 bg-white/5 text-white placeholder:text-white/35"
                                 placeholder="Describe camera motion, pacing, and visual style..."
                             />
+                            <div className="text-[11px] text-white/45">
+                                {videoPromptDialog.prompt.trim().length} characters
+                            </div>
                         </div>
-                        <label className="flex items-center gap-2 text-sm text-white/75">
-                            <Checkbox
-                                checked={videoPromptDialog.useSourceImage}
-                                onCheckedChange={(checked) =>
-                                    setVideoPromptDialog((prev) => ({ ...prev, useSourceImage: Boolean(checked) }))
-                                }
-                            />
-                            Use selected image as start frame (image-to-video)
-                        </label>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                                <Label className="text-white/85">Duration</Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {[5, 10, 15].map((duration) => (
+                                        <button
+                                            key={duration}
+                                            type="button"
+                                            onClick={() =>
+                                                setVideoPromptDialog((prev) => ({ ...prev, durationSeconds: duration as 5 | 10 | 15 }))
+                                            }
+                                            className={`rounded-full border px-3 py-1 text-xs ${
+                                                videoPromptDialog.durationSeconds === duration
+                                                    ? "border-cyan-400 bg-cyan-400/15 text-cyan-100"
+                                                    : "border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
+                                            }`}
+                                        >
+                                            {duration}s
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/75">
+                                <Checkbox
+                                    checked={videoPromptDialog.useSourceImage}
+                                    onCheckedChange={(checked) =>
+                                        setVideoPromptDialog((prev) => ({ ...prev, useSourceImage: Boolean(checked) }))
+                                    }
+                                />
+                                Use selected image as start frame
+                            </label>
+                        </div>
                         <div className="flex justify-end gap-2">
                             <Button
                                 variant="ghost"

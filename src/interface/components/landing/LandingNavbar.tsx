@@ -51,9 +51,10 @@ export function LandingNavbar() {
                 transition={{ type: "spring", stiffness: 240, damping: 26 }}
                 className="relative flex items-center justify-between rounded-[1.15rem] border border-white/12 bg-[#070708]/82 px-3 py-2.5 shadow-[0_26px_40px_-32px_rgba(0,0,0,0.98),0_8px_20px_-16px_rgba(0,0,0,0.9)]"
             >
-                <Link href="/" className="inline-flex items-center gap-2.5">
+                <Link href="/" className="inline-flex items-center gap-2">
                     <AnimatedBrandMark className="h-9 w-9 shrink-0" />
-                    <span className="text-sm font-medium text-white/90">VISIOWAVE Studio Control</span>
+                    <span className="hidden text-sm font-medium text-white/90 sm:inline">VISIOWAVE Studio Control</span>
+                    <span className="text-xs font-medium tracking-[0.08em] text-white/90 sm:hidden">VISIOWAVE</span>
                 </Link>
 
                 <div className="relative hidden items-center gap-7 text-sm text-white/55 md:flex">
@@ -83,7 +84,7 @@ export function LandingNavbar() {
                             Sign up
                         </Link>
                     </div>
-                    <Link href="/dashboard" className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/85 transition hover:bg-white/10 hover:text-white">
+                    <Link href="/dashboard" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/85 transition hover:bg-white/10 hover:text-white sm:px-4 sm:py-2 sm:text-sm">
                         Open Dashboard
                     </Link>
                 </div>
