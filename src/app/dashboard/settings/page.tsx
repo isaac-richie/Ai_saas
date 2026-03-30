@@ -1,17 +1,22 @@
 import { ApiKeyList } from "@/interface/components/settings/ApiKeyList";
 import { PreferredProviderCard } from "@/interface/components/settings/PreferredProviderCard";
 import { MotionSettingsCard } from "@/interface/components/settings/MotionSettingsCard";
+import { BillingPlanCard } from "@/interface/components/settings/BillingPlanCard";
 import { Badge } from "@/interface/components/ui/badge";
 import { Card, CardContent } from "@/interface/components/ui/card";
 import { KeyRound, ShieldCheck } from "lucide-react";
 import { Metadata } from "next";
+import { getMyBillingSnapshot } from "@/core/actions/billing";
 
 export const metadata: Metadata = {
     title: "Settings | AI Cinematography Dashboard",
     description: "Manage your API keys and preferences",
 };
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+    const billingRes = await getMyBillingSnapshot();
+    const billing = billingRes.data || null;
+
     return (
         <div className="mx-auto w-full max-w-6xl space-y-6 py-2 md:py-4">
             <section data-reveal="hero" className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0d] p-6 text-white shadow-[0_24px_50px_-38px_rgba(0,0,0,0.95)] md:p-8">
@@ -46,6 +51,12 @@ export default function SettingsPage() {
 
             <PreferredProviderCard />
             <MotionSettingsCard />
+            {billing && (
+                <BillingPlanCard
+                    billing={billing}
+                    checkoutUrl={process.env.NEXT_PUBLIC_CHECKOUT_URL}
+                />
+            )}
 
             <section data-reveal="card" className="space-y-3">
                 <h2 className="text-lg font-semibold">AI Providers</h2>

@@ -12,7 +12,7 @@ const navLinks = [
     { href: "#docs", label: "Docs" },
 ]
 
-export function LandingNavbar() {
+export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean }) {
     const [compact, setCompact] = useState(false)
     const [active, setActive] = useState("#showcase")
 
@@ -76,17 +76,29 @@ export function LandingNavbar() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="hidden items-center gap-5 lg:flex">
-                        <Link href="/login" className="text-sm text-white/75 transition hover:text-white">
-                            Sign in
+                    {isAuthenticated ? (
+                        <Link
+                            href="/dashboard/studio"
+                            className="beam-button inline-flex items-center rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
+                        >
+                            Open Studio
                         </Link>
-                        <Link href="/signup" className="text-sm text-cyan-300 transition hover:text-cyan-200">
-                            Sign up
-                        </Link>
-                    </div>
-                    <Link href="/dashboard" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/85 transition hover:bg-white/10 hover:text-white sm:px-4 sm:py-2 sm:text-sm">
-                        Open Dashboard
-                    </Link>
+                    ) : (
+                        <div className="flex items-center gap-3 sm:gap-4">
+                            <Link href="/login" className="text-sm text-white/70 transition hover:text-white">
+                                Sign in
+                            </Link>
+                            <Link href="/signup" className="text-sm text-white/85 transition hover:text-white">
+                                Sign up
+                            </Link>
+                            <Link
+                                href="/signup"
+                                className="beam-button inline-flex items-center rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
+                            >
+                                Launch Studio
+                            </Link>
+                        </div>
+                    )}
                 </div>
             </motion.nav>
             </header>

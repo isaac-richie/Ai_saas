@@ -7,13 +7,8 @@ export type ShotReference = Database["public"]["Tables"]["shot_references"]["Row
 
 async function ensureSession() {
     const supabase = await createClient();
-    let { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        const { data, error } = await supabase.auth.signInAnonymously();
-        if (error) return { supabase, error: error.message, user: null };
-        user = data.user;
-    }
-    if (!user) return { supabase, error: "No active session", user: null };
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { supabase, error: "Unauthorized. Please sign in.", user: null };
     return { supabase, user };
 }
 

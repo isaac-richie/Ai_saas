@@ -5,6 +5,7 @@ import { createClient } from "@/infrastructure/supabase/server";
 import { revalidatePath } from "next/cache";
 import { Database } from "@/core/types/db";
 import { createProjectSchema } from "@/core/validation/schemas";
+import { canCreateProject } from "@/core/services/billing";
 
 export type Project = Database["public"]["Tables"]["projects"]["Row"] & {
     scene_count?: number;
@@ -19,18 +20,15 @@ function getErrorMessage(error: unknown): string {
 
 export async function createProject(formData: FormData) {
     const supabase = await createClient();
-    let { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-        const { data: anonData, error: anonError } = await supabase.auth.signInAnonymously();
-        if (anonError) {
-            return { error: `No active session. Enable Supabase Anonymous auth. (${anonError.message})` };
-        }
-        user = anonData.user;
+        return { error: "Unauthorized. Please sign in." };
     }
 
-    if (!user) {
-        return { error: "Unable to establish session for project creation." };
+    const projectLimit = await canCreateProject(supabase, user.id);
+    if (!projectLimit.allowed) {
+        return { error: projectLimit.message };
     }
 
     const rawData = {

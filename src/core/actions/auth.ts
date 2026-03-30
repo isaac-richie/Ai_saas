@@ -4,7 +4,7 @@ import { createClient } from "@/infrastructure/supabase/server";
 import { loginSchema, signupSchema, LoginInput, SignupInput } from "@/core/types/auth";
 import { redirect } from "next/navigation";
 
-export async function login(data: LoginInput) {
+export async function login(data: LoginInput, nextPath?: string) {
     const result = loginSchema.safeParse(data);
     if (!result.success) {
         return { error: "Invalid input data" };
@@ -17,7 +17,11 @@ export async function login(data: LoginInput) {
         return { error: error.message };
     }
 
-    redirect("/");
+    const destination =
+        typeof nextPath === "string" && nextPath.startsWith("/")
+            ? nextPath
+            : "/dashboard";
+    redirect(destination);
 }
 
 export async function signup(data: SignupInput) {
@@ -27,10 +31,14 @@ export async function signup(data: SignupInput) {
     }
 
     const supabase = await createClient();
+    const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
+        || "http://localhost:3000";
     const { error } = await supabase.auth.signUp({
         ...result.data,
         options: {
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+            emailRedirectTo: `${appUrl}/auth/callback`,
         },
     });
 

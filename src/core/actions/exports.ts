@@ -46,14 +46,9 @@ function toProfile(value: string): ExportProfile {
 
 async function ensureSession() {
   const supabase = await createClient()
-  let {
+  const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  if (!user) {
-    const { data } = await supabase.auth.signInAnonymously()
-    user = data.user
-  }
 
   return { supabase, user }
 }

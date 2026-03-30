@@ -30,24 +30,11 @@ async function resolveGalleryUser() {
     } = await supabase.auth.getUser();
 
     if (existingUser) return { supabase, user: existingUser, error: null as string | null };
-
-    try {
-        const { data, error } = await supabase.auth.signInAnonymously();
-        if (error) {
-            return {
-                supabase,
-                user: null,
-                error: `No active session. Enable Supabase Anonymous auth or sign in. (${error.message})`,
-            };
-        }
-        return { supabase, user: data.user, error: null as string | null };
-    } catch {
-        return {
-            supabase,
-            user: null,
-            error: "No active session. Enable Supabase Anonymous auth or sign in.",
-        };
-    }
+    return {
+        supabase,
+        user: null,
+        error: "Unauthorized. Please sign in.",
+    };
 }
 
 export async function deleteGalleryAsset(optionId: string) {

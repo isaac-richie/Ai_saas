@@ -12,6 +12,7 @@ import {
 } from "@/core/config/fast-video-presets"
 import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
+import { consumeUsageQuota } from "@/core/services/billing"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
   strict: "preserve subject identity and scene composition with minimal deviation",
@@ -46,14 +47,9 @@ const createFastVideoDebug = () => {
 
 async function ensureSession() {
   const supabase = await createClient()
-  let {
+  const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  if (!user) {
-    const { data } = await supabase.auth.signInAnonymously()
-    user = data.user
-  }
 
   return { supabase, user }
 }
@@ -180,6 +176,12 @@ export async function generateFastVideo(input: unknown) {
     return { error: "Unauthorized" }
   }
   debug.push("session.resolved", { userId: user.id })
+
+  const quota = await consumeUsageQuota(supabase, user.id, "fast_video")
+  if (!quota.allowed) {
+    debug.push("quota.denied", { feature: "fast_video", message: quota.message || null })
+    return { error: quota.message || "Fast Track limit reached for your current plan." }
+  }
 
   const kie = await resolveKieConfig(user.id)
   if (!kie.data) {

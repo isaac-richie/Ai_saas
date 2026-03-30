@@ -10,12 +10,7 @@ export async function GET(request: Request) {
     }
 
     const supabase = await createClient();
-    let { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-        const { data } = await supabase.auth.signInAnonymously();
-        user = data.user;
-    }
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -33,8 +33,22 @@ export async function proxy(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser()
 
-    if ((request.nextUrl.pathname.startsWith("/login") || request.nextUrl.pathname.startsWith("/signup")) && user) {
-        return NextResponse.redirect(new URL("/", request.url))
+    if (
+        (request.nextUrl.pathname.startsWith("/login")
+            || request.nextUrl.pathname.startsWith("/signup")
+            || request.nextUrl.pathname.startsWith("/verify"))
+        && user
+    ) {
+        return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+
+    if (
+        request.nextUrl.pathname.startsWith("/dashboard") &&
+        !user
+    ) {
+        const loginUrl = new URL("/login", request.url)
+        loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search)
+        return NextResponse.redirect(loginUrl)
     }
 
     return response

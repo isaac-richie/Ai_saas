@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import * as ShotRepo from "@/infrastructure/repositories/shot.repository";
 import { Database } from "@/core/types/db";
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
+import { consumeUsageQuota } from "@/core/services/billing";
 
 const SUPPORTED_PROVIDER_PRIORITY = ["openai", "kie"] as const;
 
@@ -217,6 +218,11 @@ export async function generateShot(shotId: string) {
         return { error: "Unauthorized" };
     }
 
+    const quota = await consumeUsageQuota(supabase, user.id, "studio");
+    if (!quota.allowed) {
+        return { error: quota.message || "Studio limit reached for your current plan." };
+    }
+
     // 1. Fetch Shot details + Joined Scene/Project for context if needed
     // For prompt builder, we need shot attributes.
     const shot = await ShotRepo.getShotById(shotId);
@@ -328,6 +334,11 @@ export async function generateVideoShot(
 
     if (!user) {
         return { error: "Unauthorized" };
+    }
+
+    const quota = await consumeUsageQuota(supabase, user.id, "studio");
+    if (!quota.allowed) {
+        return { error: quota.message || "Studio limit reached for your current plan." };
     }
 
     // 1. Fetch the underlying shot_option to get the image URL and original Prompt

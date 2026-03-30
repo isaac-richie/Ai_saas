@@ -5,7 +5,7 @@ import { Card } from "@/interface/components/ui/card"
 import { Input } from "@/interface/components/ui/input"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/interface/components/ui/dialog" // We can reuse Dialog or make a specific Preview component
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
-import { Play, ImageIcon } from "lucide-react"
+import { Play, ImageIcon, Download, Copy, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
 import { deleteGalleryAsset, moveGalleryAssetsToProject } from "@/core/actions/gallery"
@@ -46,6 +46,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
     const [moveProjectId, setMoveProjectId] = useState<string>(projectOptions[0]?.id || "")
     const [exportProfile, setExportProfile] = useState<"master_16_9" | "social_9_16" | "square_1_1">("master_16_9")
     const [downloadNames, setDownloadNames] = useState<Record<string, string>>({})
+    const [expandedPrompts, setExpandedPrompts] = useState<Record<string, boolean>>({})
 
     const getPreviewUrl = (asset: MediaAsset) => {
         if (asset.type !== "video") return asset.url
@@ -58,6 +59,15 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
             toast.success("Copied URL to clipboard")
         } catch {
             toast.error("Failed to copy URL")
+        }
+    }
+
+    const copyPrompt = async (prompt: string) => {
+        try {
+            await navigator.clipboard.writeText(prompt)
+            toast.success("Copied prompt")
+        } catch {
+            toast.error("Failed to copy prompt")
         }
     }
 
@@ -406,7 +416,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                         </div>
                                     </Card>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-5xl overflow-hidden border-white/10 bg-[#060607]/95 p-0 text-white">
+                                <DialogContent className="max-w-[min(1280px,96vw)] overflow-hidden border-white/10 bg-[#060607]/95 p-0 text-white">
                                     <VisuallyHidden.Root>
                                         <DialogTitle>Media Preview</DialogTitle>
                                     </VisuallyHidden.Root>
@@ -414,115 +424,167 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                         initial={{ opacity: 0, scale: 0.98, y: 8 }}
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                         transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                                        className="grid min-h-[70vh] grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+                                        className="grid h-[min(88vh,820px)] grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]"
                                     >
-                                    <div className="relative flex items-center justify-center bg-black overflow-hidden">
-                                        {asset.type === 'image' ? (
-                                            <img src={previewUrl} alt={asset.prompt} className="h-full w-full object-contain" />
-                                        ) : (
-                                            <video
-                                                src={previewUrl}
-                                                className="h-full w-full object-contain"
-                                                controls
-                                                autoPlay
-                                                loop
-                                                playsInline
-                                                preload="metadata"
-                                            />
-                                        )}
-                                    </div>
-                                    <div className="min-w-0 space-y-4 border-l border-white/10 bg-[#0f1012] p-5">
-                                        <div>
-                                            <div className="text-xs uppercase tracking-[0.2em] text-white/50">Shot</div>
-                                            <div className="mt-1 truncate text-lg font-semibold">{asset.shotName}</div>
-                                        </div>
-                                        <div className="space-y-1 text-sm text-white/60 [&>div]:break-words [&>div]:[overflow-wrap:anywhere]">
-                                            {asset.projectName && <div>Project: <span className="text-white/85">{asset.projectName}</span></div>}
-                                            {asset.sceneName && <div>Scene: <span className="text-white/85">{asset.sceneName}</span></div>}
-                                            <div>Type: <span className="text-white/85">{asset.type}</span></div>
-                                            {asset.shotType && <div>Shot Type: <span className="text-white/85">{asset.shotType}</span></div>}
-                                            {asset.lensName && <div>Lens: <span className="text-white/85">{asset.lensName}</span></div>}
-                                        </div>
-                                        <div>
-                                            <div className="text-xs uppercase tracking-[0.2em] text-white/50">Prompt</div>
-                                            <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-relaxed text-white/70 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-                                                {asset.prompt}
-                                            </div>
-                                        </div>
-                                        {asset.projectId && (
-                                            <div className="space-y-2">
-                                                <div className="text-xs uppercase tracking-[0.2em] text-white/50">Add To Sequence</div>
-                                                <div className="flex flex-wrap items-center gap-2 text-xs">
-                                                    <button
-                                                        type="button"
-                                                        className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-white/70 hover:bg-white/20"
-                                                        onClick={() => loadSequences(asset.projectId!)}
-                                                    >
-                                                        Load Sequences
-                                                    </button>
-                                                    <select
-                                                        value={sequenceTargets[asset.id] ?? ""}
-                                                        onChange={(event) =>
-                                                            setSequenceTargets((prev) => ({ ...prev, [asset.id]: event.target.value }))
-                                                        }
-                                                        className="min-w-[140px] rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-white/80"
-                                                    >
-                                                        <option value="">Select sequence</option>
-                                                        {(sequences[asset.projectId] || []).map((sequence) => (
-                                                            <option key={sequence.id} value={sequence.id}>
-                                                                {sequence.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    <Button
-                                                        size="sm"
-                                                        className="rounded-full border border-white/10 bg-white/10 text-xs text-white/80 hover:bg-white/20"
-                                                        onClick={() => handleAddToSequence(asset)}
-                                                    >
-                                                        Add
-                                                    </Button>
+                                        <div className="relative flex items-center justify-center overflow-hidden bg-black">
+                                            {asset.type === "image" ? (
+                                                <img src={previewUrl} alt={asset.prompt} className="h-full w-full object-contain" />
+                                            ) : (
+                                                <video
+                                                    src={previewUrl}
+                                                    className="h-full w-full object-contain"
+                                                    controls
+                                                    autoPlay
+                                                    loop
+                                                    playsInline
+                                                    preload="metadata"
+                                                />
+                                            )}
+                                            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4">
+                                                <div className="inline-flex items-center rounded-full border border-white/15 bg-black/55 px-2.5 py-1 text-[11px] text-white/75 backdrop-blur">
+                                                    {asset.type.toUpperCase()} {asset.shotType ? `• ${asset.shotType}` : ""}
                                                 </div>
                                             </div>
-                                        )}
-                                        <div className="pt-2">
-                                            <div className="flex flex-wrap gap-2">
-                                                <div className="flex min-w-[220px] flex-1 items-center gap-2">
-                                                    <Input
-                                                        value={downloadNames[asset.id] ?? getDefaultDownloadName(asset)}
-                                                        onChange={(event) =>
-                                                            setDownloadNames((prev) => ({ ...prev, [asset.id]: event.target.value }))
-                                                        }
-                                                        className="h-8 rounded-lg border-white/10 bg-white/5 text-xs text-white placeholder:text-white/35"
-                                                        placeholder="File name"
-                                                    />
+                                        </div>
+
+                                        <div className="flex min-h-0 flex-col border-t border-white/10 bg-[#0f1012] lg:border-l lg:border-t-0">
+                                            <div className="border-b border-white/10 p-5">
+                                                <div className="text-xs uppercase tracking-[0.2em] text-white/45">Shot</div>
+                                                <div className="mt-1 truncate text-xl font-semibold">{asset.shotName}</div>
+                                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                                    <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/70">
+                                                        {asset.type}
+                                                    </span>
+                                                    {asset.shotType ? (
+                                                        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/70">
+                                                            {asset.shotType}
+                                                        </span>
+                                                    ) : null}
+                                                    {asset.projectName ? (
+                                                        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/70">
+                                                            {asset.projectName}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+
+                                            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+                                                <div className="space-y-1 text-sm text-white/60 [&>div]:break-words [&>div]:[overflow-wrap:anywhere]">
+                                                    {asset.projectName && <div>Project: <span className="text-white/85">{asset.projectName}</span></div>}
+                                                    {asset.sceneName && <div>Scene: <span className="text-white/85">{asset.sceneName}</span></div>}
+                                                    <div>Type: <span className="text-white/85">{asset.type}</span></div>
+                                                    {asset.shotType && <div>Shot Type: <span className="text-white/85">{asset.shotType}</span></div>}
+                                                    {asset.lensName && <div>Lens: <span className="text-white/85">{asset.lensName}</span></div>}
+                                                </div>
+
+                                                <div>
+                                                    <div className="text-xs uppercase tracking-[0.2em] text-white/45">Prompt</div>
+                                                    <div className={`mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-relaxed text-white/70 whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${expandedPrompts[asset.id] ? "max-h-72 overflow-y-auto" : "line-clamp-3"}`}>
+                                                        {asset.prompt}
+                                                    </div>
+                                                    <div className="mt-2 flex items-center gap-3 text-xs">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setExpandedPrompts((prev) => ({ ...prev, [asset.id]: !prev[asset.id] }))}
+                                                            className="text-cyan-300 hover:text-cyan-200"
+                                                        >
+                                                            {expandedPrompts[asset.id] ? "Collapse" : "Expand"}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => copyPrompt(asset.prompt)}
+                                                            className="text-white/60 hover:text-white/80"
+                                                        >
+                                                            Copy Prompt
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {asset.projectId && (
+                                                    <div className="space-y-2">
+                                                        <div className="text-xs uppercase tracking-[0.2em] text-white/45">Use In Sequence</div>
+                                                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                                                            <button
+                                                                type="button"
+                                                                className="h-8 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 hover:bg-white/20"
+                                                                onClick={() => loadSequences(asset.projectId!)}
+                                                            >
+                                                                Load Sequences
+                                                            </button>
+                                                            <select
+                                                                value={sequenceTargets[asset.id] ?? ""}
+                                                                onChange={(event) =>
+                                                                    setSequenceTargets((prev) => ({ ...prev, [asset.id]: event.target.value }))
+                                                                }
+                                                                className="h-8 min-w-[140px] rounded-lg border border-white/10 bg-white/5 px-2.5 text-white/80"
+                                                            >
+                                                                <option value="">Select sequence</option>
+                                                                {(sequences[asset.projectId] || []).map((sequence) => (
+                                                                    <option key={sequence.id} value={sequence.id}>
+                                                                        {sequence.name}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            <Button
+                                                                size="sm"
+                                                                className="h-8 rounded-lg border border-cyan-400/35 bg-cyan-500/15 text-xs text-cyan-100 hover:bg-cyan-500/25"
+                                                                onClick={() => handleAddToSequence(asset)}
+                                                            >
+                                                                Add To Sequence
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-3 border-t border-white/10 p-5">
+                                                <div className="flex min-w-[220px] items-center gap-2">
+                                                    <div className="flex-1">
+                                                        <Input
+                                                            value={downloadNames[asset.id] ?? getDefaultDownloadName(asset)}
+                                                            onChange={(event) =>
+                                                                setDownloadNames((prev) => ({ ...prev, [asset.id]: event.target.value }))
+                                                            }
+                                                            className="h-8 rounded-lg border-white/10 bg-white/5 text-xs text-white placeholder:text-white/35"
+                                                            placeholder="File name"
+                                                        />
+                                                    </div>
                                                     <a
                                                         href={`/api/media/proxy?url=${encodeURIComponent(asset.url)}&filename=${encodeURIComponent(downloadNames[asset.id] ?? getDefaultDownloadName(asset))}`}
                                                         download={downloadNames[asset.id] ?? getDefaultDownloadName(asset)}
-                                                        className="inline-flex h-8 items-center rounded-lg border border-white/10 bg-white/10 px-3 text-xs text-white/85 hover:bg-white/20"
+                                                        className="inline-flex h-8 items-center rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-3 text-xs text-cyan-100 hover:bg-cyan-500/25"
                                                     >
+                                                        <Download className="mr-1.5 h-3.5 w-3.5" />
                                                         Download
                                                     </a>
                                                 </div>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
-                                                    onClick={() => copyUrl(asset.url)}
-                                                >
-                                                    Copy URL
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
-                                                    disabled={deletingIds.has(asset.id)}
-                                                    onClick={() => handleDelete([asset.id])}
-                                                >
-                                                    {deletingIds.has(asset.id) ? "Deleting..." : "Delete Asset"}
-                                                </Button>
+
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-8 rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                                                        onClick={() => copyUrl(asset.url)}
+                                                    >
+                                                        <Copy className="mr-1.5 h-3.5 w-3.5" />
+                                                        Copy URL
+                                                    </Button>
+                                                </div>
+
+                                                <div className="border-t border-red-500/20 pt-3">
+                                                    <Button
+                                                        size="sm"
+                                                        className="h-8 rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                                                        disabled={deletingIds.has(asset.id)}
+                                                        onClick={() => handleDelete([asset.id])}
+                                                    >
+                                                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                                                        {deletingIds.has(asset.id) ? "Deleting..." : "Delete Asset"}
+                                                    </Button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </motion.div>
+                                    </motion.div>
                                 </DialogContent>
                             </Dialog>
                         )

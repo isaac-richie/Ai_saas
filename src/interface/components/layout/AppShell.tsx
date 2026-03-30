@@ -1,11 +1,10 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { Sidebar } from "./Sidebar"
 import { Header } from "./Header"
 import { cn } from "@/core/utils"
-import { createClient as createBrowserSupabaseClient } from "@/infrastructure/supabase/client"
 import { GuidedTour } from "@/interface/components/onboarding/GuidedTour"
 import { AnimatePresence, motion } from "framer-motion"
 
@@ -15,7 +14,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const [motionReduced, setMotionReduced] = useState(false)
     const pathname = usePathname()
-    const router = useRouter()
     const mainRef = useRef<HTMLElement>(null)
 
     useEffect(() => {
@@ -121,50 +119,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const isAuthRoute =
         pathname.startsWith("/login") ||
         pathname.startsWith("/signup") ||
+        pathname.startsWith("/verify") ||
         pathname.startsWith("/auth/")
 
     const isPublicRoute = pathname === "/"
 
-    useEffect(() => {
-        if (isAuthRoute || isPublicRoute) return
-
-        let active = true
-
-        ;(async () => {
-            try {
-                const supabase = createBrowserSupabaseClient()
-                const { data } = await supabase.auth.getSession()
-                if (!active || data.session) return
-
-                const { data: anonData } = await supabase.auth.signInAnonymously()
-                if (!active) return
-                if (anonData.session) {
-                    router.refresh()
-                }
-            } catch {
-                // Silent fallback: server actions also attempt anonymous auth.
-            }
-        })()
-
-        return () => {
-            active = false
-        }
-    }, [isAuthRoute, isPublicRoute, router])
-
     if (isAuthRoute || isPublicRoute) {
         return (
-            <div className={cn("relative min-h-screen", isAuthRoute && "px-4 py-6 md:px-6 md:py-8")}>
+            <div className="relative min-h-screen bg-[#050505] text-white">
                 <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-                    <div className="ambient-orb-a absolute -left-20 top-12 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
-                    <div className="ambient-orb-b absolute right-0 top-1/3 h-80 w-80 rounded-full bg-accent/14 blur-3xl" />
-                    <div className="data-grid-bg absolute inset-0 opacity-35" />
+                    {!isAuthRoute && (
+                        <>
+                            <div className="ambient-orb-a absolute -left-20 top-12 h-72 w-72 rounded-full bg-primary/12 blur-3xl" />
+                            <div className="ambient-orb-b absolute right-0 top-1/3 h-80 w-80 rounded-full bg-accent/14 blur-3xl" />
+                            <div className="data-grid-bg absolute inset-0 opacity-35" />
+                        </>
+                    )}
                 </div>
                 <main
                     ref={mainRef}
-                    className={cn(
-                        "w-full",
-                        isAuthRoute ? "mx-auto flex min-h-[calc(100vh-5rem)] max-w-xl items-center justify-center" : "max-w-none"
-                    )}
+                    className="w-full min-h-screen mx-auto"
                 >
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.div

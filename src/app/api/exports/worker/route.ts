@@ -247,11 +247,6 @@ async function handleWorker(supabase: ServerSupabase, request: Request, body: Re
     if (!effectiveUserId) {
         if (hasInternalAccess && requestedUserId && requestedUserId.length > 10) {
             effectiveUserId = requestedUserId
-        } else {
-            const { data, error } = await supabase.auth.signInAnonymously()
-            if (!error && data.user?.id) {
-                effectiveUserId = data.user.id
-            }
         }
     }
 

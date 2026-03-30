@@ -21,6 +21,9 @@ import { InteractiveComparisonCard, InteractiveCommunityCard } from "@/interface
 import { AnimatedCounter } from "@/interface/components/ui/AnimatedCounter"
 import { HeroEntrance } from "@/interface/components/landing/HeroEntrance"
 import { MagneticButton } from "@/interface/components/landing/MagneticButton"
+import { createClient } from "@/infrastructure/supabase/server"
+
+export const dynamic = "force-dynamic"
 
 const logos = ["A24 LAB", "FRAMEFORGE", "NORTHLIGHT", "SIGNAL HOUSE", "FIFTH UNIT"]
 const footerNav = {
@@ -48,7 +51,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="mb-4 text-[10px] uppercase tracking-[0.18em] text-white/45">{children}</p>
 }
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const isAuthenticated = Boolean(user)
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050505] pb-24 text-white selection:bg-cyan-500/25">
       <div
@@ -73,7 +82,7 @@ export default function Home() {
       <div className="neon-aurora neon-aurora-slow pointer-events-none absolute bottom-[-10vh] right-[-8vw] z-0 h-[52vh] w-[52vw]" />
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6">
-        <LandingNavbar />
+        <LandingNavbar isAuthenticated={isAuthenticated} />
 
         <main className="pb-24 pt-10 lg:pt-14">
           <section data-reveal="hero" className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:gap-10">
@@ -93,8 +102,12 @@ export default function Home() {
 
               <div className="mt-8 flex flex-wrap gap-3 sm:mt-10 sm:gap-4">
                 <MagneticButton className="inline-flex" >
-                  <Link data-hero-cta className="beam-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]" href="/signup">
-                    Launch Studio
+                  <Link
+                    data-hero-cta
+                    className="beam-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]"
+                    href={isAuthenticated ? "/dashboard" : "/signup"}
+                  >
+                    {isAuthenticated ? "Open Dashboard" : "Launch Studio"}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </MagneticButton>
