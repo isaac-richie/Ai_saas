@@ -105,12 +105,23 @@ export default async function Home() {
                   <Link
                     data-hero-cta
                     className="beam-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]"
-                    href={isAuthenticated ? "/dashboard" : "/signup"}
+                    href={isAuthenticated ? "/dashboard/studio" : "/signup"}
                   >
-                    {isAuthenticated ? "Open Dashboard" : "Launch Studio"}
+                    {isAuthenticated ? "Launch Studio" : "Sign up"}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </MagneticButton>
+                {!isAuthenticated && (
+                  <MagneticButton className="inline-flex">
+                    <Link
+                      data-hero-cta
+                      href="/login"
+                      className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm transition hover:bg-white/10"
+                    >
+                      Sign in
+                    </Link>
+                  </MagneticButton>
+                )}
                 <MagneticButton className="inline-flex">
                   <a data-hero-cta href="#showcase" className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm transition hover:bg-white/10">See Product Tour</a>
                 </MagneticButton>

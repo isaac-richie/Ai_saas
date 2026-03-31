@@ -81,7 +81,7 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
                             href="/dashboard/studio"
                             className="beam-button inline-flex items-center rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
                         >
-                            Open Studio
+                            Launch Studio
                         </Link>
                     ) : (
                         <div className="flex items-center gap-3 sm:gap-4">
@@ -90,12 +90,6 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
                             </Link>
                             <Link href="/signup" className="text-sm text-white/85 transition hover:text-white">
                                 Sign up
-                            </Link>
-                            <Link
-                                href="/signup"
-                                className="beam-button inline-flex items-center rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
-                            >
-                                Launch Studio
                             </Link>
                         </div>
                     )}
