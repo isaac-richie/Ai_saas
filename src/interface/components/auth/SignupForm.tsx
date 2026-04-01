@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import Link from "next/link"
-import { ArrowRight, Chrome, Zap, CheckCircle2 } from "lucide-react"
+import { ArrowRight, Chrome, Zap, CheckCircle2, Eye, EyeOff } from "lucide-react"
 import { signup } from "@/core/actions/auth"
 import { signupSchema, SignupInput } from "@/core/types/auth"
 import { createClient } from "@/infrastructure/supabase/client"
@@ -42,6 +42,7 @@ export function SignupForm() {
   const [isPending, startTransition] = useTransition()
   const [oauthPending, setOauthPending] = useState(false)
   const [otpPending, setOtpPending] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export function SignupForm() {
     defaultValues: {
       email: "",
       password: "",
+      confirmPassword: "",
     },
   })
 
@@ -254,9 +256,44 @@ export function SignupForm() {
                         <FormControl>
                           <div className="relative group">
                             <Input
-                              type="password"
+                              type={showPassword ? "text" : "password"}
                               placeholder="••••••••••••"
-                              className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 text-sm text-white/80 placeholder:text-white/10 focus:border-cyan-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-cyan-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
+                              className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 pr-10 text-sm text-white/80 placeholder:text-white/10 focus:border-cyan-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-cyan-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-white/20 hover:text-cyan-500 transition-colors"
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                            <div className="absolute bottom-0 left-0 h-px w-0 bg-cyan-500 transition-all duration-700 group-focus-within:w-full" />
+                          </div>
+                        </FormControl>
+                        <FormMessage className="text-[10px] uppercase tracking-widest text-white/30" />
+                      </FormItem>
+                    )}
+                  />
+                </motion.div>
+
+                <motion.div variants={itemVariants}>
+                  <FormField
+                    control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel className="text-[10px] font-mono font-bold uppercase tracking-[0.4em] text-white/20">Confirm Password</FormLabel>
+                        <FormControl>
+                          <div className="relative group">
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              placeholder="••••••••••••"
+                              className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 pr-10 text-sm text-white/80 placeholder:text-white/10 focus:border-cyan-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-cyan-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
                               {...field}
                             />
                             <div className="absolute bottom-0 left-0 h-px w-0 bg-cyan-500 transition-all duration-700 group-focus-within:w-full" />
