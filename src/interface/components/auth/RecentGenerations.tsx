@@ -13,9 +13,9 @@ const PREVIEWS = [
   },
   {
     id: 2,
-    title: "Drift - Night Take",
+    title: "Feature Drop 01",
     metadata: "4K • 6s • 24fps",
-    image: "/auth/chase.png",
+    image: "/image1.jpeg",
     size: "medium",
   },
   {
@@ -34,9 +34,9 @@ const PREVIEWS = [
   },
   {
     id: 5,
-    title: "Alien Horizon",
+    title: "Feature Drop 02",
     metadata: "4K • 15s • 24fps",
-    image: "/auth/landscape.png",
+    image: "/image2.jpeg",
     size: "small",
   },
 ]
