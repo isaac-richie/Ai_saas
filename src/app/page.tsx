@@ -1,6 +1,5 @@
 import Link from "next/link"
 import {
-  ArrowRight,
   Camera,
   Check,
   Film,
@@ -101,16 +100,6 @@ export default async function Home() {
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3 sm:mt-10 sm:gap-4">
-                <MagneticButton className="inline-flex" >
-                  <Link
-                    data-hero-cta
-                    className="beam-button inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-3 text-sm font-semibold text-black transition hover:scale-[1.02]"
-                    href={isAuthenticated ? "/dashboard/studio" : "/signup"}
-                  >
-                    {isAuthenticated ? "Launch Studio" : "Sign up"}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </MagneticButton>
                 {!isAuthenticated && (
                   <MagneticButton className="inline-flex">
                     <Link
