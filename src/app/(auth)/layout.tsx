@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { AnimatedBrandMark } from "@/interface/components/branding/AnimatedBrandMark"
 import { CinematicBackground } from "@/interface/components/ui/CinematicBackground"
 import { RecentGenerations } from "@/interface/components/auth/RecentGenerations"
@@ -44,16 +44,7 @@ export default function AuthLayout({
                 {/* Left Side: Cinematic Branding & Previews */}
                 <section className="relative hidden h-screen lg:flex flex-col gap-4 p-8 xl:p-12 overflow-hidden">
                     <div className="relative z-10 flex-1 space-y-3 transition-all duration-700">
-                        <Link href="/" className="group flex items-center gap-6">
-                            <div className="relative">
-                                <AnimatedBrandMark className="h-16 w-16 xl:h-20 xl:w-20 shrink-0 drop-shadow-[0_0_25px_rgba(34,211,238,0.4)]" />
-                                <div className="absolute inset-0 rounded-full bg-cyan-400/20 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-2xl font-black tracking-[0.4em] text-white uppercase leading-none">VISIOWAVE</span>
-                                <span className="text-[10px] tracking-[0.6em] text-cyan-400 font-bold uppercase mt-2">Studio Intelligence System</span>
-                            </div>
-                        </Link>
+                        <BrandLockup className="w-fit" />
 
                         <div className="space-y-3">
                             <motion.h1 
@@ -117,6 +108,7 @@ export default function AuthLayout({
                 {/* Right Side: Interaction Console */}
                 <section className="relative flex h-screen flex-col items-center justify-center p-4 sm:p-8 lg:p-10 bg-black/40 backdrop-blur-sm lg:bg-transparent">
                     <div className="w-full max-w-sm xl:max-w-[440px] z-20 flex flex-col items-center">
+                        <BrandLockup className="mb-6 self-start lg:hidden" />
                         
                         {children}
 
@@ -128,5 +120,15 @@ export default function AuthLayout({
                 </section>
             </main>
         </div>
+    )
+}
+
+function BrandLockup({ className = "" }: { className?: string }) {
+    return (
+        <Link href="/" className={`group inline-flex items-center gap-2 ${className}`}>
+            <AnimatedBrandMark className="h-9 w-9 shrink-0" />
+            <span className="hidden text-sm font-medium text-white/90 sm:inline">VISIOWAVE Studio Control</span>
+            <span className="text-xs font-medium tracking-[0.08em] text-white/90 sm:hidden">VISIOWAVE</span>
+        </Link>
     )
 }
