@@ -108,9 +108,13 @@ export async function POST(request: Request) {
       }
 
       if (referredByCode) {
-        await admin
-          .rpc('increment_referral_count_inner_circle', { code_input: referredByCode })
-          .catch(() => null);
+        try {
+          await admin.rpc('increment_referral_count_inner_circle', {
+            code_input: referredByCode,
+          });
+        } catch {
+          // non-blocking: signup should still succeed even if referral increment fails
+        }
       }
     }
 
