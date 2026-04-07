@@ -14,6 +14,7 @@ import {
     Images,
     Video,
     Download,
+    Users,
 } from "lucide-react"
 import { logout } from "@/core/actions/auth"
 
@@ -29,6 +30,7 @@ const navItems = [
     { name: "Fast Track", href: "/dashboard/fast-video", icon: Video, tour: "nav-fast-video", isActive: (pathname: string) => pathname.startsWith("/dashboard/fast-video") },
     { name: "Gallery", href: "/dashboard/gallery", icon: Images, tour: "nav-gallery", isActive: (pathname: string) => pathname.startsWith("/dashboard/gallery") },
     { name: "Exports", href: "/dashboard/exports", icon: Download, tour: "nav-exports", isActive: (pathname: string) => pathname.startsWith("/dashboard/exports") },
+    { name: "Inner Circle", href: "/dashboard/inner-circle", icon: Users, tour: "nav-inner-circle", isActive: (pathname: string) => pathname.startsWith("/dashboard/inner-circle") },
     { name: "Settings", href: "/dashboard/settings", icon: Settings, tour: "nav-settings", isActive: (pathname: string) => pathname.startsWith("/dashboard/settings") },
 ]
 

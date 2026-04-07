@@ -100,17 +100,6 @@ export default async function Home() {
               </p>
 
               <div className="mt-8 flex flex-wrap gap-3 sm:mt-10 sm:gap-4">
-                {!isAuthenticated && (
-                  <MagneticButton className="inline-flex">
-                    <Link
-                      data-hero-cta
-                      href="/login"
-                      className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm transition hover:bg-white/10"
-                    >
-                      Sign in
-                    </Link>
-                  </MagneticButton>
-                )}
                 <MagneticButton className="inline-flex">
                   <a data-hero-cta href="#showcase" className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm transition hover:bg-white/10">See Product Tour</a>
                 </MagneticButton>

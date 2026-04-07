@@ -24,7 +24,7 @@ export const getProjects = async (userId: string): Promise<ProjectWithStats[]> =
         .order("updated_at", { ascending: false });
 
     if (error) throw new Error(error.message);
-    const { data: previewRows } = await supabase
+    const { data: previewRows, error: previewError } = await supabase
         .from("shot_generations")
         .select(`
             output_url,
@@ -37,8 +37,13 @@ export const getProjects = async (userId: string): Promise<ProjectWithStats[]> =
         .not("output_url", "is", null)
         .order("created_at", { ascending: false });
 
+    if (previewError) {
+        // Non-blocking: project list should still render even if thumbnail preview query fails.
+        console.error("Project thumbnail preview query failed:", previewError.message);
+    }
+
     const thumbnailByProject = new Map<string, string>();
-    (previewRows || []).forEach((row) => {
+    ((previewRows as unknown[]) || []).forEach((row) => {
         const record = row as {
             output_url?: string | null;
             shots?: { scenes?: { project_id?: string | null } | null } | null;
