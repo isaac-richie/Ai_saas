@@ -583,7 +583,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                 const cameraLabel = selections.camera?.label
                 const lensLabel = selections.lens?.label
                 return (
-                <Card key={shot.id} className="shot-card rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] transition-all hover:border-white/20">
+                <Card key={shot.id} className="shot-card studio-card hover-lift rounded-2xl text-white">
                         <CardContent className="flex flex-col gap-3 p-3.5 md:flex-row md:items-center">
                             <div className="flex min-w-0 items-center gap-2">
                                 <Checkbox
@@ -631,8 +631,8 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                             <div className="flex flex-wrap items-center gap-2 md:ml-auto md:justify-end">
                                 <Button
                                     size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/10 rounded-xl"
+                                    variant="studioGhost"
+                                    className="h-8 w-8 rounded-xl text-white/50 hover:text-white"
                                     onClick={() => handleAppendToSequence(shot.id)}
                                     disabled={!selectedSequenceId}
                                     title="Add to sequence"
@@ -641,8 +641,8 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 </Button>
                                 <Button
                                     size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/10 rounded-xl"
+                                    variant="studioGhost"
+                                    className="h-8 w-8 rounded-xl text-white/50 hover:text-white"
                                     onClick={() => handleDuplicate(shot.id)}
                                     title="Duplicate shot"
                                 >
@@ -650,16 +650,16 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 </Button>
                                 <Button
                                     size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/10 rounded-xl"
+                                    variant="studioGhost"
+                                    className="h-8 w-8 rounded-xl text-white/50 hover:text-white"
                                     onClick={() => setSelectedShotId(shot.id)}
                                 >
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                                 <Button
                                     size="icon"
-                                    variant="ghost"
-                                    className="h-8 w-8 text-white/40 hover:text-red-400 hover:bg-red-500/10 rounded-xl"
+                                    variant="studioGhost"
+                                    className="h-8 w-8 rounded-xl text-white/50 hover:bg-red-500/10 hover:text-red-400"
                                     disabled={deletingId === shot.id}
                                     onClick={() => openDeleteDialog(shot.id, shot.name)}
                                 >
@@ -667,7 +667,8 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 </Button>
                                 <Button
                                     size="sm"
-                                    className="h-8 gap-1 rounded-xl border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white"
+                                    variant="studioSecondary"
+                                    className="h-8 gap-1 rounded-xl"
                                     disabled={generatingId === shot.id}
                                     onClick={() => handleGenerate(shot.id)}
                                 >
@@ -703,8 +704,8 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                             ? `/api/media/proxy?url=${encodeURIComponent(mediaUrl)}&filename=${encodeURIComponent(defaultFilename)}`
                                             : null;
                                         return (
-                                        <Card key={opt.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0f1012]">
-                                            <div className="relative aspect-video bg-black/50">
+                                        <Card key={opt.id} className="studio-subcard hover-lift overflow-hidden rounded-2xl">
+                                            <div className="relative aspect-video bg-black/55">
                                                 {mediaUrl ? (
                                                     opt.status === 'completed' && isVideoUrl(mediaUrl) ? (
                                                         <video src={getVideoProxyUrl(mediaUrl)} className="h-full w-full object-contain" controls playsInline loop muted preload="metadata" />
@@ -735,46 +736,47 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
                                                 {/* Approve Overlay */}
                                                 {opt.status !== 'approved' && opt.status === 'completed' && !isVideoUrl(opt.output_url) && (
-                                                    <div className="absolute top-3 right-3 z-10 transition-all duration-300 hover:scale-105">
+                                                    <div className="absolute top-3 right-3 z-10">
                                                         <Button
                                                             size="icon"
+                                                            variant="studio"
                                                             onClick={() => handleApprove(shot.id, opt.id, 'approved')}
-                                                            className="h-8 w-8 rounded-full border border-emerald-500/30 bg-black/60 text-emerald-400 font-medium shadow-[0_4px_12px_rgba(16,185,129,0.15)] backdrop-blur-md transition-all hover:bg-emerald-500 hover:border-emerald-400 hover:text-white hover:shadow-[0_4px_20px_rgba(16,185,129,0.4)]"
+                                                            className="h-8 w-8 rounded-full p-0"
                                                         >
                                                             <Check className="h-4 w-4" />
                                                         </Button>
                                                     </div>
                                                 )}
                                                 {opt.status === 'approved' && (
-                                                    <div className="absolute top-3 right-3 z-10 flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-200 shadow-[0_6px_18px_rgba(16,185,129,0.25)] backdrop-blur-md">
+                                                    <div className="absolute top-3 right-3 z-10 flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-500/18 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-200 shadow-[0_6px_18px_rgba(16,185,129,0.25)] backdrop-blur-md">
                                                         <Check className="h-3.5 w-3.5" />
                                                         Approved
                                                         <button
                                                             type="button"
                                                             onClick={() => handleApprove(shot.id, opt.id, 'completed')}
-                                                            className="ml-1 rounded-full border border-emerald-400/40 bg-black/40 px-2 py-0.5 text-[10px] text-emerald-100 hover:bg-black/60"
+                                                            className="ml-1 rounded-full border border-emerald-400/40 bg-black/45 px-2 py-0.5 text-[10px] text-emerald-100 hover:bg-black/65"
                                                         >
                                                             Undo
                                                         </button>
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="space-y-2 border-t border-white/10 bg-[#111114] p-3 text-xs text-white/55">
-                                                <div className="flex items-center justify-between">
+                                            <div className="space-y-2 border-t border-white/10 bg-[#111114]/80 p-3 text-xs text-white/55">
+                                                <div className="flex items-center justify-between gap-2">
                                                     <span>{isMounted ? new Date(opt.created_at).toLocaleTimeString() : ""}</span>
-                                                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/70">
+                                                    <span className="studio-chip rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/70">
                                                         {outputType}
                                                     </span>
                                                 </div>
                                                 {opt.prompt && (
-                                                    <div className="max-h-16 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-2 text-[11px] leading-relaxed text-white/65 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                                                    <div className="studio-subcard max-h-16 overflow-y-auto rounded-xl p-2 text-[11px] leading-relaxed text-white/70 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
                                                         {opt.prompt}
                                                     </div>
                                                 )}
                                                 <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/60">
-                                                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{providerLabel}</span>
+                                                    <span className="studio-chip rounded-full px-2.5 py-1">{providerLabel}</span>
                                                     {opt.model_version && (
-                                                        <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                                                        <span className="studio-chip rounded-full px-2.5 py-1">
                                                             {opt.model_version}
                                                         </span>
                                                     )}
@@ -785,7 +787,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                         <a
                                                             href={downloadUrl}
                                                             download={defaultFilename}
-                                                            className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-white/80 hover:bg-white/20"
+                                                            className="studio-chip rounded-full px-2.5 py-1 text-white/85"
                                                         >
                                                             Download
                                                         </a>
@@ -794,10 +796,10 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                         <button
                                                             type="button"
                                                             onClick={() => handleCompare(opt)}
-                                                            className={`rounded-full border px-2.5 py-1 ${
+                                                            className={`rounded-full border px-2.5 py-1 transition ${
                                                                 compareTargets.find((item) => item.id === opt.id)
                                                                     ? "border-cyan-400 bg-cyan-400/20 text-cyan-100"
-                                                                    : "border-white/10 bg-white/10 text-white/70 hover:bg-white/20"
+                                                                    : "studio-chip"
                                                             }`}
                                                         >
                                                             Compare
@@ -807,10 +809,10 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                         <button
                                                             type="button"
                                                             onClick={() => toggleCompareSet(opt)}
-                                                            className={`rounded-full border px-2.5 py-1 ${
+                                                            className={`rounded-full border px-2.5 py-1 transition ${
                                                                 compareSet.includes(opt.id)
                                                                     ? "border-emerald-400 bg-emerald-400/20 text-emerald-100"
-                                                                    : "border-white/10 bg-white/10 text-white/70 hover:bg-white/20"
+                                                                    : "studio-chip"
                                                             }`}
                                                         >
                                                             Pin
@@ -833,11 +835,11 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 {animateCandidate && !animateCandidate.output_url?.endsWith('.mp4') && (
                                     <div className="mt-3 flex justify-end">
                                         <Button
-                                            variant="secondary"
+                                            variant="studioSecondary"
                                             size="sm"
                                             onClick={() => openVideoPromptDialog(animateCandidate)}
                                             disabled={generatingId === animateCandidate.id || animateCandidate.status === 'processing'}
-                                            className="h-8 gap-1 rounded-xl text-xs bg-white/10 hover:bg-white/20 text-white"
+                                            className="h-8 gap-1 rounded-xl text-xs"
                                         >
                                             {generatingId === animateCandidate.id ? (
                                                 <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Generating Video...</>
@@ -851,10 +853,10 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                     <div className="mt-3 flex items-center justify-end gap-2">
                                         <span className="text-[11px] text-amber-200/80">Approve one generated image to unlock video generation.</span>
                                         <Button
-                                            variant="secondary"
+                                            variant="studioSecondary"
                                             size="sm"
                                             disabled
-                                            className="h-8 gap-1 rounded-xl text-xs bg-white/5 text-white/45"
+                                            className="h-8 gap-1 rounded-xl text-xs opacity-60"
                                         >
                                             <Video className="mr-1.5 h-3.5 w-3.5" /> Animate via Kie.ai
                                         </Button>
@@ -863,7 +865,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                             </div>
                         ) : (
                             <div className="border-t border-white/10 bg-white/[0.02] p-3">
-                                <div className="rounded-2xl border border-dashed border-white/15 bg-[#0f1012] p-4">
+                                <div className="studio-subcard rounded-2xl border-dashed p-4">
                                     <div className="mb-2 text-xs uppercase tracking-[0.16em] text-white/45">Awaiting First Render</div>
                                     {isGeneratingShot ? (
                                         <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40 p-5 text-center">
@@ -884,7 +886,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="rounded-xl border border-white/10 bg-white/5 p-5 text-center">
+                                        <div className="studio-subcard rounded-xl p-5 text-center">
                                             <Sparkles className="mx-auto mb-2 h-5 w-5 text-white/35" />
                                             <p className="text-xs text-white/55">
                                                 Click <span className="text-white/80">Generate</span> to create the first visual for this shot.

@@ -191,6 +191,53 @@
     @apply border border-white/10 bg-card/70 backdrop-blur-xl shadow-[0_20px_60px_-36px_rgba(0,0,0,0.7)];
   }
 
+  .studio-card {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)),
+      rgba(12, 14, 18, 0.9);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 24px 52px -38px rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+  }
+
+  .studio-subcard {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.015));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .studio-field {
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: border-color 180ms ease, box-shadow 220ms ease, background-color 220ms ease;
+  }
+
+  .studio-field:hover {
+    border-color: rgba(103, 232, 249, 0.28);
+  }
+
+  .studio-field:focus-visible {
+    border-color: rgba(103, 232, 249, 0.52);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+  }
+
+  .studio-chip {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+    color: rgba(255, 255, 255, 0.78);
+    transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease;
+  }
+
+  .studio-chip:hover {
+    transform: translateY(-1px);
+    border-color: rgba(103, 232, 249, 0.34);
+    background: linear-gradient(180deg, rgba(34, 211, 238, 0.13), rgba(14, 165, 233, 0.06));
+    color: rgba(255, 255, 255, 0.96);
+  }
+
   .data-grid-bg {
     background-image:
       linear-gradient(to right, color-mix(in oklab, var(--border) 55%, transparent) 1px, transparent 1px),

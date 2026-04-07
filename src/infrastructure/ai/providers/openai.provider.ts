@@ -41,7 +41,6 @@ export class OpenAIProvider extends BaseProvider {
                 n: 1,
                 size,
                 response_format: "url",
-                stream: false,
             };
 
             // OpenAI image quality accepts only standard|hd for image generation.

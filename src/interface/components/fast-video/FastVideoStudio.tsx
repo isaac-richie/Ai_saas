@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components
 import { Button } from "@/interface/components/ui/button"
 import { Input } from "@/interface/components/ui/input"
 import { Textarea } from "@/interface/components/ui/textarea"
+import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import {
   FAST_VIDEO_ASPECT_RATIOS,
   FAST_VIDEO_VARIATIONS,
@@ -435,6 +436,22 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setSavedClips((prev) => prev.filter((clip) => clip.id !== id))
   }
 
+  const handleApplyAdToFastTrack = ({
+    packet,
+    outputType,
+  }: {
+    packet: { masterPrompt: string }
+    providerTarget: "openai" | "runway" | "kie"
+    outputType: "image" | "video"
+    promptOverride?: string
+  }) => {
+    if (outputType === "image") {
+      toast.message("Tip: Fast Track is optimized for video prompts.")
+    }
+    setSubject(packet.masterPrompt)
+    toast.success("Assistant Director prompt applied to Fast Track subject")
+  }
+
   return (
     <div className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
       <Card className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
@@ -459,6 +476,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               Try Template Prompt
             </Button>
           </div>
+
+          <StudioAdPanel
+            promptPreview={subject}
+            onApplyPacket={handleApplyAdToFastTrack}
+            embedded
+          />
 
           <div className="space-y-2">
             <label className="text-xs uppercase tracking-[0.16em] text-white/50">Aspect Ratio</label>

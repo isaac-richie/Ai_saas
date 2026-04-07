@@ -28,6 +28,7 @@ import { assemblePrompt, PROMPT_ORDER, PromptCategory, PromptPreset } from "@/co
 import { createShot } from "@/core/actions/shots"
 import { attachElementToShot } from "@/core/actions/elements"
 import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
+import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import { Loader2, Plus, Sparkles, Layers } from "lucide-react"
 import { toast } from "sonner"
 
@@ -168,6 +169,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     const [presets, setPresets] = useState<ShotPreset[]>([])
     const [isLoadingPresets, setIsLoadingPresets] = useState(true)
     const [isSavingPreset, setIsSavingPreset] = useState(false)
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
+    const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false)
     const [newPresetName, setNewPresetName] = useState("")
     const [newPresetDescription, setNewPresetDescription] = useState("")
     const [presetOptions, setPresetOptions] = useState<PresetMap | null>(null)
@@ -391,6 +394,31 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         toast.success("Preset removed")
     }
 
+    const handleApplyAdPacket = ({
+        packet,
+        providerTarget,
+        promptOverride,
+    }: {
+        packet: {
+            masterPrompt: string
+            negativePrompt: string
+        }
+        providerTarget: "openai" | "runway" | "kie"
+        outputType: "image" | "video"
+        promptOverride?: string
+    }) => {
+        form.setValue("subject", promptOverride || packet.masterPrompt)
+        form.setValue("negativePrompt", packet.negativePrompt)
+
+        if (providerTarget === "openai" || providerTarget === "kie") {
+            form.setValue("providerSlug", providerTarget)
+        } else {
+            form.setValue("providerSlug", "auto")
+        }
+
+        toast.success("Assistant Director prompt applied to builder")
+    }
+
     async function onSubmit(data: ShotFormValues) {
         setIsSaving(true)
 
@@ -448,7 +476,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
 
     if (!isMounted) {
         return (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
                 <div className="min-h-[400px] rounded-2xl border border-white/10 bg-[#0b0b0d] animate-pulse" />
                 <div className="min-h-[150px] rounded-2xl border border-white/10 bg-[#0b0b0d] animate-pulse" />
             </div>
@@ -456,8 +484,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     }
 
     return (
-        <div className="grid gap-4 md:grid-cols-2">
-            <Card className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+        <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+            <Card className="studio-card rounded-2xl text-white">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-lg tracking-tight">Shot Attributes</CardTitle>
                 </CardHeader>
@@ -473,7 +501,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                         <FormControl>
                                             <Textarea
                                                 placeholder="A lone astronaut on a red planet..."
-                                                className="resize-none rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                                className="studio-field resize-none rounded-xl text-white placeholder:text-white/35"
                                                 {...field}
                                             />
                                         </FormControl>
@@ -482,15 +510,15 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 )}
                             />
 
-                            <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                            <div className="studio-subcard space-y-2 rounded-xl p-3">
                                 <div className="flex items-center justify-between">
                                     <div className="text-xs uppercase tracking-[0.16em] text-white/50">Quick Styles</div>
                                     <Button
                                         type="button"
                                         size="sm"
-                                        variant="ghost"
                                         onClick={clearAllFields}
-                                        className="h-7 rounded-lg border border-white/10 bg-white/5 px-2.5 text-[11px] text-white/70 hover:bg-white/10"
+                                        variant="studioGhost"
+                                        className="h-7 rounded-lg px-2.5 text-[11px]"
                                     >
                                         Clear All
                                     </Button>
@@ -501,7 +529,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                             key={style.id}
                                             type="button"
                                             onClick={() => applyQuickStyle(style.id)}
-                                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 transition hover:bg-white/10 hover:text-white"
+                                            className="studio-chip rounded-full px-3 py-1.5 text-xs"
                                         >
                                             {style.name}
                                         </button>
@@ -528,7 +556,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                                         value={field.value ?? undefined}
                                                     >
                                                         <FormControl>
-                                                            <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white">
+                                                            <SelectTrigger className="studio-field rounded-xl text-white">
                                                                 <SelectValue placeholder={`Select ${CATEGORY_LABELS[category].toLowerCase()}`} />
                                                             </SelectTrigger>
                                                         </FormControl>
@@ -571,218 +599,229 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 </div>
                             )}
 
-                            <div className="space-y-3 border-t border-white/10 pt-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <div className="text-sm font-medium text-white/80">Advanced Controls</div>
-                                        <p className="text-xs text-white/45">Aspect ratio, model, seed lock, and quality tuning.</p>
+                            <details
+                                className="studio-subcard rounded-xl"
+                                open={isAdvancedOpen}
+                                onToggle={(event) => setIsAdvancedOpen(event.currentTarget.open)}
+                            >
+                                <summary className="cursor-pointer list-none px-3 py-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-sm font-medium text-white/80">Advanced Controls</div>
+                                            <p className="text-xs text-white/45">Model, quality, seed lock, and generation tuning.</p>
+                                        </div>
+                                        <span className="text-[11px] uppercase tracking-[0.14em] text-white/45">
+                                            {isAdvancedOpen ? "Hide" : "Show"}
+                                        </span>
                                     </div>
-                                </div>
+                                </summary>
 
-                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:items-end">
+                                <div className="space-y-3 border-t border-white/10 px-3 pb-3 pt-3">
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:items-end">
+                                        <FormField
+                                            control={form.control}
+                                            name="providerSlug"
+                                            render={({ field }) => (
+                                                <FormItem className="min-w-0">
+                                                    <FormLabel className="text-white/80">Provider</FormLabel>
+                                                    <Select
+                                                        onValueChange={field.onChange}
+                                                        value={field.value ?? "auto"}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
+                                                                <SelectValue placeholder="Auto" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                            <SelectItem value="auto">Auto</SelectItem>
+                                                            <SelectItem value="openai">OpenAI</SelectItem>
+                                                            <SelectItem value="kie">Kie.ai</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="quality"
+                                            render={({ field }) => (
+                                                <FormItem className="min-w-0">
+                                                    <FormLabel className="text-white/80">Quality</FormLabel>
+                                                    <Select
+                                                        onValueChange={field.onChange}
+                                                        value={field.value ?? "standard"}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger className="studio-field rounded-xl text-white [&>span]:truncate">
+                                                                <SelectValue placeholder="standard" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                            <SelectItem value="standard">Standard</SelectItem>
+                                                            <SelectItem value="hd">HD</SelectItem>
+                                                            <SelectItem value="high">High</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
                                     <FormField
                                         control={form.control}
-                                        name="providerSlug"
+                                        name="model"
                                         render={({ field }) => (
-                                            <FormItem className="min-w-0">
-                                                <FormLabel className="text-white/80">Provider</FormLabel>
-                                                <Select
-                                                    onValueChange={field.onChange}
-                                                    value={field.value ?? "auto"}
-                                                >
+                                            <FormItem>
+                                                <FormLabel className="text-white/80">Model (optional)</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        placeholder={
+                                                            selectedProvider === "kie"
+                                                                ? "e.g. qwen/qwen-image"
+                                                                : selectedProvider === "openai"
+                                                                    ? "e.g. dall-e-3"
+                                                                    : "e.g. dall-e-3 or qwen/qwen-image"
+                                                        }
+                                                        value={field.value ?? ""}
+                                                        onChange={(event) => field.onChange(event.target.value)}
+                                                        className="studio-field rounded-xl text-white placeholder:text-white/35"
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="negativePrompt"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-white/80">Negative Prompt</FormLabel>
+                                                <FormControl>
+                                                    <Textarea
+                                                        placeholder="Avoid clutter, distorted faces, oversaturated neon..."
+                                                        className="studio-field resize-none rounded-xl text-white placeholder:text-white/35"
+                                                        value={field.value ?? ""}
+                                                        onChange={(event) => field.onChange(event.target.value)}
+                                                    />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FormField
+                                            control={form.control}
+                                            name="seed"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-white/80">Seed</FormLabel>
                                                     <FormControl>
-                                                        <SelectTrigger className="min-w-0 rounded-xl border-white/10 bg-white/5 text-white [&>span]:truncate">
-                                                            <SelectValue placeholder="Auto" />
-                                                        </SelectTrigger>
+                                                        <Input
+                                                            type="number"
+                                                            value={field.value ?? ""}
+                                                            onChange={(event) =>
+                                                                field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
+                                                            }
+                                                            className="studio-field rounded-xl text-white placeholder:text-white/35"
+                                                        />
                                                     </FormControl>
-                                                    <SelectContent className="border-white/10 bg-[#111114] text-white">
-                                                        <SelectItem value="auto">Auto</SelectItem>
-                                                        <SelectItem value="openai">OpenAI</SelectItem>
-                                                        <SelectItem value="kie">Kie.ai</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="quality"
-                                        render={({ field }) => (
-                                            <FormItem className="min-w-0">
-                                                <FormLabel className="text-white/80">Quality</FormLabel>
-                                                <Select
-                                                    onValueChange={field.onChange}
-                                                    value={field.value ?? "standard"}
-                                                >
+                                                </FormItem>
+                                            )}
+                                        />
+
+                                        <FormField
+                                            control={form.control}
+                                            name="variations"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-white/80">Variations</FormLabel>
                                                     <FormControl>
-                                                        <SelectTrigger className="rounded-xl border-white/10 bg-white/5 text-white [&>span]:truncate">
-                                                            <SelectValue placeholder="standard" />
-                                                        </SelectTrigger>
+                                                        <Input
+                                                            type="number"
+                                                            min={1}
+                                                            max={6}
+                                                            value={field.value ?? ""}
+                                                            onChange={(event) =>
+                                                                field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
+                                                            }
+                                                            className="studio-field rounded-xl text-white placeholder:text-white/35"
+                                                        />
                                                     </FormControl>
-                                                    <SelectContent className="border-white/10 bg-[#111114] text-white">
-                                                        <SelectItem value="standard">Standard</SelectItem>
-                                                        <SelectItem value="hd">HD</SelectItem>
-                                                        <SelectItem value="high">High</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
 
-                                <FormField
-                                    control={form.control}
-                                    name="model"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-white/80">Model (optional)</FormLabel>
-                                            <FormControl>
-                                                <Input
-                                                    placeholder={
-                                                        selectedProvider === "kie"
-                                                            ? "e.g. qwen/qwen-image"
-                                                            : selectedProvider === "openai"
-                                                                ? "e.g. dall-e-3"
-                                                                : "e.g. dall-e-3 or qwen/qwen-image"
-                                                    }
-                                                    value={field.value ?? ""}
-                                                    onChange={(event) => field.onChange(event.target.value)}
-                                                    className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <FormField
+                                            control={form.control}
+                                            name="cfgScale"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-white/80">CFG Scale</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            type="number"
+                                                            min={0}
+                                                            max={30}
+                                                            value={field.value ?? ""}
+                                                            onChange={(event) =>
+                                                                field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
+                                                            }
+                                                            className="studio-field rounded-xl text-white placeholder:text-white/35"
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
 
-                                <FormField
-                                    control={form.control}
-                                    name="negativePrompt"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel className="text-white/80">Negative Prompt</FormLabel>
-                                            <FormControl>
-                                                <Textarea
-                                                    placeholder="Avoid clutter, distorted faces, oversaturated neon..."
-                                                    className="resize-none rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
-                                                    value={field.value ?? ""}
-                                                    onChange={(event) => field.onChange(event.target.value)}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name="seed"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-white/80">Seed</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        value={field.value ?? ""}
-                                                        onChange={(event) =>
-                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
-                                                        }
-                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
-                                                    />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
+                                        <FormField
+                                            control={form.control}
+                                            name="steps"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel className="text-white/80">Steps</FormLabel>
+                                                    <FormControl>
+                                                        <Input
+                                                            type="number"
+                                                            min={1}
+                                                            max={200}
+                                                            value={field.value ?? ""}
+                                                            onChange={(event) =>
+                                                                field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
+                                                            }
+                                                            className="studio-field rounded-xl text-white placeholder:text-white/35"
+                                                        />
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
 
                                     <FormField
                                         control={form.control}
-                                        name="variations"
+                                        name="seedLocked"
                                         render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-white/80">Variations</FormLabel>
+                                                <FormItem className="studio-subcard flex items-center justify-between rounded-xl px-3 py-2">
+                                                <div>
+                                                    <FormLabel className="text-white/80">Lock Seed</FormLabel>
+                                                    <p className="text-xs text-white/45">Keep seed consistent across variations.</p>
+                                                </div>
                                                 <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        min={1}
-                                                        max={6}
-                                                        value={field.value ?? ""}
-                                                        onChange={(event) =>
-                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
-                                                        }
-                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                                    <Checkbox
+                                                        checked={field.value ?? false}
+                                                        onCheckedChange={(value) => field.onChange(Boolean(value))}
                                                     />
                                                 </FormControl>
                                             </FormItem>
                                         )}
                                     />
                                 </div>
+                            </details>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                    <FormField
-                                        control={form.control}
-                                        name="cfgScale"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-white/80">CFG Scale</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        min={0}
-                                                        max={30}
-                                                        value={field.value ?? ""}
-                                                        onChange={(event) =>
-                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
-                                                        }
-                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
-                                                    />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="steps"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-white/80">Steps</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="number"
-                                                        min={1}
-                                                        max={200}
-                                                        value={field.value ?? ""}
-                                                        onChange={(event) =>
-                                                            field.onChange(event.target.value === "" ? undefined : Number(event.target.value))
-                                                        }
-                                                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
-                                                    />
-                                                </FormControl>
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                <FormField
-                                    control={form.control}
-                                    name="seedLocked"
-                                    render={({ field }) => (
-                                        <FormItem className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-                                            <div>
-                                                <FormLabel className="text-white/80">Lock Seed</FormLabel>
-                                                <p className="text-xs text-white/45">Keep seed consistent across variations.</p>
-                                            </div>
-                                            <FormControl>
-                                                <Checkbox
-                                                    checked={field.value ?? false}
-                                                    onCheckedChange={(value) => field.onChange(Boolean(value))}
-                                                />
-                                            </FormControl>
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-
-                            <Button type="submit" disabled={isSaving} className="w-full rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                            <Button type="submit" variant="studio" disabled={isSaving} className="w-full">
                                 {isSaving ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -800,8 +839,14 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                 </CardContent>
             </Card>
 
-            <div className="space-y-4">
-                <Card className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+            <div className="space-y-5">
+                <StudioAdPanel
+                    promptPreview={promptPreview}
+                    onApplyPacket={handleApplyAdPacket}
+                    context={{ projectId, sceneId }}
+                />
+
+                <Card className="studio-card rounded-2xl text-white">
                     <CardHeader>
                         <CardTitle className="flex items-center text-sm font-medium uppercase tracking-wider text-white/55">
                             <Sparkles className="mr-2 h-4 w-4 text-white/45" />
@@ -809,7 +854,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-white/5 p-4 font-mono text-sm leading-relaxed text-white/80">
+                        <div className="studio-subcard max-h-56 overflow-y-auto rounded-xl p-4 font-mono text-sm leading-relaxed text-white/80">
                             {promptPreview || <span className="italic text-white/45">Start building your shot...</span>}
                         </div>
                     </CardContent>
@@ -820,31 +865,41 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                     </CardFooter>
                 </Card>
 
-                <Card className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium uppercase tracking-wider text-white/55">
-                            Shot Presets
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+                <details
+                    className="studio-card rounded-2xl text-white"
+                    open={isPresetManagerOpen}
+                    onToggle={(event) => setIsPresetManagerOpen(event.currentTarget.open)}
+                >
+                    <summary className="cursor-pointer list-none px-6 py-5">
+                        <div className="flex items-center justify-between gap-3">
+                            <CardTitle className="text-sm font-medium uppercase tracking-wider text-white/55">
+                                Shot Presets
+                            </CardTitle>
+                            <span className="text-[11px] uppercase tracking-[0.14em] text-white/45">
+                                {isPresetManagerOpen ? "Hide" : "Manage"}
+                            </span>
+                        </div>
+                    </summary>
+                    <div className="space-y-3 border-t border-white/10 px-6 pb-5 pt-4">
                         <div className="grid gap-2">
                             <Input
                                 value={newPresetName}
                                 onChange={(e) => setNewPresetName(e.target.value)}
                                 placeholder="Preset name"
-                                className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                className="studio-field rounded-xl text-white placeholder:text-white/35"
                             />
                             <Input
                                 value={newPresetDescription}
                                 onChange={(e) => setNewPresetDescription(e.target.value)}
                                 placeholder="Description (optional)"
-                                className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                className="studio-field rounded-xl text-white placeholder:text-white/35"
                             />
                             <Button
                                 type="button"
                                 onClick={handleSavePreset}
                                 disabled={isSavingPreset || !newPresetName.trim()}
-                                className="w-full rounded-xl border border-white/10 bg-white/10 text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                variant="studioSecondary"
+                                className="w-full disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 {isSavingPreset ? (
                                     <>
@@ -862,19 +917,19 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
 
                         <div className="space-y-2">
                             {isLoadingPresets && (
-                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/50">
+                                <div className="studio-subcard rounded-xl p-3 text-xs text-white/50">
                                     Loading presets...
                                 </div>
                             )}
                             {!isLoadingPresets && presets.length === 0 && (
-                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/50">
+                                <div className="studio-subcard rounded-xl p-3 text-xs text-white/50">
                                     No presets yet. Save your first setup.
                                 </div>
                             )}
                             {presets.map((preset) => (
                                 <div
                                     key={preset.id}
-                                    className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+                                    className="studio-subcard flex items-center justify-between gap-3 rounded-xl px-3 py-2"
                                 >
                                     <div>
                                         <div className="text-sm text-white/90">{preset.name}</div>
@@ -887,16 +942,17 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                             type="button"
                                             size="sm"
                                             onClick={() => applyPreset(preset)}
-                                            className="rounded-full border border-white/10 bg-white/10 px-3 text-xs text-white hover:bg-white/15"
+                                            variant="studioSecondary"
+                                            className="rounded-full px-3 text-xs"
                                         >
                                             Apply
                                         </Button>
                                         <Button
                                             type="button"
                                             size="sm"
-                                            variant="ghost"
                                             onClick={() => handleDeletePreset(preset.id)}
-                                            className="rounded-full border border-transparent text-xs text-white/50 hover:bg-white/10 hover:text-white"
+                                            variant="studioGhost"
+                                            className="rounded-full text-xs"
                                         >
                                             Delete
                                         </Button>
@@ -904,8 +960,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 </div>
                             ))}
                         </div>
-                    </CardContent>
-                </Card>
+                    </div>
+                </details>
             </div>
         </div>
     )
