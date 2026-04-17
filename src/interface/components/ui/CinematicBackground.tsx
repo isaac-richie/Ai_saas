@@ -1,19 +1,39 @@
 "use client"
 
 import { motion, useScroll, useTransform } from "framer-motion"
-import { useEffect, useState } from "react"
+import { useMemo } from "react"
+
+type Particle = {
+  left: string
+  top: string
+  sizePx: number
+  driftX: number
+  duration: number
+  delay: number
+}
+
+const PARTICLE_COUNT = 24
+
+function seeded(index: number, salt: number) {
+  const raw = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453
+  return raw - Math.floor(raw)
+}
 
 export function CinematicBackground() {
-  const [mounted, setMounted] = useState(false)
   const { scrollY } = useScroll()
   const y1 = useTransform(scrollY, [0, 500], [0, 100])
-  const y2 = useTransform(scrollY, [0, 500], [0, -100])
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) return null
+  const particles = useMemo<Particle[]>(
+    () =>
+      Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+        left: `${seeded(i, 1) * 120 - 10}%`,
+        top: `${seeded(i, 2) * 120 - 10}%`,
+        sizePx: seeded(i, 3) * 2 + 1,
+        driftX: seeded(i, 4) * 100 - 50,
+        duration: 8 + seeded(i, 5) * 12,
+        delay: seeded(i, 6) * 10,
+      })),
+    []
+  )
 
   return (
     <div className="fixed inset-0 -z-50 overflow-hidden bg-[#05070A] pointer-events-none">
@@ -57,27 +77,27 @@ export function CinematicBackground() {
 
       {/* 3c. Floating Tactical Particles */}
       <div className="absolute inset-0 z-30 opacity-40">
-        {[...Array(24)].map((_, i) => (
+        {particles.map((particle, i) => (
           <motion.div
             key={i}
             className="absolute rounded-full bg-cyan-400"
             style={{
-              left: `${Math.random() * 120 - 10}%`,
-              top: `${Math.random() * 120 - 10}%`,
-              width: `${Math.random() * 2 + 1}px`,
-              height: `${Math.random() * 2 + 1}px`,
+              left: particle.left,
+              top: particle.top,
+              width: `${particle.sizePx}px`,
+              height: `${particle.sizePx}px`,
               boxShadow: '0 0 12px 1px rgba(34,211,238,0.8)'
             }}
             animate={{
               y: [0, -150, 0],
-              x: [0, Math.random() * 100 - 50, 0],
+              x: [0, particle.driftX, 0],
               opacity: [0, 0.8, 0],
               scale: [1, 1.5, 1],
             }}
             transition={{
-              duration: 8 + Math.random() * 12,
+              duration: particle.duration,
               repeat: Infinity,
-              delay: Math.random() * 10,
+              delay: particle.delay,
               ease: "easeInOut"
             }}
           />

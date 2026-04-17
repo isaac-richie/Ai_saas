@@ -13,12 +13,33 @@ import {
 import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 import { consumeUsageQuota } from "@/core/services/billing"
+import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
   strict: "preserve subject identity and scene composition with minimal deviation",
   balanced: "maintain core subject while allowing moderate cinematic interpretation",
   creative: "allow expressive cinematic reinterpretation while preserving primary subject intent",
 }
+
+const BASE_QUALITY_TOKENS = [
+  "cinematic continuity",
+  "clean composition",
+  "high production value",
+  "coherent lighting direction",
+  "subject readability across frames",
+]
+
+const BASE_NEGATIVE_TOKENS = [
+  "distorted anatomy",
+  "broken geometry",
+  "unreadable details",
+  "flicker",
+  "temporal jitter",
+  "warped limbs",
+  "mushy textures",
+  "text artifacts",
+  "watermarks",
+]
 
 type FastVideoDebugEvent = {
   at: string
@@ -83,26 +104,140 @@ async function resolveKieConfig(userId?: string | null) {
   return { data: { apiKey, providerId: providerRow?.id || null } }
 }
 
-function assembleFastVideoPrompt(payload: FastVideoRequest) {
+function cleanClause(value: string): string {
+  return value.replace(/\s+/g, " ").replace(/\s+,/g, ",").trim()
+}
+
+function dedupeClauses(parts: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+
+  for (const part of parts) {
+    const normalized = cleanClause(part)
+    const key = normalized.toLowerCase()
+    if (!normalized || seen.has(key)) continue
+    seen.add(key)
+    out.push(normalized)
+  }
+
+  return out
+}
+
+function trimPromptBySegments(parts: string[], limit: number): string {
+  const kept: string[] = []
+  for (const part of parts) {
+    const candidate = [...kept, part].join(", ")
+    if (candidate.length > limit) break
+    kept.push(part)
+  }
+  const merged = kept.join(", ")
+  return merged.length <= limit ? merged : `${merged.slice(0, Math.max(0, limit - 3))}...`
+}
+
+function inferSubjectClass(subject: string): "product" | "portrait" | "vehicle" | "environment" | "action" {
+  const s = subject.toLowerCase()
+  if (/(jacket|shoe|sneaker|dress|watch|perfume|product|bottle|bag|hoodie|fashion)/i.test(s)) return "product"
+  if (/(car|bike|motorcycle|vehicle|truck|drift|racing)/i.test(s)) return "vehicle"
+  if (/(fight|run|chase|explosion|stunt|parkour|sprint)/i.test(s)) return "action"
+  if (/(cityscape|landscape|forest|mountain|ocean|street|architecture|interior)/i.test(s)) return "environment"
+  return "portrait"
+}
+
+function buildSubjectDirectives(subject: string, variation: FastVideoVariation): string[] {
+  const cls = inferSubjectClass(subject)
+
+  if (cls === "product") {
+    return [
+      "hero product framing with clear silhouette and material texture readability",
+      "controlled highlight roll-off and edge separation",
+      variation === "creative"
+        ? "bold premium ad choreography while preserving product geometry"
+        : "stable geometry and logo readability across all frames",
+    ]
+  }
+
+  if (cls === "vehicle") {
+    return [
+      "vehicle body lines remain coherent during motion",
+      "ground contact and wheel geometry stay physically plausible",
+      variation === "strict"
+        ? "predictable camera path for clean editorial continuity"
+        : "dynamic parallax with controlled motion blur",
+    ]
+  }
+
+  if (cls === "action") {
+    return [
+      "strong subject legibility during fast movement",
+      "clear action axis and screen direction continuity",
+      variation === "strict"
+        ? "stabilized framing priority with minimal scene drift"
+        : "kinetic camera energy without losing subject clarity",
+    ]
+  }
+
+  if (cls === "environment") {
+    return [
+      "depth-rich foreground-midground-background layering",
+      "atmospheric perspective and scale readability",
+      "clean horizon and architectural line integrity",
+    ]
+  }
+
+  return [
+    "facial and body identity consistency across all frames",
+    "natural skin rendering and stable proportions",
+    variation === "creative"
+      ? "expressive cinematic stylization while preserving subject identity"
+      : "subtle cinematic realism with controlled movement",
+  ]
+}
+
+function buildAspectDirective(aspectRatio: FastVideoRequest["prompt_inputs"]["aspect_ratio"]): string {
+  if (aspectRatio === "9:16") return "vertical composition optimized for mobile-safe framing"
+  if (aspectRatio === "21:9") return "ultra-wide cinematic composition with strong lateral balance"
+  if (aspectRatio === "1:1" || aspectRatio === "4:5") return "center-weighted framing optimized for social crop safety"
+  return "landscape cinematic composition with balanced headroom and lead room"
+}
+
+function buildVariationNegatives(variation: FastVideoVariation): string[] {
+  if (variation === "strict") {
+    return ["identity drift", "camera instability", "frame-to-frame inconsistency"]
+  }
+  if (variation === "creative") {
+    return ["over-chaotic motion", "incoherent perspective jumps", "subject obliteration"]
+  }
+  return ["over-processing", "unnatural sharpening halos", "inconsistent exposure flicker"]
+}
+
+function assembleFastVideoPrompt(payload: FastVideoRequest, safeDuration: number) {
   const { prompt_inputs } = payload
   const style = findStylePreset(prompt_inputs.style_preset_id)
   const motion = findMotionPreset(prompt_inputs.motion_preset_id)
+  const subject = cleanClause(prompt_inputs.text_subject)
+  const subjectDirectives = buildSubjectDirectives(subject, prompt_inputs.variation_setting)
+  const aspectDirective = buildAspectDirective(prompt_inputs.aspect_ratio)
 
-  const parts = [prompt_inputs.text_subject.trim()]
+  const parts = [subject]
   if (style?.styleTokens) parts.push(style.styleTokens)
   if (motion?.motionTokens) parts.push(motion.motionTokens)
+  parts.push(...subjectDirectives)
+  parts.push(aspectDirective)
+  parts.push(`duration ${safeDuration}s with coherent start-middle-end motion arc`)
   parts.push(VARIATION_HINTS[prompt_inputs.variation_setting])
-  parts.push("cinematic continuity, clean composition, high production value")
+  parts.push(...BASE_QUALITY_TOKENS)
 
-  const prompt = parts.filter(Boolean).join(", ")
-  const negativePrompt = [style?.negativeTokens, "distorted anatomy, broken geometry, unreadable details"]
-    .filter(Boolean)
-    .join(", ")
+  const uniquePromptParts = dedupeClauses(parts)
+  const prompt = trimPromptBySegments(uniquePromptParts, 1100)
 
-  const trimmedPrompt = prompt.length > 1100 ? `${prompt.slice(0, 1097)}...` : prompt
+  const negativePrompt = dedupeClauses([
+    ...(style?.negativeTokens ? style.negativeTokens.split(",") : []),
+    ...BASE_NEGATIVE_TOKENS,
+    ...buildVariationNegatives(prompt_inputs.variation_setting),
+  ]).join(", ")
 
   return {
-    prompt: trimmedPrompt,
+    prompt,
     negativePrompt,
     style,
     motion,
@@ -190,18 +325,27 @@ export async function generateFastVideo(input: unknown) {
   }
   debug.push("provider.ready", { providerId: kie.data.providerId })
 
-  const composed = assembleFastVideoPrompt(payload)
+  const composed = assembleFastVideoPrompt(payload, safeDuration)
+  const compliance = enforcePromptCompliance({
+    prompt: composed.prompt,
+    negativePrompt: composed.negativePrompt,
+    outputType: "video",
+  })
+  if (compliance.blocked) {
+    debug.push("prompt.blocked", { reason: compliance.reason || "Prompt blocked by compliance guardrails" })
+    return { error: compliance.reason || "Prompt blocked by safety guardrails. Revise and retry." }
+  }
   debug.push("prompt.assembled", {
-    promptLength: composed.prompt.length,
-    negativePromptLength: composed.negativePrompt.length,
+    promptLength: compliance.prompt.length,
+    negativePromptLength: compliance.negativePrompt.length,
   })
 
   try {
     const provider = ProviderFactory.create("kie", { apiKey: kie.data.apiKey })
     debug.push("provider.generate.start")
     const result = await provider.generate({
-      prompt: composed.prompt,
-      negative_prompt: composed.negativePrompt,
+      prompt: compliance.prompt,
+      negative_prompt: compliance.negativePrompt,
       image_prompt: payload.prompt_inputs.reference_image || undefined,
       output_type: "video",
       aspect_ratio: payload.prompt_inputs.aspect_ratio,
@@ -237,8 +381,8 @@ export async function generateFastVideo(input: unknown) {
         taskId: result.provider_check_id || result.id || null,
         status: result.status,
         url: stableUrl || result.url || null,
-        prompt: composed.prompt,
-        negativePrompt: composed.negativePrompt,
+        prompt: compliance.prompt,
+        negativePrompt: compliance.negativePrompt,
         stylePresetName: composed.style?.name || null,
         motionPresetName: composed.motion?.name || null,
         durationSeconds: safeDuration,

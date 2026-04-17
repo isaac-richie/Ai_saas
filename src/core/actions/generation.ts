@@ -9,6 +9,15 @@ import * as ShotRepo from "@/infrastructure/repositories/shot.repository";
 import { Database } from "@/core/types/db";
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
 import { consumeUsageQuota } from "@/core/services/billing";
+import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance";
+import type { GenerationResult } from "@/infrastructure/ai/types";
+
+/** 
+ * Force server action re-validation to clear cached ReferenceErrors 
+ */
+export async function __REVALIDATION_TRIGGER() {
+    return "c6a6de80-6ed4-4894-8c12-a274c1a77eba";
+}
 
 const SUPPORTED_PROVIDER_PRIORITY = ["openai", "kie"] as const;
 
@@ -75,10 +84,10 @@ const persistRemoteMedia = async (
     }
 };
 
-async function resolveGenerationProvider(
+async function resolveAvailableProviders(
     userId: string,
     forcedSlug?: SupportedProviderSlug
-): Promise<{ data?: ProviderResolution; error?: string }> {
+): Promise<{ data: ProviderResolution[]; error?: string }> {
     const supabase = await createClient();
 
     const { data: providers, error: providersError } = await supabase
@@ -88,7 +97,7 @@ async function resolveGenerationProvider(
         .eq("is_active", true);
 
     if (providersError) {
-        return { error: providersError.message };
+        return { data: [], error: providersError.message };
     }
 
     const availableProviders = (providers ?? []) as ProviderRow[];
@@ -111,7 +120,7 @@ async function resolveGenerationProvider(
         : { data: [], error: null };
 
     if (keyError) {
-        return { error: keyError.message };
+        return { data: [], error: keyError.message };
     }
 
     const keys = (userKeys ?? []) as UserKeyRow[];
@@ -134,57 +143,54 @@ async function resolveGenerationProvider(
             ? [preferredSlug, ...SUPPORTED_PROVIDER_PRIORITY.filter((slug) => slug !== preferredSlug)]
             : [...SUPPORTED_PROVIDER_PRIORITY];
 
+    const results: ProviderResolution[] = [];
+
     for (const slug of orderedProviderSlugs) {
         const provider = providerBySlug.get(slug);
-        if (!provider) continue;
+        
+        // Priority 1: User-provided API Keys (Requires DB provider entry for ID matching)
+        if (provider) {
+            const keyRow = keys.find((key) => key.provider_id === provider.id);
+            if (keyRow?.encrypted_key) {
+                const decrypted = decrypt(keyRow.encrypted_key);
+                if (decrypted) {
+                    results.push({
+                        slug,
+                        providerId: provider.id,
+                        apiKey: decrypted,
+                        source: "user_key",
+                    });
+                    continue;
+                }
+            }
+        }
 
-        const keyRow = keys.find((key) => key.provider_id === provider.id);
-        if (!keyRow?.encrypted_key) continue;
+        // Priority 2: Environment Variables (Fallback even if DB entry is missing for Kie/OpenAI)
+        if (slug === "openai" && process.env.OPENAI_API_KEY) {
+            results.push({
+                slug: "openai",
+                providerId: provider?.id,
+                apiKey: process.env.OPENAI_API_KEY,
+                source: "env",
+            });
+        } else if (slug === "kie" && process.env.KIE_AI_API_KEY) {
+            results.push({
+                slug: "kie",
+                providerId: provider?.id,
+                apiKey: process.env.KIE_AI_API_KEY,
+                source: "env",
+            });
+        }
+    }
 
-        const decrypted = decrypt(keyRow.encrypted_key);
-        if (!decrypted) continue;
-
+    if (results.length === 0) {
         return {
-            data: {
-                slug,
-                providerId: provider.id,
-                apiKey: decrypted,
-                source: "user_key",
-            },
+            data: [],
+            error: "No supported provider key found. Add OpenAI or Kie.ai in Settings, or configure OPENAI_API_KEY/KIE_AI_API_KEY.",
         };
     }
 
-    for (const slug of orderedProviderSlugs) {
-        const provider = providerBySlug.get(slug);
-        if (!provider) continue;
-
-        if (slug === "openai" && process.env.OPENAI_API_KEY) {
-            return {
-                data: {
-                    slug: "openai",
-                    providerId: provider.id,
-                    apiKey: process.env.OPENAI_API_KEY,
-                    source: "env",
-                },
-            };
-        }
-
-        if (slug === "kie" && process.env.KIE_AI_API_KEY) {
-            return {
-                data: {
-                    slug: "kie",
-                    providerId: provider ? provider.id : undefined, // Graceful fallback
-                    apiKey: process.env.KIE_AI_API_KEY,
-                    source: "env",
-                },
-            };
-        }
-    }
-
-    return {
-        error:
-            "No supported provider key found. Add OpenAI or Kie.ai in Settings, or configure OPENAI_API_KEY/KIE_AI_API_KEY.",
-    };
+    return { data: results };
 }
 
 export async function getActiveGenerationProvider() {
@@ -197,17 +203,48 @@ export async function getActiveGenerationProvider() {
         return { error: "Unauthorized" };
     }
 
-    const resolved = await resolveGenerationProvider(user.id);
-    if (!resolved.data) {
-        return { error: resolved.error ?? "No provider configured" };
+    const resolved = await resolveAvailableProviders(user.id);
+    if (!resolved || !resolved.data || resolved.data.length === 0) {
+        return { error: resolved?.error ?? "No provider configured" };
     }
 
+    const primary = resolved.data[0];
     return {
         data: {
-            slug: resolved.data.slug,
-            source: resolved.data.source,
+            slug: primary.slug,
+            source: primary.source,
         },
     };
+}
+
+export async function checkAIStatus() {
+    const supabase = await createClient();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return { error: "User not authenticated" };
+
+    const resolved = await resolveAvailableProviders(user.id);
+    const availableProviders = resolved.data;
+    
+    if (!availableProviders.length) {
+        return { error: resolved.error || "No providers available" };
+    }
+
+    const statuses: Array<{ slug: string; ok: boolean; message?: string }> = [];
+
+    for (const p of availableProviders) {
+        try {
+            const provider = ProviderFactory.create(p.slug, { apiKey: p.apiKey });
+            const result = await provider.ping();
+            statuses.push({ slug: p.slug, ...result });
+        } catch (e: unknown) {
+            statuses.push({ slug: p.slug, ok: false, message: e instanceof Error ? e.message : "Provider ping failed" });
+        }
+    }
+
+    return { statuses };
 }
 
 export async function generateShot(shotId: string) {
@@ -238,8 +275,8 @@ export async function generateShot(shotId: string) {
             ? forcedProviderRaw
             : undefined;
 
-    const resolved = await resolveGenerationProvider(user.id, forcedProvider);
-    if (!resolved.data) {
+    const resolved = await resolveAvailableProviders(user.id, forcedProvider);
+    if (!resolved.data.length) {
         return { error: resolved.error ?? "No provider configured" };
     }
 
@@ -254,9 +291,18 @@ export async function generateShot(shotId: string) {
             })
             : (shot.description || ""));
 
-    // 6. Call Provider
+    const compliance = enforcePromptCompliance({
+        prompt,
+        negativePrompt: typeof settings.negative_prompt === "string" ? settings.negative_prompt : undefined,
+        outputType: "image",
+    });
+
+    if (compliance.blocked) {
+        return { error: compliance.reason || "Prompt blocked by safety guardrails. Revise and retry." };
+    }
+
+    // 6. Call Provider with Fallback Logic
     try {
-        const provider = ProviderFactory.create(resolved.data.slug, { apiKey: resolved.data.apiKey });
         const variations = Math.max(1, Math.min(Number(settings.variations ?? 1), 6));
         const baseSeed = typeof settings.seed === "number" ? settings.seed : undefined;
         const seedLocked = Boolean(settings.seed_locked);
@@ -265,21 +311,60 @@ export async function generateShot(shotId: string) {
 
         for (let i = 0; i < variations; i += 1) {
             const requestSeed = baseSeed !== undefined && !seedLocked ? baseSeed + i : baseSeed;
-            const result = await provider.generate({
-                prompt,
-                negative_prompt: typeof settings.negative_prompt === "string" ? settings.negative_prompt : undefined,
-                aspect_ratio: typeof settings.aspect_ratio === "string" ? settings.aspect_ratio : undefined,
-                model: typeof settings.model === "string" ? settings.model : undefined,
-                seed: typeof requestSeed === "number" ? requestSeed : undefined,
-                steps: typeof settings.steps === "number" ? settings.steps : undefined,
-                cfg_scale: typeof settings.cfg_scale === "number" ? settings.cfg_scale : undefined,
-                duration_seconds: typeof settings.duration_seconds === "number" ? settings.duration_seconds : undefined,
-                quality: typeof settings.quality === "string" ? settings.quality : undefined,
-                variations,
-            });
+            let result: GenerationResult | null = null;
+            let lastError: string | null = null;
+            let successfulProviderId: string | null = null;
 
-            if (result.status === 'failed') {
-                return { error: normalizeGenerationError(result.error, "Generation failed") };
+            // Try available providers in order
+            for (const providerInfo of resolved.data) {
+                try {
+                    const provider = ProviderFactory.create(providerInfo.slug, { apiKey: providerInfo.apiKey });
+                    result = await provider.generate({
+                        prompt: compliance.prompt,
+                        negative_prompt: compliance.negativePrompt,
+                        aspect_ratio: typeof settings.aspect_ratio === "string" ? settings.aspect_ratio : undefined,
+                        model: typeof settings.model === "string" ? settings.model : undefined,
+                        seed: typeof requestSeed === "number" ? requestSeed : undefined,
+                        steps: typeof settings.steps === "number" ? settings.steps : undefined,
+                        cfg_scale: typeof settings.cfg_scale === "number" ? settings.cfg_scale : undefined,
+                        duration_seconds: typeof settings.duration_seconds === "number" ? settings.duration_seconds : undefined,
+                        quality: typeof settings.quality === "string" ? settings.quality : undefined,
+                        variations,
+                    });
+
+                    if (result.status === 'completed' || result.status === 'processing') {
+                        // Successful start or completion
+                        successfulProviderId = providerInfo.providerId || null;
+                        break;
+                    }
+
+                    // If it failed, check if it's a safety rejection to justify moving to the next provider
+                    const errorMsg = result.error || "Unknown error";
+                    const { isSafetyRejection } = await import("@/core/utils/ai/error-normalization");
+                    
+                    if (isSafetyRejection(errorMsg)) {
+                        console.warn(`[Fallback] Provider ${providerInfo.slug} rejected prompt due to safety policy. Trying next provider...`);
+                        lastError = errorMsg;
+                        continue;
+                    } else {
+                        // If it's a hard technical error, we might want to fail or try next anyway. 
+                        // For now, let's try next for ANY failure to maximize success.
+                        lastError = errorMsg;
+                        continue;
+                    }
+                } catch (e: unknown) {
+                    lastError = e instanceof Error ? e.message : "Provider request failed";
+                    continue;
+                }
+            }
+
+            if (!result || result.status === 'failed') {
+                return {
+                    error: normalizeGenerationError(
+                        result?.error || lastError || undefined,
+                        "Generation failed after all provider attempts."
+                    ),
+                };
             }
 
             const stableUrl = await persistRemoteMedia(supabase, {
@@ -291,16 +376,20 @@ export async function generateShot(shotId: string) {
 
             const { error: saveError } = await supabase.from("shot_generations").insert({
                 shot_id: shotId,
-                prompt: prompt,
-                negative_prompt: typeof settings.negative_prompt === "string" ? settings.negative_prompt : null,
+                prompt: compliance.prompt,
+                negative_prompt: compliance.negativePrompt,
                 seed: typeof requestSeed === "number" ? requestSeed : null,
                 cfg_scale: typeof settings.cfg_scale === "number" ? settings.cfg_scale : null,
                 steps: typeof settings.steps === "number" ? settings.steps : null,
                 model_version: typeof settings.model === "string" ? settings.model : null,
-                provider_id: resolved.data.providerId || null,
+                provider_id: successfulProviderId,
                 status: result.status,
                 output_url: stableUrl,
-                parameters: settings,
+                parameters: {
+                    ...settings,
+                    task_id: result.provider_check_id || null,
+                    output_type: "image",
+                },
             });
 
             if (saveError) console.error("Failed to save generation result:", saveError);
@@ -392,7 +481,16 @@ export async function generateVideoShot(
     }
 
     const rawPrompt = options?.customPrompt?.trim() || shotOption.prompt || "cinematic scene";
-    const basePrompt = rawPrompt;
+    const compliance = enforcePromptCompliance({
+        prompt: rawPrompt,
+        outputType: "video",
+    });
+
+    if (compliance.blocked) {
+        return { error: compliance.reason || "Prompt blocked by safety guardrails. Revise and retry." };
+    }
+
+    const basePrompt = compliance.prompt;
     // Kie.ai prompt length limits are strict; keep it short to avoid failures.
     const promptText = basePrompt.length > 600 ? `${basePrompt.slice(0, 597)}...` : basePrompt;
 
@@ -409,10 +507,12 @@ export async function generateVideoShot(
         // Use the output_url of the previous option as the input image prompt.
         const result = await provider.generate({
             prompt: promptText,
+            negative_prompt: compliance.negativePrompt,
             image_prompt: shouldUseSourceImage ? shotOption.output_url : undefined,
             output_type: "video",
             model: configuredModel,
             duration_seconds: typeof options?.durationSeconds === "number" ? options.durationSeconds : 5,
+            is_generate_audio: true,
         });
 
         if (result.status === 'failed') {
@@ -433,6 +533,7 @@ export async function generateVideoShot(
         const { error: saveError } = await supabase.from("shot_generations").insert({
             shot_id: shotOption.shot_id, // Linked to the same generic shot
             prompt: promptText,
+            negative_prompt: compliance.negativePrompt,
             provider_id: providerRow ? providerRow.id : null,
             status: result.status,
             output_url: stableUrl || result.url || null, // Async providers can return no URL at creation time
@@ -567,6 +668,7 @@ export async function pollShotStatus(shotOptionId: string) {
                 : rawResult;
 
         const shouldUpdate = result.status !== option.status || Boolean(result.url);
+        const outputType = typeof parameters?.output_type === "string" ? parameters.output_type : "image";
 
         // 4. Update Database if status changed or URL was freshly discovered
         if (shouldUpdate) {
@@ -579,7 +681,7 @@ export async function pollShotStatus(shotOptionId: string) {
                     url: result.url,
                     userId: user.id,
                     shotId: option.shot_id,
-                    kind: "video",
+                    kind: outputType === "video" ? "video" : "image",
                 });
                 updatePayload.output_url = persisted || result.url;
             } else if (result.status === "failed") {

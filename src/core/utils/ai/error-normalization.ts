@@ -28,7 +28,15 @@ export function normalizeGenerationError(rawMessage?: string, fallback = "Genera
   if (/(fetch failed|network error|und_err_socket|socket|econnreset|etimedout|timeout)/i.test(lower)) {
     return "Temporary network issue while contacting the provider. Retry in a moment."
   }
+  
+  if (/(safety system|content_policy_violation|safety policy|flagged as sensitive)/i.test(lower)) {
+    return "The prompt was rejected by the provider's safety system. Use non-graphic, non-explicit wording, avoid minors in sensitive contexts, and try again."
+  }
 
   return compact || fallback
 }
 
+export function isSafetyRejection(message: string): boolean {
+  const lower = message.toLowerCase()
+  return /(safety system|content_policy_violation|safety policy|flagged as sensitive)/i.test(lower)
+}

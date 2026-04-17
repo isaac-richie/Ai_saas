@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client"
 import { useState, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { UploadCloud, Loader2, X } from "lucide-react"
 import { Button } from "@/interface/components/ui/button"
 import { Input } from "@/interface/components/ui/input"
@@ -21,6 +22,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
     const [type, setType] = useState("character") // default
     const [description, setDescription] = useState("")
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const router = useRouter()
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0]
@@ -71,6 +73,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
             setDescription("")
             clearFile()
             toast.success("Element uploaded successfully!")
+            router.refresh()
             onUploadSuccess?.()
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Upload failed"

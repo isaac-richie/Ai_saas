@@ -30,11 +30,10 @@ export default async function ProjectsPage() {
                     </div>
                     <CreateProjectDialog />
                 </div>
-            </section>
-
-            <section data-reveal="card" className="space-y-3">
-                <h2 className="text-lg font-semibold text-white">Project Library</h2>
-                <ProjectList projects={projects} />
+                <div className="mt-10 space-y-3">
+                    <h2 className="text-lg font-semibold text-white">Project Library</h2>
+                    <ProjectList projects={projects} />
+                </div>
             </section>
         </div>
     );

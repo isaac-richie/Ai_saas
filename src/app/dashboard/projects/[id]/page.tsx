@@ -80,9 +80,8 @@ export default async function ProjectPage(props: ProjectPageProps) {
                         <CreateSceneDialog projectId={project.id} />
                     </div>
                 </div>
-            </section>
 
-            <Tabs defaultValue="scenes" className="w-full" data-reveal="card">
+                <Tabs defaultValue="scenes" className="mt-8 w-full" data-reveal="card">
                 <TabsList className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-1">
                     <TabsTrigger value="scenes" className="rounded-xl text-white data-[state=active]:bg-white/10 data-[state=active]:text-white">Scenes</TabsTrigger>
                     <TabsTrigger value="assets" className="rounded-xl text-white data-[state=active]:bg-white/10 data-[state=active]:text-white">Asset Library</TabsTrigger>
@@ -113,7 +112,7 @@ export default async function ProjectPage(props: ProjectPageProps) {
                     <div className="space-y-6">
                         <section>
                             <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Reference Elements</h3>
-                            <ElementUpload projectId={project.id} onUploadSuccess={() => {}} />
+                            <ElementUpload projectId={project.id} />
                             <div className="mt-4">
                                 <ElementList projectId={project.id} />
                             </div>
@@ -125,6 +124,7 @@ export default async function ProjectPage(props: ProjectPageProps) {
                     </div>
                 </TabsContent>
             </Tabs>
+            </section>
         </div>
     )
 }

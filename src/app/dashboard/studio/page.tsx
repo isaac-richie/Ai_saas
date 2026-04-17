@@ -94,9 +94,8 @@ export default async function StudioPage(props: StudioPageProps) {
                         </Link>
                     </div>
                 </div>
-            </section>
-
-            <section data-reveal="card" className="grid gap-3 md:grid-cols-3">
+                <div className="mt-10 space-y-10">
+                    <section data-reveal="card" className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl border border-white/10 bg-[#0f1012] p-4 text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
                     <div className="text-xs uppercase tracking-[0.2em] text-white/50">Projects</div>
                     <div className="mt-2 text-2xl font-semibold">{projects.length}</div>
@@ -193,6 +192,8 @@ export default async function StudioPage(props: StudioPageProps) {
                         })}
                     </div>
                 )}
+                    </section>
+                </div>
             </section>
         </div>
     );

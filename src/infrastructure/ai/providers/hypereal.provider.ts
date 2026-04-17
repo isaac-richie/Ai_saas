@@ -63,6 +63,10 @@ export class HyperealProvider extends BaseProvider {
         }
     }
 
+    async ping(): Promise<{ ok: boolean; message?: string }> {
+        return { ok: true, message: "Hypereal connection simulated" };
+    }
+
     async checkStatus(taskId: string): Promise<GenerationResult> {
         return {
             id: taskId,

@@ -47,6 +47,15 @@ export class KieProvider extends BaseProvider {
             return String(this.nearestAllowedDuration(duration, [5, 8]));
         }
 
+        if (normalizedModel.includes("seedance-2")) {
+            return String(this.nearestAllowedDuration(duration, [5, 10]));
+        }
+
+        if (normalizedModel.includes("hailuo/2-3")) {
+            // Hailuo 2.3 currently validates against 6s in market API examples.
+            return "6";
+        }
+
         return String(duration);
     }
 
@@ -70,24 +79,44 @@ export class KieProvider extends BaseProvider {
         return request.image_prompt ? "video" : "image";
     }
 
+    private resolveAspectRatioForModel(aspectRatio: string | undefined, model: string): string | undefined {
+        if (!aspectRatio) return undefined;
+        const normalizedModel = model.toLowerCase();
+
+        if (normalizedModel.includes("sora-2")) {
+            if (aspectRatio === "1:1") return "square";
+            if (aspectRatio === "9:16" || aspectRatio === "4:5") return "portrait";
+            return "landscape";
+        }
+
+        return aspectRatio;
+    }
+
     private buildMarketInput(request: GenerationRequest, model: string): Record<string, unknown> {
         const input: Record<string, unknown> = {
             prompt: request.prompt,
         };
 
         if (request.negative_prompt) input.negative_prompt = request.negative_prompt;
-        if (request.aspect_ratio) input.aspect_ratio = request.aspect_ratio;
+        const resolvedAspectRatio = this.resolveAspectRatioForModel(request.aspect_ratio, model);
+        if (resolvedAspectRatio) input.aspect_ratio = resolvedAspectRatio;
         if (request.quality) input.quality = request.quality;
         if (typeof request.seed === "number") input.seed = request.seed;
         if (typeof request.steps === "number") input.steps = request.steps;
         if (typeof request.cfg_scale === "number") input.cfg_scale = request.cfg_scale;
 
         if (request.image_prompt) {
-            if (model.toLowerCase().includes("kling-3.0")) {
+            const normalizedModel = model.toLowerCase();
+            if (normalizedModel.includes("kling-3.0") || normalizedModel.includes("sora-2-image-to-video")) {
                 input.image_urls = [request.image_prompt];
             } else {
                 input.image_url = request.image_prompt;
             }
+        }
+
+        if (model.toLowerCase().includes("kling-3.0")) {
+            // Kling 3.0 expects `sound` instead of `is_generate_audio`.
+            input.sound = request.is_generate_audio ?? true;
         }
 
         if (
@@ -100,6 +129,21 @@ export class KieProvider extends BaseProvider {
             const resolvedDuration = this.resolveDurationForModel(request.duration_seconds, model);
             if (resolvedDuration) {
                 input.duration = resolvedDuration;
+            }
+
+            if (model.toLowerCase().includes("sora-2")) {
+                // Sora 2 market API expects frame buckets instead of free-form duration.
+                input.n_frames = request.duration_seconds && request.duration_seconds >= 10 ? "20" : "10";
+            }
+
+            // Always enable audio for Seedance or if explicitly requested for any video model
+            const isSeedance = model.toLowerCase().includes("seedance");
+            if (isSeedance || request.is_generate_audio === true) {
+                input.is_generate_audio = true;
+                if (isSeedance) {
+                    // Seedance docs use `generate_audio`.
+                    input.generate_audio = true;
+                }
             }
         }
 
@@ -235,6 +279,12 @@ export class KieProvider extends BaseProvider {
         try {
             const model = this.resolveModel(request);
             const outputType = this.resolveOutputType(request, model);
+
+            // Diagnostic logging for model availability issues
+            if (process.env.NODE_ENV !== "production") {
+                console.log(`[Kie.ai] Target Model: ${model} (${outputType})`);
+            }
+
             const normalizedModel = model.toLowerCase();
             const looksImageToVideoModel =
                 normalizedModel.includes("image-to-video")
@@ -318,6 +368,16 @@ export class KieProvider extends BaseProvider {
                     rawError: message,
                 },
             };
+        }
+    }
+
+    async ping(): Promise<{ ok: boolean; message?: string }> {
+        try {
+            const res = await this.fetchRecordInfo("ping-test");
+            if (res.status === 401) return { ok: false, message: "Invalid API Key" };
+            return { ok: true };
+        } catch (error: unknown) {
+            return { ok: false, message: error instanceof Error ? error.message : "Ping failed" };
         }
     }
 

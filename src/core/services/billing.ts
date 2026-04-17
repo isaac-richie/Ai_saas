@@ -25,13 +25,13 @@ export type BillingSnapshot = {
 
 const LIMIT_MESSAGE: Record<BillingFeature, string> = {
   studio:
-    "Studio free limit reached (5/5). Upgrade to Studio Pro for unlimited Studio generations.",
+    "Studio free limit reached (50/50). Upgrade to Studio Pro for unlimited Studio generations.",
   fast_video:
-    "Fast Track free limit reached (5/5). Upgrade to Studio Pro for unlimited Fast Track generations.",
+    "Fast Track free limit reached (50/50). Upgrade to Studio Pro for unlimited Fast Track generations.",
 }
 
 // Testing phase override: keep billing/tier system in place, but allow more usage.
-const TESTING_PHASE_FREE_LIMIT = 5
+const TESTING_PHASE_FREE_LIMIT = 50
 
 export async function ensureUserBillingState(supabase: SupabaseLike, userId: string) {
   await supabase.rpc("ensure_user_billing_state", { p_user_id: userId })
@@ -58,11 +58,13 @@ export async function consumeUsageQuota(
   }
 
   const row = Array.isArray(data) ? data[0] : data
-  const allowed = Boolean(row?.allowed)
   const usedCount = Number(row?.used_count ?? 0)
   const rawMax = row?.max_count == null ? null : Number(row.max_count)
   const maxCount = rawMax == null ? null : Math.max(rawMax, TESTING_PHASE_FREE_LIMIT)
   const remaining = row?.remaining == null ? null : Number(row.remaining)
+
+  // CRITICAL: Override DB allowed status if we are within our TESTING_PHASE_FREE_LIMIT
+  const allowed = Boolean(row?.allowed) || usedCount < TESTING_PHASE_FREE_LIMIT
 
   if (!allowed) {
     return {

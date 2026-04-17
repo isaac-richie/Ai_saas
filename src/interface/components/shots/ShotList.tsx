@@ -19,6 +19,11 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { buildMediaFilename } from "@/lib/download-filename"
+import {
+    DEFAULT_KIE_VIDEO_MODEL_FAMILY,
+    KIE_VIDEO_MODEL_FAMILIES,
+    resolveKieVideoModelByFamily,
+} from "@/core/config/kie-video-models"
 
 interface ShotListProps {
     projectId: string
@@ -67,12 +72,14 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         prompt: string
         useSourceImage: boolean
         durationSeconds: 5 | 10 | 15
+        modelFamily: "kling" | "seedance" | "sora"
     }>({
         open: false,
         optionId: null,
         prompt: "Cinematic motion, subtle camera move, natural lighting",
         useSourceImage: true,
         durationSeconds: 5,
+        modelFamily: DEFAULT_KIE_VIDEO_MODEL_FAMILY,
     })
     const [deleteDialog, setDeleteDialog] = useState<{
         open: boolean
@@ -292,6 +299,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
             prompt: option.prompt?.trim() || "Cinematic motion, subtle camera move, natural lighting",
             useSourceImage: true,
             durationSeconds: 5,
+            modelFamily: DEFAULT_KIE_VIDEO_MODEL_FAMILY,
         })
     }
 
@@ -299,10 +307,15 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         if (!videoPromptDialog.optionId) return
         setGeneratingId(videoPromptDialog.optionId)
         try {
+            const resolvedModel = resolveKieVideoModelByFamily({
+                familyId: videoPromptDialog.modelFamily,
+                useImageToVideo: videoPromptDialog.useSourceImage,
+            })
             const res = await generateVideoShot(videoPromptDialog.optionId, {
                 customPrompt: videoPromptDialog.prompt,
                 useSourceImage: videoPromptDialog.useSourceImage,
                 durationSeconds: videoPromptDialog.durationSeconds,
+                model: resolvedModel,
             })
             if (res.error) throw new Error(res.error)
             toast.success("Video generation started. You can continue working while it renders.")
@@ -1067,6 +1080,35 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 />
                                 Use selected image as start frame
                             </label>
+                        </div>
+                        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                            <Label className="text-white/85">Video Model</Label>
+                            <div className="grid gap-2 sm:grid-cols-3">
+                                {KIE_VIDEO_MODEL_FAMILIES.map((family) => (
+                                    <button
+                                        key={family.id}
+                                        type="button"
+                                        onClick={() => setVideoPromptDialog((prev) => ({ ...prev, modelFamily: family.id }))}
+                                        className={`rounded-xl border px-3 py-2 text-left transition ${
+                                            videoPromptDialog.modelFamily === family.id
+                                                ? "border-cyan-400 bg-cyan-400/15 text-cyan-100"
+                                                : "border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
+                                        }`}
+                                    >
+                                        <div className="text-xs font-semibold">{family.label}</div>
+                                        <div className="mt-1 text-[10px] text-white/50">{family.description}</div>
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="text-[11px] text-white/45">
+                                Active slug:{" "}
+                                <span className="text-white/70">
+                                    {resolveKieVideoModelByFamily({
+                                        familyId: videoPromptDialog.modelFamily,
+                                        useImageToVideo: videoPromptDialog.useSourceImage,
+                                    })}
+                                </span>
+                            </div>
                         </div>
                         <div className="flex justify-end gap-2">
                             <Button

@@ -50,6 +50,9 @@
 }
 
 :root {
+  --font-inter: "Inter";
+  --font-outfit: "Outfit";
+  --font-jetbrains-mono: "JetBrains Mono";
   --font-body: var(--font-inter), sans-serif;
   --font-display: var(--font-outfit), sans-serif;
   --radius: 0.875rem;

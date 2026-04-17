@@ -1,6 +1,7 @@
 import { BaseProvider } from "../base.provider";
 import { GenerationRequest, GenerationResult } from "../types";
 import OpenAI from "openai";
+import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
 
 export class OpenAIProvider extends BaseProvider {
     private client: OpenAI;
@@ -69,8 +70,17 @@ export class OpenAIProvider extends BaseProvider {
             return {
                 content_type: "image",
                 status: "failed",
-                error: message,
+                error: normalizeGenerationError(message, "OpenAI request failed"),
             };
+        }
+    }
+
+    async ping(): Promise<{ ok: boolean; message?: string }> {
+        try {
+            await this.client.models.list();
+            return { ok: true };
+        } catch (error: unknown) {
+            return { ok: false, message: error instanceof Error ? error.message : "OpenAI ping failed" };
         }
     }
 

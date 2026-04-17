@@ -38,12 +38,20 @@ async function resolveGalleryUser() {
 }
 
 export async function deleteGalleryAsset(optionId: string) {
+    return deleteGalleryAssets([optionId]);
+}
+
+export async function deleteGalleryAssets(optionIds: string[]) {
     const { supabase, user, error: sessionError } = await resolveGalleryUser();
     if (!user) return { error: sessionError || "Unauthorized" };
 
-    const { error } = await supabase.from("shot_generations").delete().eq("id", optionId);
+    const ids = Array.from(new Set(optionIds.filter(Boolean)));
+    if (ids.length === 0) return { error: "No assets selected" };
+
+    const { error } = await supabase.from("shot_generations").delete().in("id", ids);
     if (error) return { error: error.message };
-    return { success: true };
+    revalidatePath("/dashboard/gallery");
+    return { success: true, data: { deletedCount: ids.length } };
 }
 
 export async function moveGalleryAssetsToProject(optionIds: string[], targetProjectId: string) {
@@ -208,112 +216,163 @@ export async function getGalleryAssets(projectId?: string) {
     if (!user) return { data: [] as GalleryAsset[] };
 
     let query = supabase
-        .from("projects")
+        .from("shot_generations")
         .select(`
             id,
-            name,
-            scenes (
+            prompt,
+            status,
+            output_url,
+            created_at,
+            parameters,
+            shots!inner (
                 id,
                 name,
-                shots (
+                shot_type,
+                scene_id,
+                scenes!inner (
                     id,
                     name,
-                    shot_type,
-                    lens:lenses(name),
-                    shot_generations (
+                    project_id,
+                    projects!inner (
                         id,
-                        prompt,
-                        status,
-                        output_url,
-                        created_at
+                        name,
+                        user_id
                     )
                 )
             )
         `)
-        .eq("user_id", user.id);
+        .eq("shots.scenes.projects.user_id", user.id);
 
     if (projectId) {
-        query = query.eq("id", projectId);
+        query = query.eq("shots.scenes.project_id", projectId);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query
+        .order("created_at", { ascending: false })
+        .limit(1200);
     if (error) return { error: error.message };
 
     const assets: GalleryAsset[] = [];
-    const projects = Array.isArray(data) ? data : [];
+    const rows = Array.isArray(data) ? data : [];
 
-    for (const projectRow of projects) {
-        if (!isRecord(projectRow)) continue;
+    const pendingRows: Array<{
+        id: string;
+        outputUrl: string | null;
+    }> = [];
 
-        const currentProjectId = getString(projectRow.id);
-        const currentProjectName = getString(projectRow.name) ?? "Untitled Project";
-        if (!currentProjectId) continue;
+    for (const row of rows) {
+        if (!isRecord(row)) continue;
 
-        const scenes = Array.isArray(projectRow.scenes) ? projectRow.scenes : [];
-        for (const sceneRow of scenes) {
-            if (!isRecord(sceneRow)) continue;
+        const id = getString(row.id);
+        const status = getString(row.status);
+        const outputUrl = getString(row.output_url);
+        const parameters = isRecord(row.parameters) ? row.parameters : null;
+        const shot = isRecord(row.shots) ? row.shots : null;
+        const scene = shot && isRecord(shot.scenes) ? shot.scenes : null;
+        const project = scene && isRecord(scene.projects) ? scene.projects : null;
 
-            const currentSceneId = getString(sceneRow.id);
-            const currentSceneName = getString(sceneRow.name) ?? "Untitled Scene";
-            if (!currentSceneId) continue;
+        if (!id || !shot || !scene || !project) continue;
 
-            const shots = Array.isArray(sceneRow.shots) ? sceneRow.shots : [];
-            for (const shotRow of shots) {
-                if (!isRecord(shotRow)) continue;
+        const isPending = status === "processing" || status === "pending" || outputUrl === "pending_generation";
+        if (isPending) {
+            pendingRows.push({ id, outputUrl });
+            continue;
+        }
 
-                const shotName = getString(shotRow.name) ?? "Untitled Shot";
-                const shotType = getString(shotRow.shot_type) ?? undefined;
-                const lens = isRecord(shotRow.lens) ? shotRow.lens : null;
-                const lensName = lens ? getString(lens.name) ?? undefined : undefined;
-                const options = Array.isArray(shotRow.shot_generations) ? shotRow.shot_generations : [];
+        if (!outputUrl || outputUrl === "pending_generation") continue;
+        if (!/^https?:\/\//i.test(outputUrl) && !outputUrl.startsWith("/storage/")) continue;
 
-                for (const option of options) {
-                    if (!isRecord(option)) continue;
-                    let outputUrl = getString(option.output_url);
-                    const id = getString(option.id);
-                    const status = getString(option.status);
+        const paramOutputType = getString(parameters?.output_type);
+        const isVideo =
+            paramOutputType === "video"
+            || outputUrl.includes(".mp4")
+            || outputUrl.includes(".webm")
+            || outputUrl.includes("tempfile.aiquickdraw.com/p/");
 
-                    if (!id) continue;
+        assets.push({
+            id,
+            url: outputUrl,
+            type: isVideo ? "video" : "image",
+            prompt: getString(row.prompt) ?? "",
+            shotName: getString(shot.name) ?? "Untitled Shot",
+            shotType: getString(shot.shot_type) ?? undefined,
+            shotId: getString(shot.id) ?? undefined,
+            projectId: getString(project.id) ?? "",
+            projectName: getString(project.name) ?? "Untitled Project",
+            sceneId: getString(scene.id) ?? "",
+            sceneName: getString(scene.name) ?? "Untitled Scene",
+            createdAt: getString(row.created_at) ?? "",
+        });
+    }
 
-                    if (status === 'processing' || status === 'pending' || outputUrl === 'pending_generation') {
-                        const pollResult = await pollShotStatus(id);
-                        if (pollResult.data) {
-                            outputUrl = pollResult.data.url || outputUrl;
-                        } else if (pollResult.error) {
-                            if (process.env.NODE_ENV !== "production") {
-                                console.log(`[Gallery] Error polling ${id}:`, pollResult.error);
-                            }
-                        }
-                    }
+    if (pendingRows.length > 0) {
+        const MAX_POLLS = 12;
+        const polled = await Promise.allSettled(
+            pendingRows.slice(0, MAX_POLLS).map(async (pending) => {
+                const pollResult = await pollShotStatus(pending.id);
+                return {
+                    id: pending.id,
+                    url: pollResult.data?.url || pending.outputUrl,
+                    status: pollResult.data?.status || null,
+                    error: pollResult.error || null,
+                };
+            })
+        );
 
-                    if (!outputUrl || outputUrl === 'pending_generation') continue;
-                    if (!/^https?:\/\//i.test(outputUrl) && !outputUrl.startsWith("/storage/")) continue;
-
-                    const isVideo = outputUrl.includes('.mp4') || outputUrl.includes('tempfile.aiquickdraw.com/p/');
-                    if (process.env.NODE_ENV !== "production") {
-                        console.log(`[Gallery] loaded asset: ${outputUrl} | isVideo: ${isVideo}`);
-                    }
-
-                    assets.push({
-                        id,
-                        url: outputUrl,
-                        type: isVideo ? "video" : "image",
-                        prompt: getString(option.prompt) ?? "",
-                        shotName,
-                        shotType,
-                        lensName,
-                        shotId: getString(shotRow.id) ?? undefined,
-                        projectId: currentProjectId,
-                        projectName: currentProjectName,
-                        sceneId: currentSceneId,
-                        sceneName: currentSceneName,
-                        createdAt: getString(option.created_at) ?? "",
-                    });
-                }
+        const resolvedMap = new Map<string, { url: string | null; status: string | null; error: string | null }>();
+        for (const item of polled) {
+            if (item.status === "fulfilled") {
+                resolvedMap.set(item.value.id, {
+                    url: item.value.url,
+                    status: item.value.status,
+                    error: item.value.error,
+                });
             }
+        }
+
+        for (const row of rows) {
+            if (!isRecord(row)) continue;
+            const id = getString(row.id);
+            if (!id || !resolvedMap.has(id)) continue;
+
+            const shot = isRecord(row.shots) ? row.shots : null;
+            const scene = shot && isRecord(shot.scenes) ? shot.scenes : null;
+            const project = scene && isRecord(scene.projects) ? scene.projects : null;
+            if (!shot || !scene || !project) continue;
+
+            const parameters = isRecord(row.parameters) ? row.parameters : null;
+            const resolved = resolvedMap.get(id);
+            const outputUrl = resolved?.url || null;
+            if (!outputUrl || outputUrl === "pending_generation") continue;
+            if (!/^https?:\/\//i.test(outputUrl) && !outputUrl.startsWith("/storage/")) continue;
+
+            const paramOutputType = getString(parameters?.output_type);
+            const isVideo =
+                paramOutputType === "video"
+                || outputUrl.includes(".mp4")
+                || outputUrl.includes(".webm")
+                || outputUrl.includes("tempfile.aiquickdraw.com/p/");
+
+            assets.push({
+                id,
+                url: outputUrl,
+                type: isVideo ? "video" : "image",
+                prompt: getString(row.prompt) ?? "",
+                shotName: getString(shot.name) ?? "Untitled Shot",
+                shotType: getString(shot.shot_type) ?? undefined,
+                shotId: getString(shot.id) ?? undefined,
+                projectId: getString(project.id) ?? "",
+                projectName: getString(project.name) ?? "Untitled Project",
+                sceneId: getString(scene.id) ?? "",
+                sceneName: getString(scene.name) ?? "Untitled Scene",
+                createdAt: getString(row.created_at) ?? "",
+            });
         }
     }
 
-    assets.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return { data: assets };
+    const deduped = Array.from(
+        new Map(assets.map((asset) => [asset.id, asset])).values()
+    );
+    deduped.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return { data: deduped };
 }

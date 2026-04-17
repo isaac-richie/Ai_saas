@@ -56,6 +56,10 @@ export class RunwayProvider extends BaseProvider {
         }
     }
 
+    async ping(): Promise<{ ok: boolean; message?: string }> {
+        return { ok: true, message: "Runway connection simulated" };
+    }
+
     async checkStatus(id: string): Promise<GenerationResult> {
         return {
             id,

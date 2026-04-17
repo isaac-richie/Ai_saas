@@ -13,6 +13,7 @@ export interface GenerationRequest {
     cfg_scale?: number;
     variations?: number;
     quality?: string;
+    is_generate_audio?: boolean;
 }
 
 export interface GenerationResult {

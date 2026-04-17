@@ -29,7 +29,7 @@ import { createShot } from "@/core/actions/shots"
 import { attachElementToShot } from "@/core/actions/elements"
 import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
-import { Loader2, Plus, Sparkles, Layers } from "lucide-react"
+import { Loader2, Plus, Sparkles, Layers, Copy } from "lucide-react"
 import { toast } from "sonner"
 
 const numericOptionalZod = z.coerce.number().optional()
@@ -160,6 +160,16 @@ const QUICK_STYLE_PRESETS: Array<{
             },
         },
     ]
+
+    const copyToClipboard = async (text: string, label: string) => {
+        if (!text) return
+        try {
+            await navigator.clipboard.writeText(text)
+            toast.success(`${label} copied to clipboard`)
+        } catch {
+            toast.error("Failed to copy to clipboard")
+        }
+    }
 
 export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderProps) {
     const [isSaving, setIsSaving] = useState(false)
@@ -476,7 +486,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
 
     if (!isMounted) {
         return (
-            <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+            <div className="flex flex-col gap-5 min-w-0">
                 <div className="min-h-[400px] rounded-2xl border border-white/10 bg-[#0b0b0d] animate-pulse" />
                 <div className="min-h-[150px] rounded-2xl border border-white/10 bg-[#0b0b0d] animate-pulse" />
             </div>
@@ -484,7 +494,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     }
 
     return (
-        <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="flex flex-col gap-6 min-w-0 2xl:gap-8">
             <Card className="studio-card rounded-2xl text-white">
                 <CardHeader className="pb-2">
                     <CardTitle className="text-lg tracking-tight">Shot Attributes</CardTitle>
@@ -497,7 +507,19 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 name="subject"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel className="text-white/80">Subject / Action</FormLabel>
+                                        <div className="flex items-center justify-between">
+                                            <FormLabel className="text-white/80">Subject / Action</FormLabel>
+                                            <Button
+                                                type="button"
+                                                size="xs"
+                                                variant="studioGhost"
+                                                onClick={() => copyToClipboard(field.value, "Prompt input")}
+                                                className="h-6 gap-1 rounded-lg px-2 text-[10px] text-white/40 hover:text-white"
+                                            >
+                                                <Copy className="h-3 w-3" />
+                                                Copy
+                                            </Button>
+                                        </div>
                                         <FormControl>
                                             <Textarea
                                                 placeholder="A lone astronaut on a red planet..."
@@ -848,10 +870,20 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
 
                 <Card className="studio-card rounded-2xl text-white">
                     <CardHeader>
-                        <CardTitle className="flex items-center text-sm font-medium uppercase tracking-wider text-white/55">
+                        <CardTitle className="flex flex-1 items-center text-sm font-medium uppercase tracking-wider text-white/55">
                             <Sparkles className="mr-2 h-4 w-4 text-white/45" />
                             Prompt Preview
                         </CardTitle>
+                        <Button
+                            type="button"
+                            size="xs"
+                            variant="studioGhost"
+                            onClick={() => copyToClipboard(promptPreview, "Full prompt")}
+                            className="h-7 gap-1.5 rounded-lg border border-white/5 bg-white/5 px-2.5 text-[11px] text-white/60 hover:bg-white/10 hover:text-white"
+                        >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy Full Prompt
+                        </Button>
                     </CardHeader>
                     <CardContent>
                         <div className="studio-subcard max-h-56 overflow-y-auto rounded-xl p-4 font-mono text-sm leading-relaxed text-white/80">

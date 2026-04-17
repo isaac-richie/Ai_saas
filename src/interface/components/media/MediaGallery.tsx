@@ -5,15 +5,16 @@ import { Card } from "@/interface/components/ui/card"
 import { Input } from "@/interface/components/ui/input"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/interface/components/ui/dialog" // We can reuse Dialog or make a specific Preview component
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
-import { Play, ImageIcon, Download, Copy, Trash2 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { Play, ImageIcon, Download, Copy, Trash2, Loader2 } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
-import { deleteGalleryAsset, moveGalleryAssetsToProject } from "@/core/actions/gallery"
+import { deleteGalleryAssets, moveGalleryAssetsToProject } from "@/core/actions/gallery"
 import { queueGalleryExport } from "@/core/actions/exports"
 import { toast } from "sonner"
 import { appendShotToSequence, VideoSequence } from "@/core/actions/sequences"
 import { buildMediaFilename } from "@/lib/download-filename"
 import { motion } from "framer-motion"
+import { useRouter } from "next/navigation"
 
 // Define a type for Media Asset based on our schema usage (shot_generations mostly)
 // We need to fetch this data. For now, let's assume we pass in a list of assets.
@@ -37,16 +38,49 @@ interface MediaGalleryProps {
 }
 
 export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps) {
+    const router = useRouter()
+    const [items, setItems] = useState<MediaAsset[]>(assets)
     const [query, setQuery] = useState("")
     const [filter, setFilter] = useState<"all" | "image" | "video">("all")
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
     const [sequenceTargets, setSequenceTargets] = useState<Record<string, string>>({})
     const [sequences, setSequences] = useState<Record<string, VideoSequence[]>>({})
+    const [sequenceLoadingByAsset, setSequenceLoadingByAsset] = useState<Record<string, boolean>>({})
+    const [sequenceLoadingByProject, setSequenceLoadingByProject] = useState<Record<string, boolean>>({})
     const [moveProjectId, setMoveProjectId] = useState<string>(projectOptions[0]?.id || "")
     const [exportProfile, setExportProfile] = useState<"master_16_9" | "social_9_16" | "square_1_1">("master_16_9")
     const [downloadNames, setDownloadNames] = useState<Record<string, string>>({})
     const [expandedPrompts, setExpandedPrompts] = useState<Record<string, boolean>>({})
+    const [isMoving, setIsMoving] = useState(false)
+    const [isExporting, setIsExporting] = useState(false)
+    const searchInputRef = useRef<HTMLInputElement | null>(null)
+
+    useEffect(() => {
+        setItems(assets)
+    }, [assets])
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null
+            const isTypingTarget =
+                target?.tagName === "INPUT"
+                || target?.tagName === "TEXTAREA"
+                || target?.getAttribute("contenteditable") === "true"
+
+            if (event.key === "/" && !isTypingTarget) {
+                event.preventDefault()
+                searchInputRef.current?.focus()
+            }
+
+            if (event.key === "Escape") {
+                setSelectedIds(new Set())
+            }
+        }
+
+        window.addEventListener("keydown", onKeyDown)
+        return () => window.removeEventListener("keydown", onKeyDown)
+    }, [])
 
     const getPreviewUrl = (asset: MediaAsset) => {
         if (asset.type !== "video") return asset.url
@@ -79,14 +113,14 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
         })
 
     const counts = useMemo(() => {
-        const images = assets.filter((asset) => asset.type === "image").length
-        const videos = assets.filter((asset) => asset.type === "video").length
-        return { total: assets.length, images, videos }
-    }, [assets])
+        const images = items.filter((asset) => asset.type === "image").length
+        const videos = items.filter((asset) => asset.type === "video").length
+        return { total: items.length, images, videos }
+    }, [items])
 
     const filteredAssets = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase()
-        return assets.filter((asset) => {
+        return items.filter((asset) => {
             if (filter !== "all" && asset.type !== filter) return false
             if (!normalizedQuery) return true
             return [
@@ -98,7 +132,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                 .filter(Boolean)
                 .some((field) => field!.toLowerCase().includes(normalizedQuery))
         })
-    }, [assets, filter, query])
+    }, [items, filter, query])
 
     const toggleSelect = (id: string) => {
         setSelectedIds((prev) => {
@@ -124,13 +158,12 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
         })
 
         try {
-            for (const id of ids) {
-                const res = await deleteGalleryAsset(id)
-                if (res.error) throw new Error(res.error)
-            }
+            const res = await deleteGalleryAssets(ids)
+            if (res.error) throw new Error(res.error)
+            setItems((prev) => prev.filter((asset) => !ids.includes(asset.id)))
             toast.success("Assets deleted")
             setSelectedIds(new Set())
-            window.location.reload()
+            router.refresh()
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Delete failed"
             toast.error(message)
@@ -141,13 +174,19 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
 
     const loadSequences = async (projectId: string) => {
         if (sequences[projectId]) return
+        setSequenceLoadingByProject((prev) => ({ ...prev, [projectId]: true }))
         try {
             const res = await fetch(`/api/sequences?projectId=${projectId}`)
-            if (!res.ok) return
+            if (!res.ok) {
+                toast.error("Failed to load sequences")
+                return
+            }
             const data = await res.json()
             setSequences((prev) => ({ ...prev, [projectId]: data.data || [] }))
         } catch {
-            // ignore
+            toast.error("Failed to load sequences")
+        } finally {
+            setSequenceLoadingByProject((prev) => ({ ...prev, [projectId]: false }))
         }
     }
 
@@ -166,7 +205,9 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
             toast.error("Sequence not loaded yet")
             return
         }
+        setSequenceLoadingByAsset((prev) => ({ ...prev, [asset.id]: true }))
         const res = await appendShotToSequence(target, asset.shotId, 5)
+        setSequenceLoadingByAsset((prev) => ({ ...prev, [asset.id]: false }))
         if (res.error) {
             toast.error(res.error)
             return
@@ -185,14 +226,17 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
             return
         }
 
+        setIsMoving(true)
         const res = await moveGalleryAssetsToProject(ids, moveProjectId)
+        setIsMoving(false)
         if (res.error) {
             toast.error(res.error)
             return
         }
+        setItems((prev) => prev.filter((asset) => !selectedIds.has(asset.id)))
         toast.success(`Moved ${res.data?.movedCount ?? 0} asset(s)`)
         setSelectedIds(new Set())
-        window.location.reload()
+        router.refresh()
     }
 
     const handleQueueExport = async () => {
@@ -202,7 +246,9 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
             return
         }
 
+        setIsExporting(true)
         const res = await queueGalleryExport(ids, exportProfile)
+        setIsExporting(false)
         if (res.error) {
             toast.error(res.error)
             return
@@ -219,7 +265,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
         setSelectedIds(new Set())
     }
 
-    if (assets.length === 0) {
+    if (items.length === 0) {
         return (
             <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
                 <ImageIcon className="h-8 w-8 text-white/35" />
@@ -234,9 +280,10 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
             <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-[#0f1012]/95 px-4 py-3 backdrop-blur">
                 <div className="flex flex-1 min-w-[220px]">
                     <Input
+                        ref={searchInputRef}
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search by prompt, shot, scene, or project..."
+                        placeholder="Search by prompt, shot, scene, or project... (/)"
                         className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
                     />
                 </div>
@@ -285,9 +332,10 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                         <Button
                             size="sm"
                             className="rounded-lg border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
+                            disabled={deletingIds.size > 0}
                             onClick={() => handleDelete(Array.from(selectedIds))}
                         >
-                            Delete Selected
+                            {deletingIds.size > 0 ? "Deleting..." : "Delete Selected"}
                         </Button>
                         {projectOptions.length > 0 && (
                             <>
@@ -307,8 +355,9 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                     variant="ghost"
                                     className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
                                     onClick={handleMoveSelected}
+                                    disabled={isMoving || selectedIds.size === 0}
                                 >
-                                    Move To Project
+                                    {isMoving ? "Moving..." : "Move To Project"}
                                 </Button>
                             </>
                         )}
@@ -326,8 +375,9 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                             variant="ghost"
                             className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
                             onClick={handleQueueExport}
+                            disabled={isExporting || selectedIds.size === 0}
                         >
-                            Batch Export
+                            {isExporting ? "Queueing..." : "Batch Export"}
                         </Button>
                     </div>
                 </div>
@@ -508,8 +558,9 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                                                 type="button"
                                                                 className="h-8 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 hover:bg-white/20"
                                                                 onClick={() => loadSequences(asset.projectId!)}
+                                                                disabled={Boolean(sequenceLoadingByProject[asset.projectId!])}
                                                             >
-                                                                Load Sequences
+                                                                {sequenceLoadingByProject[asset.projectId!] ? "Loading..." : "Load Sequences"}
                                                             </button>
                                                             <select
                                                                 value={sequenceTargets[asset.id] ?? ""}
@@ -529,8 +580,16 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                                                 size="sm"
                                                                 className="h-8 rounded-lg border border-cyan-400/35 bg-cyan-500/15 text-xs text-cyan-100 hover:bg-cyan-500/25"
                                                                 onClick={() => handleAddToSequence(asset)}
+                                                                disabled={Boolean(sequenceLoadingByAsset[asset.id])}
                                                             >
-                                                                Add To Sequence
+                                                                {sequenceLoadingByAsset[asset.id] ? (
+                                                                    <>
+                                                                        <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                                                                        Adding...
+                                                                    </>
+                                                                ) : (
+                                                                    "Add To Sequence"
+                                                                )}
                                                             </Button>
                                                         </div>
                                                     </div>

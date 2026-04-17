@@ -32,9 +32,8 @@ export default async function SettingsPage() {
                         Connect your own API keys to run generations through your preferred model providers.
                     </p>
                 </div>
-            </section>
-
-            <section className="grid gap-4 md:grid-cols-2">
+                <div className="mt-10 space-y-10">
+                    <section className="grid gap-4 md:grid-cols-2">
                 <Card data-reveal="card" className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
                     <CardContent className="flex items-start gap-3 p-5 text-sm text-white/50">
                         <ShieldCheck className="mt-0.5 h-5 w-5 text-white/50" />
@@ -63,5 +62,7 @@ export default async function SettingsPage() {
                 <ApiKeyList />
             </section>
         </div>
+    </section>
+</div>
     );
 }

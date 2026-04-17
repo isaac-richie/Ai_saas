@@ -29,7 +29,9 @@ export default async function ScenePage(props: ScenePageProps) {
     const providerLabel = providerResult.data?.slug
         ? providerResult.data.slug === "openai"
             ? "OpenAI"
-            : "Runway"
+            : providerResult.data.slug === "kie"
+                ? "Flux (Kie.ai)"
+                : "Runway"
         : "Not configured";
     const providerSourceLabel =
         providerResult.data?.source === "env"
@@ -54,10 +56,9 @@ export default async function ScenePage(props: ScenePageProps) {
                         <div>Scene: {params.sceneId}</div>
                     </div>
                 </div>
-            </section>
 
-            <div className="grid gap-6 lg:grid-cols-3">
-                <section data-reveal="card" className="space-y-6 lg:col-span-2">
+                <div className="mt-8 grid gap-8 xl:grid-cols-3 min-w-0">
+                    <section data-reveal="card" className="space-y-8 xl:col-span-2 min-w-0">
                     <div>
                         <div className="mb-3 flex items-center justify-between gap-2">
                             <h2 className="text-lg font-semibold">New Shot</h2>
@@ -108,7 +109,8 @@ export default async function ScenePage(props: ScenePageProps) {
                         </div>
                     </div>
                 </aside>
-            </div>
+                </div>
+            </section>
         </div>
     );
 }

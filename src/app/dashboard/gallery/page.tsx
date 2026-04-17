@@ -66,35 +66,36 @@ export default async function GalleryPage(props: GalleryPageProps) {
                         </Link>
                     </div>
                 </div>
+                <div className="mt-8">
+                    {hasError ? (
+                        <ErrorStatePanel
+                            compact
+                            title="Unable to load gallery"
+                            description="Try refreshing the page. If this persists, confirm your session and provider keys."
+                        />
+                    ) : (
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-semibold text-white">Asset Library ({assets.length})</h2>
+                            </div>
+                            <MediaGallery assets={assets} projectOptions={projectOptions} />
+                        </div>
+                    )}
+
+                    {!hasError && assets.length === 0 ? (
+                        <EmptyStatePanel
+                            compact
+                            title="No generated media yet"
+                            description="Create or open a scene in Studio and generate the first frame to populate your gallery."
+                            action={
+                                <Link href="/dashboard/studio" className="rounded-lg border border-white/10 bg-white/10 px-3.5 py-2 text-xs text-white hover:bg-white/15">
+                                    Open Studio
+                                </Link>
+                            }
+                        />
+                    ) : null}
+                </div>
             </section>
-
-            {hasError ? (
-                <ErrorStatePanel
-                    compact
-                    title="Unable to load gallery"
-                    description="Try refreshing the page. If this persists, confirm your session and provider keys."
-                />
-            ) : (
-                <section data-reveal="card" className="space-y-3">
-                    <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-white">Asset Library ({assets.length})</h2>
-                    </div>
-                    <MediaGallery assets={assets} projectOptions={projectOptions} />
-                </section>
-            )}
-
-            {!hasError && assets.length === 0 ? (
-                <EmptyStatePanel
-                    compact
-                    title="No generated media yet"
-                    description="Create or open a scene in Studio and generate the first frame to populate your gallery."
-                    action={
-                        <Link href="/dashboard/studio" className="rounded-lg border border-white/10 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/15">
-                            Open Studio
-                        </Link>
-                    }
-                />
-            ) : null}
         </div>
     );
 }
