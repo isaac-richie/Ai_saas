@@ -11,9 +11,10 @@ export const metadata: Metadata = {
 export default async function LoginPage({
     searchParams,
 }: {
-    searchParams: Promise<{ next?: string }>;
+    searchParams?: Promise<{ next?: string | string[] }>;
 }) {
-    const params = await searchParams;
-    const nextPath = params?.next?.startsWith("/") ? params.next : "/dashboard";
+    const resolved = await searchParams;
+    const nextValue = Array.isArray(resolved?.next) ? resolved?.next[0] : resolved?.next;
+    const nextPath = nextValue?.startsWith("/") ? nextValue : "/dashboard";
     return <LoginForm nextPath={nextPath} />;
 }

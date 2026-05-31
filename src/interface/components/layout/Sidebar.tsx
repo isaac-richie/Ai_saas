@@ -15,8 +15,10 @@ import {
     Video,
     Download,
     Users,
+    Lock,
 } from "lucide-react"
 import { logout } from "@/core/actions/auth"
+import { STUDIO_ENABLED } from "@/core/config/feature-flags"
 
 interface SidebarProps {
     isOpen: boolean
@@ -26,7 +28,7 @@ interface SidebarProps {
 const navItems = [
     { name: "Home", href: "/", icon: Home, tour: "nav-home", isActive: (pathname: string) => pathname === "/" },
     { name: "Overview", href: "/dashboard", icon: LayoutDashboard, tour: "nav-overview", isActive: (pathname: string) => pathname === "/dashboard" || pathname.startsWith("/dashboard/projects") && !pathname.includes("/scenes/") },
-    { name: "Studio", href: "/dashboard/studio", icon: Clapperboard, tour: "nav-studio", isActive: (pathname: string) => pathname.startsWith("/dashboard/studio") || pathname.includes("/scenes/") },
+    { name: "Studio", href: "/dashboard/studio", icon: Clapperboard, tour: "nav-studio", disabled: !STUDIO_ENABLED, isActive: (pathname: string) => pathname.startsWith("/dashboard/studio") || pathname.includes("/scenes/") },
     { name: "Fast Track", href: "/dashboard/fast-video", icon: Video, tour: "nav-fast-video", isActive: (pathname: string) => pathname.startsWith("/dashboard/fast-video") },
     { name: "Gallery", href: "/dashboard/gallery", icon: Images, tour: "nav-gallery", isActive: (pathname: string) => pathname.startsWith("/dashboard/gallery") },
     { name: "Exports", href: "/dashboard/exports", icon: Download, tour: "nav-exports", isActive: (pathname: string) => pathname.startsWith("/dashboard/exports") },
@@ -56,19 +58,45 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 <nav className="space-y-1.5 px-2">
                     {navItems.map((item) => {
                         const isActive = item.isActive(pathname)
+                        const isDisabled = Boolean(item.disabled)
+
+                        const itemClassName = cn(
+                            "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                            isDisabled
+                                ? "cursor-not-allowed border border-dashed border-white/10 bg-white/[0.03] text-white/35"
+                                : isActive
+                                    ? "bg-white/10 text-white"
+                                    : "text-white/55 hover:bg-white/10 hover:text-white",
+                            !isOpen && "md:justify-center md:px-2"
+                        )
+
+                        if (isDisabled) {
+                            return (
+                                <div
+                                    key={item.href}
+                                    data-tour={item.tour}
+                                    aria-disabled="true"
+                                    className={itemClassName}
+                                >
+                                    <item.icon className="size-4 shrink-0" />
+                                    <span className={cn("transition-all", !isOpen && "md:hidden")}>{item.name}</span>
+                                    {isOpen ? (
+                                        <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-white/45">
+                                            <Lock className="size-3" />
+                                            Beta
+                                        </span>
+                                    ) : null}
+                                </div>
+                            )
+                        }
+
                         return (
                             <Link
                                 key={item.href}
                                 href={item.href}
                                 data-tour={item.tour}
                                 onClick={() => setIsOpen(false)}
-                                className={cn(
-                                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                                    isActive
-                                        ? "bg-white/10 text-white"
-                                        : "text-white/55 hover:bg-white/10 hover:text-white",
-                                    !isOpen && "md:justify-center md:px-2"
-                                )}
+                                className={itemClassName}
                             >
                                 <item.icon className="size-4 shrink-0" />
                                 <span className={cn("transition-all", !isOpen && "md:hidden")}>{item.name}</span>

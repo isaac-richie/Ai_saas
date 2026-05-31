@@ -14,6 +14,7 @@ import { Input } from "@/interface/components/ui/input"
 import { Label } from "@/interface/components/ui/label"
 import { useState } from "react"
 import { addApiKey } from "@/core/actions/api-keys"
+import { toast } from "sonner"
 
 interface AddKeyDialogProps {
     providerId: string
@@ -29,8 +30,13 @@ export function AddKeyDialog({ providerId, providerName, onSuccess }: AddKeyDial
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
-        await addApiKey(providerId, key)
+        const result = await addApiKey(providerId, key)
         setLoading(false)
+        if (result?.error) {
+            toast.error(result.error)
+            return
+        }
+        toast.success(`${providerName} key saved`)
         setOpen(false)
         setKey("")
         onSuccess()

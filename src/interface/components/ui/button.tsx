@@ -16,6 +16,12 @@ const buttonVariants = cva(
           "rounded-xl border border-white/12 bg-white/[0.07] text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:-translate-y-px hover:border-cyan-300/35 hover:bg-white/[0.11] active:translate-y-[1px]",
         studioGhost:
           "rounded-full border border-transparent bg-transparent text-white/65 hover:border-white/10 hover:bg-white/[0.06] hover:text-white",
+        liquidMetal:
+          "liquid-metal rounded-xl text-white/80",
+        liquidMetalCyan:
+          "liquid-metal-cyan rounded-xl text-cyan-100",
+        liquidMetalPrimary:
+          "liquid-metal-primary rounded-xl font-semibold text-black",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:

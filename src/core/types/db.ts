@@ -470,6 +470,201 @@ export interface Database {
                     created_at?: string
                 }
             }
+            fast_video_storyboard_items: {
+                Row: {
+                    id: string
+                    project_id: string
+                    scene_id: string
+                    order_index: number
+                    source_clip_id: string | null
+                    url: string
+                    subject: string
+                    prompt: string
+                    duration_seconds: number
+                    model_family_id: string | null
+                    scene_group: string
+                    note: string
+                    status: string
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    project_id: string
+                    scene_id: string
+                    order_index?: number
+                    source_clip_id?: string | null
+                    url: string
+                    subject?: string
+                    prompt?: string
+                    duration_seconds?: number
+                    model_family_id?: string | null
+                    scene_group?: string
+                    note?: string
+                    status?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    project_id?: string
+                    scene_id?: string
+                    order_index?: number
+                    source_clip_id?: string | null
+                    url?: string
+                    subject?: string
+                    prompt?: string
+                    duration_seconds?: number
+                    model_family_id?: string | null
+                    scene_group?: string
+                    note?: string
+                    status?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
+            studio_ad_campaigns: {
+                Row: {
+                    id: string
+                    user_id: string
+                    project_id: string | null
+                    scene_id: string | null
+                    name: string
+                    brief: string
+                    campaign_type: string
+                    asset_count: number
+                    aspect_ratio: string
+                    duration_seconds: number
+                    engine_model: string | null
+                    campaign_summary: string
+                    audience: string
+                    creative_strategy: string
+                    score: Json
+                    suggestions: Json
+                    status: string
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    project_id?: string | null
+                    scene_id?: string | null
+                    name: string
+                    brief: string
+                    campaign_type?: string
+                    asset_count?: number
+                    aspect_ratio?: string
+                    duration_seconds?: number
+                    engine_model?: string | null
+                    campaign_summary?: string
+                    audience?: string
+                    creative_strategy?: string
+                    score?: Json
+                    suggestions?: Json
+                    status?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    project_id?: string | null
+                    scene_id?: string | null
+                    name?: string
+                    brief?: string
+                    campaign_type?: string
+                    asset_count?: number
+                    aspect_ratio?: string
+                    duration_seconds?: number
+                    engine_model?: string | null
+                    campaign_summary?: string
+                    audience?: string
+                    creative_strategy?: string
+                    score?: Json
+                    suggestions?: Json
+                    status?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
+            studio_ad_campaign_items: {
+                Row: {
+                    id: string
+                    campaign_id: string
+                    order_index: number
+                    title: string
+                    concept_type: string
+                    hook: string
+                    creator_direction: string
+                    master_prompt: string
+                    negative_prompt: string
+                    duration_seconds: number
+                    aspect_ratio: string
+                    model_family_id: string
+                    style_preset_id: string | null
+                    motion_preset_id: string | null
+                    continuity_anchors: Json
+                    production_notes: Json
+                    status: string
+                    task_id: string | null
+                    trace_id: string | null
+                    output_url: string | null
+                    error: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    campaign_id: string
+                    order_index?: number
+                    title: string
+                    concept_type?: string
+                    hook?: string
+                    creator_direction?: string
+                    master_prompt: string
+                    negative_prompt?: string
+                    duration_seconds?: number
+                    aspect_ratio?: string
+                    model_family_id?: string
+                    style_preset_id?: string | null
+                    motion_preset_id?: string | null
+                    continuity_anchors?: Json
+                    production_notes?: Json
+                    status?: string
+                    task_id?: string | null
+                    trace_id?: string | null
+                    output_url?: string | null
+                    error?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    campaign_id?: string
+                    order_index?: number
+                    title?: string
+                    concept_type?: string
+                    hook?: string
+                    creator_direction?: string
+                    master_prompt?: string
+                    negative_prompt?: string
+                    duration_seconds?: number
+                    aspect_ratio?: string
+                    model_family_id?: string
+                    style_preset_id?: string | null
+                    motion_preset_id?: string | null
+                    continuity_anchors?: Json
+                    production_notes?: Json
+                    status?: string
+                    task_id?: string | null
+                    trace_id?: string | null
+                    output_url?: string | null
+                    error?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
         }
     }
 }

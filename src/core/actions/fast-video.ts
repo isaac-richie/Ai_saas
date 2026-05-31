@@ -41,6 +41,30 @@ const BASE_NEGATIVE_TOKENS = [
   "watermarks",
 ]
 
+function nearestAllowedDuration(value: number, allowed: number[]): number {
+  return allowed.reduce((best, current) => {
+    const currentDistance = Math.abs(current - value)
+    const bestDistance = Math.abs(best - value)
+    return currentDistance < bestDistance ? current : best
+  }, allowed[0])
+}
+
+function resolveModelAwareDuration(seconds: number, model?: string | null): number {
+  const clamped = Math.max(5, Math.min(15, Math.floor(seconds)))
+  const normalizedModel = (model || "").toLowerCase()
+  if (!normalizedModel) return clamped
+
+  if (normalizedModel.includes("kling/v2-1")) return 5
+  if (normalizedModel.includes("kling/v2-5")) return nearestAllowedDuration(clamped, [5, 10])
+  if (normalizedModel.includes("runway/")) return nearestAllowedDuration(clamped, [5, 10])
+  if (normalizedModel.includes("veo/")) return nearestAllowedDuration(clamped, [5, 8])
+  if (normalizedModel.includes("sora-2")) return nearestAllowedDuration(clamped, [5, 8])
+  if (normalizedModel.includes("seedance-2")) return nearestAllowedDuration(clamped, [5, 10])
+  if (normalizedModel.includes("hailuo/2-3")) return 6
+
+  return clamped
+}
+
 type FastVideoDebugEvent = {
   at: string
   step: string
@@ -298,11 +322,13 @@ export async function generateFastVideo(input: unknown) {
   }
 
   const payload = parsed.data
-  const safeDuration = Math.max(5, Math.min(15, payload.settings.duration_seconds || 5))
+  const requestedDuration = Math.max(5, Math.min(15, payload.settings.duration_seconds || 5))
+  const safeDuration = resolveModelAwareDuration(requestedDuration, payload.settings.model?.trim() || undefined)
   debug.push("request.validated", {
     hasReference: Boolean(payload.prompt_inputs.reference_image),
     model: payload.settings.model?.trim() || null,
-    durationSeconds: safeDuration,
+    requestedDurationSeconds: requestedDuration,
+    appliedDurationSeconds: safeDuration,
     aspectRatio: payload.prompt_inputs.aspect_ratio,
   })
   const { supabase, user } = await ensureSession()
@@ -386,6 +412,7 @@ export async function generateFastVideo(input: unknown) {
         stylePresetName: composed.style?.name || null,
         motionPresetName: composed.motion?.name || null,
         durationSeconds: safeDuration,
+        requestedDurationSeconds: requestedDuration,
         model: payload.settings.model?.trim() || null,
         debug: {
           traceId: debug.traceId,
@@ -488,21 +515,39 @@ export async function promoteFastVideoToScene(input: {
   motionPresetId?: string | null
   variationSetting: FastVideoVariation
 }) {
+  return routeFastVideoToScene({
+    mode: "append",
+    sceneId: input.sceneId,
+    name: input.name,
+    subject: input.subject,
+    finalPrompt: input.finalPrompt,
+    outputUrl: input.outputUrl,
+    aspectRatio: input.aspectRatio,
+    durationSeconds: input.durationSeconds,
+    stylePresetId: input.stylePresetId,
+    motionPresetId: input.motionPresetId,
+    variationSetting: input.variationSetting,
+  })
+}
+
+export async function routeFastVideoToScene(input: {
+  mode: "append" | "create_scene" | "replace_shot"
+  projectId?: string | null
+  sceneId?: string | null
+  targetShotId?: string | null
+  newSceneName?: string | null
+  name?: string
+  subject: string
+  finalPrompt: string
+  outputUrl: string
+  aspectRatio: string
+  durationSeconds: number
+  stylePresetId?: string | null
+  motionPresetId?: string | null
+  variationSetting: FastVideoVariation
+}) {
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
-
-  const { data: scene } = await supabase
-    .from("scenes")
-    .select("id, project_id, projects!inner(user_id)")
-    .eq("id", input.sceneId)
-    .eq("projects.user_id", user.id)
-    .maybeSingle()
-
-  if (!scene?.id) {
-    return { error: "Scene not found or access denied" }
-  }
-
-  const sequenceOrder = await ShotRepo.getNextSequenceOrder(input.sceneId)
 
   const shotName = input.name?.trim() || `Fast Video: ${input.subject.slice(0, 36)}`
   const settings = {
@@ -513,15 +558,156 @@ export async function promoteFastVideoToScene(input: {
     variation: input.variationSetting,
     source: "fast_video",
   }
+  const cameraMovement = findMotionPreset(input.motionPresetId)?.name || null
+  const kie = await resolveKieConfig(user.id)
+
+  const registerCompletedGeneration = async (shotId: string) => {
+    const { error: generationError } = await supabase.from("shot_generations").insert({
+      shot_id: shotId,
+      prompt: input.finalPrompt,
+      provider_id: kie.data?.providerId || null,
+      status: "completed",
+      output_url: input.outputUrl,
+      parameters: settings,
+    })
+
+    if (generationError) {
+      return { error: generationError.message }
+    }
+
+    return { data: true }
+  }
+
+  if (input.mode === "replace_shot") {
+    if (!input.targetShotId) return { error: "Select a shot to replace." }
+
+    const { data: shot } = await supabase
+      .from("shots")
+      .select("id, name, scene_id")
+      .eq("id", input.targetShotId)
+      .maybeSingle()
+
+    if (!shot?.id) {
+      return { error: "Target shot not found" }
+    }
+
+    const { data: replaceScene } = await supabase
+      .from("scenes")
+      .select("id, project_id, projects!inner(user_id)")
+      .eq("id", shot.scene_id)
+      .eq("projects.user_id", user.id)
+      .maybeSingle()
+
+    if (!replaceScene?.id) {
+      return { error: "Target shot access denied" }
+    }
+
+    const resolvedSceneId = shot.scene_id
+    const resolvedProjectId = replaceScene.project_id
+
+    const { error: updateError } = await supabase
+      .from("shots")
+      .update({
+        name: input.name?.trim() || shot.name,
+        description: input.subject,
+        shot_type: "Fast Track Video",
+        camera_movement: cameraMovement,
+        estimated_duration: input.durationSeconds,
+        generation_settings: settings,
+        prompt_text: input.finalPrompt,
+      })
+      .eq("id", shot.id)
+
+    if (updateError) {
+      return { error: updateError.message }
+    }
+
+    const generationResult = await registerCompletedGeneration(shot.id)
+    if (generationResult.error) return generationResult
+
+    revalidatePath(`/dashboard/projects/${resolvedProjectId}/scenes/${resolvedSceneId}`)
+    revalidatePath(`/dashboard/projects/${resolvedProjectId}`)
+    revalidatePath("/dashboard/gallery")
+
+    return { data: { shotId: shot.id, projectId: resolvedProjectId, sceneId: resolvedSceneId, mode: input.mode } }
+  }
+
+  let resolvedSceneId = input.sceneId || null
+  let resolvedProjectId = input.projectId || null
+
+  if (input.mode === "create_scene") {
+    if (!input.projectId) return { error: "Select a project first." }
+    const sceneName = input.newSceneName?.trim()
+    if (!sceneName) return { error: "Add a name for the new scene." }
+
+    const { data: project } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", input.projectId)
+      .eq("user_id", user.id)
+      .maybeSingle()
+
+    if (!project?.id) {
+      return { error: "Project not found or access denied" }
+    }
+
+    const { data: latestScene } = await supabase
+      .from("scenes")
+      .select("sequence_order")
+      .eq("project_id", input.projectId)
+      .order("sequence_order", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const { data: createdScene, error: createSceneError } = await supabase
+      .from("scenes")
+      .insert({
+        project_id: input.projectId,
+        name: sceneName,
+        description: `Created from Fast Track for ${input.subject.slice(0, 120)}`,
+        sequence_order: (latestScene?.sequence_order ?? 0) + 1,
+      })
+      .select("id, project_id")
+      .single()
+
+    if (createSceneError || !createdScene?.id) {
+      return { error: createSceneError?.message || "Failed to create destination scene" }
+    }
+
+    resolvedSceneId = createdScene.id
+    resolvedProjectId = createdScene.project_id
+  } else {
+    if (!input.sceneId) return { error: "Select a destination scene." }
+
+    const { data: scene } = await supabase
+      .from("scenes")
+      .select("id, project_id, projects!inner(user_id)")
+      .eq("id", input.sceneId)
+      .eq("projects.user_id", user.id)
+      .maybeSingle()
+
+    if (!scene?.id) {
+      return { error: "Scene not found or access denied" }
+    }
+
+    resolvedSceneId = scene.id
+    resolvedProjectId = scene.project_id
+  }
+
+  if (!resolvedSceneId || !resolvedProjectId) {
+    return { error: "Could not resolve the destination scene." }
+  }
+
+  const sequenceOrder = await ShotRepo.getNextSequenceOrder(resolvedSceneId)
 
   const { data: shot, error: shotError } = await supabase
     .from("shots")
     .insert({
-      scene_id: input.sceneId,
+      scene_id: resolvedSceneId,
       name: shotName,
       description: input.subject,
       shot_type: "Fast Track Video",
-      camera_movement: findMotionPreset(input.motionPresetId)?.name || null,
+      camera_movement: cameraMovement,
       estimated_duration: input.durationSeconds,
       generation_settings: settings,
       prompt_text: input.finalPrompt,
@@ -534,24 +720,12 @@ export async function promoteFastVideoToScene(input: {
     return { error: shotError?.message || "Failed to create promoted shot" }
   }
 
-  const kie = await resolveKieConfig(user.id)
+  const generationResult = await registerCompletedGeneration(shot.id)
+  if (generationResult.error) return generationResult
 
-  const { error: generationError } = await supabase.from("shot_generations").insert({
-    shot_id: shot.id,
-    prompt: input.finalPrompt,
-    provider_id: kie.data?.providerId || null,
-    status: "completed",
-    output_url: input.outputUrl,
-    parameters: settings,
-  })
-
-  if (generationError) {
-    return { error: generationError.message }
-  }
-
-  revalidatePath(`/dashboard/projects/${scene.project_id}/scenes/${input.sceneId}`)
-  revalidatePath(`/dashboard/projects/${scene.project_id}`)
+  revalidatePath(`/dashboard/projects/${resolvedProjectId}/scenes/${resolvedSceneId}`)
+  revalidatePath(`/dashboard/projects/${resolvedProjectId}`)
   revalidatePath("/dashboard/gallery")
 
-  return { data: { shotId: shot.id, projectId: scene.project_id } }
+  return { data: { shotId: shot.id, projectId: resolvedProjectId, sceneId: resolvedSceneId, mode: input.mode } }
 }

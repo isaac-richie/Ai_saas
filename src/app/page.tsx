@@ -1,53 +1,23 @@
 import Link from "next/link"
-import {
-  Camera,
-  Check,
-  Film,
-  Github,
-  KeyRound,
-  Layers,
-  Linkedin,
-  PlayCircle,
-  Send,
-  Sparkles,
-  WandSparkles,
-  Workflow,
-  Youtube,
-} from "lucide-react"
+import { Check, Github, Linkedin, Sparkles, Youtube } from "lucide-react"
 import { LandingNavbar } from "@/interface/components/landing/LandingNavbar"
 import { LandingSpotlight } from "@/interface/components/landing/LandingSpotlight"
-import { InteractiveComparisonCard, InteractiveCommunityCard } from "@/interface/components/landing/InteractiveWidgets"
-import { AnimatedCounter } from "@/interface/components/ui/AnimatedCounter"
 import { HeroEntrance } from "@/interface/components/landing/HeroEntrance"
-import { MagneticButton } from "@/interface/components/landing/MagneticButton"
+import { FeatureGrid } from "@/interface/components/landing/FeatureGrid"
+import { ModelShowcase } from "@/interface/components/landing/ModelShowcase"
+import { ProductDemo } from "@/interface/components/landing/ProductDemo"
+import { InnerCircleCTA } from "@/interface/components/landing/InnerCircleCTA"
 import { createClient } from "@/infrastructure/supabase/server"
 
 export const dynamic = "force-dynamic"
 
-const logos = ["A24 LAB", "FRAMEFORGE", "NORTHLIGHT", "SIGNAL HOUSE", "FIFTH UNIT"]
-const footerNav = {
-  Product: [
-    { label: "Studio", href: "/dashboard/studio" },
-    { label: "Gallery", href: "/dashboard/gallery" },
-    { label: "Workflow", href: "#workflow" },
-    { label: "Pricing", href: "#pricing" },
-  ],
-  Company: [
-    { label: "About", href: "#" },
-    { label: "Showcase", href: "#showcase" },
-    { label: "Docs", href: "#docs" },
-    { label: "Contact", href: "#" },
-  ],
-  Resources: [
-    { label: "Quickstart", href: "/signup" },
-    { label: "API Status", href: "#" },
-    { label: "Release Notes", href: "#" },
-    { label: "Support", href: "#" },
-  ],
-}
-
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="mb-4 text-[10px] uppercase tracking-[0.18em] text-white/45">{children}</p>
+  return (
+    <p className="mb-4 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/40">
+      <span className="h-px w-6 bg-gradient-to-r from-cyan-400/50 to-transparent" />
+      {children}
+    </p>
+  )
 }
 
 export default async function Home() {
@@ -59,411 +29,307 @@ export default async function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#050505] pb-24 text-white selection:bg-cyan-500/25">
+      {/* Grid lines */}
       <div
-        className="pointer-events-none absolute inset-0 z-0 opacity-[0.1]"
+        className="pointer-events-none absolute inset-0 z-0 opacity-[0.07]"
         style={{
           backgroundImage:
             "linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px)",
-          backgroundSize: "60px 100%",
+          backgroundSize: "80px 100%",
         }}
       />
 
+      {/* Film grain + vignette */}
       <div className="pointer-events-none absolute inset-0 z-0">
         <div className="film-grain" />
         <div className="vignette" />
       </div>
+
+      {/* Ambient glow */}
       <LandingSpotlight />
       <HeroEntrance />
-
-      <div className="pointer-events-none absolute -left-[12%] top-[-10%] z-0 h-[520px] w-[520px] rounded-full bg-cyan-400/12 blur-[160px]" />
-      <div className="pointer-events-none absolute right-[-10%] top-[8%] z-0 h-[460px] w-[460px] rounded-full bg-orange-400/12 blur-[160px]" />
+      <div className="pointer-events-none absolute -left-[12%] top-[-10%] z-0 h-[520px] w-[520px] rounded-full bg-cyan-400/10 blur-[160px]" />
+      <div className="pointer-events-none absolute right-[-10%] top-[8%] z-0 h-[420px] w-[420px] rounded-full bg-orange-400/10 blur-[160px]" />
       <div className="neon-aurora pointer-events-none absolute -left-20 top-10 z-0 h-[44vh] w-[46vw]" />
-      <div className="neon-aurora neon-aurora-slow pointer-events-none absolute bottom-[-10vh] right-[-8vw] z-0 h-[52vh] w-[52vw]" />
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-6">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-5 sm:px-6">
         <LandingNavbar isAuthenticated={isAuthenticated} />
 
-        <main className="pb-24 pt-10 lg:pt-14">
-          <section data-reveal="hero" className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:gap-10">
-            <div className="pt-3 sm:pt-6">
-              <h1 className="text-[2.7rem] leading-[0.95] tracking-[-0.035em] sm:text-5xl md:text-[5.5rem]">
-                <span data-hero-line="line1" className="block font-semibold text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.5)]">Studio control</span>
-                <span data-hero-line="line2" className="mt-1 block font-serif text-[0.82em] italic font-normal tracking-normal text-white/90">for</span>
-                <span data-hero-line="line3" className="neon-flow-text block text-[1.03em] font-medium tracking-[-0.02em]">AI shot design.</span>
-              </h1>
-
-              <p className="mt-6 max-w-lg text-lg font-light leading-relaxed text-white/65">
-                Build cinematic shots with ARRI cameras + Zeiss lenses. Real film vocabulary, consistent frames, one seamless workflow.
-              </p>
-              <p className="mt-3 text-sm text-white/50">
-                Trusted by <AnimatedCounter end={50} suffix="+" /> creators (beta).
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-3 sm:mt-10 sm:gap-4">
-                <MagneticButton className="inline-flex">
-                  <a data-hero-cta href="#showcase" className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm transition hover:bg-white/10">See Product Tour</a>
-                </MagneticButton>
-              </div>
-
-              <div className="mt-10 grid max-w-xl grid-cols-3 gap-3">
-                <div data-hero-stat className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
-                  <p className="text-2xl font-semibold text-cyan-300"><AnimatedCounter end={12} suffix="x" /></p>
-                  <p className="text-xs text-white/45">Faster scene iteration</p>
-                </div>
-                <div data-hero-stat className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
-                  <p className="text-2xl font-semibold text-cyan-300"><AnimatedCounter end={4} suffix="K" /></p>
-                  <p className="text-xs text-white/45">Prompt-ready outputs</p>
-                </div>
-                <div data-hero-stat className="hover-lift rounded-2xl border border-white/12 bg-[#0f1012] p-3 shadow-[0_16px_32px_-26px_rgba(0,0,0,0.9)]" data-reveal="card">
-                  <p className="text-2xl font-semibold text-cyan-300">BYOK</p>
-                  <p className="text-xs text-white/45">Provider routing control</p>
-                </div>
-              </div>
-
-              <div className="mt-8 grid gap-3 md:grid-cols-3">
-                <article className="rounded-2xl border border-white/12 bg-[#0f1012] p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                  <Camera className="mb-2 h-4 w-4 text-cyan-300" />
-                  <p className="text-sm font-semibold">1. Pick Specs</p>
-                  <p className="mt-1 text-xs text-white/50">Select camera body, lens, angle, and shot composition.</p>
-                </article>
-                <article className="rounded-2xl border border-white/12 bg-[#0f1012] p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                  <KeyRound className="mb-2 h-4 w-4 text-cyan-300" />
-                  <p className="text-sm font-semibold">2. Connect Keys</p>
-                  <p className="mt-1 text-xs text-white/50">Bring your own provider keys for full generation control.</p>
-                </article>
-                <article className="rounded-2xl border border-white/12 bg-[#0f1012] p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                  <WandSparkles className="mb-2 h-4 w-4 text-cyan-300" />
-                  <p className="text-sm font-semibold">3. Generate & Export</p>
-                  <p className="mt-1 text-xs text-white/50">Render frames and export directly to your sequence.</p>
-                </article>
-              </div>
+        <main className="pb-24 pt-10 lg:pt-16">
+          {/* ═══════════════════════════════════════════
+              HERO
+          ═══════════════════════════════════════════ */}
+          <section className="mx-auto max-w-4xl pt-6 text-center sm:pt-10">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-4 py-1.5 text-[11px] text-white/50">
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              Now with Sora 2, Kling 2.5 &amp; Seedance
             </div>
 
-            <div className="space-y-3" data-reveal="card">
-              <InteractiveComparisonCard />
-              <InteractiveCommunityCard />
+            <h1 className="text-[2.5rem] leading-[0.95] tracking-[-0.035em] sm:text-5xl md:text-[4.8rem]">
+              <span data-hero-line="line1" className="block font-semibold text-white drop-shadow-[0_8px_28px_rgba(0,0,0,0.5)]">
+                AI video generation
+              </span>
+              <span data-hero-line="line2" className="mt-1 block font-serif text-[0.75em] italic font-normal tracking-normal text-white/80">
+                with
+              </span>
+              <span data-hero-line="line3" className="neon-flow-text block text-[0.95em] font-medium tracking-[-0.02em]">
+                cinematic control.
+              </span>
+            </h1>
 
-              <article className="overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015]">
-                <div className="grid grid-cols-2 gap-0 border-b border-white/10">
-                  <div className="p-4">
-                    <p className="text-sm font-semibold text-white/85">Creator</p>
-                    <p className="mt-1 text-3xl font-semibold">$0</p>
-                    <p className="text-xs text-white/55">Start Free (5 projects)</p>
-                    <ul className="mt-3 space-y-1.5 text-xs text-white/65">
-                      <li>✓ BYOK provider control (no double GPU charges)</li>
-                      <li>✓ Create up to 5 projects</li>
-                      <li>✓ Core shot builder workflow</li>
-                    </ul>
-                  </div>
-                  <div className="border-l border-white/10 p-4">
-                    <p className="text-sm font-semibold text-white/85">Studio</p>
-                    <p className="mt-1 text-3xl font-semibold">$39 <span className="text-sm font-medium text-white/65">one-time</span></p>
-                    <p className="text-xs text-white/55">Pro (Unlimited + lifetime)</p>
-                    <ul className="mt-3 space-y-1.5 text-xs text-white/65">
-                      <li>✓ Unlimited projects</li>
-                      <li>✓ Priority generation orchestration</li>
-                      <li>✓ Shared presets and templates</li>
-                    </ul>
-                  </div>
-                </div>
-                <div className="border-t border-white/10 bg-[#09090b] p-3">
-                  <Link href="/signup" className="beam-button inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-2.5 text-sm font-semibold text-black transition hover:opacity-90">
-                    Start Free Trial
-                  </Link>
-                </div>
-              </article>
+            <p className="mx-auto mt-6 max-w-2xl text-base font-light leading-relaxed text-white/50 sm:text-lg">
+              Choose your model — Kling 2.5, Seedance, Sora 2 — set your camera language, and generate production-ready video from text or image. One studio, every provider.
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:mt-10">
+              <Link
+                href="/signup"
+                data-hero-cta
+                className="liquid-metal-primary inline-flex items-center rounded-full px-7 py-3.5 text-sm font-semibold text-black"
+              >
+                Open Studio — Free
+              </Link>
+              <a
+                href="#demo"
+                data-hero-cta
+                className="liquid-metal inline-flex items-center rounded-full px-6 py-3.5 text-sm text-white/70"
+              >
+                Watch Demo
+              </a>
+            </div>
+
+            {/* Stat pills */}
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+              <div data-hero-stat className="rounded-xl border border-white/[0.08] bg-[#0b0b0d] px-4 py-2.5">
+                <p className="text-lg font-semibold text-cyan-300">3 Models</p>
+                <p className="text-[11px] text-white/40">Kling + Seedance + Sora</p>
+              </div>
+              <div data-hero-stat className="rounded-xl border border-white/[0.08] bg-[#0b0b0d] px-4 py-2.5">
+                <p className="text-lg font-semibold text-cyan-300">BYOK</p>
+                <p className="text-[11px] text-white/40">Bring your own API keys</p>
+              </div>
+              <div data-hero-stat className="rounded-xl border border-white/[0.08] bg-[#0b0b0d] px-4 py-2.5">
+                <p className="text-lg font-semibold text-orange-300">Text + Image</p>
+                <p className="text-[11px] text-white/40">Two generation modes</p>
+              </div>
             </div>
           </section>
 
-          <section data-reveal="card" className="mt-14 rounded-full border border-white/5 bg-[#0A0A0A] py-4">
-            <div className="flex flex-wrap items-center justify-center gap-10 text-[10px] tracking-[0.18em] text-white/35">
-              {logos.map((logo) => (
-                <span key={logo}>{logo}</span>
+          {/* ═══════════════════════════════════════════
+              PRODUCT DEMO
+          ═══════════════════════════════════════════ */}
+          <section id="demo" className="mt-24 scroll-mt-24 sm:mt-32">
+            <SectionLabel>In Action</SectionLabel>
+            <h2 className="mb-8 text-2xl font-medium tracking-tight sm:text-3xl">
+              From prompt to <span className="neon-flow-text-soft">cinematic video.</span>
+            </h2>
+            <ProductDemo />
+          </section>
+
+          {/* ═══════════════════════════════════════════
+              FEATURES
+          ═══════════════════════════════════════════ */}
+          <section id="features" className="mt-24 scroll-mt-24 sm:mt-32">
+            <SectionLabel>Features</SectionLabel>
+            <h2 className="mb-3 text-2xl font-medium tracking-tight sm:text-3xl">
+              Everything you need to <span className="text-cyan-300">direct AI video.</span>
+            </h2>
+            <p className="mb-10 max-w-xl text-sm text-white/40">
+              Professional camera vocabulary, multi-model routing, project organization, and an AI director — all in one workspace.
+            </p>
+            <FeatureGrid />
+          </section>
+
+          {/* ═══════════════════════════════════════════
+              MODELS
+          ═══════════════════════════════════════════ */}
+          <section id="models" className="mt-24 scroll-mt-24 sm:mt-32">
+            <SectionLabel>AI Models</SectionLabel>
+            <h2 className="mb-3 text-2xl font-medium tracking-tight sm:text-3xl">
+              Pick your engine.
+            </h2>
+            <p className="mb-10 max-w-xl text-sm text-white/40">
+              Three world-class video models, one studio. Switch per shot based on what the scene demands.
+            </p>
+            <ModelShowcase />
+          </section>
+
+          {/* ═══════════════════════════════════════════
+              HOW IT WORKS
+          ═══════════════════════════════════════════ */}
+          <section className="mt-24 sm:mt-32">
+            <SectionLabel>How It Works</SectionLabel>
+            <h2 className="mb-10 text-2xl font-medium tracking-tight sm:text-3xl">
+              Three steps to <span className="text-cyan-300">directed video.</span>
+            </h2>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {[
+                {
+                  step: "01",
+                  title: "Describe your vision",
+                  description: "Type a prompt or upload a reference image. Choose your AI model and generation mode.",
+                },
+                {
+                  step: "02",
+                  title: "Set cinematic specs",
+                  description: "Pick camera body, lens, shot type, angle, lighting mood. Real film vocabulary, consistent framing.",
+                },
+                {
+                  step: "03",
+                  title: "Generate and iterate",
+                  description: "Render video, compare variants, save to gallery. Stitch shots into sequences and export.",
+                },
+              ].map((item) => (
+                <article
+                  key={item.step}
+                  className="group rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/[0.15]"
+                >
+                  <span className="mb-4 inline-block text-3xl font-bold text-white/[0.08]">
+                    {item.step}
+                  </span>
+                  <h3 className="mb-2 text-[15px] font-semibold text-white/85">
+                    {item.title}
+                  </h3>
+                  <p className="text-[13px] leading-relaxed text-white/40">
+                    {item.description}
+                  </p>
+                </article>
               ))}
             </div>
           </section>
 
-          <section id="showcase" className="mt-24 scroll-mt-24">
-            <SectionLabel>Showcase</SectionLabel>
-            <h2 className="mb-8 text-3xl font-medium tracking-tight">
-              Built for directors, DPs, and <span className="text-cyan-300">creative teams.</span>
-            </h2>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <article data-reveal="card" className="md:col-span-2 rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_20px_42px_-34px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                <div className="mb-6 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] text-white/45">
-                  Composition Engine
-                </div>
-                <h3 className="mb-3 text-xl font-medium">Design shots with cinematic precision</h3>
-                <p className="mb-8 max-w-md text-sm leading-relaxed text-white/50">
-                  Combine shot type, movement, angle, lens, and mood in one builder that outputs consistent prompt structures.
-                </p>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/45">Shot archetypes</div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/45">Lens metadata</div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/45">Lighting presets</div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/45">Prompt snapshots</div>
-                </div>
-              </article>
-
-              <div className="flex flex-col gap-4">
-                <article data-reveal="card" className="rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_20px_42px_-34px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                  <Layers className="mb-4 h-5 w-5 text-cyan-300" />
-                  <h3 className="mb-2 text-lg font-medium">Scene layering</h3>
-                  <p className="text-xs leading-relaxed text-white/50">Group shots into scenes and sequence your visual narrative without losing context.</p>
-                </article>
-                <article data-reveal="card" className="rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_20px_42px_-34px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                  <Film className="mb-4 h-5 w-5 text-orange-300" />
-                  <h3 className="mb-2 text-lg font-medium">Generation history</h3>
-                  <p className="text-xs leading-relaxed text-white/50">Track outputs by shot and keep creative alternatives attached to production decisions.</p>
-                </article>
-              </div>
-            </div>
-          </section>
-
-          <section id="workflow" className="mt-24 scroll-mt-24">
-            <article
-              data-reveal="card"
-              className="group mb-8 perspective-[1200px]"
-            >
-              <div className="relative overflow-hidden rounded-3xl border border-white/12 bg-[#0f1012] p-6 transition-transform duration-500 ease-out will-change-transform group-hover:[transform:rotateX(4deg)_rotateY(-7deg)]">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(20,241,230,0.15),transparent_38%),radial-gradient(circle_at_80%_80%,rgba(255,138,31,0.15),transparent_34%)]" />
-                <p className="relative text-xs uppercase tracking-[0.16em] text-white/45">Director Preview</p>
-                <h3 className="relative mt-2 text-xl font-semibold">Interactive Shot Preview</h3>
-                <p className="relative mt-2 max-w-xl text-sm text-white/55">
-                  Hover to inspect depth. This preview card mimics on-set monitor motion for faster shot validation.
-                </p>
-                <div className="relative mt-5 overflow-hidden rounded-2xl border border-white/10 bg-black/60">
-                  <div className="aspect-[21/9] bg-black">
-                    <video
-                      src="/interactiveshot.mp4"
-                      className="h-full w-full object-cover"
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                      preload="metadata"
-                    />
-                  </div>
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_44%,rgba(20,241,230,0.22),transparent_34%),radial-gradient(circle_at_76%_60%,rgba(255,138,31,0.24),transparent_36%)]" />
-                  <div className="pointer-events-none absolute inset-0 opacity-[0.2] [background-image:linear-gradient(to_right,rgba(255,255,255,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:38px_38px]" />
-                  <div className="pointer-events-none absolute left-5 top-5 hidden rounded-full border border-white/20 bg-black/35 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/80 md:block">
-                    Shot 08 · Dolly In
-                  </div>
-                  <div className="pointer-events-none absolute right-5 top-5 hidden rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-cyan-100 md:block">
-                    Arri Alexa · 35mm
-                  </div>
-                  <div className="pointer-events-none absolute inset-0 m-auto hidden h-12 w-12 rounded-full border border-white/25 md:block">
-                    <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/20" />
-                    <div className="absolute top-1/2 h-px w-full -translate-y-1/2 bg-white/20" />
-                  </div>
-                  <div className="pointer-events-none absolute bottom-4 left-4 right-4 hidden rounded-xl border border-white/15 bg-black/45 px-4 py-3 backdrop-blur-sm md:block">
-                    <p className="text-xs uppercase tracking-[0.16em] text-white/50">Frame Prompt</p>
-                    <p className="mt-1 text-sm text-white/85">Low-angle running subject, dramatic backlight, warm cinematic grade, controlled film grain.</p>
-                  </div>
-                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.62),transparent_48%)]" />
-                </div>
-              </div>
-            </article>
-            <SectionLabel>Workflow</SectionLabel>
-            <h2 className="mb-8 text-3xl font-medium tracking-tight">
-              Three steps from idea to <span className="text-cyan-300">directed frame.</span>
-            </h2>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <article data-reveal="card" className="rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_20px_42px_-34px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                <Workflow className="mb-4 h-5 w-5 text-cyan-300" />
-                <h3 className="mb-2 text-sm font-semibold">Structure Project</h3>
-                <p className="text-xs text-white/50">Create project, break into scenes, define narrative beats.</p>
-              </article>
-              <article data-reveal="card" className="rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_20px_42px_-34px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                <WandSparkles className="mb-4 h-5 w-5 text-blue-300" />
-                <h3 className="mb-2 text-sm font-semibold">Build Shot Specs</h3>
-                <p className="text-xs text-white/50">Set camera language and generate robust prompts automatically.</p>
-              </article>
-              <article data-reveal="card" className="rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_20px_42px_-34px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                <PlayCircle className="mb-4 h-5 w-5 text-orange-300" />
-                <h3 className="mb-2 text-sm font-semibold">Generate + Iterate</h3>
-                <p className="text-xs text-white/50">Render outputs, compare variants, and refine scene continuity.</p>
-              </article>
-            </div>
-          </section>
-
-          <section id="pricing" className="mt-24 scroll-mt-24">
-            <article data-reveal="card" className="mb-8 overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.05] to-white/[0.015] p-6 md:p-8">
-              <p className="mb-4 text-xs uppercase tracking-[0.14em] text-white/45">Plan Comparison</p>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[680px] text-left text-sm">
-                  <thead>
-                    <tr className="border-b border-white/10 text-white/60">
-                      <th className="py-3 pr-3 font-medium">Feature</th>
-                      <th className="py-3 px-3 font-medium">Start Free</th>
-                      <th className="py-3 pl-3 font-medium">Pro</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-white/75">
-                    <tr className="border-b border-white/5"><td className="py-3 pr-3">Projects</td><td className="py-3 px-3">5 projects</td><td className="py-3 pl-3">Unlimited</td></tr>
-                    <tr className="border-b border-white/5"><td className="py-3 pr-3">Shot Builder</td><td className="py-3 px-3">Included</td><td className="py-3 pl-3">Included</td></tr>
-                    <tr className="border-b border-white/5"><td className="py-3 pr-3">Provider Routing</td><td className="py-3 px-3">BYOK</td><td className="py-3 pl-3">BYOK + Priority</td></tr>
-                    <tr><td className="py-3 pr-3">License</td><td className="py-3 px-3">Free</td><td className="py-3 pl-3">One-time lifetime</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
+          {/* ═══════════════════════════════════════════
+              PRICING
+          ═══════════════════════════════════════════ */}
+          <section id="pricing" className="mt-24 scroll-mt-24 sm:mt-32">
             <SectionLabel>Pricing</SectionLabel>
-            <h2 className="mb-10 text-3xl font-medium tracking-tight">
+            <h2 className="mb-3 text-2xl font-medium tracking-tight sm:text-3xl">
               Start free. <span className="text-cyan-300">Scale when production scales.</span>
             </h2>
+            <p className="mb-10 max-w-xl text-sm text-white/40">
+              You only pay your AI provider for generations. Visiowave never charges per-render.
+            </p>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <article data-reveal="card" className="rounded-[2.25rem] border border-white/12 bg-gradient-to-b from-white/[0.06] to-white/[0.015] p-10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_24px_48px_-36px_rgba(0,0,0,0.9)] transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20">
-                <h3 className="mb-2 text-lg font-medium">Start Free</h3>
-                <p className="mb-4 text-5xl font-semibold">$0</p>
-                <p className="mb-8 border-b border-white/5 pb-8 text-sm text-white/50">For independent creators exploring concepts and look development (5 projects).</p>
-                <ul className="space-y-4 text-sm text-white/55">
-                  <li className="flex items-center gap-3"><Check className="h-4 w-4 text-cyan-300" />Up to 5 projects</li>
-                  <li className="flex items-center gap-3"><Check className="h-4 w-4 text-cyan-300" />Shot builder + scene boards</li>
-                  <li className="flex items-center gap-3"><Check className="h-4 w-4 text-cyan-300" />Bring your own provider keys</li>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              {/* Free */}
+              <article className="rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent p-8 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/[0.15] md:p-10">
+                <h3 className="mb-2 text-lg font-medium text-white/85">Creator</h3>
+                <p className="mb-1 text-4xl font-semibold">$0</p>
+                <p className="mb-8 mt-2 border-b border-white/[0.06] pb-8 text-sm text-white/40">
+                  For independent creators exploring concepts and look development.
+                </p>
+                <ul className="space-y-3.5 text-sm text-white/50">
+                  <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-cyan-300" />Up to 5 projects</li>
+                  <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-cyan-300" />All 3 AI video models</li>
+                  <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-cyan-300" />Shot builder + AI Director</li>
+                  <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-cyan-300" />Bring your own API keys</li>
+                  <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-cyan-300" />Gallery + export</li>
                 </ul>
-                <Link href="/signup" className="beam-button mt-7 inline-flex rounded-full border border-white/10 bg-white/10 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/15">
-                  Start Free Trial
+                <Link
+                  href="/signup"
+                  className="liquid-metal mt-8 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-medium text-white"
+                >
+                  Start Free
                 </Link>
               </article>
 
-              <article data-reveal="card" className="relative overflow-hidden rounded-[2.25rem] border border-orange-400/35 bg-gradient-to-b from-white/[0.06] to-white/[0.015] p-10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_40px_rgba(255,122,89,0.07)] transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-300/45">
-                <div className="pointer-events-none absolute right-0 top-0 h-64 w-64 rounded-full bg-orange-400/8 blur-[90px]" />
+              {/* Pro */}
+              <article className="relative overflow-hidden rounded-2xl border border-orange-400/25 bg-gradient-to-b from-white/[0.05] to-transparent p-8 shadow-[0_0_50px_-20px_rgba(255,122,89,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-300/35 md:p-10">
+                <div className="pointer-events-none absolute right-0 top-0 h-64 w-64 rounded-full bg-orange-400/[0.06] blur-[90px]" />
                 <div className="relative z-10">
-                  <div className="mb-4 inline-flex rounded-full bg-orange-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-orange-300">Most Popular</div>
-                  <h3 className="mb-2 text-lg font-medium">Pro</h3>
-                  <p className="mb-1 text-5xl font-semibold">$39 <span className="text-sm font-normal text-white/45">one-time</span></p>
-                  <p className="mb-8 mt-3 border-b border-white/5 pb-8 text-sm text-white/50">For teams shipping sequences on active timelines (unlimited + lifetime).</p>
-                  <ul className="space-y-4 text-sm text-white/55">
-                    <li className="flex items-center gap-3"><Check className="h-4 w-4 text-orange-300" />Everything in Start Free</li>
-                    <li className="flex items-center gap-3"><Check className="h-4 w-4 text-orange-300" />Unlimited projects</li>
-                    <li className="flex items-center gap-3"><Check className="h-4 w-4 text-orange-300" />Shared presets and templates</li>
-                    <li className="flex items-center gap-3"><Check className="h-4 w-4 text-orange-300" />Priority generation orchestration</li>
-                  </ul>
-                  <a href="#pricing" className="beam-button mt-7 inline-flex rounded-full border border-orange-300/35 bg-orange-400/15 px-5 py-2.5 text-sm font-medium text-orange-200 hover:bg-orange-400/25">
-                    Unlock Pro ($39 one-time)
-                  </a>
-                </div>
-              </article>
-            </div>
-          </section>
-
-          <section id="testimonials" className="mt-24 scroll-mt-24">
-            <SectionLabel>Testimonials</SectionLabel>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <article data-reveal="card" className="rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-6">
-                <p className="text-sm leading-relaxed text-white/75">&quot;Shot consistency jumped immediately. We blocked an entire sequence in one evening.&quot;</p>
-                <p className="mt-4 text-xs text-white/45">Director · Beta Creator</p>
-              </article>
-              <article data-reveal="card" className="rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-6">
-                <p className="text-sm leading-relaxed text-white/75">&quot;Having ARRI-style language and lens control made prompts actually usable on set.&quot;</p>
-                <p className="mt-4 text-xs text-white/45">DP · Commercial Team</p>
-              </article>
-              <article data-reveal="card" className="rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] p-6">
-                <p className="text-sm leading-relaxed text-white/75">&quot;The scene workflow feels like pre-production software, not random prompting.&quot;</p>
-                <p className="mt-4 text-xs text-white/45">Creative Producer · Indie Studio</p>
-              </article>
-            </div>
-          </section>
-
-          <section id="docs" className="mt-24 scroll-mt-24">
-            <article data-reveal="card" className="rounded-[2.25rem] border border-white/12 bg-gradient-to-b from-white/[0.08] via-white/[0.035] to-white/[0.015] p-10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_24px_48px_-36px_rgba(0,0,0,0.92)] transition-all duration-300 hover:border-white/20 md:p-12">
-              <SectionLabel>Docs</SectionLabel>
-              <div className="flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
-                <div>
-                  <h2 className="mb-4 text-3xl font-medium tracking-tight">
-                    Deploy your first <span className="text-cyan-300">cinematic workflow</span> in minutes.
-                  </h2>
-                  <p className="max-w-xl text-sm text-white/55">
-                    Connect provider keys, spin up a project, create scenes, and run your first shot generation through the dashboard flow.
+                  <div className="mb-4 inline-flex rounded-full bg-orange-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-orange-300">
+                    Lifetime Access
+                  </div>
+                  <h3 className="mb-2 text-lg font-medium text-white/85">Studio Pro</h3>
+                  <p className="mb-1 text-4xl font-semibold">
+                    $39 <span className="text-sm font-normal text-white/35">one-time</span>
                   </p>
-                </div>
-
-                <div className="flex shrink-0 gap-4">
+                  <p className="mb-8 mt-2 border-b border-white/[0.06] pb-8 text-sm text-white/40">
+                    For teams shipping sequences on active timelines. Pay once, keep forever.
+                  </p>
+                  <ul className="space-y-3.5 text-sm text-white/50">
+                    <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-orange-300" />Everything in Creator</li>
+                    <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-orange-300" />Unlimited projects</li>
+                    <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-orange-300" />Priority generation routing</li>
+                    <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-orange-300" />Shared presets + templates</li>
+                    <li className="flex items-center gap-3"><Check className="h-4 w-4 shrink-0 text-orange-300" />Batch export pipeline</li>
+                  </ul>
                   <Link
                     href="/signup"
-                    className="beam-button rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-3 text-sm font-semibold text-black"
+                    className="liquid-metal-primary mt-8 inline-flex w-full items-center justify-center rounded-xl px-5 py-3.5 text-sm font-semibold text-black"
                   >
-                    Read Quickstart
-                  </Link>
-                  <Link href="/login" className="rounded-full border border-white/10 px-6 py-3 text-sm transition hover:bg-white/5">
-                    Open Studio Docs
+                    Get Studio Pro — $39
                   </Link>
                 </div>
-              </div>
-            </article>
+              </article>
+            </div>
           </section>
 
-          <footer data-reveal="card" className="mt-24 overflow-hidden rounded-[2.25rem] border border-white/12 bg-gradient-to-b from-white/[0.06] via-white/[0.025] to-white/[0.01] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_30px_60px_-40px_rgba(0,0,0,0.95)]">
-            <div className="grid gap-10 p-8 md:grid-cols-[1.1fr_0.9fr] md:p-10">
+          {/* ═══════════════════════════════════════════
+              INNER CIRCLE
+          ═══════════════════════════════════════════ */}
+          <section id="inner-circle" className="mt-24 scroll-mt-24 sm:mt-32">
+            <InnerCircleCTA />
+          </section>
+
+          {/* ═══════════════════════════════════════════
+              FOOTER
+          ═══════════════════════════════════════════ */}
+          <footer className="mt-24 overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
+            <div className="grid gap-10 p-8 md:grid-cols-[1.2fr_0.8fr] md:p-10">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/50">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/45">
                   <Sparkles className="h-3 w-3 text-cyan-300" />
                   Visiowave Studios
                 </div>
-                <h3 className="mt-5 text-2xl font-semibold tracking-tight md:text-3xl">
-                  Built for directors who care about every frame.
+                <h3 className="mt-5 text-xl font-semibold tracking-tight md:text-2xl">
+                  The AI video studio built for filmmakers.
                 </h3>
-                <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/55">
-                  Visiowave unifies scene planning, shot design, and generation history so teams can move from idea to sequence with production-ready continuity.
+                <p className="mt-3 max-w-md text-sm leading-relaxed text-white/40">
+                  Cinematic shot design, multi-model video generation, and project-level organization in one workspace.
                 </p>
 
-                <div className="mt-6 flex flex-wrap items-center gap-2">
-                  <a href="#" className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/65 transition hover:bg-white/10 hover:text-white">
+                <div className="mt-5 flex items-center gap-2">
+                  <a href="#" className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white">
                     <Github className="h-4 w-4" />
                   </a>
-                  <a href="#" className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/65 transition hover:bg-white/10 hover:text-white">
+                  <a href="#" className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white">
                     <Youtube className="h-4 w-4" />
                   </a>
-                  <a href="#" className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/65 transition hover:bg-white/10 hover:text-white">
+                  <a href="#" className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white">
                     <Linkedin className="h-4 w-4" />
                   </a>
                 </div>
               </div>
 
-              <div className="grid gap-8 sm:grid-cols-2">
-                {Object.entries(footerNav).map(([group, links]) => (
-                  <div key={group}>
-                    <p className="mb-3 text-[11px] uppercase tracking-[0.14em] text-white/40">{group}</p>
-                    <ul className="space-y-2.5">
-                      {links.map((item) => (
-                        <li key={item.label}>
-                          <a href={item.href} className="text-sm text-white/65 transition hover:text-white">
-                            {item.label}
-                          </a>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-                <div className="sm:col-span-2">
-                  <p className="mb-3 text-[11px] uppercase tracking-[0.14em] text-white/40">Join Updates</p>
-                  <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0b0b0d] p-1.5">
-                    <input
-                      type="email"
-                      placeholder="you@studio.com"
-                      className="h-9 flex-1 bg-transparent px-3 text-sm text-white outline-none placeholder:text-white/35"
-                    />
-                    <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-white/10 px-3 text-xs font-medium text-white transition hover:bg-white/15">
-                      Subscribe
-                      <Send className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+              <div className="grid grid-cols-2 gap-8">
+                <div>
+                  <p className="mb-3 text-[11px] uppercase tracking-[0.14em] text-white/35">Product</p>
+                  <ul className="space-y-2.5">
+                    <li><a href="#features" className="text-sm text-white/50 transition hover:text-white">Features</a></li>
+                    <li><a href="#models" className="text-sm text-white/50 transition hover:text-white">Models</a></li>
+                    <li><a href="#pricing" className="text-sm text-white/50 transition hover:text-white">Pricing</a></li>
+                    <li><Link href="/dashboard/studio" className="text-sm text-white/50 transition hover:text-white">Studio</Link></li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="mb-3 text-[11px] uppercase tracking-[0.14em] text-white/35">Get Started</p>
+                  <ul className="space-y-2.5">
+                    <li><Link href="/signup" className="text-sm text-white/50 transition hover:text-white">Create Account</Link></li>
+                    <li><Link href="/login" className="text-sm text-white/50 transition hover:text-white">Sign In</Link></li>
+                    <li><a href="#inner-circle" className="text-sm text-white/50 transition hover:text-white">Inner Circle</a></li>
+                    <li><Link href="/dashboard/gallery" className="text-sm text-white/50 transition hover:text-white">Gallery</Link></li>
+                  </ul>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-white/10 px-8 py-4 text-xs text-white/45 md:flex-row md:items-center md:justify-between md:px-10">
-              <p>© {new Date().getFullYear()} Visiowave Studios. Crafted for cinematic teams.</p>
+            <div className="flex flex-col gap-3 border-t border-white/[0.06] px-8 py-4 text-xs text-white/30 md:flex-row md:items-center md:justify-between md:px-10">
+              <p>&copy; {new Date().getFullYear()} Visiowave Studios. Built for cinematic teams.</p>
               <div className="flex items-center gap-4">
                 <a href="#" className="transition hover:text-white">Privacy</a>
                 <a href="#" className="transition hover:text-white">Terms</a>
-                <a href="#" className="transition hover:text-white">Security</a>
               </div>
             </div>
           </footer>

@@ -1,13 +1,18 @@
 import OpenAI from 'openai';
 import {
+  type StudioAdCampaignPlan,
+  type StudioAdCampaignRequest,
   type StudioAdPacket,
   type StudioAdRequest,
+  studioAdCampaignPlanSchema,
   studioAdPacketSchema,
 } from '@/core/validation/studio-ad';
 import { enforcePromptCompliance } from '@/core/utils/ai/prompt-compliance';
 
-const MODEL = process.env.STUDIO_AD_MODEL || 'gpt-4.1-mini';
+const MODEL = process.env.STUDIO_AD_MODEL || 'gpt-5.5';
 const REFINER_MODEL = process.env.STUDIO_AD_REFINER_MODEL || MODEL;
+const MODEL_REASONING_EFFORT = process.env.STUDIO_AD_REASONING_EFFORT || 'high';
+const REFINER_REASONING_EFFORT = process.env.STUDIO_AD_REFINER_REASONING_EFFORT || 'xhigh';
 
 const MODE_RULEBOOK: Record<StudioAdRequest['mode'], string[]> = {
   cinematic_realism: [
@@ -47,6 +52,35 @@ const PROVIDER_HINTS: Record<string, string[]> = {
   ],
 };
 
+function buildModelOptimizationHints(input: StudioAdRequest): string[] {
+  const hint = input.context?.generationModelHint?.toLowerCase() || '';
+
+  if (hint.includes('kling')) {
+    return [
+      'Optimize for Kling by keeping the motion path explicit, subject-first, and visually stable.',
+      'Use compact but cinematic clauses with clear camera intent and strong continuity anchors.',
+    ];
+  }
+
+  if (hint.includes('seedance')) {
+    return [
+      'Optimize for Seedance with punchy visual rhythm, bold but controlled stylization, and concise phrasing.',
+      'Keep the prompt energetic while preserving subject readability and motion clarity.',
+    ];
+  }
+
+  if (hint.includes('sora')) {
+    return [
+      'Optimize for Sora with richer environmental choreography, temporal causality, and scene-level coherence.',
+      'Lean into cinematic action logic, spatial relationships, and believable progression over time.',
+    ];
+  }
+
+  return [
+    'Keep the prompt execution-ready for modern video generators with stable subject identity and coherent motion.',
+  ];
+}
+
 const BASE_NEGATIVE_TOKENS = [
   'low quality',
   'blurry subject',
@@ -63,12 +97,16 @@ const BASE_NEGATIVE_TOKENS = [
 function buildSystemPrompt(): string {
   return [
     'You are Studio AD, a senior assistant director and cinematography strategist for high-end production.',
+    'Operate like a hybrid of assistant director, cinematographer, and elite prompt engineer for video-first generation workflows.',
     'Return ONLY valid JSON with no markdown fences and no extra commentary.',
     'Output must be practical for image/video generation pipelines and shot-list workflows.',
     'Never output contradictory lens, movement, framing, or lighting instructions.',
     'Preserve continuity anchors when provided and mention applied anchors in technicalMetadata.continuityAnchorsApplied.',
     'Use concrete cinematography language: lens focal behavior, movement profile, key/fill/backlight intent, and composition geometry.',
     'Use short, execution-ready clauses instead of abstract adjectives.',
+    'When currentPromptContext is provided, use it as source material to preserve useful shot identity, continuity, and visual anchors while improving clarity.',
+    'Prioritize prompts that produce stable, coherent motion over full video duration, with clean first-frame readability and strong subject retention.',
+    'Master prompts should feel premium, cinematic, and production-ready, not generic, bloated, or overly literary.',
   ].join(' ');
 }
 
@@ -79,6 +117,19 @@ function buildCriticSystemPrompt(): string {
     'Repair contradictions, ambiguity, and weak technical specificity while preserving creative intent.',
     'Do not flatten style; increase production reliability.',
     'Ensure output is coherent for real shot execution and AI generation.',
+    'Push the packet toward best-in-class master prompt quality for cinematic video generation.',
+  ].join(' ');
+}
+
+function buildCampaignSystemPrompt(): string {
+  return [
+    'You are Studio AD Campaign Director, a senior creative director for AI video campaigns.',
+    'Return ONLY valid JSON with no markdown fences and no extra commentary.',
+    'Turn a user campaign request into multiple distinct video deliverables that are ready for batch generation.',
+    'For UGC, think like a paid social creative strategist: hook, creator behavior, setting, camera realism, product proof, and clear variation across assets.',
+    'Each deliverable must be meaningfully different in concept, hook, setting, movement, and creator performance.',
+    'Keep prompts provider-safe, production-ready, and executable by modern video generation models.',
+    'Avoid claims that require unverified proof. Prefer visual proof, tactile detail, and honest creator-style reactions.',
   ].join(' ');
 }
 
@@ -95,15 +146,54 @@ function buildUserPrompt(input: StudioAdRequest): string {
   const anchors = input.projectBible?.continuityAnchors || [];
   const providerHints = PROVIDER_HINTS[input.providerTarget] || PROVIDER_HINTS.openai;
   const modeRules = MODE_RULEBOOK[input.mode];
+  const modelOptimizationHints = buildModelOptimizationHints(input);
 
   return JSON.stringify(
     {
       task: 'Create a production-ready prompt packet for this shot.',
       qualityBar: 'state_of_the_art_cinematography',
       input,
+      referenceContext: {
+        currentPromptContext: input.currentPromptContext || null,
+      },
+      projectContext: {
+        title: input.projectBible?.title || null,
+        houseStyle: input.projectBible?.houseStyle || null,
+        lensPackage: input.projectBible?.lensPackage || null,
+        targetAspectRatio: resolveTargetAspectRatio(input),
+        targetDurationSeconds: resolveTargetDuration(input),
+        generationModelHint: input.context?.generationModelHint || null,
+      },
+      productionMemory: {
+        projectSummary: input.productionMemory?.projectSummary || null,
+        sceneSummary: input.productionMemory?.sceneSummary || null,
+        shotSummary: input.productionMemory?.shotSummary || null,
+        elementAnchors: input.productionMemory?.elementAnchors || [],
+        recentPromptSignals: input.productionMemory?.recentPromptSignals || [],
+        continuitySignals: input.productionMemory?.continuitySignals || [],
+      },
       rules: {
         mode: modeRules,
         provider: providerHints,
+        generationTarget: modelOptimizationHints,
+        referenceContext: [
+          'Preserve strong visual anchors from currentPromptContext when they are usable.',
+          'Remove contradictions, ambiguity, and low-signal filler from currentPromptContext.',
+          'Prefer upgrading the current prompt rather than replacing its valid cinematic intent.',
+        ],
+        memoryUsage: [
+          'Use productionMemory to preserve project identity, scene continuity, and recent successful prompt signals.',
+          'Do not repeat memory verbatim when it weakens prompt density; compress it into cinematic instructions.',
+        ],
+        masterPromptQuality: [
+          'Build the final master prompt with a clear order: subject/action, environment, framing, lens, movement, lighting, texture, mood, technical constraints.',
+          'Favor specific camera and lighting intent over vague style adjectives.',
+          'For video, preserve temporal coherence and edit-safe continuity.',
+        ],
+        variantsPolicy: [
+          'Make variants genuinely useful, not cosmetic rewrites.',
+          'Prefer one safer production variant and one more expressive variant when possible.',
+        ],
       },
       outputContract: {
         strategy: 'short strategy name focused on visual execution',
@@ -144,10 +234,86 @@ function buildUserPrompt(input: StudioAdRequest): string {
         minVariants: 2,
         maxVariants: 4,
         minMasterPromptWords: 24,
+        maxMasterPromptWords: 90,
         mode: input.mode,
         providerTarget: input.providerTarget,
         outputType: input.outputType,
         continuityAnchors: anchors,
+      },
+    },
+    null,
+    2
+  );
+}
+
+function buildCampaignUserPrompt(input: StudioAdCampaignRequest): string {
+  return JSON.stringify(
+    {
+      task: 'Create a reviewable multi-video campaign plan for batch video generation.',
+      qualityBar: 'state_of_the_art_campaign_director',
+      input,
+      campaignRules: {
+        assetCount: input.assetCount,
+        outputType: 'video',
+        campaignType: input.campaignType,
+        targetAspectRatio: input.aspectRatio || '9:16',
+        targetDurationSeconds: input.durationSeconds || 8,
+        currentPromptContext: input.currentPromptContext || null,
+        continuityAnchors: input.continuityAnchors || [],
+      },
+      ugcRules: [
+        'For UGC, create deliverables that feel creator-shot, natural, and ad-usable.',
+        'Vary the format across testimonial, try-on/demo, unboxing/reaction, problem-solution, day-in-life, or founder-style selfie when appropriate.',
+        'Make each hook concrete and short enough to guide the first 1-2 seconds.',
+        'Use camera instructions that video models can execute: handheld selfie, mirror shot, tabletop close-up, over-shoulder, slow push-in, or gentle handheld pan.',
+        'Include the target duration in each masterPrompt.',
+        'Keep every prompt focused on one clear action arc from first frame to final frame.',
+      ],
+      modelRules: [
+        'Use kling for stable product/creator realism and reliable motion.',
+        'Use seedance for punchier social rhythm and stylized creator energy.',
+        'Use sora for more complex environmental continuity or narrative movement.',
+        'Default to kling when uncertain.',
+      ],
+      outputContract: {
+        campaignSummary: 'short campaign summary',
+        audience: 'target audience in one phrase',
+        creativeStrategy: 'why this set of videos works together',
+        deliverables: [
+          {
+            id: 'stable short id',
+            title: 'video title',
+            conceptType: 'UGC format label',
+            hook: 'opening hook / first beat',
+            creatorDirection: 'what the creator does and how they perform it',
+            masterPrompt: 'single video prompt with subject/action, setting, camera, lighting, duration, and CTA-style ending',
+            negativePrompt: 'comma-separated negative prompt',
+            durationSeconds: input.durationSeconds || 8,
+            aspectRatio: input.aspectRatio || '9:16',
+            modelFamilyId: 'kling | seedance | sora',
+            stylePresetId: null,
+            motionPresetId: null,
+            continuityAnchors: [],
+            productionNotes: ['short note'],
+          },
+        ],
+        score: {
+          campaignReadiness: '0-100 int',
+          varietyStrength: '0-100 int',
+          promptClarity: '0-100 int',
+        },
+        suggestions: ['short actionable suggestion'],
+      },
+      constraints: {
+        exactDeliverableCount: input.assetCount,
+        maxMasterPromptWords: 110,
+        minMasterPromptWords: 35,
+        avoid: [
+          'repeating the same format across all videos',
+          'generic influencer language',
+          'unverified medical, financial, or guaranteed performance claims',
+          'overloaded cinematic prompt bloat',
+        ],
       },
     },
     null,
@@ -317,6 +483,73 @@ function normalizePacket(input: StudioAdRequest, packet: StudioAdPacket): Studio
   return normalized;
 }
 
+function normalizeCampaignPlan(input: StudioAdCampaignRequest, plan: StudioAdCampaignPlan): StudioAdCampaignPlan {
+  const targetCount = input.assetCount;
+  const deliverables = plan.deliverables.slice(0, targetCount).map((item, index) => {
+    const compliantPrompt = enforcePromptCompliance({
+      prompt: ensureMinimumPromptDensity(cleanText(item.masterPrompt)),
+      negativePrompt: item.negativePrompt,
+      outputType: 'video',
+    });
+    const durationSeconds = Math.max(5, Math.min(15, Math.round(item.durationSeconds || input.durationSeconds || 8)));
+    const aspectRatio = cleanText(item.aspectRatio || input.aspectRatio || '9:16');
+
+    return {
+      id: cleanText(item.id || `ugc_${index + 1}`).toLowerCase().replace(/[^a-z0-9_/-]+/g, '_').slice(0, 80),
+      title: cleanText(item.title || `UGC Video ${index + 1}`).slice(0, 120),
+      conceptType: cleanText(item.conceptType || 'UGC concept').slice(0, 80),
+      hook: cleanText(item.hook || 'Creator opens with a clear product moment.').slice(0, 220),
+      creatorDirection: cleanText(item.creatorDirection || 'Creator demonstrates the product naturally on camera.').slice(0, 500),
+      masterPrompt: cleanText(
+        compliantPrompt.prompt.toLowerCase().includes(`duration ${durationSeconds}s`)
+          ? compliantPrompt.prompt
+          : `${compliantPrompt.prompt}, duration ${durationSeconds}s, ${aspectRatio} composition`
+      ).slice(0, 1200),
+      negativePrompt: uniqueTokens([...tokenizeCsv(compliantPrompt.negativePrompt), ...BASE_NEGATIVE_TOKENS]).join(', ').slice(0, 700),
+      durationSeconds,
+      aspectRatio,
+      modelFamilyId: item.modelFamilyId || 'kling',
+      stylePresetId: item.stylePresetId || null,
+      motionPresetId: item.motionPresetId || null,
+      continuityAnchors: uniqueTokens([...(item.continuityAnchors || []), ...(input.continuityAnchors || [])].map(cleanText)).slice(0, 12),
+      productionNotes: uniqueTokens((item.productionNotes || []).map(cleanText)).slice(0, 5),
+    };
+  });
+
+  while (deliverables.length < targetCount) {
+    const index = deliverables.length + 1;
+    deliverables.push({
+      id: `ugc_${index}`,
+      title: `UGC Video ${index}`,
+      conceptType: 'UGC concept',
+      hook: 'Creator opens with a clear product proof moment.',
+      creatorDirection: 'Creator demonstrates the product naturally with handheld phone-camera energy.',
+      masterPrompt: `${cleanText(input.userIntent)}, creator-shot UGC video, handheld phone-camera realism, natural light, clear product demonstration, duration ${input.durationSeconds || 8}s, ${input.aspectRatio || '9:16'} composition`,
+      negativePrompt: BASE_NEGATIVE_TOKENS.join(', '),
+      durationSeconds: input.durationSeconds || 8,
+      aspectRatio: input.aspectRatio || '9:16',
+      modelFamilyId: 'kling',
+      stylePresetId: null,
+      motionPresetId: null,
+      continuityAnchors: input.continuityAnchors || [],
+      productionNotes: ['Fallback concept generated to satisfy requested asset count.'],
+    });
+  }
+
+  return {
+    campaignSummary: cleanText(plan.campaignSummary),
+    audience: cleanText(plan.audience),
+    creativeStrategy: cleanText(plan.creativeStrategy),
+    deliverables,
+    score: {
+      campaignReadiness: clampScore(plan.score.campaignReadiness),
+      varietyStrength: clampScore(plan.score.varietyStrength),
+      promptClarity: clampScore(plan.score.promptClarity),
+    },
+    suggestions: uniqueTokens((plan.suggestions || []).map(cleanText)).slice(0, 6),
+  };
+}
+
 function detectPacketIssues(packet: StudioAdPacket, input: StudioAdRequest): string[] {
   const issues: string[] = [];
   const move = packet.shotStrategy.movement.toLowerCase();
@@ -381,14 +614,27 @@ export class StudioAdService {
     this.client = new OpenAI({ apiKey: key });
   }
 
-  private async runJsonCompletion(model: string, system: string, user: string): Promise<unknown> {
+  private async runJsonCompletion(
+    model: string,
+    system: string,
+    user: string,
+    reasoningEffort?: string
+  ): Promise<unknown> {
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
+        const supportsReasoningEffort =
+          model.startsWith('gpt-5') || model.startsWith('o1') || model.startsWith('o3') || model.startsWith('o4');
+        const supportsCustomTemperature = !supportsReasoningEffort;
         const completion = await this.client.chat.completions.create({
           model,
-          temperature: 0.3,
+          ...(supportsCustomTemperature ? { temperature: 0.2 } : {}),
+          ...(supportsReasoningEffort && reasoningEffort
+            ? {
+                reasoning_effort: reasoningEffort as 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh',
+              }
+            : {}),
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: system },
@@ -411,7 +657,12 @@ export class StudioAdService {
   }
 
   async directShot(input: StudioAdRequest): Promise<StudioAdPacket> {
-    const firstPassRaw = await this.runJsonCompletion(MODEL, buildSystemPrompt(), buildUserPrompt(input));
+    const firstPassRaw = await this.runJsonCompletion(
+      MODEL,
+      buildSystemPrompt(),
+      buildUserPrompt(input),
+      MODEL_REASONING_EFFORT
+    );
     let packet = normalizePacket(input, studioAdPacketSchema.parse(firstPassRaw));
 
     let issues = detectPacketIssues(packet, input);
@@ -419,7 +670,8 @@ export class StudioAdService {
       const refinedRaw = await this.runJsonCompletion(
         REFINER_MODEL,
         buildCriticSystemPrompt(),
-        buildCriticUserPrompt(input, packet, issues)
+        buildCriticUserPrompt(input, packet, issues),
+        REFINER_REASONING_EFFORT
       );
       packet = normalizePacket(input, studioAdPacketSchema.parse(refinedRaw));
       issues = detectPacketIssues(packet, input);
@@ -435,5 +687,16 @@ export class StudioAdService {
     }
 
     return packet;
+  }
+
+  async directCampaign(input: StudioAdCampaignRequest): Promise<StudioAdCampaignPlan> {
+    const rawPlan = await this.runJsonCompletion(
+      MODEL,
+      buildCampaignSystemPrompt(),
+      buildCampaignUserPrompt(input),
+      MODEL_REASONING_EFFORT
+    );
+    const parsed = studioAdCampaignPlanSchema.parse(rawPlan);
+    return normalizeCampaignPlan(input, parsed);
   }
 }

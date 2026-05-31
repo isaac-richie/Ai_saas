@@ -49,6 +49,7 @@ export function StudioAdPanel({
     projectId?: string;
     sceneId?: string;
     shotId?: string;
+    generationModelHint?: string;
   };
 }) {
   const [history, setHistory] = useState<
@@ -68,6 +69,7 @@ export function StudioAdPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [packet, setPacket] = useState<StudioAdPacket | null>(null);
+  const [engineModel, setEngineModel] = useState<string | null>(null);
   const [providerStatuses, setProviderStatuses] = useState<Array<{ slug: string; ok: boolean }>>([]);
   const [checkingStatus, setCheckingStatus] = useState(false);
 
@@ -76,7 +78,12 @@ export function StudioAdPanel({
   async function loadHistory() {
     setHistoryLoading(true);
     try {
-      const response = await fetch('/api/ad/direct-shot?limit=6', { method: 'GET' });
+      const params = new URLSearchParams({ limit: '6' });
+      if (context?.shotId) params.set('shotId', context.shotId);
+      else if (context?.sceneId) params.set('sceneId', context.sceneId);
+      else if (context?.projectId) params.set('projectId', context.projectId);
+
+      const response = await fetch(`/api/ad/direct-shot?${params.toString()}`, { method: 'GET' });
       const payload = (await response.json().catch(() => null)) as
         | {
             ok: true;
@@ -115,11 +122,44 @@ export function StudioAdPanel({
   }
 
   useEffect(() => {
-    if (showHistory) {
-      void loadHistory();
-    }
-    void performHealthCheck();
-  }, [showHistory]);
+    const run = async () => {
+      if (showHistory) {
+        setHistoryLoading(true);
+        try {
+          const params = new URLSearchParams({ limit: '6' });
+          if (context?.shotId) params.set('shotId', context.shotId);
+          else if (context?.sceneId) params.set('sceneId', context.sceneId);
+          else if (context?.projectId) params.set('projectId', context.projectId);
+
+          const response = await fetch(`/api/ad/direct-shot?${params.toString()}`, { method: 'GET' });
+          const payload = (await response.json().catch(() => null)) as
+            | {
+                ok: true;
+                data?: Array<{
+                  id: string;
+                  created_at: string;
+                  user_intent: string;
+                  production_readiness: number;
+                  packet: StudioAdPacket;
+                }>;
+              }
+            | { ok: false; error?: string }
+            | null;
+
+          if (response.ok && payload && 'ok' in payload && payload.ok) {
+            setHistory(payload.data || []);
+          }
+        } catch {
+          // non-blocking
+        } finally {
+          setHistoryLoading(false);
+        }
+      }
+      await performHealthCheck();
+    };
+
+    void run();
+  }, [showHistory, context?.projectId, context?.sceneId, context?.shotId]);
 
   async function runDirector(options?: { forceFix?: boolean }) {
     if (!canSubmit) return;
@@ -139,6 +179,7 @@ export function StudioAdPanel({
           providerTarget,
           mode,
           context,
+          currentPromptContext: promptPreview?.trim() || undefined,
           projectBible: {
             aspectRatio: '16:9',
           },
@@ -146,7 +187,7 @@ export function StudioAdPanel({
       });
 
       const payload = (await response.json().catch(() => null)) as
-        | { ok: true; data: StudioAdPacket }
+        | { ok: true; data: StudioAdPacket; engine?: { provider?: string; model?: string; keySource?: string } }
         | { ok: false; error?: string }
         | null;
 
@@ -157,6 +198,7 @@ export function StudioAdPanel({
       }
 
       setPacket(payload.data);
+      setEngineModel(payload.engine?.model || null);
       void loadHistory();
     } catch {
       setError('Unable to reach Studio AD. Please try again.');
@@ -211,6 +253,12 @@ export function StudioAdPanel({
         </div>
         <span className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/75">Studio AD</span>
       </div>
+
+      {engineModel ? (
+        <div className="mb-3 rounded-xl border border-cyan-300/15 bg-cyan-500/5 px-3 py-2 text-[11px] text-cyan-100/85">
+          Prompt engine: {engineModel}
+        </div>
+      ) : null}
 
       <div className={embedded ? "grid gap-3 grid-cols-1" : "grid gap-3 grid-cols-1 sm:grid-cols-2"}>
         <div className="space-y-1.5">
@@ -313,6 +361,12 @@ export function StudioAdPanel({
       {error ? (
         <div className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-xs text-red-200">
           {error}
+        </div>
+      ) : null}
+
+      {!error && promptPreview?.trim() ? (
+        <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-500/5 p-3 text-[11px] text-cyan-100/85">
+          Assistant Director is using your current on-screen prompt as reference context to improve continuity and prompt precision.
         </div>
       ) : null}
 

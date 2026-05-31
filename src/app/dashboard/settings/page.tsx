@@ -46,6 +46,12 @@ export default async function SettingsPage() {
                         Connect only providers you actively use to simplify generation routing.
                     </CardContent>
                 </Card>
+                <Card data-reveal="card" className="rounded-2xl border border-cyan-300/10 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.08),transparent_70%)] text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
+                    <CardContent className="flex items-start gap-3 p-5 text-sm text-white/55">
+                        <KeyRound className="mt-0.5 h-5 w-5 text-cyan-200/80" />
+                        Assistant Director uses the platform OpenAI connection from server environment variables. The provider keys below are for generation routing and personal provider access.
+                    </CardContent>
+                </Card>
             </section>
 
             <PreferredProviderCard />

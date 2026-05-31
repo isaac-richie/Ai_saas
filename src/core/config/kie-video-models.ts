@@ -11,21 +11,21 @@ export type KieVideoModelFamily = {
 export const KIE_VIDEO_MODEL_FAMILIES: KieVideoModelFamily[] = [
   {
     id: "kling",
-    label: "Kling 2.5 Turbo",
+    label: "Kling",
     description: "Balanced cinematic quality and reliable motion.",
     t2vModel: "kling/v2-5-turbo-text-to-video-pro",
     i2vModel: "kling/v2-5-turbo-image-to-video-pro",
   },
   {
     id: "seedance",
-    label: "Bytedance Seedance 2",
+    label: "Seedance",
     description: "Fast, punchy renders and strong stylization.",
     t2vModel: "bytedance/seedance-2",
     i2vModel: "bytedance/seedance-2",
   },
   {
     id: "sora",
-    label: "Sora 2",
+    label: "Sora",
     description: "High-end narrative motion and scene coherence.",
     t2vModel: "sora-2-text-to-video",
     i2vModel: "sora-2-image-to-video",
@@ -45,4 +45,3 @@ export function resolveKieVideoModelByFamily(input: {
   const family = getKieVideoModelFamily(input.familyId);
   return input.useImageToVideo ? family.i2vModel : family.t2vModel;
 }
-
