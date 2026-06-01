@@ -18,7 +18,7 @@ export function ProductDemo() {
         viewport={{ once: true, amount: 0.2 }}
         className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0a0a0c]"
       >
-        <div className="relative aspect-[21/9] w-full overflow-hidden">
+        <div className="relative aspect-[4/3] w-full overflow-hidden sm:aspect-[16/9] lg:aspect-[21/9]">
           <video
             src="/landing.mp4"
             className="h-full w-full object-cover"
@@ -49,7 +49,7 @@ export function ProductDemo() {
         </div>
 
         {/* Bottom bar */}
-        <div className="flex items-center justify-between border-t border-white/[0.06] px-5 py-3">
+        <div className="flex flex-col gap-3 border-t border-white/[0.06] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div className="flex items-center gap-4 text-[11px] text-white/40">
             <span className="flex items-center gap-1.5">
               <Film className="h-3.5 w-3.5 text-cyan-300/70" />
@@ -57,7 +57,7 @@ export function ProductDemo() {
             </span>
             <span className="hidden sm:inline">21:9 Cinematic</span>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-white/35">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/35 sm:justify-end">
             <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2 py-0.5">Kling 2.5</span>
             <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2 py-0.5">Seedance</span>
             <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2 py-0.5">Sora 2</span>

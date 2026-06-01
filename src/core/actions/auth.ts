@@ -1,8 +1,23 @@
 "use server";
 
 import { createClient } from "@/infrastructure/supabase/server";
-import { loginSchema, signupSchema, LoginInput, SignupInput } from "@/core/types/auth";
+import {
+    forgotPasswordSchema,
+    loginSchema,
+    signupSchema,
+    ForgotPasswordInput,
+    LoginInput,
+    SignupInput,
+} from "@/core/types/auth";
 import { redirect } from "next/navigation";
+
+function getAppUrl() {
+    return (
+        process.env.NEXT_PUBLIC_APP_URL
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
+        || "http://localhost:3000"
+    );
+}
 
 export async function login(data: LoginInput, nextPath?: string) {
     const result = loginSchema.safeParse(data);
@@ -31,14 +46,10 @@ export async function signup(data: SignupInput) {
     }
 
     const supabase = await createClient();
-    const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL
-        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
-        || "http://localhost:3000";
     const { error } = await supabase.auth.signUp({
         ...result.data,
         options: {
-            emailRedirectTo: `${appUrl}/auth/callback`,
+            emailRedirectTo: `${getAppUrl()}/auth/callback`,
         },
     });
 
@@ -47,6 +58,27 @@ export async function signup(data: SignupInput) {
     }
 
     return { success: true, message: "Check your email to confirm your account." };
+}
+
+export async function requestPasswordReset(data: ForgotPasswordInput) {
+    const result = forgotPasswordSchema.safeParse(data);
+    if (!result.success) {
+        return { error: "Enter a valid email address." };
+    }
+
+    const supabase = await createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(result.data.email, {
+        redirectTo: `${getAppUrl()}/auth/callback?next=/reset-password`,
+    });
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    return {
+        success: true,
+        message: "If that email exists, a password reset link is on its way.",
+    };
 }
 
 export async function logout() {

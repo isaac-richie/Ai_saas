@@ -28,21 +28,21 @@ export default function AuthLayout({
     }, [])
 
     return (
-        <div className="relative h-screen overflow-hidden text-white font-sans selection:bg-cyan-500/30 selection:text-cyan-200 bg-[#05070A]">
+        <div className="relative min-h-dvh overflow-x-hidden text-white font-sans selection:bg-cyan-500/30 selection:text-cyan-200 bg-[#05070A]">
             <CinematicBackground />
 
             {/* Viewfinder Frame (Global) */}
-            <div className="fixed inset-0 z-50 pointer-events-none opacity-20 border-[24px] border-black/10">
-               <div className="absolute top-6 left-6 h-12 w-12 border-t border-l border-white/20" />
-               <div className="absolute top-6 right-6 h-12 w-12 border-t border-r border-white/20" />
-               <div className="absolute bottom-6 left-6 h-12 w-12 border-b border-l border-white/20" />
-               <div className="absolute bottom-6 right-6 h-12 w-12 border-b border-r border-white/20" />
+            <div className="fixed inset-0 z-50 pointer-events-none opacity-20 border-[10px] border-black/10 sm:border-[24px]">
+               <div className="absolute top-4 left-4 h-8 w-8 border-t border-l border-white/20 sm:top-6 sm:left-6 sm:h-12 sm:w-12" />
+               <div className="absolute top-4 right-4 h-8 w-8 border-t border-r border-white/20 sm:top-6 sm:right-6 sm:h-12 sm:w-12" />
+               <div className="absolute bottom-4 left-4 h-8 w-8 border-b border-l border-white/20 sm:bottom-6 sm:left-6 sm:h-12 sm:w-12" />
+               <div className="absolute bottom-4 right-4 h-8 w-8 border-b border-r border-white/20 sm:bottom-6 sm:right-6 sm:h-12 sm:w-12" />
             </div>
 
-            <main className="relative z-10 grid h-screen w-full grid-cols-1 lg:grid-cols-2">
+            <main className="relative z-10 grid min-h-dvh w-full grid-cols-1 lg:grid-cols-2">
                 
                 {/* Left Side: Cinematic Branding & Previews */}
-                <section className="relative hidden h-screen lg:flex flex-col gap-4 p-8 xl:p-12 overflow-hidden">
+                <section className="relative hidden h-dvh lg:flex flex-col gap-4 p-8 xl:p-12 overflow-hidden">
                     <div className="relative z-10 flex-1 space-y-3 transition-all duration-700">
                         <BrandLockup className="w-fit" />
 
@@ -106,7 +106,7 @@ export default function AuthLayout({
                 </section>
 
                 {/* Right Side: Interaction Console */}
-                <section className="relative flex h-screen flex-col items-center justify-center p-4 sm:p-8 lg:p-10 bg-black/40 backdrop-blur-sm lg:bg-transparent">
+                <section className="relative flex min-h-dvh flex-col items-center justify-start overflow-y-auto bg-black/40 p-4 py-6 backdrop-blur-sm sm:p-8 sm:py-10 lg:justify-center lg:bg-transparent lg:p-10">
                     <div className="w-full max-w-sm xl:max-w-[440px] z-20 flex flex-col items-center">
                         <BrandLockup className="mb-6 self-start lg:hidden" />
                         

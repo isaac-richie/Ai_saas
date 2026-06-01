@@ -1,0 +1,289 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import type { ControllerRenderProps } from "react-hook-form"
+import { ArrowRight, Eye, EyeOff, KeyRound } from "lucide-react"
+import { motion, Variants } from "framer-motion"
+import { ResetPasswordInput, resetPasswordSchema } from "@/core/types/auth"
+import { createClient } from "@/infrastructure/supabase/client"
+import { humanizeAuthError } from "@/interface/components/auth/auth-error-message"
+import { Button } from "@/interface/components/ui/button"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/interface/components/ui/form"
+import { Input } from "@/interface/components/ui/input"
+import { MagneticButton } from "@/interface/components/ui/MagneticButton"
+
+const containerVariants: Variants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.6,
+      ease: [0.16, 1, 0.3, 1],
+      when: "beforeChildren",
+      staggerChildren: 0.1,
+    },
+  },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -10 },
+  visible: { opacity: 1, x: 0 },
+}
+
+export function ResetPasswordForm() {
+  const router = useRouter()
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const [hasSession, setHasSession] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+
+  const form = useForm<ResetPasswordInput>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
+  })
+
+  useEffect(() => {
+    const supabase = createClient()
+
+    supabase.auth.getSession().then(({ data }) => {
+      setHasSession(Boolean(data.session))
+      setIsCheckingSession(false)
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || session) {
+        setHasSession(Boolean(session))
+        setIsCheckingSession(false)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!error) return
+    const timeoutId = window.setTimeout(() => setError(null), 4000)
+    return () => window.clearTimeout(timeoutId)
+  }, [error])
+
+  async function onSubmit(data: ResetPasswordInput) {
+    setError(null)
+    setSuccess(null)
+    setIsSubmitting(true)
+
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({
+        password: data.password,
+      })
+
+      if (error) {
+        setError(humanizeAuthError(error.message))
+        return
+      }
+
+      setSuccess("Password updated. Redirecting you to login...")
+      form.reset()
+      await supabase.auth.signOut()
+      window.setTimeout(() => router.push("/login"), 900)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleMouseMove = (event: React.MouseEvent) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = (event.clientX - rect.left) / rect.width - 0.5
+    const y = (event.clientY - rect.top) / rect.height - 0.5
+    setMousePos({ x, y })
+  }
+
+  return (
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={containerVariants}
+      className="w-full perspective-1000"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setMousePos({ x: 0, y: 0 })}
+      style={{ perspective: "1000px" }}
+    >
+      <motion.div
+        className="group relative space-y-8 overflow-hidden border border-white/5 bg-black/40 p-6 shadow-2xl backdrop-blur-3xl sm:p-10"
+        animate={{
+          rotateY: mousePos.x * 6,
+          rotateX: -mousePos.y * 6,
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      >
+        <div className="absolute left-0 top-0 h-4 w-4 border-l border-t border-cyan-500/40" />
+        <div className="absolute right-0 top-0 h-4 w-4 border-r border-t border-cyan-500/40" />
+        <div className="absolute bottom-0 left-0 h-4 w-4 border-b border-l border-cyan-500/40" />
+        <div className="absolute bottom-0 right-0 h-4 w-4 border-b border-r border-cyan-500/40" />
+
+        <motion.div
+          className="pointer-events-none absolute inset-0 z-10"
+          animate={{
+            background: [
+              "linear-gradient(rgba(34,211,238,0) 0%, rgba(34,211,238,0.05) 50%, rgba(34,211,238,0) 100%) translateY(-100%)",
+              "linear-gradient(rgba(34,211,238,0) 0%, rgba(34,211,238,0.05) 50%, rgba(34,211,238,0) 100%) translateY(200%)",
+            ],
+          }}
+          transition={{ duration: 4, repeat: Infinity, ease: "linear", delay: 2 }}
+        />
+
+        <div className="relative z-20 space-y-6">
+          <motion.div variants={itemVariants} className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.5em] text-cyan-500/60">
+            <div className="h-px w-12 bg-cyan-500/20" />
+            KEY ROTATION
+          </motion.div>
+
+          <motion.div variants={itemVariants} className="space-y-3">
+            <div className="flex h-12 w-12 items-center justify-center border border-cyan-400/20 bg-cyan-400/10 text-cyan-200">
+              <KeyRound className="h-5 w-5" />
+            </div>
+            <h2 className="font-display text-3xl font-black tracking-tighter text-white sm:text-4xl">Create New Key</h2>
+            <p className="text-xs leading-relaxed tracking-wide text-white/45 sm:text-sm">
+              Set a stronger password for your VISIOWAVE studio account.
+            </p>
+          </motion.div>
+        </div>
+
+        {isCheckingSession ? (
+          <div className="relative z-20 border-l-2 border-cyan-500/50 bg-cyan-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-100">
+            Verifying secure recovery session...
+          </div>
+        ) : !hasSession ? (
+          <div className="relative z-20 space-y-5">
+            <div className="border-l-2 border-amber-400/50 bg-amber-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-100">
+              This reset link is missing, expired, or already used. Request a fresh link to continue.
+            </div>
+            <Button asChild className="h-12 w-full rounded-none bg-white text-[10px] font-black uppercase tracking-[0.35em] text-black hover:bg-cyan-400">
+              <Link href="/forgot-password">Request New Link</Link>
+            </Button>
+          </div>
+        ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="relative z-20 space-y-8">
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="border-l-2 border-red-400/50 bg-red-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-red-100 shadow-xl"
+                >
+                  {error}
+                </motion.div>
+              )}
+
+              {success && (
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="border-l-2 border-cyan-500/50 bg-cyan-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-100 shadow-xl"
+                >
+                  <span className="mr-2 text-cyan-400">[ UPDATED ]</span>
+                  {success}
+                </motion.div>
+              )}
+
+              <div className="space-y-8">
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="font-mono text-[10px] font-bold uppercase tracking-[0.4em] text-white/30">New Password</FormLabel>
+                      <FormControl>
+                        <PasswordInput
+                          field={field}
+                          showPassword={showPassword}
+                          togglePassword={() => setShowPassword((value) => !value)}
+                          placeholder="••••••••••••"
+                        />
+                      </FormControl>
+                      <FormMessage className="text-[10px] uppercase tracking-widest text-white/30" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="font-mono text-[10px] font-bold uppercase tracking-[0.4em] text-white/30">Confirm Password</FormLabel>
+                      <FormControl>
+                        <PasswordInput
+                          field={field}
+                          showPassword={showPassword}
+                          togglePassword={() => setShowPassword((value) => !value)}
+                          placeholder="repeat new key"
+                        />
+                      </FormControl>
+                      <FormMessage className="text-[10px] uppercase tracking-widest text-white/30" />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <motion.div variants={itemVariants} className="pt-2">
+                <MagneticButton className="w-full">
+                  <Button
+                    type="submit"
+                    className="h-14 w-full rounded-none border border-white/10 bg-white text-[11px] font-black uppercase tracking-[0.45em] text-black shadow-2xl shadow-cyan-500/10 transition-all hover:border-cyan-400 hover:bg-cyan-400 focus-visible:ring-cyan-500/20 active:scale-[0.98]"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "UPDATING..." : "Update Password"}
+                    {!isSubmitting && <ArrowRight className="ml-4 h-5 w-5" />}
+                  </Button>
+                </MagneticButton>
+              </motion.div>
+            </form>
+          </Form>
+        )}
+      </motion.div>
+    </motion.div>
+  )
+}
+
+type PasswordInputProps = {
+  field: ControllerRenderProps<ResetPasswordInput, "password" | "confirmPassword">
+  showPassword: boolean
+  togglePassword: () => void
+  placeholder: string
+}
+
+function PasswordInput({ field, showPassword, togglePassword, placeholder }: PasswordInputProps) {
+  return (
+    <div className="group/input relative">
+      <Input
+        type={showPassword ? "text" : "password"}
+        placeholder={placeholder}
+        className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 pr-10 font-mono text-sm tracking-widest text-white/80 transition-all duration-500 placeholder:text-white/10 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white focus:border-cyan-500/80 focus-visible:ring-0"
+        {...field}
+      />
+      <button
+        type="button"
+        onClick={togglePassword}
+        className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-white/20 transition-colors hover:text-cyan-500"
+        aria-label={showPassword ? "Hide password" : "Show password"}
+      >
+        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+      <div className="absolute bottom-0 left-0 h-px w-0 bg-cyan-500 transition-all duration-700 group-focus-within/input:w-full" />
+    </div>
+  )
+}

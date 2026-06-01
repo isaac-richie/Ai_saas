@@ -5,15 +5,24 @@ import { createAdminClient } from '@/infrastructure/supabase/admin';
 export const runtime = 'nodejs';
 
 const payloadSchema = z.object({
-  fullName: z.string().min(2).max(120),
-  instagramHandle: z.string().min(2).max(80),
-  socialHandle: z.string().min(2).max(80),
+  name: z.string().min(2).max(120).optional(),
+  fullName: z.string().min(2).max(120).optional(),
+  instagramHandle: z.string().min(2).max(80).optional(),
+  socialHandle: z.string().min(2).max(80).optional(),
   email: z.string().email().max(160),
   referredByCode: z.string().min(4).max(32).optional().nullable(),
+}).refine((data) => data.name || data.fullName, {
+  message: 'Name is required.',
+  path: ['name'],
 });
 
 function normalizeHandle(value: string): string {
   return value.trim().replace(/^@+/, '').toLowerCase();
+}
+
+function normalizeOptionalHandle(value: string | null | undefined): string {
+  const normalized = normalizeHandle(value || '');
+  return normalized.length >= 2 ? normalized : 'not-provided';
 }
 
 function normalizeReferralCode(value: string | null | undefined): string | null {
@@ -61,9 +70,9 @@ export async function POST(request: Request) {
 
     const admin = createAdminClient();
     const email = parsed.data.email.trim().toLowerCase();
-    const fullName = parsed.data.fullName.trim();
-    const instagramHandle = normalizeHandle(parsed.data.instagramHandle);
-    const socialHandle = normalizeHandle(parsed.data.socialHandle);
+    const fullName = (parsed.data.fullName || parsed.data.name || '').trim();
+    const instagramHandle = normalizeOptionalHandle(parsed.data.instagramHandle);
+    const socialHandle = normalizeOptionalHandle(parsed.data.socialHandle);
     const referredByCode = normalizeReferralCode(parsed.data.referredByCode);
 
     const { data: existing, error: existingError } = await admin

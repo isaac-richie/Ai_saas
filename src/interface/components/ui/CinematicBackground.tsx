@@ -13,6 +13,7 @@ type Particle = {
 }
 
 const PARTICLE_COUNT = 24
+const rounded = (value: number, digits = 4) => Number(value.toFixed(digits))
 
 function seeded(index: number, salt: number) {
   const raw = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453
@@ -25,12 +26,12 @@ export function CinematicBackground() {
   const particles = useMemo<Particle[]>(
     () =>
       Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
-        left: `${seeded(i, 1) * 120 - 10}%`,
-        top: `${seeded(i, 2) * 120 - 10}%`,
-        sizePx: seeded(i, 3) * 2 + 1,
-        driftX: seeded(i, 4) * 100 - 50,
-        duration: 8 + seeded(i, 5) * 12,
-        delay: seeded(i, 6) * 10,
+        left: `${rounded(seeded(i, 1) * 120 - 10)}%`,
+        top: `${rounded(seeded(i, 2) * 120 - 10)}%`,
+        sizePx: rounded(seeded(i, 3) * 2 + 1, 5),
+        driftX: rounded(seeded(i, 4) * 100 - 50),
+        duration: rounded(8 + seeded(i, 5) * 12),
+        delay: rounded(seeded(i, 6) * 10),
       })),
     []
   )
@@ -80,6 +81,7 @@ export function CinematicBackground() {
         {particles.map((particle, i) => (
           <motion.div
             key={i}
+            suppressHydrationWarning
             className="absolute rounded-full bg-cyan-400"
             style={{
               left: particle.left,

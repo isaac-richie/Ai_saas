@@ -46,8 +46,8 @@ export default async function FastVideoPage() {
               Prompt → generate → ship. No project setup required.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-2 text-xs text-white/45">
+          <div className="flex max-w-full items-center gap-3">
+            <div className="flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-2 text-xs text-white/45">
               <Film className="h-3.5 w-3.5 text-cyan-300/50" />
               <span>Kling 2.5</span>
               <span className="text-white/15">·</span>

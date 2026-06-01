@@ -120,6 +120,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         pathname.startsWith("/login") ||
         pathname.startsWith("/signup") ||
         pathname.startsWith("/verify") ||
+        pathname.startsWith("/forgot-password") ||
+        pathname.startsWith("/reset-password") ||
         pathname.startsWith("/auth/")
 
     const isPublicRoute = pathname === "/"

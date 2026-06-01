@@ -12,12 +12,14 @@ export function InnerCircleCTA() {
   const [email, setEmail] = useState("")
   const [name, setName] = useState("")
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [errorMessage, setErrorMessage] = useState("Something went wrong. Try again.")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim()) return
 
     setStatus("loading")
+    setErrorMessage("Something went wrong. Try again.")
     try {
       const res = await fetch("/api/inner-circle", {
         method: "POST",
@@ -28,9 +30,12 @@ export function InnerCircleCTA() {
       if (res.ok) {
         setStatus("success")
       } else {
+        const payload = (await res.json().catch(() => null)) as { error?: string } | null
+        setErrorMessage(payload?.error || "Could not join right now. Please try again.")
         setStatus("error")
       }
     } catch {
+      setErrorMessage("Network issue. Check your connection and try again.")
       setStatus("error")
     }
   }
@@ -100,7 +105,7 @@ export function InnerCircleCTA() {
                 )}
               </button>
               {status === "error" && (
-                <p className="text-xs text-red-400">Something went wrong. Try again.</p>
+                <p className="text-xs text-red-400">{errorMessage}</p>
               )}
             </form>
           )}
