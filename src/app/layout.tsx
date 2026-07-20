@@ -5,8 +5,15 @@ import { AppShell } from "@/interface/components/layout/AppShell";
 import { Toaster } from "@/interface/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "AI Cinematography Dashboard",
-  description: "Production-ready dashboard for AI Cinematography",
+  title: {
+    default: "Visiowave Studios",
+    template: "%s | Visiowave Studios",
+  },
+  description: "Prompt to cinematic video. Direct, generate, and ship AI film in one studio.",
+  icons: {
+    icon: "/icon.jpeg",
+    apple: "/apple-icon.jpeg",
+  },
 };
 
 export default function RootLayout({

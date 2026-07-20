@@ -30,7 +30,7 @@ import {
   getKieVideoModelFamily,
   resolveKieVideoModelByFamily,
 } from "@/core/config/kie-video-models"
-import { generateFastVideo, pollFastVideoStatus, routeFastVideoToScene } from "@/core/actions/fast-video"
+import { generateFastVideo, pollFastVideoStatus, routeFastVideoToScene, persistFastVideoMedia } from "@/core/actions/fast-video"
 import {
   getFastVideoStoryboard,
   replaceFastVideoStoryboard,
@@ -746,6 +746,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     })
   }
 
+  // Provider URLs expire; upgrade a saved clip to a durable storage URL in the
+  // background so the scratch list keeps playing after expiry. Best-effort.
+  const persistClipMedia = useCallback(async (clipId: string, url: string) => {
+    if (!url || url.includes("/storage/v1/object/public/renders/")) return
+    try {
+      const res = await persistFastVideoMedia(url)
+      const durable = res.data?.url
+      if (!durable || durable === url) return
+      setSavedClips((prev) => prev.map((item) => (item.id === clipId ? { ...item, url: durable } : item)))
+      setVideoUrl((prev) => (prev === url ? durable : prev))
+    } catch {
+      // keep the temp URL; preview players already fall back gracefully
+    }
+  }, [])
+
   const addToStoryboard = (input: {
     sourceClipId?: string | null
     url: string
@@ -1402,8 +1417,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           setStatusMessage("Complete")
           setVideoUrl(nextUrl)
           setUseDirectVideoUrl(false)
+          const completedClipId = crypto.randomUUID()
           saveClip({
-            id: crypto.randomUUID(),
+            id: completedClipId,
             taskId,
             url: nextUrl,
             subject: snapshot.subject,
@@ -1414,6 +1430,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             modelFamilyId: snapshot.modelFamilyId,
             createdAt: new Date().toISOString(),
           })
+          void persistClipMedia(completedClipId, nextUrl)
           clearInterval(interval)
           toast.success("Fast video ready")
         } else if (nextStatus === "failed") {
@@ -1434,7 +1451,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }, 5000)
 
     return () => clearInterval(interval)
-  }, [taskId, status, traceId])
+  }, [taskId, status, traceId, persistClipMedia])
 
   const handleUploadReference = async (file?: File | null) => {
     if (!file) return
@@ -1552,8 +1569,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         setUseDirectVideoUrl(false)
         setStatus("completed")
         setStatusMessage("Complete")
+        const completedClipId = crypto.randomUUID()
         saveClip({
-          id: crypto.randomUUID(),
+          id: completedClipId,
           taskId: res.data.taskId || null,
           url: res.data.url,
           subject: subject.trim(),
@@ -1564,6 +1582,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           modelFamilyId,
           createdAt: new Date().toISOString(),
         })
+        void persistClipMedia(completedClipId, res.data.url)
         toast.success("Fast video ready")
         return
       }

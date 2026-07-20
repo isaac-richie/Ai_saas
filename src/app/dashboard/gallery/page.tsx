@@ -23,6 +23,7 @@ export default async function GalleryPage(props: GalleryPageProps) {
     const projectId = searchParams?.projectId;
     const result = await getGalleryAssets(projectId);
     const assets = result.data || [];
+    const pendingIds = result.pendingIds || [];
     const hasError = typeof result.error === "string";
     const projectLabel = projectId ? assets[0]?.projectName || "Selected Project" : null;
     const projectsResult = await getProjects();
@@ -78,7 +79,7 @@ export default async function GalleryPage(props: GalleryPageProps) {
                             <div className="flex items-center justify-between">
                                 <h2 className="text-lg font-semibold text-white">Asset Library ({assets.length})</h2>
                             </div>
-                            <MediaGallery assets={assets} projectOptions={projectOptions} />
+                            <MediaGallery assets={assets} projectOptions={projectOptions} pendingIds={pendingIds} />
                         </div>
                     )}
 

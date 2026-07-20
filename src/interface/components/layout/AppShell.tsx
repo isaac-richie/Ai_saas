@@ -15,6 +15,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const [motionReduced, setMotionReduced] = useState(false)
     const pathname = usePathname()
     const mainRef = useRef<HTMLElement>(null)
+    const shellRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         if (typeof window !== "undefined" && window.innerWidth >= 768) {
@@ -99,7 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         yoyo: true,
                         ease: "sine.inOut",
                     })
-                }, mainRef)
+                }, shellRef)
 
                 revert = () => {
                     observer.disconnect()
@@ -128,7 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     if (isAuthRoute || isPublicRoute) {
         return (
-            <div className="relative min-h-screen bg-[#050505] text-white">
+            <div ref={shellRef} className="relative min-h-screen bg-[#050505] text-white">
                 <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
                     {!isAuthRoute && (
                         <>
@@ -159,7 +160,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <div className="relative min-h-screen bg-[#050505] text-white">
+        <div ref={shellRef} className="relative min-h-screen bg-[#050505] text-white">
             <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-lg focus:bg-black focus:px-3 focus:py-2 focus:text-white">
                 Skip to main content
             </a>

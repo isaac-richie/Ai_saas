@@ -1,10 +1,24 @@
 import { NextRequest } from "next/server";
 import { sanitizeFilename } from "@/lib/download-filename";
 
-const ALLOWED_HOSTS = new Set([
-    "tempfile.aiquickdraw.com",
-    "oaidalleapiprodscus.blob.core.windows.net",
-]);
+function supabaseHost(): string | null {
+    try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        return url ? new URL(url).hostname : null;
+    } catch {
+        return null;
+    }
+}
+
+const ALLOWED_HOSTS = new Set(
+    [
+        "tempfile.aiquickdraw.com",
+        "oaidalleapiprodscus.blob.core.windows.net",
+        // Persisted renders live in Supabase Storage; allow proxying them so
+        // downloads can force a filename via Content-Disposition.
+        supabaseHost(),
+    ].filter((host): host is string => Boolean(host))
+);
 
 export async function GET(request: NextRequest) {
     const url = request.nextUrl.searchParams.get("url");

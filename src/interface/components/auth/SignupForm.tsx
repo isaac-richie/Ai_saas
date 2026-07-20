@@ -15,6 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { motion, Variants, AnimatePresence } from "framer-motion"
 import { MagneticButton } from "@/interface/components/ui/MagneticButton"
 import { humanizeAuthError } from "@/interface/components/auth/auth-error-message"
+import { AnimatedBrandMark } from "@/interface/components/branding/AnimatedBrandMark"
 
 const containerVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
@@ -179,7 +180,8 @@ export function SignupForm() {
             NEW STUDIO REGISTRATION
           </motion.div>
 
-          <motion.div variants={itemVariants} className="space-y-2">
+          <motion.div variants={itemVariants} className="space-y-3">
+            <AnimatedBrandMark className="h-12 w-12" />
             <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-white font-display">Create Account</h2>
             <p className="text-xs sm:text-sm text-white/40 tracking-wide font-light font-sans">
               Set up your workspace and start building shot-driven productions.

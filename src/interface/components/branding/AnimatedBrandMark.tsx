@@ -1,45 +1,31 @@
 "use client"
 
+import Image from "next/image"
 import { motion } from "framer-motion"
+import { cn } from "@/core/utils"
 
 export function AnimatedBrandMark({ className = "h-9 w-9" }: { className?: string }) {
   return (
-    <motion.svg
-      viewBox="0 0 120 120"
-      className={className}
-      initial={{ opacity: 0, scale: 0.9 }}
+    <motion.span
+      className={cn(
+        "relative inline-flex shrink-0 overflow-hidden rounded-xl border border-cyan-300/15 bg-black shadow-[0_0_28px_-12px_rgba(34,211,238,0.9)] ring-1 ring-white/10",
+        className
+      )}
+      initial={{ opacity: 0, scale: 0.92 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.45, ease: "easeOut" }}
-      aria-hidden="true"
+      role="img"
+      aria-label="Visiowave"
     >
-      <defs>
-        <linearGradient id="brandStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#14F1E6" />
-          <stop offset="55%" stopColor="#2FA6FF" />
-          <stop offset="100%" stopColor="#FF8A1F" />
-        </linearGradient>
-      </defs>
-      <motion.path
-        d="M12 60 Q42 20 60 20 Q78 20 108 60 Q78 100 60 100 Q42 100 12 60 Z"
-        fill="none"
-        stroke="url(#brandStroke)"
-        strokeWidth="5"
-        initial={{ pathLength: 0 }}
-        animate={{ pathLength: 1 }}
-        transition={{ duration: 1.2, ease: "easeOut" }}
+      <Image
+        src="/visiowave-icon.jpeg"
+        alt=""
+        fill
+        sizes="48px"
+        priority
+        className="scale-[1.5] object-cover"
       />
-      <motion.path
-        d="M26 60 H38 L46 45 L54 76 L62 34 L70 84 L78 44 L86 64 L94 60"
-        fill="none"
-        stroke="url(#brandStroke)"
-        strokeWidth="5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        initial={{ pathLength: 0 }}
-        animate={{ pathLength: 1 }}
-        transition={{ duration: 1.1, delay: 0.25, ease: "easeOut" }}
-      />
-    </motion.svg>
+      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2),transparent_34%)]" />
+    </motion.span>
   )
 }
-

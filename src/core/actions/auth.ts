@@ -10,6 +10,7 @@ import {
     SignupInput,
 } from "@/core/types/auth";
 import { redirect } from "next/navigation";
+import { sanitizeNextPath } from "@/core/utils/security/safe-redirect";
 
 function getAppUrl() {
     return (
@@ -32,11 +33,7 @@ export async function login(data: LoginInput, nextPath?: string) {
         return { error: error.message };
     }
 
-    const destination =
-        typeof nextPath === "string" && nextPath.startsWith("/")
-            ? nextPath
-            : "/dashboard";
-    redirect(destination);
+    redirect(sanitizeNextPath(nextPath, "/dashboard"));
 }
 
 export async function signup(data: SignupInput) {

@@ -2,11 +2,12 @@ import Link from "next/link"
 import { Check, Github, Linkedin, Sparkles, Youtube } from "lucide-react"
 import { LandingNavbar } from "@/interface/components/landing/LandingNavbar"
 import { LandingSpotlight } from "@/interface/components/landing/LandingSpotlight"
-import { HeroEntrance } from "@/interface/components/landing/HeroEntrance"
 import { FeatureGrid } from "@/interface/components/landing/FeatureGrid"
-import { ModelShowcase } from "@/interface/components/landing/ModelShowcase"
+import { HorizontalModels } from "@/interface/components/landing/HorizontalModels"
 import { ProductDemo } from "@/interface/components/landing/ProductDemo"
 import { InnerCircleCTA } from "@/interface/components/landing/InnerCircleCTA"
+import { ScrollProgressBar } from "@/interface/components/landing/ScrollProgressBar"
+import { HeroParallax } from "@/interface/components/landing/HeroParallax"
 import { createClient } from "@/infrastructure/supabase/server"
 
 export const dynamic = "force-dynamic"
@@ -28,7 +29,8 @@ export default async function Home() {
   const isAuthenticated = Boolean(user)
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#050505] pb-24 text-white selection:bg-cyan-500/25">
+    <div className="relative min-h-screen overflow-x-clip bg-[#050505] pb-24 text-white selection:bg-cyan-500/25">
+      <ScrollProgressBar />
       {/* Grid lines */}
       <div
         className="pointer-events-none absolute inset-0 z-0 opacity-[0.07]"
@@ -47,7 +49,6 @@ export default async function Home() {
 
       {/* Ambient glow */}
       <LandingSpotlight />
-      <HeroEntrance />
       <div className="pointer-events-none absolute -left-[12%] top-[-10%] z-0 h-[520px] w-[520px] rounded-full bg-cyan-400/10 blur-[160px]" />
       <div className="pointer-events-none absolute right-[-10%] top-[8%] z-0 h-[420px] w-[420px] rounded-full bg-orange-400/10 blur-[160px]" />
       <div className="neon-aurora pointer-events-none absolute -left-20 top-10 z-0 h-[44vh] w-[46vw]" />
@@ -59,6 +60,7 @@ export default async function Home() {
           {/* ═══════════════════════════════════════════
               HERO
           ═══════════════════════════════════════════ */}
+          <HeroParallax>
           <section className="mx-auto max-w-4xl pt-6 text-center sm:pt-10">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-4 py-1.5 text-[11px] text-white/50">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
@@ -114,6 +116,7 @@ export default async function Home() {
               </div>
             </div>
           </section>
+          </HeroParallax>
 
           {/* ═══════════════════════════════════════════
               PRODUCT DEMO
@@ -144,14 +147,7 @@ export default async function Home() {
               MODELS
           ═══════════════════════════════════════════ */}
           <section id="models" className="mt-24 scroll-mt-24 sm:mt-32">
-            <SectionLabel>AI Models</SectionLabel>
-            <h2 className="mb-3 text-2xl font-medium tracking-tight sm:text-3xl">
-              Pick your engine.
-            </h2>
-            <p className="mb-10 max-w-xl text-sm text-white/40">
-              Three world-class video models, one studio. Switch per shot based on what the scene demands.
-            </p>
-            <ModelShowcase />
+            <HorizontalModels />
           </section>
 
           {/* ═══════════════════════════════════════════

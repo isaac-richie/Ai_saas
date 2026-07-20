@@ -9,7 +9,6 @@ import {
     LayoutDashboard,
     Settings,
     LogOut,
-    MenuSquare,
     Clapperboard,
     Images,
     Video,
@@ -17,6 +16,7 @@ import {
     Users,
     Lock,
 } from "lucide-react"
+import { AnimatedBrandMark } from "@/interface/components/branding/AnimatedBrandMark"
 import { logout } from "@/core/actions/auth"
 import { STUDIO_ENABLED } from "@/core/config/feature-flags"
 
@@ -48,9 +48,10 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         >
             <div className="flex h-16 items-center border-b border-white/10 px-4">
                 <Link href="/dashboard" className="flex items-center gap-2.5 font-bold" onClick={() => setIsOpen(false)}>
-                    <div className="grid size-8 place-items-center rounded-xl bg-white/10 text-white">
-                        <MenuSquare className="size-4" />
-                    </div>
+                    <AnimatedBrandMark className="h-8 w-8" />
+                    <span className={cn("text-sm font-semibold tracking-tight text-white transition-all", !isOpen && "md:hidden")}>
+                        Visiowave
+                    </span>
                 </Link>
             </div>
 

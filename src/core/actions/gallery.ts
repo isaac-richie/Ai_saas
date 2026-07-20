@@ -211,9 +211,46 @@ export async function moveGalleryAssetsToProject(optionIds: string[], targetProj
     return { data: { movedCount, targetProjectId } };
 }
 
+function rowToAsset(row: unknown): GalleryAsset | null {
+    if (!isRecord(row)) return null;
+
+    const id = getString(row.id);
+    const outputUrl = getString(row.output_url);
+    const parameters = isRecord(row.parameters) ? row.parameters : null;
+    const shot = isRecord(row.shots) ? row.shots : null;
+    const scene = shot && isRecord(shot.scenes) ? shot.scenes : null;
+    const project = scene && isRecord(scene.projects) ? scene.projects : null;
+
+    if (!id || !shot || !scene || !project) return null;
+    if (!outputUrl || outputUrl === "pending_generation") return null;
+    if (!/^https?:\/\//i.test(outputUrl) && !outputUrl.startsWith("/storage/")) return null;
+
+    const paramOutputType = getString(parameters?.output_type);
+    const isVideo =
+        paramOutputType === "video"
+        || outputUrl.includes(".mp4")
+        || outputUrl.includes(".webm")
+        || outputUrl.includes("tempfile.aiquickdraw.com/p/");
+
+    return {
+        id,
+        url: outputUrl,
+        type: isVideo ? "video" : "image",
+        prompt: getString(row.prompt) ?? "",
+        shotName: getString(shot.name) ?? "Untitled Shot",
+        shotType: getString(shot.shot_type) ?? undefined,
+        shotId: getString(shot.id) ?? undefined,
+        projectId: getString(project.id) ?? "",
+        projectName: getString(project.name) ?? "Untitled Project",
+        sceneId: getString(scene.id) ?? "",
+        sceneName: getString(scene.name) ?? "Untitled Scene",
+        createdAt: getString(row.created_at) ?? "",
+    };
+}
+
 export async function getGalleryAssets(projectId?: string) {
     const { supabase, user } = await resolveGalleryUser();
-    if (!user) return { data: [] as GalleryAsset[] };
+    if (!user) return { data: [] as GalleryAsset[], pendingIds: [] as string[] };
 
     let query = supabase
         .from("shot_generations")
@@ -250,129 +287,61 @@ export async function getGalleryAssets(projectId?: string) {
     const { data, error } = await query
         .order("created_at", { ascending: false })
         .limit(1200);
-    if (error) return { error: error.message };
+    if (error) return { error: error.message, data: [] as GalleryAsset[], pendingIds: [] as string[] };
 
     const assets: GalleryAsset[] = [];
+    const pendingIds: string[] = [];
     const rows = Array.isArray(data) ? data : [];
 
-    const pendingRows: Array<{
-        id: string;
-        outputUrl: string | null;
-    }> = [];
-
+    // NOTE: Provider polling is intentionally NOT done here. Running external
+    // status checks (and remote media downloads) during the page render blocked
+    // first paint for seconds. Pending ids are surfaced to the client, which
+    // refreshes them in the background via pollPendingGalleryAssets().
     for (const row of rows) {
         if (!isRecord(row)) continue;
 
         const id = getString(row.id);
+        if (!id) continue;
+
         const status = getString(row.status);
         const outputUrl = getString(row.output_url);
-        const parameters = isRecord(row.parameters) ? row.parameters : null;
-        const shot = isRecord(row.shots) ? row.shots : null;
-        const scene = shot && isRecord(shot.scenes) ? shot.scenes : null;
-        const project = scene && isRecord(scene.projects) ? scene.projects : null;
+        const isPending =
+            status === "processing" || status === "pending" || outputUrl === "pending_generation";
 
-        if (!id || !shot || !scene || !project) continue;
-
-        const isPending = status === "processing" || status === "pending" || outputUrl === "pending_generation";
         if (isPending) {
-            pendingRows.push({ id, outputUrl });
+            pendingIds.push(id);
             continue;
         }
 
-        if (!outputUrl || outputUrl === "pending_generation") continue;
-        if (!/^https?:\/\//i.test(outputUrl) && !outputUrl.startsWith("/storage/")) continue;
-
-        const paramOutputType = getString(parameters?.output_type);
-        const isVideo =
-            paramOutputType === "video"
-            || outputUrl.includes(".mp4")
-            || outputUrl.includes(".webm")
-            || outputUrl.includes("tempfile.aiquickdraw.com/p/");
-
-        assets.push({
-            id,
-            url: outputUrl,
-            type: isVideo ? "video" : "image",
-            prompt: getString(row.prompt) ?? "",
-            shotName: getString(shot.name) ?? "Untitled Shot",
-            shotType: getString(shot.shot_type) ?? undefined,
-            shotId: getString(shot.id) ?? undefined,
-            projectId: getString(project.id) ?? "",
-            projectName: getString(project.name) ?? "Untitled Project",
-            sceneId: getString(scene.id) ?? "",
-            sceneName: getString(scene.name) ?? "Untitled Scene",
-            createdAt: getString(row.created_at) ?? "",
-        });
-    }
-
-    if (pendingRows.length > 0) {
-        const MAX_POLLS = 12;
-        const polled = await Promise.allSettled(
-            pendingRows.slice(0, MAX_POLLS).map(async (pending) => {
-                const pollResult = await pollShotStatus(pending.id);
-                return {
-                    id: pending.id,
-                    url: pollResult.data?.url || pending.outputUrl,
-                    status: pollResult.data?.status || null,
-                    error: pollResult.error || null,
-                };
-            })
-        );
-
-        const resolvedMap = new Map<string, { url: string | null; status: string | null; error: string | null }>();
-        for (const item of polled) {
-            if (item.status === "fulfilled") {
-                resolvedMap.set(item.value.id, {
-                    url: item.value.url,
-                    status: item.value.status,
-                    error: item.value.error,
-                });
-            }
-        }
-
-        for (const row of rows) {
-            if (!isRecord(row)) continue;
-            const id = getString(row.id);
-            if (!id || !resolvedMap.has(id)) continue;
-
-            const shot = isRecord(row.shots) ? row.shots : null;
-            const scene = shot && isRecord(shot.scenes) ? shot.scenes : null;
-            const project = scene && isRecord(scene.projects) ? scene.projects : null;
-            if (!shot || !scene || !project) continue;
-
-            const parameters = isRecord(row.parameters) ? row.parameters : null;
-            const resolved = resolvedMap.get(id);
-            const outputUrl = resolved?.url || null;
-            if (!outputUrl || outputUrl === "pending_generation") continue;
-            if (!/^https?:\/\//i.test(outputUrl) && !outputUrl.startsWith("/storage/")) continue;
-
-            const paramOutputType = getString(parameters?.output_type);
-            const isVideo =
-                paramOutputType === "video"
-                || outputUrl.includes(".mp4")
-                || outputUrl.includes(".webm")
-                || outputUrl.includes("tempfile.aiquickdraw.com/p/");
-
-            assets.push({
-                id,
-                url: outputUrl,
-                type: isVideo ? "video" : "image",
-                prompt: getString(row.prompt) ?? "",
-                shotName: getString(shot.name) ?? "Untitled Shot",
-                shotType: getString(shot.shot_type) ?? undefined,
-                shotId: getString(shot.id) ?? undefined,
-                projectId: getString(project.id) ?? "",
-                projectName: getString(project.name) ?? "Untitled Project",
-                sceneId: getString(scene.id) ?? "",
-                sceneName: getString(scene.name) ?? "Untitled Scene",
-                createdAt: getString(row.created_at) ?? "",
-            });
-        }
+        const asset = rowToAsset(row);
+        if (asset) assets.push(asset);
     }
 
     const deduped = Array.from(
         new Map(assets.map((asset) => [asset.id, asset])).values()
     );
     deduped.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    return { data: deduped };
+    return { data: deduped, pendingIds };
+}
+
+/**
+ * Polls a bounded set of still-pending gallery generations against their
+ * providers. Called from the client after first paint so the gallery page
+ * itself never blocks on external calls. Returns whether any row changed so
+ * the client can decide to refresh.
+ */
+export async function pollPendingGalleryAssets(ids: string[]) {
+    const { user } = await resolveGalleryUser();
+    if (!user) return { error: "Unauthorized", changed: false };
+
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean))).slice(0, 12);
+    if (uniqueIds.length === 0) return { changed: false };
+
+    const results = await Promise.allSettled(uniqueIds.map((id) => pollShotStatus(id)));
+
+    const changed = results.some(
+        (result) => result.status === "fulfilled" && Boolean(result.value.data?.updated)
+    );
+
+    return { changed };
 }

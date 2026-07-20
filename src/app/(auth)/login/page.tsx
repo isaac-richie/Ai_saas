@@ -1,4 +1,5 @@
 import { LoginForm } from "@/interface/components/auth/LoginForm";
+import { sanitizeNextPath } from "@/core/utils/security/safe-redirect";
 import { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,6 @@ export default async function LoginPage({
 }) {
     const resolved = await searchParams;
     const nextValue = Array.isArray(resolved?.next) ? resolved?.next[0] : resolved?.next;
-    const nextPath = nextValue?.startsWith("/") ? nextValue : "/dashboard";
+    const nextPath = sanitizeNextPath(nextValue, "/dashboard");
     return <LoginForm nextPath={nextPath} />;
 }

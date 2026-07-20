@@ -503,6 +503,29 @@ export async function pollFastVideoStatus(taskId: string, traceId?: string) {
   }
 }
 
+/**
+ * Copies a still-ephemeral provider video URL into durable storage. Called
+ * from the client in the background right after a clip completes, so the local
+ * scratch list keeps working after the provider URL expires. Best-effort: on
+ * any failure the original URL is returned unchanged.
+ */
+export async function persistFastVideoMedia(url: string) {
+  if (!url?.trim()) return { error: "Missing url" }
+  if (url.includes("/storage/v1/object/public/renders/")) return { data: { url } }
+
+  const { supabase, user } = await ensureSession()
+  if (!user) return { error: "Unauthorized" }
+
+  const durable = await persistRemoteMedia(supabase, {
+    url,
+    userId: user.id,
+    shotId: `scratch/${crypto.randomUUID()}`,
+    kind: "video",
+  })
+
+  return { data: { url: durable || url } }
+}
+
 export async function promoteFastVideoToScene(input: {
   sceneId: string
   name?: string
@@ -562,12 +585,23 @@ export async function routeFastVideoToScene(input: {
   const kie = await resolveKieConfig(user.id)
 
   const registerCompletedGeneration = async (shotId: string) => {
+    // Poll-resolved fast videos carry an ephemeral provider URL that expires.
+    // Persist to durable storage now (at promote/save time) so the gallery and
+    // scene keep working after the provider URL is gone.
+    const durableUrl =
+      (await persistRemoteMedia(supabase, {
+        url: input.outputUrl,
+        userId: user.id,
+        shotId,
+        kind: "video",
+      })) || input.outputUrl
+
     const { error: generationError } = await supabase.from("shot_generations").insert({
       shot_id: shotId,
       prompt: input.finalPrompt,
       provider_id: kie.data?.providerId || null,
       status: "completed",
-      output_url: input.outputUrl,
+      output_url: durableUrl,
       parameters: settings,
     })
 
@@ -575,7 +609,7 @@ export async function routeFastVideoToScene(input: {
       return { error: generationError.message }
     }
 
-    return { data: true }
+    return { data: { durableUrl } }
   }
 
   if (input.mode === "replace_shot") {

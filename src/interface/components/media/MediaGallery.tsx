@@ -5,10 +5,10 @@ import { Card } from "@/interface/components/ui/card"
 import { Input } from "@/interface/components/ui/input"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/interface/components/ui/dialog" // We can reuse Dialog or make a specific Preview component
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
-import { Play, ImageIcon, Download, Copy, Trash2, Loader2 } from "lucide-react"
+import { Play, ImageIcon, ImageOff, Download, Copy, Trash2, Loader2 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
-import { deleteGalleryAssets, moveGalleryAssetsToProject } from "@/core/actions/gallery"
+import { deleteGalleryAssets, moveGalleryAssetsToProject, pollPendingGalleryAssets } from "@/core/actions/gallery"
 import { queueGalleryExport } from "@/core/actions/exports"
 import { toast } from "sonner"
 import { appendShotToSequence, VideoSequence } from "@/core/actions/sequences"
@@ -35,9 +35,10 @@ export interface MediaAsset {
 interface MediaGalleryProps {
     assets: MediaAsset[]
     projectOptions?: { id: string; name: string }[]
+    pendingIds?: string[]
 }
 
-export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps) {
+export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: MediaGalleryProps) {
     const router = useRouter()
     const [items, setItems] = useState<MediaAsset[]>(assets)
     const [query, setQuery] = useState("")
@@ -59,6 +60,41 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
     useEffect(() => {
         setItems(assets)
     }, [assets])
+
+    // Resolve still-generating assets in the background (never during page render).
+    // Refreshes the route when a provider reports progress, then stops after a few
+    // attempts so a permanently-stuck job can't poll forever.
+    const pendingKey = pendingIds.join(",")
+    useEffect(() => {
+        if (pendingIds.length === 0) return
+        let cancelled = false
+        let attempts = 0
+        let timer: ReturnType<typeof setTimeout>
+
+        const tick = async () => {
+            attempts += 1
+            try {
+                const res = await pollPendingGalleryAssets(pendingIds)
+                if (cancelled) return
+                if (res.changed) {
+                    router.refresh()
+                    return
+                }
+            } catch {
+                // best-effort; retry on the next tick
+            }
+            if (!cancelled && attempts < 5) {
+                timer = setTimeout(tick, 6000)
+            }
+        }
+
+        timer = setTimeout(tick, 3000)
+        return () => {
+            cancelled = true
+            clearTimeout(timer)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingKey, router])
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
@@ -84,6 +120,11 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
 
     const getPreviewUrl = (asset: MediaAsset) => {
         if (asset.type !== "video") return asset.url
+        // Persisted renders (Supabase Storage) and same-origin media stream fine
+        // directly with range support — only proxy remote provider URLs.
+        if (asset.url.startsWith("/") || asset.url.includes("/storage/v1/object/public/")) {
+            return asset.url
+        }
         return `/api/media/proxy?url=${encodeURIComponent(asset.url)}`
     }
 
@@ -266,6 +307,17 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
     }
 
     if (items.length === 0) {
+        if (pendingIds.length > 0) {
+            return (
+                <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-cyan-300/70" />
+                    <h3 className="mt-4 text-sm font-medium text-white">
+                        {pendingIds.length} shot{pendingIds.length > 1 ? "s" : ""} generating…
+                    </h3>
+                    <p className="text-xs text-white/50">This updates automatically when they finish.</p>
+                </div>
+            )
+        }
         return (
             <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
                 <ImageIcon className="h-8 w-8 text-white/35" />
@@ -303,6 +355,12 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                     ))}
                 </div>
                 <div className="ml-auto flex flex-wrap gap-2 text-xs text-white/50">
+                    {pendingIds.length > 0 && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-cyan-100">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            {pendingIds.length} generating
+                        </span>
+                    )}
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Total: {counts.total}</span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Images: {counts.images}</span>
                     <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Videos: {counts.videos}</span>
@@ -418,29 +476,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                             {asset.type}
                                         </div>
                                         <div className={asset.type === "video" ? "relative aspect-video w-full bg-black" : "relative aspect-[4/5] w-full"}>
-                                            {asset.type === 'image' ? (
-                                                <img
-                                                    src={previewUrl}
-                                                    alt={asset.prompt}
-                                                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                                                    loading="lazy"
-                                                />
-                                            ) : (
-                                                <div className="relative h-full w-full bg-black">
-                                                    <video
-                                                        src={previewUrl}
-                                                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                                                        autoPlay
-                                                        muted
-                                                        loop
-                                                        playsInline
-                                                        preload="metadata"
-                                                    />
-                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
-                                                        <Play className="h-8 w-8 text-white opacity-80 drop-shadow-md" />
-                                                    </div>
-                                                </div>
-                                            )}
+                                            <AssetMedia key={previewUrl} asset={asset} previewUrl={previewUrl} variant="thumb" />
                                             <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-black/15 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
                                                 <div className="min-w-0">
                                                     <p className="line-clamp-1 text-xs font-medium text-white">{asset.shotName}</p>
@@ -477,19 +513,7 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                                         className="grid h-[min(88vh,820px)] grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(340px,3fr)]"
                                     >
                                         <div className="relative flex items-center justify-center overflow-hidden bg-black">
-                                            {asset.type === "image" ? (
-                                                <img src={previewUrl} alt={asset.prompt} className="h-full w-full object-contain" />
-                                            ) : (
-                                                <video
-                                                    src={previewUrl}
-                                                    className="h-full w-full object-contain"
-                                                    controls
-                                                    autoPlay
-                                                    loop
-                                                    playsInline
-                                                    preload="metadata"
-                                                />
-                                            )}
+                                            <AssetMedia key={previewUrl} asset={asset} previewUrl={previewUrl} variant="full" />
                                             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4">
                                                 <div className="inline-flex items-center rounded-full border border-white/15 bg-black/55 px-2.5 py-1 text-[11px] text-white/75 backdrop-blur">
                                                     {asset.type.toUpperCase()} {asset.shotType ? `• ${asset.shotType}` : ""}
@@ -651,5 +675,86 @@ export function MediaGallery({ assets, projectOptions = [] }: MediaGalleryProps)
                 </div>
             )}
         </div>
+    )
+}
+
+function BrokenMedia() {
+    return (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/[0.03] text-white/40">
+            <ImageOff className="h-6 w-6" />
+            <span className="px-4 text-center text-[10px] uppercase tracking-[0.16em]">Media unavailable</span>
+        </div>
+    )
+}
+
+function AssetMedia({
+    asset,
+    previewUrl,
+    variant,
+}: {
+    asset: MediaAsset
+    previewUrl: string
+    variant: "thumb" | "full"
+}) {
+    // Keyed by previewUrl at the call site, so a resolved pending asset remounts
+    // this and resets error/loading state automatically.
+    const [errored, setErrored] = useState(false)
+    const [loaded, setLoaded] = useState(false)
+
+    if (errored) return <BrokenMedia />
+
+    if (variant === "full") {
+        return asset.type === "image" ? (
+            <img
+                src={previewUrl}
+                alt={asset.prompt}
+                className="h-full w-full object-contain"
+                onError={() => setErrored(true)}
+            />
+        ) : (
+            <video
+                src={previewUrl}
+                className="h-full w-full object-contain"
+                controls
+                autoPlay
+                loop
+                playsInline
+                preload="metadata"
+                onError={() => setErrored(true)}
+            />
+        )
+    }
+
+    return (
+        <>
+            {!loaded && <div className="absolute inset-0 animate-pulse bg-white/[0.04]" />}
+            {asset.type === "image" ? (
+                <img
+                    src={previewUrl}
+                    alt={asset.prompt}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    loading="lazy"
+                    onLoad={() => setLoaded(true)}
+                    onError={() => setErrored(true)}
+                />
+            ) : (
+                <div className="relative h-full w-full bg-black">
+                    <video
+                        src={previewUrl}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="metadata"
+                        onLoadedData={() => setLoaded(true)}
+                        onError={() => setErrored(true)}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
+                        <Play className="h-8 w-8 text-white opacity-80 drop-shadow-md" />
+                    </div>
+                </div>
+            )}
+        </>
     )
 }
