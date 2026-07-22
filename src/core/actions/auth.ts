@@ -20,6 +20,21 @@ function getAppUrl() {
     );
 }
 
+/**
+ * Supabase's client rejects (rather than resolving with `{ error }`) on
+ * transport-level failures like DNS/timeout. Without this, those throws go
+ * uncaught inside the server action and the user sees no feedback at all.
+ */
+async function withNetworkFallback<T extends { error: { message: string } | null }>(
+    promise: Promise<T>
+): Promise<T> {
+    try {
+        return await promise;
+    } catch {
+        return { error: { message: "fetch failed" } } as T;
+    }
+}
+
 export async function login(data: LoginInput, nextPath?: string) {
     const result = loginSchema.safeParse(data);
     if (!result.success) {
@@ -27,7 +42,7 @@ export async function login(data: LoginInput, nextPath?: string) {
     }
 
     const supabase = await createClient();
-    const { error } = await supabase.auth.signInWithPassword(result.data);
+    const { error } = await withNetworkFallback(supabase.auth.signInWithPassword(result.data));
 
     if (error) {
         return { error: error.message };
@@ -43,12 +58,12 @@ export async function signup(data: SignupInput) {
     }
 
     const supabase = await createClient();
-    const { error } = await supabase.auth.signUp({
+    const { error } = await withNetworkFallback(supabase.auth.signUp({
         ...result.data,
         options: {
             emailRedirectTo: `${getAppUrl()}/auth/callback`,
         },
-    });
+    }));
 
     if (error) {
         return { error: error.message };
@@ -64,9 +79,9 @@ export async function requestPasswordReset(data: ForgotPasswordInput) {
     }
 
     const supabase = await createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(result.data.email, {
+    const { error } = await withNetworkFallback(supabase.auth.resetPasswordForEmail(result.data.email, {
         redirectTo: `${getAppUrl()}/auth/callback?next=/reset-password`,
-    });
+    }));
 
     if (error) {
         return { error: error.message };

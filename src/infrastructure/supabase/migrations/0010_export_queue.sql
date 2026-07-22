@@ -33,11 +33,13 @@ create index if not exists idx_export_job_items_job_id on public.export_job_item
 alter table public.export_jobs enable row level security;
 alter table public.export_job_items enable row level security;
 
-create policy if not exists "Users manage export jobs" on public.export_jobs
+drop policy if exists "Users manage export jobs" on public.export_jobs;
+create policy "Users manage export jobs" on public.export_jobs
   for all using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
-create policy if not exists "Users manage export items via job" on public.export_job_items
+drop policy if exists "Users manage export items via job" on public.export_job_items;
+create policy "Users manage export items via job" on public.export_job_items
   for all using (
     exists (
       select 1
