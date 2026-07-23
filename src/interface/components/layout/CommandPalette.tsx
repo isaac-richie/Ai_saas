@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogTitle } from "@/interface/components/ui/dialog"
 import { Input } from "@/interface/components/ui/input"
 import { Button } from "@/interface/components/ui/button"
-import { Command, Film, FolderKanban, GalleryHorizontalEnd, Sparkles, Video, Wand2 } from "lucide-react"
+import { Command, Film, FolderKanban, GalleryHorizontalEnd, Sparkles, Users, Video, Wand2 } from "lucide-react"
 
 type CommandItem = {
   id: string
@@ -42,6 +42,7 @@ export function CommandPalette() {
       { id: "studio", label: "Open Studio", hint: "Scene workspace", keywords: "studio scene shots", run: () => router.push("/dashboard/studio") },
       { id: "gallery", label: "Open Gallery", hint: "Assets", keywords: "gallery assets images videos", run: () => router.push("/dashboard/gallery") },
       { id: "fast-video", label: "Open Fast Video", hint: "Direct video", keywords: "fast video kie generate", run: () => router.push("/dashboard/fast-video") },
+      { id: "inner-circle", label: "Open Inner Circle", hint: "Beta access", keywords: "inner circle beta waitlist referral", run: () => router.push("/inner-circle") },
       { id: "exports", label: "Open Exports", hint: "Render queue", keywords: "exports queue", run: () => router.push("/dashboard/exports") },
       { id: "projects", label: "Open Projects", hint: "All projects", keywords: "projects list", run: () => router.push("/dashboard/projects") },
       {
@@ -128,6 +129,7 @@ export function CommandPalette() {
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><Film className="h-3 w-3" /> Studio</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><GalleryHorizontalEnd className="h-3 w-3" /> Gallery</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><Video className="h-3 w-3" /> Fast Video</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><Users className="h-3 w-3" /> Inner Circle</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><Wand2 className="h-3 w-3" /> Generate</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><Sparkles className="h-3 w-3" /> Tour</span>
             </div>
