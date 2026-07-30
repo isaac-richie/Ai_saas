@@ -58,6 +58,8 @@ export function VerifyOtpForm({ email, nextPath, mode }: VerifyOtpFormProps) {
 
       setSuccess("Verification successful. Redirecting to dashboard...")
       router.replace(nextPath)
+    } catch {
+      setError(humanizeAuthError("fetch failed"))
     } finally {
       setPending(false)
     }
@@ -80,6 +82,8 @@ export function VerifyOtpForm({ email, nextPath, mode }: VerifyOtpFormProps) {
         return
       }
       setSuccess("A new OTP has been sent.")
+    } catch {
+      setError(humanizeAuthError("fetch failed"))
     } finally {
       setResendPending(false)
     }

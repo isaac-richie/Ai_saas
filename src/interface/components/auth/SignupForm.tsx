@@ -88,6 +88,8 @@ export function SignupForm() {
         },
       })
       if (error) setError(humanizeAuthError(error.message))
+    } catch {
+      setError(humanizeAuthError("fetch failed"))
     } finally {
       setOauthPending(false)
     }
@@ -120,6 +122,8 @@ export function SignupForm() {
 
       setOtpInfo("OTP sent. Enter the 6-digit code to complete signup.")
       router.push(`/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent("/dashboard")}&mode=signup`)
+    } catch {
+      setError(humanizeAuthError("fetch failed"))
     } finally {
       setOtpPending(false)
     }

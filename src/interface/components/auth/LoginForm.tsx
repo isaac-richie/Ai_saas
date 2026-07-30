@@ -82,6 +82,8 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                 },
             })
             if (error) setError(humanizeAuthError(error.message))
+        } catch {
+            setError(humanizeAuthError("fetch failed"))
         } finally {
             setOauthPending(false)
         }
@@ -113,6 +115,8 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
 
             setOtpInfo("OTP sent. Enter the 6-digit code to continue.")
             router.push(`/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent(nextPath)}&mode=signin`)
+        } catch {
+            setError(humanizeAuthError("fetch failed"))
         } finally {
             setOtpPending(false)
         }

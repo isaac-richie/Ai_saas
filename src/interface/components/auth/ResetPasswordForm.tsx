@@ -99,6 +99,8 @@ export function ResetPasswordForm() {
       form.reset()
       await supabase.auth.signOut()
       window.setTimeout(() => router.push("/login"), 900)
+    } catch {
+      setError(humanizeAuthError("fetch failed"))
     } finally {
       setIsSubmitting(false)
     }

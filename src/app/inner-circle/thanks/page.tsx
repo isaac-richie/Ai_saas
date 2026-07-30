@@ -1,12 +1,7 @@
 import Link from 'next/link';
+import { getAppBaseUrl } from '@/core/utils/app-url';
 
 export const dynamic = 'force-dynamic';
-
-function baseUrlFromEnv(): string {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL;
-  if (siteUrl) return siteUrl.replace(/\/$/, '');
-  return 'http://localhost:3000';
-}
 
 export default async function InnerCircleThanksPage({
   searchParams,
@@ -16,7 +11,7 @@ export default async function InnerCircleThanksPage({
   const params = await searchParams;
   const referralCode = params.code?.trim().toUpperCase() || 'PENDINGCODE';
   const firstName = params.name?.trim().split(' ')[0] || 'Creator';
-  const referralLink = `${baseUrlFromEnv()}/inner-circle?ref=${encodeURIComponent(referralCode)}`;
+  const referralLink = `${getAppBaseUrl()}/inner-circle?ref=${encodeURIComponent(referralCode)}`;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#040507] text-white">

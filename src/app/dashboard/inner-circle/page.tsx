@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/infrastructure/supabase/admin';
 import { createClient } from '@/infrastructure/supabase/server';
+import { getAppBaseUrl } from '@/core/utils/app-url';
 import { Card, CardContent, CardHeader, CardTitle } from '@/interface/components/ui/card';
 import { AnimatedCounter } from '@/interface/components/ui/AnimatedCounter';
 import { Badge } from '@/interface/components/ui/badge';
@@ -19,10 +20,6 @@ type WaitlistRow = {
   referral_count: number;
   created_at: string;
 };
-
-function getBaseUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-}
 
 function getAdminAllowlist(): string[] {
   const raw = process.env.INNER_CIRCLE_ADMIN_EMAILS || process.env.ADMIN_EMAILS || '';
@@ -74,7 +71,7 @@ export default async function InnerCircleDashboardPage() {
   const latest = (latestResult.data || []) as WaitlistRow[];
   const totalLeads = totalResult.count || 0;
   const totalReferrals = latest.reduce((sum, row) => sum + (row.referral_count || 0), 0);
-  const siteBaseUrl = getBaseUrl();
+  const siteBaseUrl = getAppBaseUrl();
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5 py-2 md:py-3">

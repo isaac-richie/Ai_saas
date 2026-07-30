@@ -11,14 +11,7 @@ import {
 } from "@/core/types/auth";
 import { redirect } from "next/navigation";
 import { sanitizeNextPath } from "@/core/utils/security/safe-redirect";
-
-function getAppUrl() {
-    return (
-        process.env.NEXT_PUBLIC_APP_URL
-        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
-        || "http://localhost:3000"
-    );
-}
+import { getAppUrl } from "@/core/utils/app-url";
 
 /**
  * Supabase's client rejects (rather than resolving with `{ error }`) on
@@ -61,7 +54,7 @@ export async function signup(data: SignupInput) {
     const { error } = await withNetworkFallback(supabase.auth.signUp({
         ...result.data,
         options: {
-            emailRedirectTo: `${getAppUrl()}/auth/callback`,
+            emailRedirectTo: getAppUrl("/auth/callback"),
         },
     }));
 
@@ -80,7 +73,7 @@ export async function requestPasswordReset(data: ForgotPasswordInput) {
 
     const supabase = await createClient();
     const { error } = await withNetworkFallback(supabase.auth.resetPasswordForEmail(result.data.email, {
-        redirectTo: `${getAppUrl()}/auth/callback?next=/reset-password`,
+        redirectTo: getAppUrl("/auth/callback?next=/reset-password"),
     }));
 
     if (error) {

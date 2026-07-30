@@ -21,6 +21,10 @@ export function normalizeGenerationError(rawMessage?: string, fallback = "Genera
     return "Selected model is not available right now. Choose another model and retry."
   }
 
+  if (/(temporarily paused|currently paused|model.*paused|interface.*paused|access.*paused|provider.*paused)/i.test(lower)) {
+    return "This model has been temporarily paused by the provider (usually upstream capacity or policy limits, not your account). Switch to a different model — Kling or Seedance — or check back later."
+  }
+
   if (/(image_url is required|requires image_url|reference image required)/i.test(lower)) {
     return "This generation mode requires a source image. Upload/select an image and retry."
   }
