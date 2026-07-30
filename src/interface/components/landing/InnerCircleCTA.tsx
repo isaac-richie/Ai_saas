@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Sparkles, ArrowRight, Loader2 } from "lucide-react"
+import { Sparkles, ArrowRight, Loader2, Check, Copy } from "lucide-react"
 
 const fadeUpInitial = { opacity: 0, y: 24 }
 const fadeUpAnimate = { opacity: 1, y: 0 }
@@ -13,6 +13,8 @@ export function InnerCircleCTA() {
   const [name, setName] = useState("")
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
   const [errorMessage, setErrorMessage] = useState("Something went wrong. Try again.")
+  const [referralCode, setReferralCode] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,16 +29,36 @@ export function InnerCircleCTA() {
         body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined }),
       })
 
-      if (res.ok) {
+      const payload = (await res.json().catch(() => null)) as
+        | { ok: true; referralCode: string }
+        | { error?: string }
+        | null
+
+      if (res.ok && payload && "ok" in payload) {
+        setReferralCode(payload.referralCode)
         setStatus("success")
       } else {
-        const payload = (await res.json().catch(() => null)) as { error?: string } | null
-        setErrorMessage(payload?.error || "Could not join right now. Please try again.")
+        setErrorMessage((payload && "error" in payload && payload.error) || "Could not join right now. Please try again.")
         setStatus("error")
       }
     } catch {
       setErrorMessage("Network issue. Check your connection and try again.")
       setStatus("error")
+    }
+  }
+
+  const referralLink = referralCode
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/inner-circle?ref=${encodeURIComponent(referralCode)}`
+    : null
+
+  const handleCopy = async () => {
+    if (!referralLink) return
+    try {
+      await navigator.clipboard.writeText(referralLink)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard access denied — user can still select/copy the visible text manually.
     }
   }
 
@@ -72,6 +94,25 @@ export function InnerCircleCTA() {
             <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.08] p-6 text-center">
               <Sparkles className="mx-auto mb-2 h-6 w-6 text-cyan-300" />
               <p className="text-sm font-medium text-white/80">You&apos;re in. We&apos;ll be in touch.</p>
+              {referralLink && (
+                <div className="mt-4 space-y-2 text-left">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">Your referral link</p>
+                  <div className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2">
+                    <span className="flex-1 truncate text-xs text-white/60">{referralLink}</span>
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="flex shrink-0 items-center gap-1 rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-medium text-white/70 transition hover:bg-white/10"
+                    >
+                      {copied ? <Check className="h-3 w-3 text-cyan-300" /> : <Copy className="h-3 w-3" />}
+                      {copied ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-white/35">
+                    Share it — top referrals get priority for hand-picked beta slots.
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
