@@ -1,16 +1,31 @@
 import Link from "next/link"
-import { Check, Github, Linkedin, Sparkles, Youtube } from "lucide-react"
+import { Check, Instagram, Sparkles, Youtube } from "lucide-react"
 import { LandingNavbar } from "@/interface/components/landing/LandingNavbar"
 import { LandingSpotlight } from "@/interface/components/landing/LandingSpotlight"
 import { FeatureGrid } from "@/interface/components/landing/FeatureGrid"
 import { HorizontalModels } from "@/interface/components/landing/HorizontalModels"
 import { ProductDemo } from "@/interface/components/landing/ProductDemo"
-import { InnerCircleCTA } from "@/interface/components/landing/InnerCircleCTA"
 import { ScrollProgressBar } from "@/interface/components/landing/ScrollProgressBar"
 import { HeroParallax } from "@/interface/components/landing/HeroParallax"
 import { createClient } from "@/infrastructure/supabase/server"
 
 export const dynamic = "force-dynamic"
+
+function XIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  )
+}
+
+function TikTokIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12.53.02C13.84 0 15.14.01 16.44 0c.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
+    </svg>
+  )
+}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -263,13 +278,6 @@ export default async function Home() {
           </section>
 
           {/* ═══════════════════════════════════════════
-              INNER CIRCLE
-          ═══════════════════════════════════════════ */}
-          <section id="inner-circle" className="mt-24 scroll-mt-24 sm:mt-32">
-            <InnerCircleCTA />
-          </section>
-
-          {/* ═══════════════════════════════════════════
               FOOTER
           ═══════════════════════════════════════════ */}
           <footer className="mt-24 overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-b from-white/[0.03] to-transparent">
@@ -287,14 +295,41 @@ export default async function Home() {
                 </p>
 
                 <div className="mt-5 flex items-center gap-2">
-                  <a href="#" className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white">
-                    <Github className="h-4 w-4" />
+                  <a
+                    href="https://x.com/visiowavestudio"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Visiowave on X"
+                    className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <XIcon />
                   </a>
-                  <a href="#" className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white">
+                  <a
+                    href="https://www.tiktok.com/@visiowavestudios?_r=1&_t=ZN-98KvVneluWw"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Visiowave on TikTok"
+                    className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <TikTokIcon />
+                  </a>
+                  <a
+                    href="https://youtube.com/@visiowavestudios?si=n7Vcnex4hgrwZmUM"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Visiowave on YouTube"
+                    className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white"
+                  >
                     <Youtube className="h-4 w-4" />
                   </a>
-                  <a href="#" className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white">
-                    <Linkedin className="h-4 w-4" />
+                  <a
+                    href="https://www.instagram.com/visiowavestudios"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Visiowave on Instagram"
+                    className="rounded-lg border border-white/[0.08] bg-white/[0.04] p-2 text-white/50 transition hover:bg-white/[0.08] hover:text-white"
+                  >
+                    <Instagram className="h-4 w-4" />
                   </a>
                 </div>
               </div>
@@ -314,7 +349,6 @@ export default async function Home() {
                   <ul className="space-y-2.5">
                     <li><Link href="/signup" className="text-sm text-white/50 transition hover:text-white">Create Account</Link></li>
                     <li><Link href="/login" className="text-sm text-white/50 transition hover:text-white">Sign In</Link></li>
-                    <li><a href="#inner-circle" className="text-sm text-white/50 transition hover:text-white">Inner Circle</a></li>
                     <li><Link href="/dashboard/gallery" className="text-sm text-white/50 transition hover:text-white">Gallery</Link></li>
                   </ul>
                 </div>
