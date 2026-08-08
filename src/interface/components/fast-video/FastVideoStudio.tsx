@@ -64,6 +64,9 @@ import {
   ListChecks,
   Send,
   Copy,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react"
 import { buildMediaFilename } from "@/lib/download-filename"
 import { saveFastVideoClipToGallery } from "@/core/actions/fast-video"
@@ -387,6 +390,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [campaignHistory, setCampaignHistory] = useState<StudioAdCampaignWithItems[]>([])
   const [isCampaignHistoryLoading, setIsCampaignHistoryLoading] = useState(false)
   const [isAddingCampaignToStoryboard, setIsAddingCampaignToStoryboard] = useState(false)
+  const [editingCampaignItemId, setEditingCampaignItemId] = useState<string | null>(null)
+  const [editingPromptValue, setEditingPromptValue] = useState("")
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || "")
   const [selectedSceneId, setSelectedSceneId] = useState<string>(projects[0]?.scenes[0]?.id || "")
@@ -1208,6 +1213,29 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     } catch {
       toast.error("Failed to copy prompt")
     }
+  }
+
+  const handleStartEditPrompt = (item: CampaignBatchItem) => {
+    setEditingCampaignItemId(item.id)
+    setEditingPromptValue(item.masterPrompt)
+  }
+
+  const handleSaveEditPrompt = async (item: CampaignBatchItem) => {
+    const trimmed = editingPromptValue.trim()
+    if (!trimmed) {
+      toast.error("Prompt cannot be empty")
+      return
+    }
+    updateCampaignItem(item.id, { masterPrompt: trimmed })
+    void persistCampaignItem(item, { masterPrompt: trimmed })
+    setEditingCampaignItemId(null)
+    setEditingPromptValue("")
+    toast.success("Prompt updated")
+  }
+
+  const handleCancelEditPrompt = () => {
+    setEditingCampaignItemId(null)
+    setEditingPromptValue("")
   }
 
   const handleAddCampaignItemToStoryboard = (item: CampaignBatchItem) => {
@@ -2060,6 +2088,48 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                         </span>
                       </div>
                       <p className="mt-2 line-clamp-2 text-[11px] text-white/55">{item.hook}</p>
+
+                      {/* Editable prompt */}
+                      {editingCampaignItemId === item.id ? (
+                        <div className="mt-2 space-y-1.5">
+                          <Textarea
+                            value={editingPromptValue}
+                            onChange={(e) => setEditingPromptValue(e.target.value)}
+                            className="min-h-[80px] rounded-lg border-cyan-400/25 bg-black/40 text-[11px] leading-relaxed text-white/85 placeholder:text-white/30"
+                            placeholder="Edit your prompt..."
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => void handleSaveEditPrompt(item)}
+                              className="h-6 rounded-md border border-emerald-400/30 bg-emerald-500/15 px-2 text-[10px] text-emerald-100 hover:bg-emerald-500/25"
+                            >
+                              <Check className="mr-1 h-3 w-3" />
+                              Save
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleCancelEditPrompt}
+                              className="h-6 rounded-md border border-white/10 bg-white/5 px-2 text-[10px] text-white/60 hover:bg-white/12"
+                            >
+                              <X className="mr-1 h-3 w-3" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p
+                          className="mt-2 line-clamp-3 cursor-pointer rounded-md border border-transparent px-1.5 py-1 text-[11px] text-white/50 transition hover:border-white/10 hover:bg-white/[0.03] hover:text-white/65"
+                          onClick={() => handleStartEditPrompt(item)}
+                          title="Click to edit prompt"
+                        >
+                          {item.masterPrompt}
+                        </p>
+                      )}
+
                       {item.error ? <p className="mt-1 text-[11px] text-rose-200">{item.error}</p> : null}
                       {item.url ? (
                         <div className="mt-2 overflow-hidden rounded-md border border-white/10 bg-black/35">
@@ -2077,8 +2147,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleUseCampaignItem(item)}
+                          onClick={() => handleStartEditPrompt(item)}
                           className="ml-auto h-7 rounded-md border border-white/10 bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
+                        >
+                          <Pencil className="mr-1 h-3 w-3" />
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleUseCampaignItem(item)}
+                          className="h-7 rounded-md border border-white/10 bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
                         >
                           Use
                         </Button>
