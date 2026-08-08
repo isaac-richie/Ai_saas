@@ -2107,10 +2107,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     type="button"
                     onClick={handleGenerateCampaign}
                     disabled={isGeneratingCampaign || campaignItems.every((item) => item.status !== "planned" && item.status !== "failed")}
-                    className="h-10 rounded-xl border border-cyan-300/35 bg-cyan-500/12 text-xs text-cyan-100 hover:bg-cyan-500/20"
+                    className="h-10 rounded-xl border border-cyan-300/35 bg-cyan-500/12 text-xs text-cyan-100 hover:bg-cyan-500/20 truncate"
                   >
-                    {isGeneratingCampaign ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    Generate Campaign
+                    {isGeneratingCampaign ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <Send className="mr-2 h-4 w-4 shrink-0" />}
+                    <span className="truncate">Generate Campaign</span>
                   </Button>
                   <Button
                     type="button"
