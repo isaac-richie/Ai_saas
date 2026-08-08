@@ -91,6 +91,7 @@ function ScrubInner() {
             <motion.video
               ref={videoRef}
               src="/landing.mp4"
+              poster="/landing-poster.jpg"
               style={{ scale }}
               className="h-full w-full object-cover"
               muted

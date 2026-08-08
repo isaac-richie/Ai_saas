@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Check, Instagram, Sparkles, Youtube } from "lucide-react"
 import { LandingNavbar } from "@/interface/components/landing/LandingNavbar"
-import { LandingSpotlight } from "@/interface/components/landing/LandingSpotlight"
+import { HeroSoundstage } from "@/interface/components/landing/HeroSoundstage"
 import { FeatureGrid } from "@/interface/components/landing/FeatureGrid"
 import { HorizontalModels } from "@/interface/components/landing/HorizontalModels"
 import { ProductDemo } from "@/interface/components/landing/ProductDemo"
@@ -62,10 +62,14 @@ export default async function Home() {
         <div className="vignette" />
       </div>
 
-      {/* Ambient glow */}
-      <LandingSpotlight />
-      <div className="pointer-events-none absolute -left-[12%] top-[-10%] z-0 h-[520px] w-[520px] rounded-full bg-cyan-400/10 blur-[160px]" />
-      <div className="pointer-events-none absolute right-[-10%] top-[8%] z-0 h-[420px] w-[420px] rounded-full bg-orange-400/10 blur-[160px]" />
+      {/* Hero lighting rig — volumetric key light, dust, anamorphic flare.
+          Falls back to a pure-CSS key light on mobile / reduced-motion / no-WebGL. */}
+      <HeroSoundstage />
+
+      {/* Ambient glow. The upper-left blob is warm so it reinforces the key
+          light's throw instead of fighting it with a competing cool source. */}
+      <div className="pointer-events-none absolute -left-[12%] top-[-10%] z-0 h-[520px] w-[520px] rounded-full bg-amber-300/[0.07] blur-[160px]" />
+      <div className="pointer-events-none absolute right-[-10%] top-[8%] z-0 h-[420px] w-[420px] rounded-full bg-cyan-400/[0.08] blur-[160px]" />
       <div className="neon-aurora pointer-events-none absolute -left-20 top-10 z-0 h-[44vh] w-[46vw]" />
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-5 sm:px-6">
@@ -94,8 +98,8 @@ export default async function Home() {
               </span>
             </h1>
 
-            <p className="mx-auto mt-6 max-w-2xl text-base font-light leading-relaxed text-white/50 sm:text-lg">
-              Choose your model — Kling 2.5, Seedance, Sora 2 — set your camera language, and generate production-ready video from text or image. One studio, every provider.
+            <p className="mx-auto mt-3 max-w-sm text-sm font-light leading-relaxed text-white/60 sm:text-base">
+              Direct production-ready video. Text, image, or your vision — Kling, Seedance, Sora.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:mt-10">

@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Arc Gateway Helper</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #111827;
+        --muted: #526071;
+        --line: #d6dce5;
+        --accent: #0f766e;
+        --accent-dark: #115e59;
+        --bg: #f5f1e8;
+        --panel: #fffaf0;
+        --danger: #b91c1c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        background:
+          linear-gradient(120deg, rgba(15, 118, 110, 0.14), transparent 38%),
+          radial-gradient(circle at 85% 10%, rgba(234, 179, 8, 0.18), transparent 24%),
+          var(--bg);
+        color: var(--ink);
+      }
+
+      main {
+        width: min(980px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(28px, 5vw, 52px);
+        line-height: 1;
+      }
+
+      p {
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .panel {
+        margin-top: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 250, 240, 0.9);
+        box-shadow: 0 18px 50px rgba(17, 24, 39, 0.1);
+        padding: 18px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 12px;
+        padding: 8px 0;
+        border-bottom: 1px dashed var(--line);
+      }
+
+      .row:last-child {
+        border-bottom: 0;
+      }
+
+      .label {
+        color: var(--muted);
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        border-radius: 6px;
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        padding: 12px 16px;
+      }
+
+      button:hover {
+        background: var(--accent-dark);
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.6;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 230px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: #fff;
+        color: var(--ink);
+        font: inherit;
+        line-height: 1.45;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .status {
+        margin-top: 12px;
+        color: var(--muted);
+      }
+
+      .error {
+        color: var(--danger);
+      }
+
+      @media (max-width: 720px) {
+        .row {
+          grid-template-columns: 1fr;
+          gap: 4px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Arc Gateway Helper</h1>
+      <p>
+        Sign the Circle Gateway burn intent with Rabby, then submit it to Circle for the Arc mint attestation.
+        This page never asks for or sees your private key.
+      </p>
+
+      <section class="panel">
+        <div class="row">
+          <div class="label">Wallet</div>
+          <div id="wallet">Not connected</div>
+        </div>
+        <div class="row">
+          <div class="label">Transfer</div>
+          <div>5.000000 USDC from Base domain 6 to Arc domain 26</div>
+        </div>
+        <div class="row">
+          <div class="label">Max fee</div>
+          <div>0.011000 USDC</div>
+        </div>
+        <div class="actions">
+          <button id="connect">Connect Rabby</button>
+          <button id="sign" disabled>Sign and Submit</button>
+          <button id="mint" disabled>Mint on Arc</button>
+        </div>
+        <div id="status" class="status">Connect the same wallet that deposited into Gateway.</div>
+      </section>
+
+      <section class="panel">
+        <p>Circle response will appear here. Paste it back into Codex after it succeeds.</p>
+        <textarea id="output" readonly></textarea>
+      </section>
+    </main>
+
+    <script>
+      const expectedAddress = "0x7bcd0c1744d40c79279b6994a0d5eb86f785045f";
+      const arcChainId = "0x13b2";
+      const gatewayMinter = "0x2222222d7164433c4c09b0b0d809a9b52c04c205";
+      const circleAttestation =
+        "0xff6fb3340000000000000000000000000000000000000000000000000000000000c4744600000154ca85def700000001000000060000001a00000000000000000000000077777777dcc4d5a8b6e418fd04d8997ef11000ee0000000000000000000000002222222d7164433c4c09b0b0d809a9b52c04c205000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000036000000000000000000000000000000000000000000000000000000000000007bcd0c1744d40c79279b6994a0d5eb86f785045f0000000000000000000000007bcd0c1744d40c79279b6994a0d5eb86f785045f0000000000000000000000007bcd0c1744d40c79279b6994a0d5eb86f785045f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004c4b40119bc234b4dbdad28296c11d05995387268282adb2e0a1672b388e40aaf7465700000000";
+      const circleMintSignature =
+        "0x6ce60805ecc125cc12aca0250f997a3262a8d2fac3fa8efde8641be0270bda5a1998ae78eb3a9b93ec2e802470236a6759779e847de2b7ce5ad217f6cbe601531b";
+      const burnIntent = {
+        maxBlockHeight: "49629472",
+        maxFee: "11000",
+        spec: {
+          version: 1,
+          sourceDomain: 6,
+          destinationDomain: 26,
+          sourceContract: "0x00000000000000000000000077777777dcc4d5a8b6e418fd04d8997ef11000ee",
+          destinationContract: "0x0000000000000000000000002222222d7164433c4c09b0b0d809a9b52c04c205",
+          sourceToken: "0x000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+          destinationToken: "0x0000000000000000000000003600000000000000000000000000000000000000",
+          sourceDepositor: "0x0000000000000000000000007bcd0c1744d40c79279b6994a0d5eb86f785045f",
+          destinationRecipient: "0x0000000000000000000000007bcd0c1744d40c79279b6994a0d5eb86f785045f",
+          sourceSigner: "0x0000000000000000000000007bcd0c1744d40c79279b6994a0d5eb86f785045f",
+          destinationCaller: "0x0000000000000000000000000000000000000000000000000000000000000000",
+          value: "5000000",
+          salt: "0x119bc234b4dbdad28296c11d05995387268282adb2e0a1672b388e40aaf74657",
+          hookData: "0x",
+        },
+      };
+
+      const typedData = {
+        types: {
+          EIP712Domain: [
+            { name: "name", type: "string" },
+            { name: "version", type: "string" },
+          ],
+          TransferSpec: [
+            { name: "version", type: "uint32" },
+            { name: "sourceDomain", type: "uint32" },
+            { name: "destinationDomain", type: "uint32" },
+            { name: "sourceContract", type: "bytes32" },
+            { name: "destinationContract", type: "bytes32" },
+            { name: "sourceToken", type: "bytes32" },
+            { name: "destinationToken", type: "bytes32" },
+            { name: "sourceDepositor", type: "bytes32" },
+            { name: "destinationRecipient", type: "bytes32" },
+            { name: "sourceSigner", type: "bytes32" },
+            { name: "destinationCaller", type: "bytes32" },
+            { name: "value", type: "uint256" },
+            { name: "salt", type: "bytes32" },
+            { name: "hookData", type: "bytes" },
+          ],
+          BurnIntent: [
+            { name: "maxBlockHeight", type: "uint256" },
+            { name: "maxFee", type: "uint256" },
+            { name: "spec", type: "TransferSpec" },
+          ],
+        },
+        domain: { name: "GatewayWallet", version: "1" },
+        primaryType: "BurnIntent",
+        message: burnIntent,
+      };
+
+      const walletEl = document.querySelector("#wallet");
+      const statusEl = document.querySelector("#status");
+      const outputEl = document.querySelector("#output");
+      const connectButton = document.querySelector("#connect");
+      const signButton = document.querySelector("#sign");
+      const mintButton = document.querySelector("#mint");
+
+      let account = "";
+
+      function setStatus(message, isError = false) {
+        statusEl.textContent = message;
+        statusEl.classList.toggle("error", isError);
+      }
+
+      function stringifyError(error) {
+        if (!error) return "Unknown error";
+        if (typeof error === "string") return error;
+        const plain = {};
+        for (const key of ["code", "message", "data", "stack"]) {
+          if (error[key] !== undefined) plain[key] = error[key];
+        }
+        return JSON.stringify(Object.keys(plain).length ? plain : error, null, 2);
+      }
+
+      async function connect() {
+        if (!window.ethereum) {
+          setStatus("No injected wallet found. Open this page in Chrome with Rabby enabled.", true);
+          return;
+        }
+
+        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+        account = accounts[0].toLowerCase();
+        walletEl.textContent = account;
+
+        if (account !== expectedAddress) {
+          setStatus(`Wrong wallet connected. Expected ${expectedAddress}.`, true);
+          signButton.disabled = true;
+          return;
+        }
+
+        signButton.disabled = false;
+        mintButton.disabled = false;
+        setStatus("Wallet connected. Ready to sign the burn intent.");
+      }
+
+      function strip0x(hex) {
+        return hex.startsWith("0x") ? hex.slice(2) : hex;
+      }
+
+      function word(value) {
+        return BigInt(value).toString(16).padStart(64, "0");
+      }
+
+      function encodeBytes(hex) {
+        const raw = strip0x(hex);
+        const byteLength = raw.length / 2;
+        const paddedLength = Math.ceil(byteLength / 32) * 64;
+        return word(byteLength) + raw.padEnd(paddedLength, "0");
+      }
+
+      function gatewayMintCalldata(attestation, signature) {
+        const selector = "9fb01cc5";
+        const encodedAttestation = encodeBytes(attestation);
+        const encodedSignature = encodeBytes(signature);
+        const offset1 = 64;
+        const offset2 = offset1 + encodedAttestation.length / 2;
+        return "0x" + selector + word(offset1) + word(offset2) + encodedAttestation + encodedSignature;
+      }
+
+      async function switchToArc() {
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: arcChainId }],
+          });
+        } catch (error) {
+          const unknownChain =
+            error.code === 4902 ||
+            error.data?.originalError?.code === 4902 ||
+            String(error.message || "").includes("Unrecognized chain ID");
+          if (!unknownChain) throw error;
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: arcChainId,
+                chainName: "Arc Mainnet",
+                nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+                rpcUrls: ["https://rpc.blockdaemon.mainnet.arc.io", "https://5042.rpc.thirdweb.com"],
+                blockExplorerUrls: ["https://explorer.arc.io"],
+              },
+            ],
+          });
+        }
+      }
+
+      async function signAndSubmit() {
+        signButton.disabled = true;
+        outputEl.value = "";
+        setStatus("Waiting for Rabby signature...");
+
+        try {
+          const signature = await window.ethereum.request({
+            method: "eth_signTypedData_v4",
+            params: [account, JSON.stringify(typedData)],
+          });
+
+          setStatus("Signature received. Submitting to Circle...");
+
+          const response = await fetch("https://gateway-api.circle.com/v1/transfer", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-ARC-PRIVATE-MAINNET-ENABLED": "true",
+            },
+            body: JSON.stringify([{ burnIntent, signature }]),
+          });
+
+          const text = await response.text();
+          outputEl.value = text;
+
+          if (!response.ok) {
+            setStatus(`Circle returned HTTP ${response.status}. Paste the response into Codex.`, true);
+            return;
+          }
+
+          setStatus("Circle returned a response. Paste it into Codex so we can mint on Arc.");
+        } catch (error) {
+          outputEl.value = stringifyError(error);
+          setStatus("Signing or transfer request failed. Paste the message into Codex.", true);
+        } finally {
+          signButton.disabled = false;
+        }
+      }
+
+      async function mintOnArc() {
+        mintButton.disabled = true;
+        outputEl.value = "";
+        setStatus("Switching Rabby to Arc mainnet...");
+
+        try {
+          await switchToArc();
+          setStatus("Sending gatewayMint transaction to Rabby...");
+
+          const txHash = await window.ethereum.request({
+            method: "eth_sendTransaction",
+            params: [
+              {
+                from: account,
+                to: gatewayMinter,
+                data: gatewayMintCalldata(circleAttestation, circleMintSignature),
+                value: "0x0",
+              },
+            ],
+          });
+
+          outputEl.value = JSON.stringify({ txHash }, null, 2);
+          setStatus("Mint transaction submitted. Paste the tx hash into Codex.");
+        } catch (error) {
+          outputEl.value = stringifyError(error);
+          setStatus("Mint transaction failed. Paste the message into Codex.", true);
+        } finally {
+          mintButton.disabled = false;
+        }
+      }
+
+      connectButton.addEventListener("click", connect);
+      signButton.addEventListener("click", signAndSubmit);
+      mintButton.addEventListener("click", mintOnArc);
+    </script>
+  </body>
+</html>
