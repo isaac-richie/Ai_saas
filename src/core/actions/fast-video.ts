@@ -763,3 +763,124 @@ export async function routeFastVideoToScene(input: {
 
   return { data: { shotId: shot.id, projectId: resolvedProjectId, sceneId: resolvedSceneId, mode: input.mode } }
 }
+
+/**
+ * Save a FastVideo clip to the gallery without requiring a project/scene.
+ * Creates a temporary scene if needed to store the clip.
+ */
+export async function saveFastVideoClipToGallery(input: {
+  url: string
+  prompt: string
+  subject: string
+  durationSeconds: number
+  projectId?: string | null
+}) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { error: "Unauthorized" }
+
+  // If no project, create a default "My Videos" project
+  let projectId = input.projectId
+  if (!projectId) {
+    const { data: projects } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("name", "My Videos")
+      .limit(1)
+      .maybeSingle()
+
+    if (projects?.id) {
+      projectId = projects.id
+    } else {
+      const { data: created, error: createError } = await supabase
+        .from("projects")
+        .insert({
+          user_id: user.id,
+          name: "My Videos",
+          description: "Auto-generated videos from FastVideo",
+        })
+        .select("id")
+        .single()
+
+      if (createError || !created?.id) {
+        return { error: createError?.message || "Failed to create project" }
+      }
+      projectId = created.id
+    }
+  }
+
+  // Get or create default scene
+  let sceneId: string | null = null
+  const { data: scenes } = await supabase
+    .from("scenes")
+    .select("id")
+    .eq("project_id", projectId)
+    .limit(1)
+    .maybeSingle()
+
+  if (scenes?.id) {
+    sceneId = scenes.id
+  } else {
+    const { data: created, error: createError } = await supabase
+      .from("scenes")
+      .insert({
+        project_id: projectId,
+        name: "Generated Videos",
+        description: "FastVideo clips",
+        sequence_order: 1,
+      })
+      .select("id")
+      .single()
+
+    if (createError || !created?.id) {
+      return { error: createError?.message || "Failed to create scene" }
+    }
+    sceneId = created.id
+  }
+
+  // Create a shot for the clip
+  const { data: shot, error: shotError } = await supabase
+    .from("shots")
+    .insert({
+      scene_id: sceneId,
+      name: input.subject.slice(0, 50) || "FastVideo Clip",
+      shot_type: "fast_video",
+      estimated_duration: input.durationSeconds,
+      prompt_text: input.prompt,
+      sequence_order: 1,
+    })
+    .select("id")
+    .single()
+
+  if (shotError || !shot?.id) {
+    return { error: shotError?.message || "Failed to create shot" }
+  }
+
+  // Save the generation record
+  const { data: generation, error: genError } = await supabase
+    .from("shot_generations")
+    .insert({
+      shot_id: shot.id,
+      prompt: input.prompt,
+      output_url: input.url,
+      status: "completed",
+      parameters: {
+        output_type: "video",
+        duration_seconds: input.durationSeconds,
+        source: "fast_video",
+      },
+    })
+    .select("id")
+    .single()
+
+  if (genError || !generation?.id) {
+    return { error: genError?.message || "Failed to save to gallery" }
+  }
+
+  revalidatePath("/dashboard/gallery")
+  return { data: { generationId: generation.id, shotId: shot.id, projectId } }
+}

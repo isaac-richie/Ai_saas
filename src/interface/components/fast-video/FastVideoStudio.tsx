@@ -66,6 +66,7 @@ import {
   Copy,
 } from "lucide-react"
 import { buildMediaFilename } from "@/lib/download-filename"
+import { saveFastVideoClipToGallery } from "@/core/actions/fast-video"
 
 type SceneOption = {
   id: string
@@ -744,6 +745,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       const dedup = prev.filter((item) => item.id !== clip.id && !(item.taskId && clip.taskId && item.taskId === clip.taskId) && item.url !== clip.url)
       return [clip, ...dedup].slice(0, 24)
     })
+
+    // Persist to gallery in background (non-blocking)
+    void (async () => {
+      try {
+        await saveFastVideoClipToGallery({
+          url: clip.url,
+          prompt: clip.prompt,
+          subject: clip.subject,
+          durationSeconds: clip.durationSeconds,
+          projectId: selectedProjectId || null,
+        })
+      } catch {
+        // Non-blocking: gallery persistence fails silently so user can still access clip locally
+      }
+    })()
   }
 
   // Provider URLs expire; upgrade a saved clip to a durable storage URL in the
