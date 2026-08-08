@@ -99,7 +99,7 @@ export default async function Home() {
             </h1>
 
             <p className="mx-auto mt-3 max-w-sm text-sm font-light leading-relaxed text-white/60 sm:text-base">
-              Direct production-ready video. Text, image, or your vision — Kling, Seedance, Sora.
+              Direct production-ready video from text or image. One studio, every model.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:mt-10">
