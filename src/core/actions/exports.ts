@@ -202,6 +202,16 @@ export async function retryExportJob(jobId: string) {
   if (!user) return { error: "Unauthorized" }
   const db = supabase
 
+  // Verify ownership before touching items
+  const { data: job, error: jobError } = await db
+    .from("export_jobs")
+    .select("id")
+    .eq("id", jobId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (jobError || !job?.id) return { error: "Export job not found" }
+
   const { error } = await db
     .from("export_jobs")
     .update({ status: "queued", progress: 0, error_message: null, updated_at: new Date().toISOString() })
@@ -210,10 +220,11 @@ export async function retryExportJob(jobId: string) {
 
   if (error) return { error: error.message }
 
+  // Only reset items belonging to the verified job
   await db
     .from("export_job_items")
-    .update({ status: "queued", error_message: null, updated_at: new Date().toISOString() })
-    .eq("job_id", jobId)
+    .update({ status: "queued", error_message: null })
+    .eq("job_id", job.id)
 
   return { success: true }
 }

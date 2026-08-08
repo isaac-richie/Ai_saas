@@ -10,7 +10,7 @@ import {
     getExportJobItems,
     retryExportJob,
 } from "@/core/actions/exports"
-import { Loader2, RefreshCcw } from "lucide-react"
+import { Download, Loader2, RefreshCcw } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
@@ -264,14 +264,22 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                             </div>
 
                             {job.output_url && (
-                                <div className="mt-3">
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    <a
+                                        href={`/api/media/proxy?url=${encodeURIComponent(job.output_url)}&filename=${encodeURIComponent(`visiowave-export-${(profileLabels[job.profile] || job.profile).replace(/[^a-zA-Z0-9]/g, "-")}.${job.output_url.endsWith(".json") ? "json" : "mp4"}`)}`}
+                                        download
+                                        className="inline-flex items-center rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-100 hover:bg-cyan-500/20"
+                                    >
+                                        <Download className="mr-1.5 h-3.5 w-3.5" />
+                                        Download
+                                    </a>
                                     <a
                                         href={job.output_url}
                                         target="_blank"
                                         rel="noreferrer"
                                         className="inline-flex rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
                                     >
-                                        Download / Open Export
+                                        Open in New Tab
                                     </a>
                                 </div>
                             )}

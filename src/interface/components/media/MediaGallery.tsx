@@ -296,14 +296,32 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
         }
 
         toast.success(`Export queued (${res.data?.itemCount ?? 0} assets)`)
-        fetch("/api/exports/worker", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ limit: 1 }),
-        }).catch(() => {
-            // Non-blocking kick-off; queue can still be processed from Exports page.
-        })
         setSelectedIds(new Set())
+
+        // Kick off the worker — retry once on failure so the job doesn't sit orphaned
+        const kickWorker = async (attempt: number) => {
+            try {
+                const workerRes = await fetch("/api/exports/worker", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ limit: 1 }),
+                })
+                if (!workerRes.ok && attempt < 1) {
+                    await new Promise((r) => setTimeout(r, 2000))
+                    return kickWorker(attempt + 1)
+                }
+                if (!workerRes.ok) {
+                    toast.error("Export queued but worker failed to start. Visit Exports page to run it manually.")
+                }
+            } catch {
+                if (attempt < 1) {
+                    await new Promise((r) => setTimeout(r, 2000))
+                    return kickWorker(attempt + 1)
+                }
+                toast.error("Export queued but worker unreachable. Visit Exports page to run it manually.")
+            }
+        }
+        void kickWorker(0)
     }
 
     if (items.length === 0) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/infrastructure/supabase/server"
-import { mkdir, readFile, writeFile } from "fs/promises"
+import { mkdir, readFile, writeFile, rm } from "fs/promises"
 import { join } from "path"
 import { execFile } from "child_process"
 import { promisify } from "util"
@@ -44,6 +44,23 @@ function isVideoExt(ext: string): boolean {
     return ext === "mp4" || ext === "mov" || ext === "webm" || ext === "m4v"
 }
 
+async function hasFfmpeg(): Promise<boolean> {
+    try {
+        await execFileAsync("ffmpeg", ["-version"])
+        return true
+    } catch {
+        return false
+    }
+}
+
+async function cleanupTmpDir(tmpDir: string) {
+    try {
+        await rm(tmpDir, { recursive: true, force: true })
+    } catch {
+        // Best-effort cleanup
+    }
+}
+
 async function processJob(supabase: ServerSupabase, userId: string, job: WorkerJob) {
     await supabase
         .from("export_jobs")
@@ -69,147 +86,167 @@ async function processJob(supabase: ServerSupabase, userId: string, job: WorkerJ
     const tmpDir = join("/tmp", `export-job-${job.id}`)
     await mkdir(tmpDir, { recursive: true })
 
-    const uploadedItemUrls: string[] = []
-    const localVideoPaths: string[] = []
-    let processed = 0
+    try {
+        const uploadedItemUrls: string[] = []
+        const localVideoPaths: string[] = []
+        let processed = 0
 
-    for (const item of items) {
-        if (!item.source_url) continue
+        for (const item of items) {
+            if (!item.source_url) continue
 
-        const response = await fetch(item.source_url)
-        if (!response.ok) {
+            const response = await fetch(item.source_url)
+            if (!response.ok) {
+                await supabase
+                    .from("export_job_items")
+                    .update({ status: "failed", error_message: `Failed to download source asset (HTTP ${response.status})`, updated_at: new Date().toISOString() })
+                    .eq("id", item.id)
+                continue
+            }
+
+            const contentType = response.headers.get("content-type")
+            const fallbackExt = extensionFromUrl(item.source_url)
+            const ext = extensionFromContentType(contentType) || fallbackExt
+            const fileBuffer = Buffer.from(await response.arrayBuffer())
+            const storagePath = `exports/${userId}/${job.project_id}/${job.id}/item-${item.order_index + 1}.${ext}`
+
+            const { error: uploadError } = await supabase.storage
+                .from("renders")
+                .upload(storagePath, fileBuffer, {
+                    contentType: contentType || undefined,
+                    upsert: true,
+                })
+
+            if (uploadError) {
+                await supabase
+                    .from("export_job_items")
+                    .update({ status: "failed", error_message: uploadError.message, updated_at: new Date().toISOString() })
+                    .eq("id", item.id)
+                continue
+            }
+
+            const { data: publicData } = supabase.storage.from("renders").getPublicUrl(storagePath)
+            const publicUrl = publicData.publicUrl
+            uploadedItemUrls.push(publicUrl)
+
             await supabase
                 .from("export_job_items")
-                .update({ status: "failed", error_message: "Failed to download source asset", updated_at: new Date().toISOString() })
+                .update({ status: "completed", output_url: publicUrl, error_message: null, updated_at: new Date().toISOString() })
                 .eq("id", item.id)
-            continue
-        }
 
-        const contentType = response.headers.get("content-type")
-        const fallbackExt = extensionFromUrl(item.source_url)
-        const ext = extensionFromContentType(contentType) || fallbackExt
-        const fileBuffer = Buffer.from(await response.arrayBuffer())
-        const storagePath = `exports/${userId}/${job.project_id}/${job.id}/item-${item.order_index + 1}.${ext}`
+            if (isVideoExt(ext)) {
+                const localPath = join(tmpDir, `clip-${item.order_index}.mp4`)
+                await writeFile(localPath, fileBuffer)
+                localVideoPaths.push(localPath)
+            }
 
-        const { error: uploadError } = await supabase.storage
-            .from("renders")
-            .upload(storagePath, fileBuffer, {
-                contentType: contentType || undefined,
-                upsert: true,
-            })
-
-        if (uploadError) {
+            processed += 1
+            const progress = Math.min(85, Math.round((processed / items.length) * 80) + 5)
             await supabase
-                .from("export_job_items")
-                .update({ status: "failed", error_message: uploadError.message, updated_at: new Date().toISOString() })
-                .eq("id", item.id)
-            continue
+                .from("export_jobs")
+                .update({ progress, updated_at: new Date().toISOString() })
+                .eq("id", job.id)
+                .eq("user_id", userId)
         }
 
-        const { data: publicData } = supabase.storage.from("renders").getPublicUrl(storagePath)
-        const publicUrl = publicData.publicUrl
-        uploadedItemUrls.push(publicUrl)
-
-        await supabase
-            .from("export_job_items")
-            .update({ status: "completed", output_url: publicUrl, error_message: null, updated_at: new Date().toISOString() })
-            .eq("id", item.id)
-
-        if (isVideoExt(ext)) {
-            const localPath = join(tmpDir, `clip-${item.order_index}.mp4`)
-            await writeFile(localPath, fileBuffer)
-            localVideoPaths.push(localPath)
+        if (processed === 0) {
+            await supabase
+                .from("export_jobs")
+                .update({ status: "failed", error_message: "No assets could be exported", updated_at: new Date().toISOString() })
+                .eq("id", job.id)
+                .eq("user_id", userId)
+            return { ok: false, error: "No assets could be exported" }
         }
 
-        processed += 1
-        const progress = Math.min(85, Math.round((processed / items.length) * 80) + 5)
+        let jobOutputUrl: string | null = uploadedItemUrls[0] || null
+
+        if (uploadedItemUrls.length > 1 && localVideoPaths.length === uploadedItemUrls.length) {
+            const ffmpegAvailable = await hasFfmpeg()
+            if (ffmpegAvailable) {
+                try {
+                    const listPath = join(tmpDir, "list.txt")
+                    const listContent = localVideoPaths.map((clip) => `file '${clip}'`).join("\n")
+                    await writeFile(listPath, listContent)
+
+                    const outputPath = join(tmpDir, `export-${job.id}.mp4`)
+                    await execFileAsync("ffmpeg", [
+                        "-y",
+                        "-f", "concat",
+                        "-safe", "0",
+                        "-i", listPath,
+                        "-c:v", "libx264",
+                        "-c:a", "aac",
+                        "-movflags", "+faststart",
+                        outputPath,
+                    ])
+
+                    const outputBuffer = await readFile(outputPath)
+                    const outputKey = `exports/${userId}/${job.project_id}/${job.id}/final.mp4`
+                    const { error: finalUploadError } = await supabase.storage.from("renders").upload(outputKey, outputBuffer, {
+                        contentType: "video/mp4",
+                        upsert: true,
+                    })
+
+                    if (!finalUploadError) {
+                        const { data: finalPublicData } = supabase.storage.from("renders").getPublicUrl(outputKey)
+                        jobOutputUrl = finalPublicData.publicUrl
+                    }
+                } catch (concatError) {
+                    const message = concatError instanceof Error ? concatError.message : "ffmpeg concat failed"
+                    await supabase
+                        .from("export_jobs")
+                        .update({ error_message: `Video merge skipped: ${message.slice(0, 200)}`, updated_at: new Date().toISOString() })
+                        .eq("id", job.id)
+                        .eq("user_id", userId)
+                }
+            } else {
+                await supabase
+                    .from("export_jobs")
+                    .update({ error_message: "ffmpeg not available — individual clips exported, merge skipped", updated_at: new Date().toISOString() })
+                    .eq("id", job.id)
+                    .eq("user_id", userId)
+            }
+        }
+
+        if (!jobOutputUrl && uploadedItemUrls.length > 1) {
+            const manifest = {
+                jobId: job.id,
+                profile: job.profile,
+                generatedAt: new Date().toISOString(),
+                assets: uploadedItemUrls,
+            }
+
+            const manifestKey = `exports/${userId}/${job.project_id}/${job.id}/manifest.json`
+            const { error: manifestUploadError } = await supabase.storage.from("renders").upload(
+                manifestKey,
+                Buffer.from(JSON.stringify(manifest, null, 2), "utf-8"),
+                {
+                    contentType: "application/json",
+                    upsert: true,
+                }
+            )
+
+            if (!manifestUploadError) {
+                const { data: manifestPublicData } = supabase.storage.from("renders").getPublicUrl(manifestKey)
+                jobOutputUrl = manifestPublicData.publicUrl
+            }
+        }
+
         await supabase
             .from("export_jobs")
-            .update({ progress, updated_at: new Date().toISOString() })
-            .eq("id", job.id)
-            .eq("user_id", userId)
-    }
-
-    if (processed === 0) {
-        await supabase
-            .from("export_jobs")
-            .update({ status: "failed", error_message: "No assets could be exported", updated_at: new Date().toISOString() })
-            .eq("id", job.id)
-            .eq("user_id", userId)
-        return { ok: false, error: "No assets could be exported" }
-    }
-
-    let jobOutputUrl: string | null = uploadedItemUrls[0] || null
-
-    if (uploadedItemUrls.length > 1 && localVideoPaths.length === uploadedItemUrls.length) {
-        try {
-            const listPath = join(tmpDir, "list.txt")
-            const listContent = localVideoPaths.map((clip) => `file '${clip}'`).join("\n")
-            await writeFile(listPath, listContent)
-
-            const outputPath = join(tmpDir, `export-${job.id}.mp4`)
-            await execFileAsync("ffmpeg", [
-                "-y",
-                "-f", "concat",
-                "-safe", "0",
-                "-i", listPath,
-                "-c:v", "libx264",
-                "-c:a", "aac",
-                "-movflags", "+faststart",
-                outputPath,
-            ])
-
-            const outputBuffer = await readFile(outputPath)
-            const outputKey = `exports/${userId}/${job.project_id}/${job.id}/final.mp4`
-            const { error: finalUploadError } = await supabase.storage.from("renders").upload(outputKey, outputBuffer, {
-                contentType: "video/mp4",
-                upsert: true,
+            .update({
+                status: "completed",
+                progress: 100,
+                output_url: jobOutputUrl,
+                error_message: null,
+                updated_at: new Date().toISOString(),
             })
+            .eq("id", job.id)
+            .eq("user_id", userId)
 
-            if (!finalUploadError) {
-                const { data: finalPublicData } = supabase.storage.from("renders").getPublicUrl(outputKey)
-                jobOutputUrl = finalPublicData.publicUrl
-            }
-        } catch {
-            // If merge fails, we still complete with item-level exports.
-        }
-    } else if (uploadedItemUrls.length > 1) {
-        const manifest = {
-            jobId: job.id,
-            profile: job.profile,
-            generatedAt: new Date().toISOString(),
-            assets: uploadedItemUrls,
-        }
-
-        const manifestKey = `exports/${userId}/${job.project_id}/${job.id}/manifest.json`
-        const { error: manifestUploadError } = await supabase.storage.from("renders").upload(
-            manifestKey,
-            Buffer.from(JSON.stringify(manifest, null, 2), "utf-8"),
-            {
-                contentType: "application/json",
-                upsert: true,
-            }
-        )
-
-        if (!manifestUploadError) {
-            const { data: manifestPublicData } = supabase.storage.from("renders").getPublicUrl(manifestKey)
-            jobOutputUrl = manifestPublicData.publicUrl
-        }
+        return { ok: true, outputUrl: jobOutputUrl, processed }
+    } finally {
+        await cleanupTmpDir(tmpDir)
     }
-
-    await supabase
-        .from("export_jobs")
-        .update({
-            status: "completed",
-            progress: 100,
-            output_url: jobOutputUrl,
-            error_message: null,
-            updated_at: new Date().toISOString(),
-        })
-        .eq("id", job.id)
-        .eq("user_id", userId)
-
-    return { ok: true, outputUrl: jobOutputUrl, processed }
 }
 
 export async function POST(request: Request) {
@@ -250,7 +287,8 @@ async function handleWorker(supabase: ServerSupabase, request: Request, body: Re
         }
     }
 
-    if (!effectiveUserId && !hasInternalAccess) {
+    // Issue #5 fix: require a user scope even for internal access
+    if (!effectiveUserId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -264,13 +302,10 @@ async function handleWorker(supabase: ServerSupabase, request: Request, body: Re
     let query = db
         .from("export_jobs")
         .select("id, user_id, project_id, profile")
+        .eq("user_id", effectiveUserId)
         .in("status", ["queued", "processing"])
         .order("created_at", { ascending: true })
         .limit(limit)
-
-    if (!hasInternalAccess || effectiveUserId) {
-        query = query.eq("user_id", effectiveUserId)
-    }
 
     if (requestedJobId) {
         query = query.eq("id", requestedJobId)
