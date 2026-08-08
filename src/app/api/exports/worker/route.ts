@@ -107,7 +107,7 @@ async function processJob(supabase: ServerSupabase, userId: string, job: WorkerJ
             const fallbackExt = extensionFromUrl(item.source_url)
             const ext = extensionFromContentType(contentType) || fallbackExt
             const fileBuffer = Buffer.from(await response.arrayBuffer())
-            const storagePath = `exports/${userId}/${job.project_id}/${job.id}/item-${item.order_index + 1}.${ext}`
+            const storagePath = `${userId}/exports/${job.project_id}/${job.id}/item-${item.order_index + 1}.${ext}`
 
             const { error: uploadError } = await supabase.storage
                 .from("renders")
@@ -180,7 +180,7 @@ async function processJob(supabase: ServerSupabase, userId: string, job: WorkerJ
                     ])
 
                     const outputBuffer = await readFile(outputPath)
-                    const outputKey = `exports/${userId}/${job.project_id}/${job.id}/final.mp4`
+                    const outputKey = `${userId}/exports/${job.project_id}/${job.id}/final.mp4`
                     const { error: finalUploadError } = await supabase.storage.from("renders").upload(outputKey, outputBuffer, {
                         contentType: "video/mp4",
                         upsert: true,
@@ -215,7 +215,7 @@ async function processJob(supabase: ServerSupabase, userId: string, job: WorkerJ
                 assets: uploadedItemUrls,
             }
 
-            const manifestKey = `exports/${userId}/${job.project_id}/${job.id}/manifest.json`
+            const manifestKey = `${userId}/exports/${job.project_id}/${job.id}/manifest.json`
             const { error: manifestUploadError } = await supabase.storage.from("renders").upload(
                 manifestKey,
                 Buffer.from(JSON.stringify(manifest, null, 2), "utf-8"),
