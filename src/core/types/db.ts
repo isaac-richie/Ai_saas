@@ -16,6 +16,10 @@ export interface Database {
                     name: string
                     description: string | null
                     aspect_ratio: string
+                    default_provider: string | null
+                    default_model: string | null
+                    fps: number | null
+                    resolution: string | null
                     created_at: string
                     updated_at: string
                     status: string
@@ -26,6 +30,10 @@ export interface Database {
                     name: string
                     description?: string | null
                     aspect_ratio?: string
+                    default_provider?: string | null
+                    default_model?: string | null
+                    fps?: number | null
+                    resolution?: string | null
                     created_at?: string
                     updated_at?: string
                     status?: string
@@ -36,6 +44,10 @@ export interface Database {
                     name?: string
                     description?: string | null
                     aspect_ratio?: string
+                    default_provider?: string | null
+                    default_model?: string | null
+                    fps?: number | null
+                    resolution?: string | null
                     created_at?: string
                     updated_at?: string
                     status?: string
@@ -49,6 +61,9 @@ export interface Database {
                     description: string | null
                     script_content: string | null
                     sequence_order: number
+                    location_prompt: string | null
+                    lighting_prompt: string | null
+                    color_prompt: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -59,6 +74,9 @@ export interface Database {
                     description?: string | null
                     script_content?: string | null
                     sequence_order?: number
+                    location_prompt?: string | null
+                    lighting_prompt?: string | null
+                    color_prompt?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -69,6 +87,9 @@ export interface Database {
                     description?: string | null
                     script_content?: string | null
                     sequence_order?: number
+                    location_prompt?: string | null
+                    lighting_prompt?: string | null
+                    color_prompt?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -88,6 +109,15 @@ export interface Database {
                     generation_settings: Json | null
                     prompt_text: string | null
                     selection_payload: Json | null
+                    approved_take_id: string | null
+                    previous_shot_id: string | null
+                    shot_look: string | null
+                    style_preset_id: string | null
+                    motion_preset_id: string | null
+                    provider: string | null
+                    model: string | null
+                    duration_target: number | null
+                    aspect_ratio: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -105,6 +135,15 @@ export interface Database {
                     generation_settings?: Json | null
                     prompt_text?: string | null
                     selection_payload?: Json | null
+                    approved_take_id?: string | null
+                    previous_shot_id?: string | null
+                    shot_look?: string | null
+                    style_preset_id?: string | null
+                    motion_preset_id?: string | null
+                    provider?: string | null
+                    model?: string | null
+                    duration_target?: number | null
+                    aspect_ratio?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -122,6 +161,15 @@ export interface Database {
                     generation_settings?: Json | null
                     prompt_text?: string | null
                     selection_payload?: Json | null
+                    approved_take_id?: string | null
+                    previous_shot_id?: string | null
+                    shot_look?: string | null
+                    style_preset_id?: string | null
+                    motion_preset_id?: string | null
+                    provider?: string | null
+                    model?: string | null
+                    duration_target?: number | null
+                    aspect_ratio?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -290,6 +338,14 @@ export interface Database {
                     status: string
                     output_url: string | null
                     parameters: Json | null
+                    take_number: number
+                    model_version_used: string | null
+                    duration_seconds: number | null
+                    aspect_ratio: string | null
+                    thumbnail_url: string | null
+                    first_frame_url: string | null
+                    last_frame_url: string | null
+                    compiled_prompt: string | null
                     created_at: string
                 }
                 Insert: {
@@ -305,6 +361,14 @@ export interface Database {
                     status?: string
                     output_url?: string | null
                     parameters?: Json | null
+                    take_number?: number
+                    model_version_used?: string | null
+                    duration_seconds?: number | null
+                    aspect_ratio?: string | null
+                    thumbnail_url?: string | null
+                    first_frame_url?: string | null
+                    last_frame_url?: string | null
+                    compiled_prompt?: string | null
                     created_at?: string
                 }
                 Update: {
@@ -320,6 +384,14 @@ export interface Database {
                     status?: string
                     output_url?: string | null
                     parameters?: Json | null
+                    take_number?: number
+                    model_version_used?: string | null
+                    duration_seconds?: number | null
+                    aspect_ratio?: string | null
+                    thumbnail_url?: string | null
+                    first_frame_url?: string | null
+                    last_frame_url?: string | null
+                    compiled_prompt?: string | null
                     created_at?: string
                 }
             }
@@ -586,6 +658,141 @@ export interface Database {
                     status?: string
                     created_at?: string
                     updated_at?: string
+                }
+            }
+            shot_continuity: {
+                Row: {
+                    shot_id: string
+                    character_locked: boolean
+                    character_value: string | null
+                    character_ref_url: string | null
+                    wardrobe_locked: boolean
+                    wardrobe_value: string | null
+                    wardrobe_ref_url: string | null
+                    location_locked: boolean
+                    location_value: string | null
+                    location_ref_url: string | null
+                    lighting_locked: boolean
+                    lighting_value: string | null
+                    color_grade_locked: boolean
+                    color_grade_value: string | null
+                    camera_style_locked: boolean
+                    camera_style_value: string | null
+                    source_shot_id: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    shot_id: string
+                    character_locked?: boolean
+                    character_value?: string | null
+                    character_ref_url?: string | null
+                    wardrobe_locked?: boolean
+                    wardrobe_value?: string | null
+                    wardrobe_ref_url?: string | null
+                    location_locked?: boolean
+                    location_value?: string | null
+                    location_ref_url?: string | null
+                    lighting_locked?: boolean
+                    lighting_value?: string | null
+                    color_grade_locked?: boolean
+                    color_grade_value?: string | null
+                    camera_style_locked?: boolean
+                    camera_style_value?: string | null
+                    source_shot_id?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    shot_id?: string
+                    character_locked?: boolean
+                    character_value?: string | null
+                    character_ref_url?: string | null
+                    wardrobe_locked?: boolean
+                    wardrobe_value?: string | null
+                    wardrobe_ref_url?: string | null
+                    location_locked?: boolean
+                    location_value?: string | null
+                    location_ref_url?: string | null
+                    lighting_locked?: boolean
+                    lighting_value?: string | null
+                    color_grade_locked?: boolean
+                    color_grade_value?: string | null
+                    camera_style_locked?: boolean
+                    camera_style_value?: string | null
+                    source_shot_id?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
+            generation_jobs: {
+                Row: {
+                    id: string
+                    user_id: string
+                    shot_id: string
+                    take_id: string | null
+                    provider: string
+                    model: string | null
+                    provider_task_id: string | null
+                    status: string
+                    progress: number
+                    error_message: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    shot_id: string
+                    take_id?: string | null
+                    provider: string
+                    model?: string | null
+                    provider_task_id?: string | null
+                    status?: string
+                    progress?: number
+                    error_message?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    shot_id?: string
+                    take_id?: string | null
+                    provider?: string
+                    model?: string | null
+                    provider_task_id?: string | null
+                    status?: string
+                    progress?: number
+                    error_message?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
+            user_preset_preferences: {
+                Row: {
+                    id: string
+                    user_id: string
+                    preset_type: string
+                    preset_id: string
+                    pinned: boolean
+                    last_used_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    preset_type: string
+                    preset_id: string
+                    pinned?: boolean
+                    last_used_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    preset_type?: string
+                    preset_id?: string
+                    pinned?: boolean
+                    last_used_at?: string
                 }
             }
             studio_ad_campaign_items: {

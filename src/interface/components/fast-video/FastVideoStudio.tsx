@@ -70,6 +70,8 @@ import {
 } from "lucide-react"
 import { buildMediaFilename } from "@/lib/download-filename"
 import { saveFastVideoClipToGallery } from "@/core/actions/fast-video"
+import { TakesPanel, type TakeItem } from "./TakesPanel"
+import { ContinuityPanel, type ContinuityKey as ContinuityKeyExtracted, CONTINUITY_LOCKS, buildContinuityClauseFromState } from "./ContinuityPanel"
 
 type SceneOption = {
   id: string
@@ -142,21 +144,7 @@ type CampaignBatchItem = StudioAdCampaignDeliverable & {
   error: string | null
 }
 
-type ContinuityKey = "character" | "wardrobe" | "location" | "lighting" | "colorGrade" | "cameraStyle"
-
-type ContinuityLock = {
-  key: ContinuityKey
-  label: string
-}
-
-const CONTINUITY_LOCKS: ContinuityLock[] = [
-  { key: "character", label: "Character" },
-  { key: "wardrobe", label: "Wardrobe" },
-  { key: "location", label: "Location" },
-  { key: "lighting", label: "Lighting" },
-  { key: "colorGrade", label: "Color Grade" },
-  { key: "cameraStyle", label: "Camera Style" },
-]
+type ContinuityKey = ContinuityKeyExtracted
 
 type PromptTemplate = {
   id: string
@@ -393,6 +381,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [editingCampaignItemId, setEditingCampaignItemId] = useState<string | null>(null)
   const [editingPromptValue, setEditingPromptValue] = useState("")
 
+  const [takes, setTakes] = useState<TakeItem[]>([])
+  const [activeTakeId, setActiveTakeId] = useState<string | null>(null)
+  const [approvedTakeId, setApprovedTakeId] = useState<string | null>(null)
+
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || "")
   const [selectedSceneId, setSelectedSceneId] = useState<string>(projects[0]?.scenes[0]?.id || "")
 
@@ -407,18 +399,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const hasStoryboardDestination = Boolean(selectedProjectId && selectedSceneId)
 
   const activeModelFamily = useMemo(() => getKieVideoModelFamily(modelFamilyId), [modelFamilyId])
-  const continuityClause = useMemo(() => {
-    if (!continuityEnabled) return ""
-    const locked = CONTINUITY_LOCKS.filter((item) => continuityLocks[item.key])
-    if (locked.length === 0) return ""
-
-    const parts = locked.map((item) => {
-      const value = continuityValues[item.key]?.trim()
-      if (!value) return `${item.label.toLowerCase()} consistency`
-      return `${item.label.toLowerCase()}: ${value}`
-    })
-    return `continuity locks -> ${parts.join(", ")}`
-  }, [continuityEnabled, continuityLocks, continuityValues])
+  const continuityClause = useMemo(
+    () => buildContinuityClauseFromState(continuityEnabled, continuityLocks, continuityValues),
+    [continuityEnabled, continuityLocks, continuityValues]
+  )
 
   const pipelineStage = useMemo(() => {
     if (status === "completed") return 3
@@ -556,6 +540,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         videoUrl?: string | null
         finalPrompt?: string
         savedClips?: SavedFastClip[]
+        takes?: TakeItem[]
+        activeTakeId?: string | null
+        approvedTakeId?: string | null
         storyboardItems?: StoryboardItem[]
         continuityEnabled?: boolean
         continuityLocks?: Record<ContinuityKey, boolean>
@@ -582,6 +569,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (typeof parsed.videoUrl === "string" || parsed.videoUrl === null) setVideoUrl(parsed.videoUrl ?? null)
       if (typeof parsed.finalPrompt === "string") setFinalPrompt(parsed.finalPrompt)
       if (Array.isArray(parsed.savedClips)) setSavedClips(parsed.savedClips.slice(0, 24))
+      if (Array.isArray(parsed.takes)) setTakes(parsed.takes.slice(0, 50))
+      if (typeof parsed.activeTakeId === "string" || parsed.activeTakeId === null) setActiveTakeId(parsed.activeTakeId ?? null)
+      if (typeof parsed.approvedTakeId === "string" || parsed.approvedTakeId === null) setApprovedTakeId(parsed.approvedTakeId ?? null)
       if (Array.isArray(parsed.storyboardItems)) {
         setStoryboardItems(normalizeStoryboardItems(parsed.storyboardItems))
         setStoryboardSource("local")
@@ -619,6 +609,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           videoUrl,
           finalPrompt,
           savedClips: savedClips.slice(0, 24),
+          takes: takes.slice(0, 50),
+          activeTakeId,
+          approvedTakeId,
           storyboardItems: storyboardItems.slice(0, 60),
           continuityEnabled,
           continuityLocks,
@@ -649,6 +642,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     videoUrl,
     finalPrompt,
     savedClips,
+    takes,
+    activeTakeId,
+    approvedTakeId,
     storyboardItems,
     continuityEnabled,
     continuityLocks,
@@ -751,7 +747,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       return [clip, ...dedup].slice(0, 24)
     })
 
-    // Persist to gallery in background (non-blocking)
+    addTakeFromGeneration(clip)
+
     void (async () => {
       try {
         await saveFastVideoClipToGallery({
@@ -1812,6 +1809,58 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     generationSnapshotRef.current = null
   }
 
+  const addTakeFromGeneration = (clip: SavedFastClip) => {
+    const newTake: TakeItem = {
+      id: clip.id,
+      takeNumber: takes.length + 1,
+      prompt: clip.subject,
+      compiledPrompt: clip.prompt,
+      modelVersionUsed: clip.modelFamilyId || null,
+      status: "completed",
+      outputUrl: clip.url,
+      thumbnailUrl: null,
+      durationSeconds: clip.durationSeconds,
+      aspectRatio: clip.aspectRatio,
+      createdAt: clip.createdAt,
+    }
+    setTakes((prev) => [...prev, newTake])
+    setActiveTakeId(newTake.id)
+    if (!approvedTakeId) {
+      setApprovedTakeId(newTake.id)
+    }
+  }
+
+  const handleSelectTake = (take: TakeItem) => {
+    setActiveTakeId(take.id)
+    if (take.outputUrl) {
+      setVideoUrl(take.outputUrl)
+      setUseDirectVideoUrl(false)
+      setFinalPrompt(take.compiledPrompt || take.prompt)
+      setStatus("completed")
+      setStatusMessage("Loaded take " + take.takeNumber)
+    }
+  }
+
+  const handleApproveTake = (takeId: string) => {
+    setApprovedTakeId(takeId)
+    toast.success("Take approved")
+  }
+
+  const handleDeleteTake = (takeId: string) => {
+    setTakes((prev) => prev.filter((t) => t.id !== takeId))
+    if (activeTakeId === takeId) {
+      setActiveTakeId(null)
+    }
+    if (approvedTakeId === takeId) {
+      setApprovedTakeId(null)
+    }
+    toast.success("Take removed")
+  }
+
+  const handleRetryAsTake = () => {
+    handleGenerate()
+  }
+
   const handleClearAllClips = () => {
     setSavedClips([])
     setActiveSavedClipId(null)
@@ -2485,58 +2534,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <div className="text-[11px] text-white/45">Optional reference image</div>
                   )}
                 </div>
-                <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Continuity Locks</p>
-                    <button
-                      type="button"
-                      onClick={() => setContinuityEnabled((prev) => !prev)}
-                      className={`h-7 rounded-full border px-2.5 text-[10px] font-medium transition ${
-                        continuityEnabled
-                          ? "border-cyan-300/40 bg-cyan-500/15 text-cyan-100"
-                          : "border-white/12 bg-white/5 text-white/70 hover:bg-white/10"
-                      }`}
-                    >
-                      {continuityEnabled ? "Enabled" : "Disabled"}
-                    </button>
-                  </div>
-                  {continuityEnabled ? (
-                    <div className="grid gap-2">
-                      {CONTINUITY_LOCKS.map((item) => (
-                        <div key={item.key} className="grid gap-1.5 sm:grid-cols-[auto_1fr] sm:items-center">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setContinuityLocks((prev) => ({
-                                ...prev,
-                                [item.key]: !prev[item.key],
-                              }))
-                            }
-                            className={`h-8 rounded-lg border px-2.5 text-[11px] transition ${
-                              continuityLocks[item.key]
-                                ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
-                                : "border-white/12 bg-white/5 text-white/70 hover:bg-white/10"
-                            }`}
-                          >
-                            {item.label}
-                          </button>
-                          <Input
-                            value={continuityValues[item.key]}
-                            onChange={(event) =>
-                              setContinuityValues((prev) => ({
-                                ...prev,
-                                [item.key]: event.target.value,
-                              }))
-                            }
-                            placeholder={`${item.label} reference (optional)`}
-                            disabled={!continuityLocks[item.key]}
-                            className="h-8 rounded-lg border-white/12 bg-white/5 text-[11px] text-white placeholder:text-white/35 disabled:opacity-45"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
+                <ContinuityPanel
+                  enabled={continuityEnabled}
+                  onToggleEnabled={() => setContinuityEnabled((prev) => !prev)}
+                  locks={continuityLocks}
+                  onToggleLock={(key) =>
+                    setContinuityLocks((prev) => ({ ...prev, [key]: !prev[key] }))
+                  }
+                  values={continuityValues}
+                  onChangeValue={(key, value) =>
+                    setContinuityValues((prev) => ({ ...prev, [key]: value }))
+                  }
+                />
               </div>
             ) : null}
           </div>
@@ -2817,6 +2826,17 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </Button>
             </div>
             </div>
+
+            <TakesPanel
+              takes={takes}
+              approvedTakeId={approvedTakeId}
+              activeTakeId={activeTakeId}
+              onSelectTake={handleSelectTake}
+              onApproveTake={handleApproveTake}
+              onDeleteTake={handleDeleteTake}
+              onRetry={handleRetryAsTake}
+              isRetrying={isGenerating}
+            />
 
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
