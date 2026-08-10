@@ -22,33 +22,39 @@ export function ShotPreviewTimeline({
 }: ShotPreviewTimelineProps) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
-  const [isScrubbing, setIsScrubbing] = useState(false)
   const [sequenceMode, setSequenceMode] = useState(false)
   const [sequenceIndex, setSequenceIndex] = useState(0)
   const trackRef = useRef<HTMLDivElement>(null)
+  const scrubbingRef = useRef(false)
+  const wasPlayingRef = useRef(false)
 
   useEffect(() => {
     const node = videoRef.current
     if (!node) return
 
     const onTime = () => {
-      if (!isScrubbing) setCurrentTime(node.currentTime)
+      if (!scrubbingRef.current) setCurrentTime(node.currentTime)
     }
     const onMeta = () => setDuration(node.duration || 0)
+    const onDurationChange = () => {
+      if (node.duration && isFinite(node.duration)) setDuration(node.duration)
+    }
 
     node.addEventListener("timeupdate", onTime)
     node.addEventListener("loadedmetadata", onMeta)
-    if (node.duration) setDuration(node.duration)
+    node.addEventListener("durationchange", onDurationChange)
+    if (node.duration && isFinite(node.duration)) setDuration(node.duration)
 
     return () => {
       node.removeEventListener("timeupdate", onTime)
       node.removeEventListener("loadedmetadata", onMeta)
+      node.removeEventListener("durationchange", onDurationChange)
     }
-  }, [videoRef, isScrubbing])
+  }, [videoRef])
 
   const seekTo = useCallback((fraction: number) => {
     const node = videoRef.current
-    if (!node || !duration) return
+    if (!node || !duration || !isFinite(duration)) return
     const t = Math.max(0, Math.min(duration, fraction * duration))
     node.currentTime = t
     setCurrentTime(t)
@@ -63,18 +69,26 @@ export function ShotPreviewTimeline({
   }, [seekTo])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setIsScrubbing(true)
+    const node = videoRef.current
+    if (!node) return
+
+    wasPlayingRef.current = !node.paused
+    node.pause()
+    scrubbingRef.current = true
     handleTrackInteraction(e)
 
     const onMove = (ev: MouseEvent) => handleTrackInteraction(ev)
     const onUp = () => {
-      setIsScrubbing(false)
+      scrubbingRef.current = false
+      if (wasPlayingRef.current && node) {
+        void node.play().catch(() => null)
+      }
       window.removeEventListener("mousemove", onMove)
       window.removeEventListener("mouseup", onUp)
     }
     window.addEventListener("mousemove", onMove)
     window.addEventListener("mouseup", onUp)
-  }, [handleTrackInteraction])
+  }, [handleTrackInteraction, videoRef])
 
   const captureFrame = useCallback(() => {
     const node = videoRef.current
@@ -106,8 +120,10 @@ export function ShotPreviewTimeline({
   const stepFrame = useCallback((direction: 1 | -1) => {
     const node = videoRef.current
     if (!node) return
+    node.pause()
     const frameTime = 1 / 30
     node.currentTime = Math.max(0, Math.min(duration, node.currentTime + direction * frameTime))
+    setCurrentTime(node.currentTime)
   }, [videoRef, duration])
 
   const formatTime = (t: number) => {
@@ -123,6 +139,7 @@ export function ShotPreviewTimeline({
     if (!storyboardUrls || !storyboardUrls[index]) return
     const node = videoRef.current
     if (!node) return
+    node.loop = false
     node.src = `/api/media/proxy?url=${encodeURIComponent(storyboardUrls[index])}`
     node.load()
     void node.play().catch(() => null)
@@ -140,7 +157,8 @@ export function ShotPreviewTimeline({
         playSequenceShot(next)
       } else {
         setSequenceMode(false)
-        if (videoUrl && node) {
+        node.loop = true
+        if (videoUrl) {
           node.src = `/api/media/proxy?url=${encodeURIComponent(videoUrl)}`
           node.load()
         }
@@ -150,7 +168,7 @@ export function ShotPreviewTimeline({
 
     node.addEventListener("ended", onEnded)
     return () => node.removeEventListener("ended", onEnded)
-  }, [sequenceMode, sequenceIndex, storyboardUrls, videoRef, playSequenceShot])
+  }, [sequenceMode, sequenceIndex, storyboardUrls, videoRef, videoUrl, playSequenceShot])
 
   if (!videoUrl) return null
 
@@ -174,17 +192,17 @@ export function ShotPreviewTimeline({
         onMouseDown={handleMouseDown}
       >
         <div
-          className="absolute inset-y-0 left-0 rounded-l-lg bg-gradient-to-r from-cyan-500/20 to-cyan-400/10 transition-[width] duration-75"
+          className="absolute inset-y-0 left-0 rounded-l-lg bg-gradient-to-r from-cyan-500/20 to-cyan-400/10"
           style={{ width: `${progress}%` }}
         />
         <div
-          className="absolute top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.4)] transition-[left] duration-75"
+          className="absolute top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.4)]"
           style={{ left: `calc(${progress}% - 2px)` }}
         />
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           variant="liquidMetal"
@@ -244,6 +262,14 @@ export function ShotPreviewTimeline({
               onClick={() => {
                 if (sequenceMode) {
                   setSequenceMode(false)
+                  const node = videoRef.current
+                  if (node) {
+                    node.loop = true
+                    if (videoUrl) {
+                      node.src = `/api/media/proxy?url=${encodeURIComponent(videoUrl)}`
+                      node.load()
+                    }
+                  }
                 } else {
                   setSequenceMode(true)
                   playSequenceShot(0)
