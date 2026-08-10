@@ -14,8 +14,6 @@ const ALLOWED_HOSTS = new Set(
     [
         "tempfile.aiquickdraw.com",
         "oaidalleapiprodscus.blob.core.windows.net",
-        // Persisted renders live in Supabase Storage; allow proxying them so
-        // downloads can force a filename via Content-Disposition.
         supabaseHost(),
     ].filter((host): host is string => Boolean(host))
 );
@@ -38,11 +36,9 @@ export async function GET(request: NextRequest) {
         return new Response("Host not allowed", { status: 403 });
     }
 
-    const range = request.headers.get("range") ?? undefined;
     let upstream: Response;
     try {
         upstream = await fetch(target.toString(), {
-            headers: range ? { Range: range } : undefined,
             redirect: "follow",
             signal: AbortSignal.timeout(60000),
         });
@@ -54,26 +50,63 @@ export async function GET(request: NextRequest) {
         return new Response("Upstream error", { status: upstream.status });
     }
 
-    const headers = new Headers();
-    const contentType = upstream.headers.get("content-type");
-    const contentLength = upstream.headers.get("content-length");
-    const contentRange = upstream.headers.get("content-range");
-    const acceptRanges = upstream.headers.get("accept-ranges");
+    const contentType = upstream.headers.get("content-type") || "application/octet-stream";
 
-    if (contentType) headers.set("Content-Type", contentType);
+    const isVideo = contentType.startsWith("video/");
+    const range = request.headers.get("range");
+
+    if (isVideo) {
+        const buffer = Buffer.from(await upstream.arrayBuffer());
+        const total = buffer.byteLength;
+
+        const headers = new Headers();
+        headers.set("Content-Type", contentType);
+        headers.set("Accept-Ranges", "bytes");
+        headers.set("Cache-Control", "public, max-age=3600");
+
+        if (requestedFilename) {
+            const safeFilename = sanitizeFilename(requestedFilename) || "visiowave-download";
+            headers.set("Content-Disposition", `attachment; filename="${safeFilename}"`);
+        } else {
+            headers.set("Content-Disposition", "inline");
+        }
+
+        if (range) {
+            const match = range.match(/bytes=(\d+)-(\d*)/);
+            if (match) {
+                const start = parseInt(match[1], 10);
+                const end = match[2] ? parseInt(match[2], 10) : total - 1;
+                const clampedEnd = Math.min(end, total - 1);
+
+                if (start >= total || start > clampedEnd) {
+                    headers.set("Content-Range", `bytes */${total}`);
+                    return new Response(null, { status: 416, headers });
+                }
+
+                const slice = buffer.subarray(start, clampedEnd + 1);
+                headers.set("Content-Range", `bytes ${start}-${clampedEnd}/${total}`);
+                headers.set("Content-Length", String(slice.byteLength));
+                return new Response(slice, { status: 206, headers });
+            }
+        }
+
+        headers.set("Content-Length", String(total));
+        return new Response(buffer, { status: 200, headers });
+    }
+
+    const headers = new Headers();
+    headers.set("Content-Type", contentType);
+    const contentLength = upstream.headers.get("content-length");
     if (contentLength) headers.set("Content-Length", contentLength);
-    if (contentRange) headers.set("Content-Range", contentRange);
-    headers.set("Accept-Ranges", acceptRanges || "bytes");
+    headers.set("Accept-Ranges", "bytes");
+    headers.set("Cache-Control", "public, max-age=3600");
+
     if (requestedFilename) {
         const safeFilename = sanitizeFilename(requestedFilename) || "visiowave-download";
         headers.set("Content-Disposition", `attachment; filename="${safeFilename}"`);
     } else {
         headers.set("Content-Disposition", "inline");
     }
-    headers.set("Cache-Control", "public, max-age=3600");
 
-    return new Response(upstream.body, {
-        status: upstream.status,
-        headers,
-    });
+    return new Response(upstream.body, { status: 200, headers });
 }

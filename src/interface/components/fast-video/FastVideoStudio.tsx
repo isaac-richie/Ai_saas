@@ -744,6 +744,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (!durable || durable === url) return
       setSavedClips((prev) => prev.map((item) => (item.id === clipId ? { ...item, url: durable } : item)))
       setVideoUrl((prev) => (prev === url ? durable : prev))
+      setUseDirectVideoUrl(false)
     } catch {
       // keep the temp URL; preview players already fall back gracefully
     }
@@ -2565,6 +2566,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               <div className="aspect-video">
                 {videoUrl ? (
                   <video
+                    key={`${videoUrl}-${useDirectVideoUrl}`}
                     ref={videoRef}
                     src={useDirectVideoUrl ? videoUrl : `/api/media/proxy?url=${encodeURIComponent(videoUrl)}`}
                     className="h-full w-full object-contain"
