@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     if (contentType) headers.set("Content-Type", contentType);
     if (contentLength) headers.set("Content-Length", contentLength);
     if (contentRange) headers.set("Content-Range", contentRange);
-    if (acceptRanges) headers.set("Accept-Ranges", acceptRanges);
+    headers.set("Accept-Ranges", acceptRanges || "bytes");
     if (requestedFilename) {
         const safeFilename = sanitizeFilename(requestedFilename) || "visiowave-download";
         headers.set("Content-Disposition", `attachment; filename="${safeFilename}"`);

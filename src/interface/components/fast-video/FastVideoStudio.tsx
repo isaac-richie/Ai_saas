@@ -2572,7 +2572,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     autoPlay
                     loop
                     playsInline
-                    preload="metadata"
+                    preload="auto"
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
                     onVolumeChange={() => {
