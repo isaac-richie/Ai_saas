@@ -72,6 +72,11 @@ import { buildMediaFilename } from "@/lib/download-filename"
 import { saveFastVideoClipToGallery } from "@/core/actions/fast-video"
 import { TakesPanel, type TakeItem } from "./TakesPanel"
 import { ContinuityPanel, type ContinuityKey as ContinuityKeyExtracted, CONTINUITY_LOCKS, buildContinuityClauseFromState } from "./ContinuityPanel"
+import { StoryboardPanel, type StoryboardItem as StoryboardItemImported } from "./StoryboardPanel"
+import { useContinuitySync } from "@/interface/hooks/useContinuitySync"
+import { ShotPreviewTimeline } from "./ShotPreviewTimeline"
+import { GenerationJobsPanel } from "./GenerationJobsPanel"
+import { StoryboardExportPanel } from "./StoryboardExportPanel"
 
 type SceneOption = {
   id: string
@@ -121,19 +126,7 @@ type SavedFastClip = {
   createdAt: string
 }
 
-type StoryboardItem = {
-  id: string
-  sourceClipId: string | null
-  url: string
-  subject: string
-  prompt: string
-  durationSeconds: number
-  modelFamilyId?: KieVideoModelFamilyId
-  sceneGroup: "Scene A" | "Scene B" | "Scene C"
-  note: string
-  status: "draft" | "ready"
-  createdAt: string
-}
+type StoryboardItem = StoryboardItemImported
 
 type CampaignBatchItem = StudioAdCampaignDeliverable & {
   dbId?: string
@@ -296,6 +289,7 @@ function mapCampaignRowToItems(row: StudioAdCampaignWithItems): CampaignBatchIte
 
 export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const router = useRouter()
+  const { saveContinuity, loadContinuity } = useContinuitySync()
 
   const [subject, setSubject] = useState("")
   const [templateId, setTemplateId] = useState<string>(PROMPT_TEMPLATES[0]?.id || "")
@@ -348,8 +342,6 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [volume, setVolume] = useState(1)
-  const [draggingStoryboardId, setDraggingStoryboardId] = useState<string | null>(null)
-  const [storyboardGroupFilter, setStoryboardGroupFilter] = useState<"All" | "Scene A" | "Scene B" | "Scene C">("All")
   const [styleSearch, setStyleSearch] = useState("")
   const [motionSearch, setMotionSearch] = useState("")
   const [favoriteStyleIds, setFavoriteStyleIds] = useState<string[]>([])
@@ -451,28 +443,6 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     return showAllMotionChips ? merged : merged.slice(0, 5)
   }, [favoriteMotionIds, filteredMotions, recentMotionIds, showAllMotionChips])
 
-  const filteredStoryboardItems = useMemo(() => {
-    if (storyboardGroupFilter === "All") return storyboardItems
-    return storyboardItems.filter((item) => item.sceneGroup === storyboardGroupFilter)
-  }, [storyboardGroupFilter, storyboardItems])
-
-  const storyboardRuntime = useMemo(() => {
-    return storyboardItems.reduce((sum, item) => sum + (item.durationSeconds || 0), 0)
-  }, [storyboardItems])
-
-  const storyboardGroupRuntime = useMemo(() => {
-    return {
-      "Scene A": storyboardItems
-        .filter((item) => item.sceneGroup === "Scene A")
-        .reduce((sum, item) => sum + (item.durationSeconds || 0), 0),
-      "Scene B": storyboardItems
-        .filter((item) => item.sceneGroup === "Scene B")
-        .reduce((sum, item) => sum + (item.durationSeconds || 0), 0),
-      "Scene C": storyboardItems
-        .filter((item) => item.sceneGroup === "Scene C")
-        .reduce((sum, item) => sum + (item.durationSeconds || 0), 0),
-    }
-  }, [storyboardItems])
 
   const handleLoadClip = (clip: SavedFastClip) => {
     setActiveSavedClipId(clip.id)
@@ -1558,6 +1528,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       const res = await generateFastVideo({
         request_type: "fast_video",
         project_id: selectedProjectId || null,
+        scene_id: selectedSceneId || null,
         prompt_inputs: {
           text_subject: subjectWithContinuity,
           style_preset_id: stylePresetId || null,
@@ -1708,6 +1679,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (res.error || !res.data) {
         toast.error(res.error || "Failed to promote")
         return false
+      }
+
+      if (continuityEnabled && res.data.shotId) {
+        void saveContinuity(res.data.shotId, continuityLocks, continuityValues)
       }
 
       toast.success(successMessage)
@@ -2691,6 +2666,20 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </div>
             ) : null}
 
+            <ShotPreviewTimeline
+              videoRef={videoRef}
+              videoUrl={videoUrl}
+              isPlaying={isPlaying}
+              onCaptureFrame={(dataUrl, timeSeconds) => {
+                const a = document.createElement("a")
+                a.href = dataUrl
+                a.download = `frame-${timeSeconds.toFixed(2)}s.png`
+                a.click()
+                toast.success(`Frame captured at ${timeSeconds.toFixed(2)}s`)
+              }}
+              storyboardUrls={storyboardItems.filter((i) => i.url).map((i) => i.url)}
+            />
+
             <div className="flex flex-wrap gap-1.5 text-[11px]">
               <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-white/50">{durationSeconds}s</span>
               <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-white/50">{activeModelFamily.label}</span>
@@ -2837,6 +2826,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               onRetry={handleRetryAsTake}
               isRetrying={isGenerating}
             />
+
+            <GenerationJobsPanel />
 
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
@@ -3109,199 +3100,65 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       </div>
     </div>
       ) : (
-        <Card className="hover-lift animate-in fade-in-0 slide-in-from-bottom-2 duration-500 rounded-3xl border border-white/12 bg-[#0b0f14] text-white shadow-[0_24px_55px_-40px_rgba(0,0,0,0.95)]">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-lg">Storyboard</CardTitle>
-                <p className="mt-1 text-xs text-white/50">Arrange your shots, add notes, and refine sequence flow.</p>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-white/65">
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5">
-                    {storyboardSource === "scene" && selectedScene
-                      ? `Synced to ${selectedProject?.name} / ${selectedScene.name}`
-                      : "Stored locally"}
-                  </span>
-                  {isStoryboardLoading ? (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-cyan-100">Loading scene board...</span>
-                  ) : null}
-                  {isStoryboardSyncing ? (
-                    <span className="rounded-full border border-cyan-300/25 bg-cyan-500/10 px-2 py-0.5 text-cyan-100">Syncing changes...</span>
-                  ) : null}
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-white/65">
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5">Total Runtime: {storyboardRuntime}s</span>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5">Scene A: {storyboardGroupRuntime["Scene A"]}s</span>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5">Scene B: {storyboardGroupRuntime["Scene B"]}s</span>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5">Scene C: {storyboardGroupRuntime["Scene C"]}s</span>
-                </div>
-              </div>
-              <Button
-                type="button"
-                onClick={() => {
-                  if (!videoUrl) {
-                    toast.error("Generate a clip first")
-                    return
-                  }
-                  addToStoryboard({
-                    sourceClipId: taskId,
-                    url: videoUrl,
-                    subject: subject.trim(),
-                    prompt: finalPrompt || subject.trim(),
-                    durationSeconds,
-                    modelFamilyId,
-                  })
-                }}
-                className="h-10 rounded-xl border border-cyan-300/35 bg-cyan-500/12 text-xs text-cyan-100 hover:bg-cyan-500/20"
-                disabled={isStoryboardLoading || isStoryboardSyncing}
-              >
-                <Clapperboard className="mr-1.5 h-3.5 w-3.5" />
-                Add Current Output
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-2">
-              {(["All", "Scene A", "Scene B", "Scene C"] as const).map((group) => (
-                <button
-                  key={group}
-                  type="button"
-                  onClick={() => setStoryboardGroupFilter(group)}
-                  className={`h-8 rounded-full border px-3 text-[11px] transition ${
-                    storyboardGroupFilter === group
-                      ? "border-cyan-300/40 bg-cyan-500/15 text-cyan-100"
-                      : "border-white/12 bg-white/5 text-white/75 hover:bg-white/10"
-                  }`}
-                  disabled={isStoryboardLoading}
-                >
-                  {group}
-                  {group !== "All" ? ` (${storyboardGroupRuntime[group]}s)` : ""}
-                </button>
-              ))}
-              {storyboardGroupFilter !== "All" ? (
-                <div className="ml-auto flex flex-wrap items-center gap-1.5">
-                  <Button
-                    type="button"
-                    variant="liquidMetal"
-                    onClick={() => void copyStoryboardGroupShotList(storyboardGroupFilter)}
-                    className="h-8 px-2.5 text-[11px]"
-                    disabled={isStoryboardLoading || isStoryboardSyncing}
-                  >
-                    Copy List
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="liquidMetalCyan"
-                    onClick={() => duplicateStoryboardGroupToNext(storyboardGroupFilter)}
-                    className="h-8 px-2.5 text-[11px]"
-                    disabled={isStoryboardLoading || isStoryboardSyncing}
-                  >
-                    Duplicate Group
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => clearStoryboardGroup(storyboardGroupFilter)}
-                    className="h-8 rounded-lg border border-rose-300/20 bg-rose-500/10 px-2.5 text-[11px] text-rose-100 hover:bg-rose-500/20"
-                    disabled={isStoryboardLoading || isStoryboardSyncing}
-                  >
-                    Clear Group
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-
-            {isStoryboardLoading ? (
-              <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-6 text-center text-xs text-white/60">
-                Loading storyboard for the selected scene...
-              </div>
-            ) : storyboardItems.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/15 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.08),transparent_60%)] p-8 text-center">
-                <div className="mx-auto mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-500/10 text-cyan-100">
-                  <Clapperboard className="h-4 w-4" />
-                </div>
-                <p className="text-sm text-white/80">No storyboard shots yet</p>
-                <p className="mt-1 text-xs text-white/55">Generate in Shot Builder and add your best outputs to start sequence planning.</p>
-                <Button
-                  type="button"
-                  onClick={() => setActiveTab("builder")}
-                  className="mt-4 h-9 rounded-xl border border-white/12 bg-white/5 px-3.5 text-xs text-white/85 hover:bg-white/12"
-                >
-                  Go to Shot Builder
-                </Button>
-              </div>
-            ) : filteredStoryboardItems.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.03] p-6 text-center text-xs text-white/60">
-                No shots in {storyboardGroupFilter}. Switch group or add more outputs.
-              </div>
-            ) : (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {filteredStoryboardItems.map((item, index) => (
-                  <div
-                    key={item.id}
-                    draggable
-                    onDragStart={() => setDraggingStoryboardId(item.id)}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={() => {
-                      if (!draggingStoryboardId || draggingStoryboardId === item.id) return
-                      reorderStoryboardItems(draggingStoryboardId, item.id)
-                      setDraggingStoryboardId(null)
-                    }}
-                    className="hover-lift animate-in fade-in-0 slide-in-from-bottom-1 duration-300 rounded-2xl border border-white/12 bg-[#111822] p-3"
-                  >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <p className="text-xs font-medium text-white/85">Shot {index + 1}</p>
-                      <div className="flex items-center gap-1.5">
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/65">{item.durationSeconds}s</span>
-                        <select
-                          value={item.sceneGroup}
-                          onChange={(event) => updateStoryboardGroup(item.id, event.target.value as "Scene A" | "Scene B" | "Scene C")}
-                          className="h-6 rounded-md border border-white/12 bg-white/5 px-1.5 text-[10px] text-white"
-                          disabled={isStoryboardSyncing}
-                        >
-                          <option value="Scene A" className="bg-[#0f1012]">Scene A</option>
-                          <option value="Scene B" className="bg-[#0f1012]">Scene B</option>
-                          <option value="Scene C" className="bg-[#0f1012]">Scene C</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="overflow-hidden rounded-xl border border-white/10 bg-black/40">
-                      <video src={`/api/media/proxy?url=${encodeURIComponent(item.url)}`} className="aspect-video w-full object-cover" muted playsInline />
-                    </div>
-                    <p className="mt-2 line-clamp-1 text-xs text-white/85">{item.subject || "Storyboard shot"}</p>
-                    <p className="mt-1 line-clamp-2 text-[11px] text-white/45">{item.prompt}</p>
-                    <Textarea
-                      value={item.note}
-                      onChange={(event) => updateStoryboardNote(item.id, event.target.value)}
-                      onBlur={() => void saveStoryboardNote(item.id)}
-                      placeholder="Add director note..."
-                      className="mt-2 min-h-20 rounded-xl border-white/10 bg-white/5 text-xs text-white placeholder:text-white/35"
-                    />
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="liquidMetal"
-                        onClick={() => duplicateStoryboardItem(item.id)}
-                        className="h-8 px-2.5 text-[11px]"
-                        disabled={isStoryboardSyncing}
-                      >
-                        Duplicate
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => removeStoryboardItem(item.id)}
-                        className="h-8 rounded-lg border border-rose-300/20 bg-rose-500/10 px-2.5 text-[11px] text-rose-100 hover:bg-rose-500/20"
-                        disabled={isStoryboardSyncing}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <StoryboardPanel
+          items={storyboardItems}
+          storyboardSource={storyboardSource}
+          projectName={selectedProject?.name}
+          sceneName={selectedScene?.name}
+          isLoading={isStoryboardLoading}
+          isSyncing={isStoryboardSyncing}
+          onAddCurrentOutput={() => {
+            if (!videoUrl) {
+              toast.error("Generate a clip first")
+              return
+            }
+            addToStoryboard({
+              sourceClipId: taskId,
+              url: videoUrl,
+              subject: subject.trim(),
+              prompt: finalPrompt || subject.trim(),
+              durationSeconds,
+              modelFamilyId,
+            })
+          }}
+          onRemoveItem={removeStoryboardItem}
+          onDuplicateItem={duplicateStoryboardItem}
+          onUpdateGroup={updateStoryboardGroup}
+          onReorder={reorderStoryboardItems}
+          onUpdateNote={updateStoryboardNote}
+          onSaveNote={(id) => void saveStoryboardNote(id)}
+          onClearGroup={clearStoryboardGroup}
+          onDuplicateGroup={duplicateStoryboardGroupToNext}
+          onCopyGroupShotList={(group) => void copyStoryboardGroupShotList(group)}
+          onContinueFromShot={async (item) => {
+            setSubject(item.prompt)
+            setActiveTab("builder")
+            if (item.sourceClipId) {
+              const result = await loadContinuity(item.sourceClipId)
+              if (result) {
+                setContinuityEnabled(true)
+                setContinuityLocks(result.locks)
+                setContinuityValues(result.values)
+                toast.success("Loaded shot with continuity locks — continue your sequence")
+                return
+              }
+            }
+            toast.success("Loaded shot prompt into builder — continue your sequence")
+          }}
+          onEditShot={(item) => {
+            setSubject(item.subject)
+            setActiveTab("builder")
+            toast.success("Loaded shot into builder for editing")
+          }}
+          onSwitchToBuilder={() => setActiveTab("builder")}
+          hasOutput={!!videoUrl}
+        />
+      )}
+      {activeTab === "storyboard" && storyboardItems.length > 0 && (
+        <StoryboardExportPanel
+          storyboardItems={storyboardItems}
+          projectId={selectedProjectId || null}
+        />
       )}
     </div>
   )

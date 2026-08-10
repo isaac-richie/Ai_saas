@@ -130,7 +130,11 @@ export async function inheritContinuityFromShot(targetShotId: string, sourceShot
 }
 
 export async function buildContinuityClause(shotId: string): Promise<string> {
-  const { supabase } = await ensureSession()
+  const { supabase, user } = await ensureSession()
+  if (!user) return ""
+
+  const shot = await verifyShot(supabase, shotId, user.id)
+  if (!shot) return ""
 
   const { data } = await supabase
     .from("shot_continuity")

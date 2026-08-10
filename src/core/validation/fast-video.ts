@@ -4,6 +4,8 @@ import { FAST_VIDEO_ASPECT_RATIOS, FAST_VIDEO_VARIATIONS } from "@/core/config/f
 export const fastVideoRequestSchema = z.object({
   request_type: z.literal("fast_video"),
   project_id: z.string().min(1).optional().nullable(),
+  scene_id: z.string().min(1).optional().nullable(),
+  shot_id: z.string().min(1).optional().nullable(),
   prompt_inputs: z.object({
     text_subject: z.string().min(3, "Describe your subject in at least 3 characters").max(1200),
     style_preset_id: z.string().optional().nullable(),

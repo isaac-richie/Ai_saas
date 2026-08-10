@@ -1,10 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
 import { Check, Trash2, Play, RotateCcw } from "lucide-react"
-import { toast } from "sonner"
-import { getKieVideoModelFamily } from "@/core/config/kie-video-models"
 
 export type TakeItem = {
   id: string
@@ -42,6 +40,13 @@ export function TakesPanel({
   isRetrying,
 }: TakesPanelProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current)
+    }
+  }, [])
 
   if (takes.length === 0) {
     return (
@@ -179,7 +184,8 @@ export function TakesPanel({
                       onClick={(e) => {
                         e.stopPropagation()
                         setConfirmDeleteId(take.id)
-                        setTimeout(() => setConfirmDeleteId(null), 3000)
+                        if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current)
+                        confirmTimerRef.current = setTimeout(() => setConfirmDeleteId(null), 3000)
                       }}
                     >
                       <Trash2 className="h-2.5 w-2.5" />

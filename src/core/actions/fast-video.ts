@@ -6,8 +6,11 @@ import { ProviderFactory } from "@/infrastructure/ai/factory"
 import { decrypt } from "@/core/utils/security/encryption"
 import { fastVideoRequestSchema, type FastVideoRequest } from "@/core/validation/fast-video"
 import {
+  FAST_VIDEO_ASPECT_RATIOS,
+  FAST_VIDEO_VARIATIONS,
   findMotionPreset,
   findStylePreset,
+  type FastVideoAspectRatio,
   type FastVideoVariation,
 } from "@/core/config/fast-video-presets"
 import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
@@ -234,7 +237,71 @@ function buildVariationNegatives(variation: FastVideoVariation): string[] {
   return ["over-processing", "unnatural sharpening halos", "inconsistent exposure flicker"]
 }
 
-function assembleFastVideoPrompt(payload: FastVideoRequest, safeDuration: number) {
+type SceneContext = {
+  locationPrompt?: string | null
+  lightingPrompt?: string | null
+  colorPrompt?: string | null
+}
+
+function buildContinuityClauseFromRow(cont: Record<string, unknown>): string | null {
+  const parts: string[] = []
+  if (cont.character_locked && cont.character_value) parts.push(`character: ${cont.character_value}`)
+  if (cont.wardrobe_locked && cont.wardrobe_value) parts.push(`wardrobe: ${cont.wardrobe_value}`)
+  if (cont.location_locked && cont.location_value) parts.push(`location: ${cont.location_value}`)
+  if (cont.lighting_locked && cont.lighting_value) parts.push(`lighting: ${cont.lighting_value}`)
+  if (cont.color_grade_locked && cont.color_grade_value) parts.push(`color grade: ${cont.color_grade_value}`)
+  if (cont.camera_style_locked && cont.camera_style_value) parts.push(`camera style: ${cont.camera_style_value}`)
+  if (parts.length === 0) return null
+  return `continuity locks -> ${parts.join(", ")}`
+}
+
+async function fetchPromptContext(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sceneId?: string | null,
+  shotId?: string | null,
+) {
+  let sceneCtx: SceneContext | undefined
+  let continuityCtx: ContinuityContext | undefined
+
+  if (sceneId) {
+    const { data: scene } = await supabase
+      .from("scenes")
+      .select("location_prompt, lighting_prompt, color_prompt")
+      .eq("id", sceneId)
+      .maybeSingle()
+    if (scene) {
+      sceneCtx = {
+        locationPrompt: scene.location_prompt,
+        lightingPrompt: scene.lighting_prompt,
+        colorPrompt: scene.color_prompt,
+      }
+    }
+  }
+
+  if (shotId) {
+    const { data: cont } = await supabase
+      .from("shot_continuity")
+      .select("*")
+      .eq("shot_id", shotId)
+      .maybeSingle()
+    if (cont) {
+      const clause = buildContinuityClauseFromRow(cont as Record<string, unknown>)
+      if (clause) continuityCtx = { clause }
+    }
+  }
+
+  return { sceneCtx, continuityCtx }
+}
+
+type ContinuityContext = {
+  clause: string
+}
+
+function assembleFastVideoPrompt(
+  payload: FastVideoRequest,
+  safeDuration: number,
+  extra?: { scene?: SceneContext; continuity?: ContinuityContext }
+) {
   const { prompt_inputs } = payload
   const style = findStylePreset(prompt_inputs.style_preset_id)
   const motion = findMotionPreset(prompt_inputs.motion_preset_id)
@@ -243,6 +310,12 @@ function assembleFastVideoPrompt(payload: FastVideoRequest, safeDuration: number
   const aspectDirective = buildAspectDirective(prompt_inputs.aspect_ratio)
 
   const parts = [subject]
+
+  if (extra?.scene?.locationPrompt) parts.push(`location: ${extra.scene.locationPrompt}`)
+  if (extra?.scene?.lightingPrompt) parts.push(`lighting: ${extra.scene.lightingPrompt}`)
+  if (extra?.scene?.colorPrompt) parts.push(`color grade: ${extra.scene.colorPrompt}`)
+  if (extra?.continuity?.clause) parts.push(extra.continuity.clause)
+
   if (style?.styleTokens) parts.push(style.styleTokens)
   if (motion?.motionTokens) parts.push(motion.motionTokens)
   parts.push(...subjectDirectives)
@@ -351,7 +424,13 @@ export async function generateFastVideo(input: unknown) {
   }
   debug.push("provider.ready", { providerId: kie.data.providerId })
 
-  const composed = assembleFastVideoPrompt(payload, safeDuration)
+  const { sceneCtx, continuityCtx } = await fetchPromptContext(supabase, payload.scene_id, payload.shot_id)
+  debug.push("prompt.context", {
+    hasSceneContext: Boolean(sceneCtx),
+    hasContinuity: Boolean(continuityCtx),
+  })
+
+  const composed = assembleFastVideoPrompt(payload, safeDuration, { scene: sceneCtx, continuity: continuityCtx })
   const compliance = enforcePromptCompliance({
     prompt: composed.prompt,
     negativePrompt: composed.negativePrompt,
@@ -883,4 +962,52 @@ export async function saveFastVideoClipToGallery(input: {
 
   revalidatePath("/dashboard/gallery")
   return { data: { generationId: generation.id, shotId: shot.id, projectId } }
+}
+
+export async function compilePromptPreview(input: {
+  subject: string
+  sceneId?: string | null
+  shotId?: string | null
+  stylePresetId?: string | null
+  motionPresetId?: string | null
+  aspectRatio?: string
+  variation?: string
+  durationSeconds?: number
+}) {
+  const { supabase, user } = await ensureSession()
+  if (!user) return { error: "Unauthorized" }
+
+  const safeDuration = Math.max(5, Math.min(15, input.durationSeconds || 5))
+
+  const { sceneCtx, continuityCtx } = await fetchPromptContext(supabase, input.sceneId, input.shotId)
+
+  const payload = {
+    request_type: "fast_video" as const,
+    project_id: null,
+    scene_id: input.sceneId || null,
+    shot_id: input.shotId || null,
+    prompt_inputs: {
+      text_subject: input.subject,
+      style_preset_id: input.stylePresetId || null,
+      motion_preset_id: input.motionPresetId || null,
+      aspect_ratio: (FAST_VIDEO_ASPECT_RATIOS.includes(input.aspectRatio as FastVideoAspectRatio) ? input.aspectRatio : "16:9") as FastVideoAspectRatio,
+      reference_image: null,
+      variation_setting: (FAST_VIDEO_VARIATIONS.includes(input.variation as FastVideoVariation) ? input.variation : "balanced") as FastVideoVariation,
+    },
+    settings: {
+      duration_seconds: safeDuration,
+      model: null,
+    },
+  }
+
+  const composed = assembleFastVideoPrompt(payload, safeDuration, { scene: sceneCtx, continuity: continuityCtx })
+
+  return {
+    data: {
+      compiledPrompt: composed.prompt,
+      negativePrompt: composed.negativePrompt,
+      hasSceneContext: Boolean(sceneCtx),
+      hasContinuity: Boolean(continuityCtx),
+    },
+  }
 }
