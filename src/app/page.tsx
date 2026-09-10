@@ -346,6 +346,7 @@ export default async function Home() {
                     <li><a href="#models" className="text-sm text-white/50 transition hover:text-white">Models</a></li>
                     <li><a href="#pricing" className="text-sm text-white/50 transition hover:text-white">Pricing</a></li>
                     <li><Link href="/dashboard/studio" className="text-sm text-white/50 transition hover:text-white">Studio</Link></li>
+                    <li><Link href="/inner-circle" className="text-sm text-white/50 transition hover:text-white">Inner Circle Beta</Link></li>
                   </ul>
                 </div>
                 <div>

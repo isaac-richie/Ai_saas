@@ -9,6 +9,7 @@ const navLinks = [
     { href: "#features", label: "Features" },
     { href: "#models", label: "Models" },
     { href: "#pricing", label: "Pricing" },
+    { href: "/inner-circle", label: "Inner Circle" },
 ]
 
 export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean }) {

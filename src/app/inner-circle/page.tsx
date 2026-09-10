@@ -3,6 +3,15 @@ import { InnerCircleForm } from '@/interface/components/landing/InnerCircleForm'
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = {
+  title: 'Inner Circle Beta Access | Visiowave',
+  description: 'Join the Visiowave Inner Circle for early access to new models and cinematic tools.',
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
 export default async function InnerCirclePage({
   searchParams,
 }: {
