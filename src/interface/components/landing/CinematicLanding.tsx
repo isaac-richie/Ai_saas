@@ -155,7 +155,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
             <div className="cinema-reel-screen">
               <video
                 ref={video}
-                poster="/landing-poster.webp"
+                poster="/landing-poster.webp?v=20260912"
                 preload="none"
                 playsInline
                 loop
@@ -165,7 +165,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 onEnded={() => setPlaying(false)}
                 aria-label="Visiowave cinematic showcase"
               >
-                <source src="/landing.mp4" type="video/mp4" />
+                <source src="/landing.mp4?v=20260912-audio" type="video/mp4" />
               </video>
               {!playing && (
                 <div className="cinema-reel-caption">
@@ -318,6 +318,15 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
             </p>
             <nav aria-label="Footer navigation">
               <Link href="/login">Sign in</Link>
+              <a href="https://x.com/visiowavestudio" target="_blank" rel="noopener noreferrer" aria-label="Visiowave on X">
+                X <ArrowUpRight size={13} />
+              </a>
+              <a href="https://www.tiktok.com/@visiowavestudios" target="_blank" rel="noopener noreferrer" aria-label="Visiowave on TikTok">
+                TikTok <ArrowUpRight size={13} />
+              </a>
+              <a href="https://youtube.com/@visiowavestudios" target="_blank" rel="noopener noreferrer" aria-label="Visiowave on YouTube">
+                YouTube <ArrowUpRight size={13} />
+              </a>
               <a
                 href="https://www.instagram.com/visiowavestudios"
                 target="_blank"

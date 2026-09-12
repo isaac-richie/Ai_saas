@@ -481,7 +481,8 @@
 }
 .cinema-footer nav {
   display: flex;
-  gap: 28px;
+  flex-wrap: wrap;
+  gap: 18px 24px;
   font-size: 11px;
 }
 .cinema-footer nav a {
