@@ -346,11 +346,12 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
     }
 
     return (
-        <div className="space-y-4">
-            <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-[#0f1012]/95 px-4 py-3 backdrop-blur">
-                <div className="flex flex-1 min-w-[220px]">
+        <div className="workspace-media space-y-4">
+            <div className="workspace-gallery-toolbar flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 px-4 py-3">
+                <div className="flex min-w-0 basis-64 flex-1">
                     <Input
                         ref={searchInputRef}
+                        aria-label="Search gallery"
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search by prompt, shot, scene, or project... (/)"
@@ -362,6 +363,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                         <button
                             key={type}
                             onClick={() => setFilter(type)}
+                            aria-pressed={filter === type}
                             className={`rounded-full border px-3 py-1 uppercase tracking-[0.2em] ${
                                 filter === type
                                     ? "border-white/30 bg-white/15 text-white"
@@ -466,16 +468,18 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                     <p className="text-xs text-white/50">Try adjusting filters or search terms.</p>
                 </div>
             ) : (
-                <div className="columns-1 gap-4 space-y-4 sm:columns-2 lg:columns-3 xl:columns-4">
+                <div className="workspace-media-grid">
                     {filteredAssets.map((asset) => {
                         const previewUrl = getPreviewUrl(asset)
                         const promptPreview = asset.prompt?.replace(/\s+/g, " ").trim() || ""
                         return (
                             <Dialog key={asset.id}>
                                 <DialogTrigger asChild>
-                                    <Card className="group relative mb-4 min-w-0 break-inside-avoid cursor-pointer overflow-hidden border border-white/10 bg-[#0f1012] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
+                                    <Card className="workspace-media-card group relative mb-4 min-w-0 break-inside-avoid cursor-pointer overflow-hidden border border-white/10 bg-[#0f1012] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
                                         <button
                                             type="button"
+                                            aria-label={`Select ${asset.shotName}`}
+                                            aria-pressed={selectedIds.has(asset.id)}
                                             onClick={(event) => {
                                                 event.stopPropagation()
                                                 toggleSelect(asset.id)
@@ -495,7 +499,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                         </div>
                                         <div className={asset.type === "video" ? "relative aspect-video w-full bg-black" : "relative aspect-[4/5] w-full"}>
                                             <AssetMedia key={previewUrl} asset={asset} previewUrl={previewUrl} variant="thumb" />
-                                            <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-black/15 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+                                            <div className="workspace-media-caption absolute inset-0 flex items-end bg-gradient-to-t from-black/90 via-black/15 to-transparent p-3 opacity-100 transition-opacity">
                                                 <div className="min-w-0">
                                                     <p className="line-clamp-1 text-xs font-medium text-white">{asset.shotName}</p>
                                                     {asset.sceneName ? <p className="line-clamp-1 text-[10px] text-white/70">{asset.sceneName}</p> : null}

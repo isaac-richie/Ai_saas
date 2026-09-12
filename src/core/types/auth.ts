@@ -15,7 +15,7 @@ export const signupSchema = z.object({
         .regex(/[0-9]/, { message: "Add at least one number" }),
     confirmPassword: z.string().min(8, { message: "Confirmation required" }),
 }).refine((data) => data.password === data.confirmPassword, {
-    message: "SEQUENCE_SYNC_FAILURE: Passwords do not match",
+    message: "Passwords do not match",
     path: ["confirmPassword"],
 })
 

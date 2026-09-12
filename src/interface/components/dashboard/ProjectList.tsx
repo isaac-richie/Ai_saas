@@ -58,12 +58,13 @@ export function ProjectList({ projects }: ProjectListProps) {
     return (
         <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-[#0f1012] px-4 py-3">
-                <div className="relative min-w-[220px] flex-1">
+                <div className="relative min-w-0 basis-56 flex-1">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                     <Input
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search projects..."
+                        aria-label="Search projects"
                         className="h-9 rounded-xl border-white/10 bg-white/5 pl-9 text-white placeholder:text-white/35"
                     />
                 </div>
@@ -71,6 +72,7 @@ export function ProjectList({ projects }: ProjectListProps) {
                     <span className="text-xs uppercase tracking-[0.16em] text-white/45">Sort</span>
                     <select
                         value={sortBy}
+                        aria-label="Sort projects"
                         onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
                         className="h-9 rounded-xl border border-white/10 bg-white/5 px-3 text-xs text-white"
                     >

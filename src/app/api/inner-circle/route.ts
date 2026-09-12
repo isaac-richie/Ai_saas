@@ -6,25 +6,20 @@ import { checkRateLimit, getClientIp } from '@/core/utils/security/rate-limit';
 
 export const runtime = 'nodejs';
 
+const handleSchema = z.string().trim().max(80)
+  .transform((value) => normalizeHandle(value))
+  .pipe(z.string().min(2).regex(/^[a-z0-9._]+$/, 'Enter a handle, not a profile URL.'));
+
 const payloadSchema = z.object({
-  name: z.string().min(2).max(120).optional(),
-  fullName: z.string().min(2).max(120).optional(),
-  instagramHandle: z.string().min(2).max(80).optional(),
-  socialHandle: z.string().min(2).max(80).optional(),
-  email: z.string().email().max(160),
+  instagramHandle: handleSchema,
+  xHandle: handleSchema,
+  tiktokHandle: handleSchema,
+  email: z.string().trim().email().max(160),
   referredByCode: z.string().min(4).max(32).optional().nullable(),
-}).refine((data) => data.name || data.fullName, {
-  message: 'Name is required.',
-  path: ['name'],
 });
 
 function normalizeHandle(value: string): string {
   return value.trim().replace(/^@+/, '').toLowerCase();
-}
-
-function normalizeOptionalHandle(value: string | null | undefined): string {
-  const normalized = normalizeHandle(value || '');
-  return normalized.length >= 2 ? normalized : 'not-provided';
 }
 
 function normalizeReferralCode(value: string | null | undefined): string | null {
@@ -188,9 +183,11 @@ export async function POST(request: Request) {
     }
 
     const email = parsed.data.email.trim().toLowerCase();
-    const fullName = (parsed.data.fullName || parsed.data.name || '').trim();
-    const instagramHandle = normalizeOptionalHandle(parsed.data.instagramHandle);
-    const socialHandle = normalizeOptionalHandle(parsed.data.socialHandle);
+    // Keep the existing table and RPC compatible: use X as the display label,
+    // and preserve both social handles with explicit platform labels.
+    const fullName = `@${parsed.data.xHandle}`;
+    const instagramHandle = parsed.data.instagramHandle;
+    const socialHandle = `x: @${parsed.data.xHandle} | tiktok: @${parsed.data.tiktokHandle}`;
     const referredByCode = normalizeReferralCode(parsed.data.referredByCode);
     const result = hasSupabaseAdminEnv()
       ? await submitWithAdmin({ email, fullName, instagramHandle, socialHandle, referredByCode })

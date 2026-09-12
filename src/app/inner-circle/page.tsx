@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { AnimatedBrandMark } from '@/interface/components/branding/AnimatedBrandMark';
 import { InnerCircleForm } from '@/interface/components/landing/InnerCircleForm';
 
 export const dynamic = 'force-dynamic';
@@ -27,12 +27,10 @@ export default async function InnerCirclePage({
       <div className="pointer-events-none absolute right-[-12%] top-[30%] h-[420px] w-[420px] rounded-full bg-orange-400/15 blur-[150px]" />
 
       <section className="relative z-10 mx-auto max-w-3xl px-6 py-14 sm:py-20">
-        <Link
-          href="/"
-          className="inline-flex items-center rounded-full border border-white/15 bg-white/[0.03] px-4 py-2 text-xs uppercase tracking-[0.14em] text-white/75 transition hover:border-cyan-300/60"
-        >
-          ← Back to Visiowave
-        </Link>
+        <div className="inline-flex items-center gap-3 text-xs uppercase tracking-[0.14em] text-white/75">
+          <AnimatedBrandMark />
+          Visiowave / Inner Circle
+        </div>
 
         <div className="mt-7 rounded-3xl border border-white/12 bg-black/45 p-6 shadow-[0_35px_80px_-42px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:p-10">
           <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-300/80">Private Access</p>

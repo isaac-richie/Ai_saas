@@ -18,6 +18,7 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
 
     const title = useMemo(() => {
         if (pathname.includes("/settings")) return "Studio Settings"
+        if (pathname.includes("/fast-video")) return "Fast Track"
         if (pathname.includes("/scenes/")) return "Scene Builder"
         if (pathname.includes("/studio")) return "Studio"
         if (pathname.includes("/gallery")) return "Gallery"
@@ -27,13 +28,13 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
     }, [pathname])
 
     return (
-        <header className="sticky top-0 z-30 flex h-16 w-full items-center border-b border-white/10 bg-[#050505]/90 px-3 backdrop-blur-xl sm:px-4 md:px-8">
+        <header className="workspace-topbar sticky top-0 z-30 flex h-16 w-full items-center border-b border-white/10 bg-[#050505]/90 px-3 backdrop-blur-xl sm:px-4 md:px-8">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                <Button variant="ghost" size="icon" onClick={toggleSidebar} className="rounded-xl text-white/90 hover:bg-white/10 hover:text-white">
+                <Button aria-label="Toggle sidebar" variant="ghost" size="icon" onClick={toggleSidebar} className="rounded-xl text-white/90 hover:bg-white/10 hover:text-white">
                     <Menu className="size-4" />
                 </Button>
                 <div className="min-w-0">
-                    <h1 className="truncate text-sm font-semibold text-white md:text-base">{title}</h1>
+                    <p className="truncate text-sm font-semibold text-white md:text-base">{title}</p>
                 </div>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -45,6 +46,7 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
                     className="rounded-lg border border-white/10 bg-white/5 px-2 text-white/70 hover:bg-white/10 sm:px-3"
                     onClick={() => window.dispatchEvent(new CustomEvent("aisas:start-tour"))}
                     title="Start tour"
+                    aria-label="Start product tour"
                 >
                     <HelpCircle className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Tour</span>
@@ -56,6 +58,8 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
                     className="rounded-lg border border-white/10 bg-white/5 px-2 text-white/70 hover:bg-white/10 sm:px-3"
                     onClick={onToggleMotion}
                     title={motionReduced ? "Enable motion effects" : "Reduce motion effects"}
+                    aria-label={motionReduced ? "Enable motion effects" : "Reduce motion effects"}
+                    aria-pressed={motionReduced}
                 >
                     <Gauge className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">{motionReduced ? "Motion: Off" : "Motion: On"}</span>

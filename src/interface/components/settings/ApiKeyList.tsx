@@ -124,7 +124,7 @@ export function ApiKeyList() {
     }
 
     return (
-        <div ref={tableRef} className="overflow-hidden rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+        <div ref={tableRef} className="workspace-provider-list overflow-hidden rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
             <Table>
                 <TableHeader>
                     <TableRow className="border-white/10">
@@ -183,6 +183,7 @@ export function ApiKeyList() {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => handleDelete(provider.id)}
+                                                aria-label={`Remove ${provider.name} connection`}
                                                 disabled={deletingId === provider.id}
                                             >
                                                 {deletingId === provider.id ? (

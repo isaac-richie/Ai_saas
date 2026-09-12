@@ -1,389 +1,243 @@
-"use client"
+'use client';
 
-import { useEffect, useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import Link from "next/link"
-import { ArrowRight, Chrome, Zap, CheckCircle2, Eye, EyeOff } from "lucide-react"
-import { signup } from "@/core/actions/auth"
-import { signupSchema, SignupInput } from "@/core/types/auth"
-import { createClient } from "@/infrastructure/supabase/client"
-import { Button } from "@/interface/components/ui/button"
-import { Input } from "@/interface/components/ui/input"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/interface/components/ui/form"
-import { motion, Variants, AnimatePresence } from "framer-motion"
-import { MagneticButton } from "@/interface/components/ui/MagneticButton"
-import { humanizeAuthError } from "@/interface/components/auth/auth-error-message"
-import { AnimatedBrandMark } from "@/interface/components/branding/AnimatedBrandMark"
-
-const containerVariants: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.6,
-      ease: [0.16, 1, 0.3, 1],
-      when: "beforeChildren",
-      staggerChildren: 0.1,
-    },
-  },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, x: -10 },
-  visible: { opacity: 1, x: 0 },
-}
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import Link from 'next/link';
+import { ArrowRight, Chrome, Zap, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { signup } from '@/core/actions/auth';
+import { signupSchema, SignupInput } from '@/core/types/auth';
+import { createClient } from '@/infrastructure/supabase/client';
+import { Button } from '@/interface/components/ui/button';
+import { Input } from '@/interface/components/ui/input';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/interface/components/ui/form';
+import { humanizeAuthError } from '@/interface/components/auth/auth-error-message';
 
 export function SignupForm() {
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [otpInfo, setOtpInfo] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-  const [oauthPending, setOauthPending] = useState(false)
-  const [otpPending, setOtpPending] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const router = useRouter()
-
-  useEffect(() => {
-    if (!error) return
-    const timeoutId = window.setTimeout(() => setError(null), 3000)
-    return () => window.clearTimeout(timeoutId)
-  }, [error])
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [otpInfo, setOtpInfo] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const [oauthPending, setOauthPending] = useState(false);
+  const [otpPending, setOtpPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
   const form = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
-      email: "",
-      password: "",
-      confirmPassword: "",
+      email: '',
+      password: '',
+      confirmPassword: '',
     },
-  })
+  });
 
   async function onSubmit(data: SignupInput) {
-    setError(null)
-    setSuccess(null)
-    setOtpInfo(null)
+    setError(null);
+    setSuccess(null);
+    setOtpInfo(null);
     startTransition(async () => {
-      const result = await signup(data)
-      if (result?.error) {
-        setError(humanizeAuthError(result.error))
-      } else if (result?.success) {
-        setSuccess(result.message)
+      let result;
+      try {
+        result = await signup(data);
+      } catch {
+        setError('Could not connect. Please try again.');
+        return;
       }
-    })
+      if (result?.error) {
+        setError(humanizeAuthError(result.error));
+      } else if (result?.success) {
+        setSuccess(result.message);
+      }
+    });
   }
 
   async function onGoogleSignUp() {
     try {
-      setError(null)
-      setOtpInfo(null)
-      setOauthPending(true)
-      const supabase = createClient()
+      setError(null);
+      setOtpInfo(null);
+      setOauthPending(true);
+      const supabase = createClient();
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
+        provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
         },
-      })
-      if (error) setError(humanizeAuthError(error.message))
+      });
+      if (error) setError(humanizeAuthError(error.message));
     } catch {
-      setError(humanizeAuthError("fetch failed"))
+      setError(humanizeAuthError('fetch failed'));
     } finally {
-      setOauthPending(false)
+      setOauthPending(false);
     }
   }
 
   async function onSendOtpSignup() {
-    const email = form.getValues("email")?.trim().toLowerCase()
+    const email = form.getValues('email')?.trim().toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Enter a valid email before requesting OTP.")
-      return
+      setError('Enter a valid email before requesting OTP.');
+      return;
     }
 
     try {
-      setError(null)
-      setSuccess(null)
-      setOtpInfo(null)
-      setOtpPending(true)
-      const supabase = createClient()
+      setError(null);
+      setSuccess(null);
+      setOtpInfo(null);
+      setOtpPending(true);
+      const supabase = createClient();
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
           shouldCreateUser: true,
         },
-      })
+      });
 
       if (error) {
-        setError(humanizeAuthError(error.message))
-        return
+        setError(humanizeAuthError(error.message));
+        return;
       }
 
-      setOtpInfo("OTP sent. Enter the 6-digit code to complete signup.")
-      router.push(`/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent("/dashboard")}&mode=signup`)
+      setOtpInfo('OTP sent. Enter the 6-digit code to complete signup.');
+      router.push(
+        `/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent('/dashboard')}&mode=signup`
+      );
     } catch {
-      setError(humanizeAuthError("fetch failed"))
+      setError(humanizeAuthError('fetch failed'));
     } finally {
-      setOtpPending(false)
+      setOtpPending(false);
     }
   }
 
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
-  const handleMouseMove = (e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / rect.width - 0.5
-    const y = (e.clientY - rect.top) / rect.height - 0.5
-    setMousePos({ x, y })
-  }
-
+  const busy = isPending || oauthPending || otpPending;
   return (
-    <motion.div
-      initial="hidden"
-      animate="visible"
-      variants={containerVariants}
-      className="w-full perspective-1000"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setMousePos({ x: 0, y: 0 })}
-      style={{ perspective: "1000px" }}
-    >
-      <motion.div
-        className="relative space-y-6 sm:space-y-10 bg-black/40 p-6 sm:p-10 backdrop-blur-3xl border border-white/5 shadow-2xl overflow-hidden group"
-        animate={{
-          rotateY: mousePos.x * 6,
-          rotateX: -mousePos.y * 6,
-        }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      >
-        {/* Visual HUD Artillery */}
-        <div className="absolute top-0 left-0 h-4 w-4 border-t border-l border-cyan-500/40" />
-        <div className="absolute top-0 right-0 h-4 w-4 border-t border-r border-cyan-500/40" />
-        <div className="absolute bottom-0 left-0 h-4 w-4 border-b border-l border-cyan-500/40" />
-        <div className="absolute bottom-0 right-0 h-4 w-4 border-b border-r border-cyan-500/40" />
-
-        {/* Scanning Light Beam */}
-        <motion.div
-          className="absolute inset-0 z-10 pointer-events-none"
-          animate={{
-            background: [
-              "linear-gradient(rgba(34,211,238,0) 0%, rgba(34,211,238,0.05) 50%, rgba(34,211,238,0) 100%) translateY(-100%)",
-              "linear-gradient(rgba(34,211,238,0) 0%, rgba(34,211,238,0.05) 50%, rgba(34,211,238,0) 100%) translateY(200%)"
-            ]
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "linear",
-            delay: 2
-          }}
-        />
-
-        <div className="relative z-20 space-y-6">
-          <motion.div variants={itemVariants} className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.5em] text-cyan-500/60">
-            <div className="h-px w-12 bg-cyan-500/20" />
-            NEW STUDIO REGISTRATION
-          </motion.div>
-
-          <motion.div variants={itemVariants} className="space-y-3">
-            <AnimatedBrandMark className="h-12 w-12" />
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-white font-display">Create Account</h2>
-            <p className="text-xs sm:text-sm text-white/40 tracking-wide font-light font-sans">
-              Set up your workspace and start building shot-driven productions.
-            </p>
-          </motion.div>
+    <div className="cinema-signup">
+      <span className="cinema-eyebrow">YOUR CREATIVE CHAPTER STARTS HERE</span>
+      <h1>
+        Create your
+        <br />
+        <em>studio account.</em>
+      </h1>
+      <p className="cinema-signup-intro">A little setup. A world of possibilities.</p>
+      {success ? (
+        <div className="cinema-success" role="status">
+          <CheckCircle2 size={30} />
+          <h2>Check your inbox.</h2>
+          <p>{success}</p>
+          <Link className="cinema-text-link" href="/login">
+            Return to sign in <ArrowRight size={16} />
+          </Link>
         </div>
-
-        {success ? (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-6 text-center text-emerald-200"
-          >
-            <p className="inline-flex items-center gap-2 font-black uppercase tracking-widest leading-none">
-              <CheckCircle2 className="h-5 w-5" />
-              Initialization Success
-            </p>
-            <p className="mt-3 text-xs text-emerald-100/70 font-light">{success}</p>
-          </motion.div>
-        ) : (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 sm:space-y-10">
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="border-l-2 border-cyan-500/50 bg-cyan-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 shadow-xl"
-                >
-                  {error}
-                </motion.div>
-              )}
-              {otpInfo && (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="border-l-2 border-cyan-500/50 bg-cyan-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 shadow-xl"
-                >
-                  <span className="text-cyan-500 mr-2">[ SYNC ]</span>
-                  {otpInfo}
-                </motion.div>
-              )}
-
-              <div className="space-y-8">
-                <motion.div variants={itemVariants}>
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel className="text-[10px] font-mono font-bold uppercase tracking-[0.4em] text-white/30">Email</FormLabel>
-                        <FormControl>
-                          <div className="relative group">
-                            <Input
-                              placeholder="director@visiowave.studio"
-                              className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 text-sm text-white/80 placeholder:text-white/10 focus:border-cyan-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-cyan-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
-                              {...field}
-                            />
-                            <div className="absolute bottom-0 left-0 h-px w-0 bg-cyan-500 transition-all duration-700 group-focus-within:w-full" />
-                          </div>
-                        </FormControl>
-                        <FormMessage className="text-[10px] uppercase tracking-widest text-white/30" />
-                      </FormItem>
-                    )}
-                  />
-                </motion.div>
-
-                <motion.div variants={itemVariants}>
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel className="text-[10px] font-mono font-bold uppercase tracking-[0.4em] text-white/20">Password</FormLabel>
-                        <FormControl>
-                          <div className="relative group">
-                            <Input
-                              type={showPassword ? "text" : "password"}
-                              placeholder="••••••••••••"
-                              className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 pr-10 text-sm text-white/80 placeholder:text-white/10 focus:border-cyan-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-cyan-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
-                              {...field}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-white/20 hover:text-cyan-500 transition-colors"
-                            >
-                              {showPassword ? (
-                                <EyeOff className="h-4 w-4" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
-                              )}
-                            </button>
-                            <div className="absolute bottom-0 left-0 h-px w-0 bg-cyan-500 transition-all duration-700 group-focus-within:w-full" />
-                          </div>
-                        </FormControl>
-                        <FormMessage className="text-[10px] uppercase tracking-widest text-white/30" />
-                      </FormItem>
-                    )}
-                  />
-                </motion.div>
-
-                <motion.div variants={itemVariants}>
-                  <FormField
-                    control={form.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem className="space-y-3">
-                        <FormLabel className="text-[10px] font-mono font-bold uppercase tracking-[0.4em] text-white/20">Confirm Password</FormLabel>
-                        <FormControl>
-                          <div className="relative group">
-                            <Input
-                              type={showPassword ? "text" : "password"}
-                              placeholder="••••••••••••"
-                              className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 pr-10 text-sm text-white/80 placeholder:text-white/10 focus:border-cyan-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-cyan-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
-                              {...field}
-                            />
-                            <div className="absolute bottom-0 left-0 h-px w-0 bg-cyan-500 transition-all duration-700 group-focus-within:w-full" />
-                          </div>
-                        </FormControl>
-                        <FormMessage className="text-[10px] uppercase tracking-widest text-white/30" />
-                      </FormItem>
-                    )}
-                  />
-                </motion.div>
+      ) : (
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} noValidate aria-busy={busy}>
+            {error && (
+              <div role="alert" className="cinema-form-error">
+                {error}
               </div>
-
-              <motion.div variants={itemVariants} className="pt-6 relative">
-                <AnimatePresence>
-                  {isPending && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="absolute -top-12 left-0 w-full space-y-2 pointer-events-none"
-                    >
-                      <div className="flex justify-between text-[8px] font-mono font-bold tracking-[0.2em] text-cyan-500/60 uppercase">
-                        <span>Allocating Studio Resources</span>
-                        <span>INITIALIZING...</span>
+            )}
+            {otpInfo && <p role="status">{otpInfo}</p>}
+            <Button
+              type="button"
+              className="cinema-google"
+              variant="outline"
+              onClick={onGoogleSignUp}
+              disabled={busy}
+            >
+              <Chrome size={17} />
+              {oauthPending ? 'Connecting...' : 'Continue with Google'}
+            </Button>
+            <div className="cinema-divider">
+              <span />
+              or create with email
+              <span />
+            </div>
+            <div className="cinema-fields">
+              {(['email', 'password', 'confirmPassword'] as const).map((name) => (
+                <FormField
+                  key={name}
+                  control={form.control}
+                  name={name}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {name === 'email'
+                          ? 'Email address'
+                          : name === 'password'
+                            ? 'Password'
+                            : 'Confirm password'}
+                      </FormLabel>
+                      <div className="cinema-input-wrap">
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type={name === 'email' ? 'email' : showPassword ? 'text' : 'password'}
+                            autoComplete={name === 'email' ? 'email' : 'new-password'}
+                            placeholder={
+                              name === 'email'
+                                ? 'you@example.com'
+                                : name === 'password'
+                                  ? 'Create a password'
+                                  : 'Repeat your password'
+                            }
+                            disabled={busy}
+                          />
+                        </FormControl>
+                        {name === 'password' && (
+                          <button
+                            type="button"
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            aria-pressed={showPassword}
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        )}
                       </div>
-                      <div className="h-[2px] w-full bg-white/5 overflow-hidden">
-                        <motion.div
-                          className="h-full bg-cyan-500"
-                          initial={{ width: "0%" }}
-                          animate={{ width: "100%" }}
-                          transition={{ duration: 2, ease: "easeInOut", repeat: Infinity }}
-                        />
-                      </div>
-                    </motion.div>
+                      {name === 'password' && (
+                        <FormDescription className="cinema-field-help">
+                          8+ characters, with uppercase, lowercase, and a number.
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </AnimatePresence>
+                />
+              ))}
+            </div>
+            <Button
+              type="submit"
+              className="cinema-button cinema-primary cinema-submit"
+              disabled={busy}
+            >
+              {isPending ? 'Creating your account...' : 'Create account'}
+              <ArrowUpRightIcon />
+            </Button>
+            <button className="cinema-otp" type="button" disabled={busy} onClick={onSendOtpSignup}>
+              <Zap size={14} />
+              {otpPending ? 'Sending code...' : 'Prefer a code? Sign up with email OTP'}
+            </button>
+          </form>
+        </Form>
+      )}
+      <p className="cinema-signin">
+        Already have an account?{' '}
+        <Link href="/login">
+          Sign in <ArrowRight size={14} />
+        </Link>
+      </p>
+    </div>
+  );
+}
 
-                <MagneticButton className="w-full">
-                  <Button
-                    type="submit"
-                    className="h-14 w-full rounded-none border border-white/10 bg-white text-black text-[11px] font-black uppercase tracking-[0.6em] hover:bg-cyan-400 hover:border-cyan-400 focus-visible:ring-cyan-500/20 transition-all active:scale-[0.98] shadow-2xl shadow-cyan-500/10"
-                    disabled={isPending}
-                  >
-                    {isPending ? "INITIALIZING..." : "Create account"}
-                    {!isPending && <ArrowRight className="ml-4 h-5 w-5" />}
-                  </Button>
-                </MagneticButton>
-              </motion.div>
-
-              <motion.div variants={itemVariants} className="grid grid-cols-1 gap-6 pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-12 rounded-none border-white/10 bg-black text-[9px] font-black uppercase tracking-[0.5em] text-white/30 hover:bg-white hover:text-black hover:border-white focus-visible:ring-white/10 transition-all shadow-xl group/node"
-                  onClick={onSendOtpSignup}
-                  disabled={otpPending || isPending || oauthPending}
-                >
-                  <Zap className="mr-3 h-4 w-4 text-cyan-400 group-hover/node:text-black transition-colors" />
-                  {otpPending ? "SENDING OTP..." : "Create with Email OTP"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-12 rounded-none border-white/10 bg-black text-[9px] font-black uppercase tracking-[0.5em] text-white/30 hover:bg-white hover:text-black hover:border-white focus-visible:ring-white/10 transition-all shadow-xl group/node"
-                  onClick={onGoogleSignUp}
-                  disabled={oauthPending || otpPending}
-                >
-                  <Chrome className="mr-3 h-4 w-4 group-hover/node:rotate-90 transition-transform duration-500" />
-                  {oauthPending ? "CONNECTING..." : "Continue with Google"}
-                </Button>
-              </motion.div>
-
-              <motion.div variants={itemVariants} className="pt-12 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/20">
-                  Already have an account?{" "}
-                  <Link href="/login" className="text-cyan-500 hover:text-cyan-400 transition-colors ml-2 underline underline-offset-4">
-                    Login
-                  </Link>
-                </p>
-              </motion.div>
-            </form>
-          </Form>
-        )}
-      </motion.div>
-    </motion.div>
-  )
+function ArrowUpRightIcon() {
+  return <ArrowRight size={18} className="-rotate-45" />;
 }

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./cinema.css";
+import "./workspace.css";
 import { ThemeProvider } from "@/interface/providers/theme-provider";
 import { AppShell } from "@/interface/components/layout/AppShell";
 import { Toaster } from "@/interface/components/ui/sonner";

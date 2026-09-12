@@ -1,13 +1,13 @@
-import { SignupForm } from "@/interface/components/auth/SignupForm";
-import { Metadata } from "next";
+import { SignupForm } from '@/interface/components/auth/SignupForm';
+import { Metadata } from 'next';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-    title: "Sign Up | AI Cinematography Dashboard",
-    description: "Create a new account",
+  title: 'Create your studio account',
+  description: 'Join Visiowave and bring your cinematic ideas to life.',
 };
 
 export default function SignupPage() {
-    return <SignupForm />;
+  return <SignupForm />;
 }

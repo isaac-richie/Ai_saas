@@ -1911,10 +1911,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   }
 
   const setupCardClass =
-    "rounded-2xl border border-white/[0.06] bg-[#0c0c0e]/90 text-white shadow-[0_32px_80px_-30px_rgba(0,0,0,0.8)] backdrop-blur-sm lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto h-fit"
-  const sectionClass = "rounded-2xl border border-white/[0.06] bg-white/[0.015] p-5 space-y-4"
+    "workspace-setup-panel h-fit min-w-0"
+  const sectionClass = "workspace-control-section space-y-4"
   const optionBaseClass =
-    "h-11 rounded-xl px-4 text-xs font-medium tracking-wide transition-all duration-200 cursor-pointer"
+    "workspace-option h-11 rounded-xl px-4 text-xs font-medium tracking-wide transition-all duration-200 cursor-pointer"
   const optionClass = (active: boolean) =>
     `${optionBaseClass} ${
       active
@@ -1924,12 +1924,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const subtlePanelClass = "rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
 
   return (
-    <div className="space-y-6">
-      <div className="flex animate-in fade-in-0 slide-in-from-top-1 duration-300 flex-wrap items-center gap-2 rounded-2xl border border-white/[0.06] bg-[#0c0c0e]/80 p-2 backdrop-blur-sm">
+    <div className="workspace-workbench space-y-6">
+      <div className="workspace-builder-tabs flex flex-wrap items-center gap-2" role="group" aria-label="Fast Track view">
         <Button
           type="button"
           variant={activeTab === "builder" ? "liquidMetalCyan" : "liquidMetal"}
           onClick={() => setActiveTab("builder")}
+          aria-pressed={activeTab === "builder"}
           className="h-9 px-5 text-xs font-medium transition-all duration-200"
         >
           Shot Builder
@@ -1938,6 +1939,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           type="button"
           variant={activeTab === "storyboard" ? "liquidMetalCyan" : "liquidMetal"}
           onClick={() => setActiveTab("storyboard")}
+          aria-pressed={activeTab === "storyboard"}
           className="h-9 px-5 text-xs font-medium transition-all duration-200"
         >
           Storyboard ({storyboardItems.length})
@@ -1945,17 +1947,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       </div>
 
       {activeTab === "builder" ? (
-    <div className="grid animate-in fade-in-0 slide-in-from-bottom-1 duration-500 gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
+    <div className="workspace-builder-grid">
       <Card className={setupCardClass}>
         <CardHeader className="px-5 pt-5 pb-2">
-          <CardTitle className="text-lg font-semibold tracking-tight">Shot Setup</CardTitle>
-          <p className="mt-1 text-sm text-white/40">Build your shot in seconds — open advanced for full control.</p>
+          <CardTitle className="text-lg font-semibold tracking-tight">Compose your shot</CardTitle>
+          <p className="mt-1 text-sm text-white/60">Your idea, shaped into a scene.</p>
         </CardHeader>
         <CardContent className="space-y-5 px-5 pb-5">
           <div className={sectionClass}>
             <div className="space-y-2.5">
-              <label className="text-[11px] uppercase tracking-[0.14em] text-white/50 font-medium">Prompt</label>
+              <label htmlFor="fast-video-prompt" className="text-[11px] uppercase tracking-[0.14em] text-white/50 font-medium">Prompt</label>
               <Textarea
+                id="fast-video-prompt"
                 value={subject}
                 onChange={(event) => setSubject(event.target.value)}
                 placeholder="Describe your shot — be cinematic..."
@@ -2526,7 +2529,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             ) : null}
           </div>
 
-          <div className="sticky bottom-0 z-10 rounded-2xl bg-[#0c0c0e]/95 p-4 shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+          <div className="workspace-generate-bar sticky bottom-0 z-10 rounded-2xl bg-[#0c0c0e]/95 p-4 shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.95)] backdrop-blur-xl">
             <Button
               type="button"
               variant="liquidMetalPrimary"
@@ -2542,11 +2545,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       </Card>
 
       <div className="space-y-6">
-        <Card className="rounded-2xl border border-white/[0.06] bg-[#0c0c0e]/90 text-white overflow-hidden shadow-[0_32px_80px_-30px_rgba(0,0,0,0.8)] backdrop-blur-sm">
+        <Card className="workspace-preview-panel min-w-0 overflow-hidden">
           <CardHeader className="px-6 pt-6 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-xl font-semibold tracking-tight">Output</CardTitle>
+                <CardTitle className="text-xl font-semibold tracking-tight">The screening room</CardTitle>
                 <p className="mt-1.5 text-sm text-white/40">Generate, preview, and send your best takes into storyboard.</p>
               </div>
               <div className="flex items-center gap-2">
@@ -2711,7 +2714,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
               <p className="mb-3 text-[10px] uppercase tracking-[0.14em] text-white/35">Output Actions</p>
               <div className="flex flex-wrap items-center gap-2.5">
-              <div className="flex min-w-[240px] flex-1 items-center gap-2.5">
+              <div className="flex min-w-0 basis-full flex-1 items-center gap-2.5">
                 <Input
                   value={downloadName}
                   onChange={(event) => setDownloadName(event.target.value)}

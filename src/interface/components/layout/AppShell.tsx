@@ -125,7 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         pathname.startsWith("/reset-password") ||
         pathname.startsWith("/auth/")
 
-    const isPublicRoute = pathname === "/"
+    const isPublicRoute = pathname === "/" || pathname === "/inner-circle" || pathname.startsWith("/inner-circle/")
 
     if (isAuthRoute || isPublicRoute) {
         return (
@@ -160,7 +160,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <div ref={shellRef} className="relative min-h-screen bg-[#050505] text-white">
+        <div ref={shellRef} className="studio-workspace relative min-h-screen bg-[#050505] text-white">
             <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-lg focus:bg-black focus:px-3 focus:py-2 focus:text-white">
                 Skip to main content
             </a>

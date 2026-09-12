@@ -123,7 +123,7 @@ export default async function InnerCircleDashboardPage() {
                       <p className="text-sm font-semibold">
                         #{index + 1} {entry.full_name}
                       </p>
-                      <p className="text-xs text-white/55">@{entry.instagram_handle} • @{entry.social_handle}</p>
+                      <p className="text-xs text-white/55">Instagram: @{entry.instagram_handle} • {entry.social_handle.startsWith('x: @') ? entry.social_handle : `Social: @${entry.social_handle}`}</p>
                     </div>
                     <Badge className="rounded-full border border-cyan-300/30 bg-cyan-300/10 text-cyan-200">
                       {entry.referral_count} referrals
@@ -148,6 +148,7 @@ export default async function InnerCircleDashboardPage() {
                 <div key={entry.id} className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs">
                   <p className="font-semibold text-white">{entry.full_name}</p>
                   <p className="text-white/55">{entry.email}</p>
+                  <p className="text-white/55">Instagram: @{entry.instagram_handle} • {entry.social_handle.startsWith('x: @') ? entry.social_handle : `Social: @${entry.social_handle}`}</p>
                   <p className="text-white/45">Code: {entry.referral_code}</p>
                 </div>
               ))

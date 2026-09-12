@@ -4,16 +4,16 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type FormState = {
-  fullName: string;
+  xHandle: string;
   instagramHandle: string;
-  socialHandle: string;
+  tiktokHandle: string;
   email: string;
 };
 
 const initialState: FormState = {
-  fullName: '',
+  xHandle: '',
   instagramHandle: '',
-  socialHandle: '',
+  tiktokHandle: '',
   email: '',
 };
 
@@ -25,9 +25,9 @@ export function InnerCircleForm({ referredByCode }: { referredByCode: string | n
 
   const canSubmit = useMemo(() => {
     return (
-      state.fullName.trim().length > 1 &&
-      state.instagramHandle.trim().length > 1 &&
-      state.socialHandle.trim().length > 1 &&
+      [state.xHandle, state.instagramHandle, state.tiktokHandle].every((handle) =>
+        /^[a-z0-9._]{2,80}$/i.test(handle.trim().replace(/^@+/, ''))
+      ) &&
       state.email.includes('@')
     );
   }, [state]);
@@ -59,11 +59,7 @@ export function InnerCircleForm({ referredByCode }: { referredByCode: string | n
         return;
       }
 
-      const params = new URLSearchParams({
-        code: payload.referralCode,
-        name: state.fullName,
-      });
-      router.push(`/inner-circle/thanks?${params.toString()}`);
+      router.replace('/inner-circle/thanks');
     } catch {
       setError('Could not submit right now. Please try again.');
     } finally {
@@ -75,10 +71,10 @@ export function InnerCircleForm({ referredByCode }: { referredByCode: string | n
     <form onSubmit={onSubmit} className="mt-8 space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label="Name"
-          value={state.fullName}
-          onChange={(value) => setState((prev) => ({ ...prev, fullName: value }))}
-          placeholder="Your full name"
+          label="X (Twitter)"
+          value={state.xHandle}
+          onChange={(value) => setState((prev) => ({ ...prev, xHandle: value }))}
+          placeholder="@yourhandle"
           required
         />
         <Field
@@ -92,9 +88,9 @@ export function InnerCircleForm({ referredByCode }: { referredByCode: string | n
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label="TikTok / Twitter Handle"
-          value={state.socialHandle}
-          onChange={(value) => setState((prev) => ({ ...prev, socialHandle: value }))}
+          label="TikTok"
+          value={state.tiktokHandle}
+          onChange={(value) => setState((prev) => ({ ...prev, tiktokHandle: value }))}
           placeholder="@yourhandle"
           required
         />
@@ -114,7 +110,7 @@ export function InnerCircleForm({ referredByCode }: { referredByCode: string | n
         </p>
       ) : null}
 
-      {error ? <p className="text-sm text-red-300">{error}</p> : null}
+      {error ? <p role="alert" className="text-sm text-red-300">{error}</p> : null}
 
       <button
         type="submit"
@@ -150,6 +146,9 @@ function Field({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         required={required}
+        maxLength={type === 'email' ? 160 : 80}
+        autoCapitalize="none"
+        spellCheck={false}
         placeholder={placeholder}
         className="w-full rounded-xl border border-white/12 bg-white/[0.03] px-4 py-3 text-white placeholder:text-white/30 outline-none transition focus:border-cyan-300/70"
       />

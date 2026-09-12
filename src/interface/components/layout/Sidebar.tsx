@@ -40,7 +40,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     return (
         <aside
             className={cn(
-                "fixed left-0 top-0 z-40 h-screen border-r border-white/10 bg-[#09090b]/95 text-white backdrop-blur-xl transition-all duration-300 ease-out",
+                "workspace-sidebar fixed left-0 top-0 z-40 h-screen border-r border-white/10 bg-[#09090b]/95 text-white backdrop-blur-xl transition-all duration-300 ease-out",
                 isOpen ? "translate-x-0 w-72" : "-translate-x-full w-72 md:translate-x-0 md:w-20"
             )}
         >
@@ -93,6 +93,8 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                             <Link
                                 key={item.href}
                                 href={item.href}
+                                aria-current={isActive ? "page" : undefined}
+                                title={item.name}
                                 data-tour={item.tour}
                                 onClick={() => setIsOpen(false)}
                                 className={itemClassName}
