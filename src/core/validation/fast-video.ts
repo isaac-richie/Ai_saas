@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { FAST_VIDEO_ASPECT_RATIOS, FAST_VIDEO_VARIATIONS } from "@/core/config/fast-video-presets"
+import { mediaReferencesSchema } from "./media-reference"
 
 export const fastVideoRequestSchema = z.object({
   request_type: z.literal("fast_video"),
@@ -12,6 +13,7 @@ export const fastVideoRequestSchema = z.object({
     motion_preset_id: z.string().optional().nullable(),
     aspect_ratio: z.enum(FAST_VIDEO_ASPECT_RATIOS),
     reference_image: z.string().url().optional().nullable(),
+    media_references: mediaReferencesSchema.optional(),
     variation_setting: z.enum(FAST_VIDEO_VARIATIONS),
   }),
   settings: z.object({

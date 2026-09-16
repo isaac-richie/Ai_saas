@@ -72,7 +72,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         prompt: string
         useSourceImage: boolean
         durationSeconds: 5 | 10 | 15
-        modelFamily: "kling" | "seedance" | "sora"
+        modelFamily: "kling" | "seedance"
     }>({
         open: false,
         optionId: null,

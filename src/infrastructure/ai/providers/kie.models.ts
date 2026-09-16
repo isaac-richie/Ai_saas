@@ -58,18 +58,6 @@ export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
     mode: "text-to-video",
   },
   {
-    slug: "sora-2-text-to-video",
-    type: "video",
-    label: "Sora 2 (T2V)",
-    mode: "text-to-video",
-  },
-  {
-    slug: "sora-2-image-to-video",
-    type: "video",
-    label: "Sora 2 (I2V)",
-    mode: "image-to-video",
-  },
-  {
     slug: "hailuo/2-3-image-to-video-pro",
     type: "video",
     label: "Hailuo 2.3 Pro (I2V)",

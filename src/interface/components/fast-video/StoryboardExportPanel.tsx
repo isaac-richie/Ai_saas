@@ -22,7 +22,7 @@ const PROFILES: { id: ExportProfile; label: string }[] = [
   { id: "square_1_1", label: "1:1 Square" },
 ]
 
-export function StoryboardExportPanel({ storyboardItems, projectId }: StoryboardExportPanelProps) {
+export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanelProps) {
   const [selectedProfile, setSelectedProfile] = useState<ExportProfile>("master_16_9")
   const [isExporting, setIsExporting] = useState(false)
 

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion"
 import { Play } from "lucide-react"
+import Image from "next/image"
 
 const PREVIEWS = [
   {
@@ -85,9 +86,11 @@ function PreviewCard({ item }: { item: typeof PREVIEWS[0] }) {
     >
       <div className="relative aspect-square">
         {/* Fill the image, and use low opacity overlay to fix readability as per requirement */}
-        <img 
+        <Image
           src={item.image} 
           alt={item.title}
+          fill
+          sizes="(max-width: 768px) 50vw, 25vw"
           className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110"
         />
         

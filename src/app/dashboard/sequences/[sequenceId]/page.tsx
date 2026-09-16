@@ -16,8 +16,12 @@ type SequenceShotRow = {
     id: string;
     order_index: number;
     duration_seconds: number | null;
+    trim_start_seconds: number | null;
+    transition_type: "cut" | "dissolve" | "fade" | null;
+    transition_seconds: number | null;
     shots: {
         id: string;
+        approved_take_id: string | null;
         name: string;
         description: string | null;
         shot_type: string | null;
@@ -37,7 +41,7 @@ export default async function SequencePage(props: SequencePageProps) {
 
     const { data: sequence } = await supabase
         .from("video_sequences")
-        .select("id, name, status, output_url, project_id, scene_id")
+        .select("id, name, status, output_url, project_id, scene_id, finishing_settings, edit_version")
         .eq("id", params.sequenceId)
         .single();
 
@@ -57,9 +61,13 @@ export default async function SequencePage(props: SequencePageProps) {
             id,
             order_index,
             duration_seconds,
+            trim_start_seconds,
+            transition_type,
+            transition_seconds,
             shots (
                 id,
                 name,
+                approved_take_id,
                 description,
                 shot_type,
                 camera_movement,
@@ -77,7 +85,7 @@ export default async function SequencePage(props: SequencePageProps) {
     const items = (sequenceShots as SequenceShotRow[] | null || []).map((row) => {
         const shot = row.shots;
         const options = shot?.options || [];
-        const approved = options.find((opt) => opt.status === "approved" && opt.output_url);
+        const approved = options.find((opt) => opt.id === shot?.approved_take_id && opt.status === "completed" && opt.output_url);
         const fallback = options
             .filter((opt) => opt.output_url)
             .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0];
@@ -86,6 +94,9 @@ export default async function SequencePage(props: SequencePageProps) {
             id: row.id,
             order_index: row.order_index,
             duration_seconds: row.duration_seconds,
+            trim_start_seconds: row.trim_start_seconds,
+            transition_type: row.transition_type || "cut",
+            transition_seconds: row.transition_seconds,
             preview_url: approved?.output_url || fallback?.output_url || null,
             shot: {
                 id: shot?.id || "",

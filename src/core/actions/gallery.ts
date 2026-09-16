@@ -261,7 +261,7 @@ export async function getGalleryAssets(projectId?: string) {
             output_url,
             created_at,
             parameters,
-            shots!inner (
+            shots!shot_generations_shot_id_fkey!inner (
                 id,
                 name,
                 shot_type,

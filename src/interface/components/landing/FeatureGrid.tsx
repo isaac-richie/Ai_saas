@@ -15,7 +15,7 @@ const features = [
     icon: Film,
     title: "Multi-Model Video Studio",
     description:
-      "Generate cinematic video with Kling 2.5, Seedance, or Sora 2. Switch models per shot — each engine brings a different look.",
+      "Generate cinematic video with Kling and Seedance. Switch models per shot — each engine brings a different look.",
     accent: "cyan",
   },
   {

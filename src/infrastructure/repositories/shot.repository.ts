@@ -21,7 +21,7 @@ export const getShotsBySceneId = async (sceneId: string): Promise<ShotWithDetail
             *,
             camera:cameras(name),
             lens:lenses(name),
-            options:shot_generations(*, provider:providers(name, slug))
+            options:shot_generations!shot_generations_shot_id_fkey(*, provider:providers(name, slug))
         `)
         .eq("scene_id", sceneId)
         .order("sequence_order", { ascending: true });

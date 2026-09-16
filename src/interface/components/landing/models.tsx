@@ -33,17 +33,6 @@ export const MODELS: LandingModel[] = [
     dot: "bg-blue-400",
     badge: "border-blue-400/25 text-blue-300 bg-blue-400/10",
   },
-  {
-    id: "sora",
-    name: "Sora 2",
-    provider: "OpenAI",
-    description: "High-end narrative motion and scene coherence. For when every frame needs to hold up to scrutiny.",
-    strengths: ["Narrative depth", "Scene coherence", "Premium quality"],
-    accent: "from-orange-400/20 to-orange-400/5",
-    border: "border-orange-400/20 hover:border-orange-400/35",
-    dot: "bg-orange-400",
-    badge: "border-orange-400/25 text-orange-300 bg-orange-400/10",
-  },
 ]
 
 export function ModelCardBody({ model }: { model: LandingModel }) {

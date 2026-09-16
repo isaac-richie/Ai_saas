@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/infrastructure/supabase/server";
 import { Database } from "@/core/types/db";
+import { z } from "zod";
 
 export type VideoSequence = Database["public"]["Tables"]["video_sequences"]["Row"];
 export type SequenceShot = Database["public"]["Tables"]["sequence_shots"]["Row"];
@@ -203,14 +204,41 @@ export async function moveSequenceShot(sequenceId: string, sequenceShotId: strin
     return { data: true };
 }
 
-export async function updateSequenceShotDuration(sequenceShotId: string, durationSeconds: number) {
+const sequenceShotEditSchema = z.object({
+    sequenceShotId: z.string().uuid(),
+    durationSeconds: z.number().positive().max(60),
+    trimStartSeconds: z.number().min(0).max(60),
+    transitionType: z.enum(["cut", "dissolve", "fade"]),
+    transitionSeconds: z.number().min(0).max(2),
+}).superRefine((value, context) => {
+    if (value.transitionType !== "cut" && value.transitionSeconds <= 0) {
+        context.addIssue({ code: "custom", message: "Choose a transition duration." });
+    }
+});
+
+const sequenceShotDurationSchema = z.object({
+    sequenceShotId: z.string().uuid(),
+    durationSeconds: z.number().positive().max(60),
+});
+
+export async function updateSequenceShotEdit(input: unknown) {
+    const parsed = sequenceShotEditSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0]?.message || "Check the shot edit." };
     const session = await ensureSession();
-    if (session.error) return { error: session.error };
+    if (session.error || !session.user) return { error: session.error || "Unauthorized" };
     const supabase = session.supabase;
+
+    const { sequenceShotId, durationSeconds, trimStartSeconds, transitionType } = parsed.data;
+    const transitionSeconds = transitionType === "cut" ? 0 : parsed.data.transitionSeconds;
 
     const { data, error } = await supabase
         .from("sequence_shots")
-        .update({ duration_seconds: durationSeconds })
+        .update({
+            duration_seconds: durationSeconds,
+            trim_start_seconds: trimStartSeconds,
+            transition_type: transitionType,
+            transition_seconds: transitionSeconds,
+        })
         .eq("id", sequenceShotId)
         .select("sequence_id")
         .single();
@@ -221,6 +249,19 @@ export async function updateSequenceShotDuration(sequenceShotId: string, duratio
         revalidatePath(`/dashboard/sequences/${data.sequence_id}`);
     }
 
+    return { data: true };
+}
+
+export async function updateSequenceShotDuration(sequenceShotId: string, durationSeconds: number) {
+    const parsed = sequenceShotDurationSchema.safeParse({ sequenceShotId, durationSeconds });
+    if (!parsed.success) return { error: "Choose a valid shot and duration." };
+    const session = await ensureSession();
+    if (session.error || !session.user) return { error: session.error || "Unauthorized" };
+    const { data, error } = await session.supabase.from("sequence_shots")
+        .update({ duration_seconds: parsed.data.durationSeconds })
+        .eq("id", parsed.data.sequenceShotId).select("sequence_id").single();
+    if (error) return { error: error.message };
+    revalidatePath(`/dashboard/sequences/${data.sequence_id}`);
     return { data: true };
 }
 
@@ -243,4 +284,29 @@ export async function removeSequenceShot(sequenceShotId: string) {
     }
 
     return { data: true };
+}
+
+const finishingSchema = z.object({
+    sequenceId: z.string().uuid(),
+    color: z.enum(["cinematic-neutral", "warm-film", "cool-noir", "high-contrast"]),
+    audio: z.enum(["preserve", "normalize", "mute"]),
+    loudnessTarget: z.number().min(-24).max(-9),
+    captions: z.enum(["none", "burn-in", "sidecar"]),
+    captionTrackUrl: z.string().url().max(2000).nullable().optional(),
+    delivery: z.enum(["1080p", "vertical-1080p", "square-1080p"]),
+});
+
+export async function updateSequenceFinishing(input: unknown) {
+    const parsed = finishingSchema.safeParse(input);
+    if (!parsed.success) return { error: "Check the finishing settings." };
+    const session = await ensureSession();
+    if (session.error || !session.user) return { error: session.error || "Unauthorized" };
+    const { sequenceId, ...settings } = parsed.data;
+    if (settings.captions !== "none" && !settings.captionTrackUrl) return { error: "Attach an SRT caption track before selecting a caption delivery mode." };
+    const { data: sequence } = await session.supabase.from("video_sequences").select("id,project_id,projects!inner(user_id),edit_version").eq("id", sequenceId).eq("projects.user_id", session.user.id).maybeSingle();
+    if (!sequence) return { error: "Sequence not found." };
+    const { error } = await session.supabase.from("video_sequences").update({ finishing_settings: settings, edit_version: (sequence.edit_version || 1) + 1 }).eq("id", sequenceId);
+    if (error) return { error: "Apply migration 0023 to save finishing settings." };
+    revalidatePath(`/dashboard/sequences/${sequenceId}`);
+    return { data: { settings, version: (sequence.edit_version || 1) + 1 } };
 }

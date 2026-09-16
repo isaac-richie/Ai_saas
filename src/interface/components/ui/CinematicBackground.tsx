@@ -2,6 +2,7 @@
 
 import { motion, useScroll, useTransform } from "framer-motion"
 import { useMemo } from "react"
+import Image from "next/image"
 
 type Particle = {
   left: string
@@ -43,9 +44,11 @@ export function CinematicBackground() {
         style={{ y: y1 }}
         className="absolute inset-0 opacity-20 transition-opacity duration-1000 scale-110 blur-[80px]"
       >
-        <img 
+        <Image
           src="/auth/city.png"
           alt="Cinematic Background Base"
+          fill
+          sizes="100vw"
           className="h-full w-full object-cover"
         />
       </motion.div>

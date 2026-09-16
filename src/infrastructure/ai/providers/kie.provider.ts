@@ -79,27 +79,13 @@ export class KieProvider extends BaseProvider {
         return request.image_prompt ? "video" : "image";
     }
 
-    private resolveAspectRatioForModel(aspectRatio: string | undefined, model: string): string | undefined {
-        if (!aspectRatio) return undefined;
-        const normalizedModel = model.toLowerCase();
-
-        if (normalizedModel.includes("sora-2")) {
-            if (aspectRatio === "1:1") return "square";
-            if (aspectRatio === "9:16" || aspectRatio === "4:5") return "portrait";
-            return "landscape";
-        }
-
-        return aspectRatio;
-    }
-
     private buildMarketInput(request: GenerationRequest, model: string): Record<string, unknown> {
         const input: Record<string, unknown> = {
             prompt: request.prompt,
         };
 
         if (request.negative_prompt) input.negative_prompt = request.negative_prompt;
-        const resolvedAspectRatio = this.resolveAspectRatioForModel(request.aspect_ratio, model);
-        if (resolvedAspectRatio) input.aspect_ratio = resolvedAspectRatio;
+        if (request.aspect_ratio) input.aspect_ratio = request.aspect_ratio;
         if (request.quality) input.quality = request.quality;
         if (typeof request.seed === "number") input.seed = request.seed;
         if (typeof request.steps === "number") input.steps = request.steps;
@@ -107,7 +93,7 @@ export class KieProvider extends BaseProvider {
 
         if (request.image_prompt) {
             const normalizedModel = model.toLowerCase();
-            if (normalizedModel.includes("kling-3.0") || normalizedModel.includes("sora-2-image-to-video")) {
+            if (normalizedModel.includes("kling-3.0")) {
                 input.image_urls = [request.image_prompt];
             } else {
                 input.image_url = request.image_prompt;
@@ -129,11 +115,6 @@ export class KieProvider extends BaseProvider {
             const resolvedDuration = this.resolveDurationForModel(request.duration_seconds, model);
             if (resolvedDuration) {
                 input.duration = resolvedDuration;
-            }
-
-            if (model.toLowerCase().includes("sora-2")) {
-                // Sora 2 market API expects frame buckets instead of free-form duration.
-                input.n_frames = request.duration_seconds && request.duration_seconds >= 10 ? "20" : "10";
             }
 
             // Always enable audio for Seedance or if explicitly requested for any video model
@@ -259,7 +240,8 @@ export class KieProvider extends BaseProvider {
             method: "GET",
             headers: {
                 "Authorization": `Bearer ${this.config.apiKey}`
-            }
+            },
+            signal: AbortSignal.timeout(15_000),
         });
     }
 
@@ -314,7 +296,8 @@ export class KieProvider extends BaseProvider {
                     'Authorization': `Bearer ${this.config.apiKey}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(body)
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(30_000),
             });
 
             if (!res.ok) {

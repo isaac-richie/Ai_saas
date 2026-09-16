@@ -28,13 +28,16 @@ export const getProjects = async (userId: string): Promise<ProjectWithStats[]> =
         .from("shot_generations")
         .select(`
             output_url,
+            thumbnail_url,
             created_at,
-            shots!inner(
+            shots!shot_generations_shot_id_fkey!inner(
                 scene_id,
-                scenes!inner(project_id)
+                scenes!inner(project_id,projects!inner(user_id))
             )
         `)
         .not("output_url", "is", null)
+        .eq("status", "completed")
+        .eq("shots.scenes.projects.user_id", userId)
         .order("created_at", { ascending: false });
 
     if (previewError) {
@@ -46,10 +49,11 @@ export const getProjects = async (userId: string): Promise<ProjectWithStats[]> =
     ((previewRows as unknown[]) || []).forEach((row) => {
         const record = row as {
             output_url?: string | null;
+            thumbnail_url?: string | null;
             shots?: { scenes?: { project_id?: string | null } | null } | null;
         };
         const projectId = record.shots?.scenes?.project_id ?? null;
-        const url = record.output_url ?? null;
+        const url = record.thumbnail_url || record.output_url || null;
         if (!projectId || !url) return;
         if (!thumbnailByProject.has(projectId)) {
             thumbnailByProject.set(projectId, url);

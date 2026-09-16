@@ -14,7 +14,7 @@ async function ensureSession() {
 async function verifyShot(supabase: Awaited<ReturnType<typeof createClient>>, shotId: string, userId: string) {
   const { data } = await supabase
     .from("shots")
-    .select("id, scene_id, scenes!inner(project_id, projects!inner(user_id))")
+    .select("id, scene_id, generation_settings, scenes!inner(project_id, projects!inner(user_id))")
     .eq("id", shotId)
     .eq("scenes.projects.user_id", userId)
     .maybeSingle()
@@ -62,13 +62,20 @@ export async function approveTake(shotId: string, takeId: string) {
 
   const { data: take } = await supabase
     .from("shot_generations")
-    .select("id")
+    .select("id,review_status,last_frame_url")
     .eq("id", takeId)
     .eq("shot_id", shotId)
     .eq("status", "completed")
     .maybeSingle()
 
   if (!take) return { error: "Take not found or not completed" }
+  const productionShot = typeof shot.generation_settings === "object"
+    && shot.generation_settings !== null
+    && !Array.isArray(shot.generation_settings)
+    && typeof shot.generation_settings.production_job_id === "string"
+  if (productionShot && (!take.last_frame_url || !["pass", "warning"].includes(take.review_status || ""))) {
+    return { error: take.review_status === "rejected" ? "This take failed continuity review. Correct it before approval." : "Inspect this take before approving it for the continuity chain." }
+  }
 
   const { error } = await supabase
     .from("shots")

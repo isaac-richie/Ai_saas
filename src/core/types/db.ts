@@ -544,6 +544,7 @@ export interface Database {
             }
             fast_video_storyboard_items: {
                 Row: {
+                    media_references: Json
                     id: string
                     project_id: string
                     scene_id: string
@@ -561,6 +562,7 @@ export interface Database {
                     updated_at: string
                 }
                 Insert: {
+                    media_references?: Json
                     id?: string
                     project_id: string
                     scene_id: string
@@ -578,6 +580,7 @@ export interface Database {
                     updated_at?: string
                 }
                 Update: {
+                    media_references?: Json
                     id?: string
                     project_id?: string
                     scene_id?: string

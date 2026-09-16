@@ -1,0 +1,20 @@
+.drawer { margin-top: 20px; border: 1px solid #d6ede726; border-radius: 16px; padding: 16px; background: linear-gradient(135deg,#d6ede708,transparent); min-width: 0; }
+.drawer summary { display: flex; justify-content: space-between; cursor: pointer; color: #d6ede7; font-size: 14px; }
+.drawer summary span { display: flex; gap: 9px; align-items: center; }
+.drawer small { color: #ffffff70; }
+.help { font-size: 12px; line-height: 1.6; color: #ffffff80; margin: 12px 0; }
+.controls { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.controls label { flex: 1; min-width: 140px; font-size: 12px; color: #ffffff99; }
+.controls select { display: block; width: 100%; margin-top: 6px; background: #141c17; border: 1px solid #ffffff26; border-radius: 9px; padding: 11px; color: white; text-transform: capitalize; }
+.controls button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 10px; background: #d6ede7; color: #152019; padding: 10px 16px; font-size: 13px; }
+.drawer button:disabled { opacity: .45; cursor: not-allowed; }
+.drawer :focus-visible { outline: 2px solid #d6ede7; outline-offset: 3px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 12px; margin-top: 16px; }
+.grid figure { margin: 0; min-width: 0; position: relative; border: 1px solid #ffffff1a; border-radius: 12px; overflow: hidden; background: #0d1210; }
+.grid img { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #080b09; }
+.grid figcaption { padding: 10px; display: grid; gap: 4px; font-size: 11px; }
+.grid strong { color: #d6ede7; text-transform: capitalize; }
+.grid figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ffffff80; }
+.remove { position: absolute; right: 5px; top: 5px; width: 32px; height: 32px; display: grid; place-items: center; background: #000c; color: white; border-radius: 50%; }
+.error { color: #ffd39d; font-size: 12px; margin-top: 12px; }
+@media(max-width:480px) { .controls button { width: 100%; } .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }

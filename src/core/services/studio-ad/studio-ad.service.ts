@@ -69,13 +69,6 @@ function buildModelOptimizationHints(input: StudioAdRequest): string[] {
     ];
   }
 
-  if (hint.includes('sora')) {
-    return [
-      'Optimize for Sora with richer environmental choreography, temporal causality, and scene-level coherence.',
-      'Lean into cinematic action logic, spatial relationships, and believable progression over time.',
-    ];
-  }
-
   return [
     'Keep the prompt execution-ready for modern video generators with stable subject identity and coherent motion.',
   ];
@@ -272,7 +265,7 @@ function buildCampaignUserPrompt(input: StudioAdCampaignRequest): string {
       modelRules: [
         'Use kling for stable product/creator realism and reliable motion.',
         'Use seedance for punchier social rhythm and stylized creator energy.',
-        'Use sora for more complex environmental continuity or narrative movement.',
+        'Use Seedance for complex environmental continuity or narrative movement when multi-shot coherence is required.',
         'Default to kling when uncertain.',
       ],
       outputContract: {
@@ -290,7 +283,7 @@ function buildCampaignUserPrompt(input: StudioAdCampaignRequest): string {
             negativePrompt: 'comma-separated negative prompt',
             durationSeconds: input.durationSeconds || 8,
             aspectRatio: input.aspectRatio || '9:16',
-            modelFamilyId: 'kling | seedance | sora',
+            modelFamilyId: 'kling | seedance',
             stylePresetId: null,
             motionPresetId: null,
             continuityAnchors: [],

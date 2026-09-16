@@ -115,11 +115,14 @@ export const studioAdCampaignDeliverableSchema = z.object({
   negativePrompt: z.string().min(5).max(700),
   durationSeconds: z.number().int().min(5).max(15),
   aspectRatio: z.string().min(3).max(20),
-  modelFamilyId: z.enum(['kling', 'seedance', 'sora']),
+  modelFamilyId: z.enum(['kling', 'seedance']),
   stylePresetId: z.string().max(120).nullable().optional(),
   motionPresetId: z.string().max(120).nullable().optional(),
   continuityAnchors: z.array(z.string().min(1).max(240)).max(12).default([]),
   productionNotes: z.array(z.string().min(3).max(220)).max(5).default([]),
+  continuityStartState: z.string().min(3).max(300).optional(),
+  continuityEndState: z.string().min(3).max(300).optional(),
+  intentionalChanges: z.array(z.string().min(2).max(160)).max(4).optional(),
 });
 
 export const studioAdCampaignPlanSchema = z.object({

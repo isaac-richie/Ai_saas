@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
 import { Check, Trash2, Play, RotateCcw } from "lucide-react"
+import type { MediaReference } from "@/core/validation/media-reference"
 
 export type TakeItem = {
+  mediaReferences?: MediaReference[]
   id: string
   takeNumber: number
   prompt: string

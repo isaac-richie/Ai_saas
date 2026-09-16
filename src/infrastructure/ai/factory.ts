@@ -1,7 +1,6 @@
 import { BaseProvider } from "./base.provider";
 import { OpenAIProvider } from "./providers/openai.provider";
 import { RunwayProvider } from "./providers/runway.provider";
-import { HyperealProvider } from "./providers/hypereal.provider";
 import { KieProvider } from "./providers/kie.provider";
 
 export class ProviderFactory {
@@ -13,9 +12,6 @@ export class ProviderFactory {
             case "runway":
             case "gen-3":
                 return new RunwayProvider(config);
-            case "hypereal":
-            case "sora-2-i2v":
-                return new HyperealProvider(config);
             case "kie":
             case "kie-runway":
                 return new KieProvider(config);

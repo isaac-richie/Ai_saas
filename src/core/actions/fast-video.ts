@@ -17,6 +17,8 @@ import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 import { consumeUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
+import { REFERENCE_BUCKET, referenceCompatibility, referenceIsInContext, referencePrompt, referencePromptFits, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
+import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
   strict: "preserve subject identity and scene composition with minimal deviation",
@@ -61,7 +63,6 @@ function resolveModelAwareDuration(seconds: number, model?: string | null): numb
   if (normalizedModel.includes("kling/v2-5")) return nearestAllowedDuration(clamped, [5, 10])
   if (normalizedModel.includes("runway/")) return nearestAllowedDuration(clamped, [5, 10])
   if (normalizedModel.includes("veo/")) return nearestAllowedDuration(clamped, [5, 8])
-  if (normalizedModel.includes("sora-2")) return nearestAllowedDuration(clamped, [5, 8])
   if (normalizedModel.includes("seedance-2")) return nearestAllowedDuration(clamped, [5, 10])
   if (normalizedModel.includes("hailuo/2-3")) return 6
 
@@ -310,6 +311,9 @@ function assembleFastVideoPrompt(
   const aspectDirective = buildAspectDirective(prompt_inputs.aspect_ratio)
 
   const parts = [subject]
+  const guidance = referencePrompt(prompt_inputs.media_references || [])
+  if (guidance) parts.push(`Reference direction: ${guidance}`)
+  parts.push(`duration ${safeDuration}s with coherent start-middle-end motion arc`)
 
   if (extra?.scene?.locationPrompt) parts.push(`location: ${extra.scene.locationPrompt}`)
   if (extra?.scene?.lightingPrompt) parts.push(`lighting: ${extra.scene.lightingPrompt}`)
@@ -410,6 +414,29 @@ export async function generateFastVideo(input: unknown) {
     return { error: "Unauthorized" }
   }
   debug.push("session.resolved", { userId: user.id })
+
+  // Reject unsupported inputs before consuming quota or calling the provider.
+  try {
+    const refs = validateOwnedReferences(payload.prompt_inputs.media_references, user.id)
+    const issues = referenceCompatibility(refs)
+    if (issues.length) return { error: issues.join(" ") }
+    if (refs.some((ref) => ref.applied && !referenceIsInContext(ref, payload.project_id || null, payload.scene_id || null))) {
+      return { error: "A reference belongs to a different project or scene. Reattach it in this context." }
+    }
+    const direct = refs.find((ref) => ref.applied && ref.target === "provider")
+    if (direct) {
+      if (payload.prompt_inputs.reference_image) return { error: "Remove the legacy image before applying another direct image." }
+      if (!KIE_VIDEO_MODEL_FAMILIES.some((family) => family.i2vModel === payload.settings.model?.trim())) {
+        return { error: "Select a supported image-to-video model for this direct reference." }
+      }
+      const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(direct.assetPath, 3600)
+      if (error || !data) return { error: "Direct reference unavailable. Check the file and storage configuration." }
+      payload.prompt_inputs.reference_image = data.signedUrl
+    }
+    if (!referencePromptFits(payload.prompt_inputs.text_subject, refs)) return { error: "The prompt and reference directions exceed this adapter's prompt budget. Shorten the subject or approved directions before generating." }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Invalid media references" }
+  }
 
   const quota = await consumeUsageQuota(supabase, user.id, "fast_video")
   if (!quota.allowed) {
@@ -647,9 +674,14 @@ export async function routeFastVideoToScene(input: {
   stylePresetId?: string | null
   motionPresetId?: string | null
   variationSetting: FastVideoVariation
+  mediaReferences?: MediaReference[]
 }) {
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
+
+  let mediaReferences: MediaReference[]
+  try { mediaReferences = validateOwnedReferences(input.mediaReferences, user.id) }
+  catch { return { error: "Invalid media references." } }
 
   const shotName = input.name?.trim() || `Fast Video: ${input.subject.slice(0, 36)}`
   const settings = {
@@ -659,6 +691,7 @@ export async function routeFastVideoToScene(input: {
     motion_preset_id: input.motionPresetId || null,
     variation: input.variationSetting,
     source: "fast_video",
+    media_references: mediaReferences,
   }
   const cameraMovement = findMotionPreset(input.motionPresetId)?.name || null
   const kie = await resolveKieConfig(user.id)
@@ -853,6 +886,7 @@ export async function saveFastVideoClipToGallery(input: {
   subject: string
   durationSeconds: number
   projectId?: string | null
+  mediaReferences?: MediaReference[]
 }) {
   const supabase = await createClient()
   const {
@@ -860,6 +894,10 @@ export async function saveFastVideoClipToGallery(input: {
   } = await supabase.auth.getUser()
 
   if (!user) return { error: "Unauthorized" }
+
+  let mediaReferences: MediaReference[]
+  try { mediaReferences = validateOwnedReferences(input.mediaReferences, user.id) }
+  catch { return { error: "Invalid media references." } }
 
   // If no project, create a default "My Videos" project
   let projectId = input.projectId
@@ -930,6 +968,7 @@ export async function saveFastVideoClipToGallery(input: {
       shot_type: "fast_video",
       estimated_duration: input.durationSeconds,
       prompt_text: input.prompt,
+      generation_settings: { media_references: mediaReferences },
       sequence_order: 1,
     })
     .select("id")
@@ -951,6 +990,7 @@ export async function saveFastVideoClipToGallery(input: {
         output_type: "video",
         duration_seconds: input.durationSeconds,
         source: "fast_video",
+        media_references: mediaReferences,
       },
     })
     .select("id")

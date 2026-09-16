@@ -77,6 +77,9 @@ import { useContinuitySync } from "@/interface/hooks/useContinuitySync"
 import { ShotPreviewTimeline } from "./ShotPreviewTimeline"
 import { GenerationJobsPanel } from "./GenerationJobsPanel"
 import { StoryboardExportPanel } from "./StoryboardExportPanel"
+import { MediaReferenceManager } from "./MediaReferenceManager"
+import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
+import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, referencePromptFits, type MediaReference } from "@/core/validation/media-reference"
 
 type SceneOption = {
   id: string
@@ -105,6 +108,8 @@ type FastVideoDebugEvent = {
 }
 
 type GenerationSnapshot = {
+  mediaReferences?: MediaReference[]
+  projectId?: string | null
   subject: string
   prompt: string
   aspectRatio: FastVideoAspectRatio
@@ -114,6 +119,8 @@ type GenerationSnapshot = {
 }
 
 type SavedFastClip = {
+  mediaReferences?: MediaReference[]
+  projectId?: string | null
   id: string
   taskId: string | null
   url: string
@@ -210,6 +217,7 @@ function normalizeStoryboardItems(items: StoryboardItem[]): StoryboardItem[] {
 
 function mapRemoteStoryboardItem(row: FastVideoStoryboardRow): StoryboardItem {
   return {
+    mediaReferences: mediaReferencesSchema.safeParse(row.media_references).data || [],
     id: row.id,
     sourceClipId: row.source_clip_id,
     url: row.url,
@@ -301,6 +309,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [durationSeconds, setDurationSeconds] = useState(5)
 
   const [referenceImageUrl, setReferenceImageUrl] = useState<string>("")
+  const [referenceLibrary, setReferenceLibrary] = useState<MediaReference[]>([])
+  const [isReferenceSyncing, setIsReferenceSyncing] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
 
   const [status, setStatus] = useState<"idle" | "processing" | "completed" | "failed">("idle")
@@ -379,6 +389,15 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || "")
   const [selectedSceneId, setSelectedSceneId] = useState<string>(projects[0]?.scenes[0]?.id || "")
+  const [sessionRestored, setSessionRestored] = useState(false)
+  const currentReferences = useMemo(() => referenceLibrary.filter((ref) => referenceIsInContext(ref, selectedProjectId || null, selectedSceneId || null)), [referenceLibrary, selectedProjectId, selectedSceneId])
+  const updateCurrentReferences = useCallback((update: React.SetStateAction<MediaReference[]>) => {
+    setReferenceLibrary((current) => {
+      const inContext = (ref: MediaReference) => referenceIsInContext(ref, selectedProjectId || null, selectedSceneId || null)
+      const next = typeof update === "function" ? update(current.filter(inContext)) : update
+      return [...current.filter((ref) => !inContext(ref)), ...next]
+    })
+  }, [selectedProjectId, selectedSceneId])
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) || null,
@@ -457,6 +476,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setTaskId(clip.taskId)
     setModelFamilyId(clip.modelFamilyId || DEFAULT_KIE_VIDEO_MODEL_FAMILY)
     setUseDirectVideoUrl(false)
+    generationSnapshotRef.current = { ...clip, modelFamilyId: clip.modelFamilyId || DEFAULT_KIE_VIDEO_MODEL_FAMILY }
+    restoreReferences(clip.mediaReferences || [])
+  }
+
+  const restoreReferences = (references: MediaReference[]) => {
+    const validated = mediaReferencesSchema.safeParse(references)
+    if (!validated.success) { toast.error("This saved reference setup is invalid. Please reattach the files."); return }
+    updateCurrentReferences(validated.data.map((ref) => ({
+      ...ref, projectId: selectedProjectId || null, sceneId: selectedSceneId || null,
+      id: referenceIsInContext(ref, selectedProjectId || null, selectedSceneId || null) ? ref.id : crypto.randomUUID(),
+      scope: !selectedProjectId || (ref.scope === "scene" && !selectedSceneId) ? "shot" : ref.scope,
+    })))
   }
 
   const applyStylePreset = (id: string) => {
@@ -503,6 +534,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         variation?: FastVideoVariation
         durationSeconds?: number
         referenceImageUrl?: string
+        referenceLibrary?: MediaReference[]
         status?: "idle" | "processing" | "completed" | "failed"
         statusMessage?: string
         taskId?: string | null
@@ -521,6 +553,16 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         favoriteMotionIds?: string[]
         recentStyleIds?: string[]
         recentMotionIds?: string[]
+        activeTab?: "builder" | "storyboard"
+        selectedProjectId?: string
+        selectedSceneId?: string
+        campaignBrief?: string
+        campaignAssetCount?: number
+        campaignPlan?: StudioAdCampaignPlan | null
+        campaignItems?: CampaignBatchItem[]
+        campaignEngineModel?: string | null
+        campaignId?: string | null
+        generationSnapshot?: GenerationSnapshot | null
       }
 
       if (typeof parsed.subject === "string") setSubject(parsed.subject)
@@ -532,6 +574,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (parsed.variation) setVariation(parsed.variation)
       if (typeof parsed.durationSeconds === "number") setDurationSeconds(parsed.durationSeconds)
       if (typeof parsed.referenceImageUrl === "string") setReferenceImageUrl(parsed.referenceImageUrl)
+      if (Array.isArray(parsed.referenceLibrary)) setReferenceLibrary(parsed.referenceLibrary.slice(0, 120).flatMap((ref) => {
+        const result = mediaReferenceSchema.safeParse(ref)
+        return result.success ? [result.data] : []
+      }))
       if (parsed.status) setStatus(parsed.status)
       if (typeof parsed.statusMessage === "string") setStatusMessage(parsed.statusMessage)
       if (typeof parsed.taskId === "string" || parsed.taskId === null) setTaskId(parsed.taskId ?? null)
@@ -553,12 +599,43 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (Array.isArray(parsed.favoriteMotionIds)) setFavoriteMotionIds(parsed.favoriteMotionIds.slice(0, 20))
       if (Array.isArray(parsed.recentStyleIds)) setRecentStyleIds(parsed.recentStyleIds.slice(0, 20))
       if (Array.isArray(parsed.recentMotionIds)) setRecentMotionIds(parsed.recentMotionIds.slice(0, 20))
+      if (parsed.activeTab === "builder" || parsed.activeTab === "storyboard") setActiveTab(parsed.activeTab)
+      if (typeof parsed.selectedProjectId === "string" && projects.some((project) => project.id === parsed.selectedProjectId)) {
+        setSelectedProjectId(parsed.selectedProjectId)
+        const project = projects.find((entry) => entry.id === parsed.selectedProjectId)
+        if (typeof parsed.selectedSceneId === "string" && project?.scenes.some((scene) => scene.id === parsed.selectedSceneId)) {
+          setSelectedSceneId(parsed.selectedSceneId)
+        }
+      }
+      if (typeof parsed.campaignBrief === "string") setCampaignBrief(parsed.campaignBrief)
+      if (typeof parsed.campaignAssetCount === "number") setCampaignAssetCount(Math.max(2, Math.min(5, parsed.campaignAssetCount)))
+      if (parsed.campaignPlan) setCampaignPlan(parsed.campaignPlan)
+      if (Array.isArray(parsed.campaignItems)) setCampaignItems(parsed.campaignItems)
+      if (typeof parsed.campaignEngineModel === "string" || parsed.campaignEngineModel === null) setCampaignEngineModel(parsed.campaignEngineModel ?? null)
+      if (typeof parsed.campaignId === "string" || parsed.campaignId === null) setCampaignId(parsed.campaignId ?? null)
+      if (parsed.generationSnapshot) {
+        generationSnapshotRef.current = parsed.generationSnapshot
+      } else if (parsed.taskId && parsed.status === "processing") {
+        // Older sessions predate snapshot persistence; reconstruct enough context
+        // to finish polling and save the completed clip after navigation.
+        generationSnapshotRef.current = {
+          subject: parsed.subject || "Fast video",
+          prompt: parsed.finalPrompt || parsed.subject || "Fast video",
+          aspectRatio: parsed.aspectRatio || "16:9",
+          variation: parsed.variation || "balanced",
+          durationSeconds: typeof parsed.durationSeconds === "number" ? parsed.durationSeconds : 5,
+          modelFamilyId: parsed.modelFamilyId || DEFAULT_KIE_VIDEO_MODEL_FAMILY,
+        }
+      }
     } catch {
       // Ignore bad local cache
+    } finally {
+      setSessionRestored(true)
     }
-  }, [])
+  }, [projects])
 
   useEffect(() => {
+    if (!sessionRestored) return
     try {
       window.localStorage.setItem(
         FAST_VIDEO_STORAGE_KEY,
@@ -572,6 +649,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           variation,
           durationSeconds,
           referenceImageUrl,
+          referenceLibrary,
           status,
           statusMessage,
           taskId,
@@ -590,6 +668,16 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           favoriteMotionIds: favoriteMotionIds.slice(0, 20),
           recentStyleIds: recentStyleIds.slice(0, 20),
           recentMotionIds: recentMotionIds.slice(0, 20),
+          activeTab,
+          selectedProjectId,
+          selectedSceneId,
+          campaignBrief,
+          campaignAssetCount,
+          campaignPlan,
+          campaignItems,
+          campaignEngineModel,
+          campaignId,
+          generationSnapshot: generationSnapshotRef.current,
         })
       )
     } catch {
@@ -605,6 +693,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     variation,
     durationSeconds,
     referenceImageUrl,
+    referenceLibrary,
     status,
     statusMessage,
     taskId,
@@ -623,6 +712,16 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     favoriteMotionIds,
     recentStyleIds,
     recentMotionIds,
+    activeTab,
+    selectedProjectId,
+    selectedSceneId,
+    campaignBrief,
+    campaignAssetCount,
+    campaignPlan,
+    campaignItems,
+    campaignEngineModel,
+    campaignId,
+    sessionRestored,
   ])
 
   useEffect(() => {
@@ -690,6 +789,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           note: item.note,
           status: item.status,
           createdAt: item.createdAt,
+          mediaReferences: item.mediaReferences,
         })),
       })
 
@@ -711,28 +811,45 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
   }
 
-  const saveClip = (clip: SavedFastClip) => {
+  const saveClip = useCallback((clip: SavedFastClip) => {
     setSavedClips((prev) => {
       const dedup = prev.filter((item) => item.id !== clip.id && !(item.taskId && clip.taskId && item.taskId === clip.taskId) && item.url !== clip.url)
       return [clip, ...dedup].slice(0, 24)
     })
 
-    addTakeFromGeneration(clip)
+    setTakes((prev) => [...prev, {
+      id: clip.id,
+      takeNumber: prev.length + 1,
+      prompt: clip.subject,
+      compiledPrompt: clip.prompt,
+      modelVersionUsed: clip.modelFamilyId || null,
+      status: "completed",
+      outputUrl: clip.url,
+      thumbnailUrl: null,
+      durationSeconds: clip.durationSeconds,
+      aspectRatio: clip.aspectRatio,
+      createdAt: clip.createdAt,
+      mediaReferences: clip.mediaReferences,
+    }])
+    setActiveTakeId(clip.id)
+    setApprovedTakeId((current) => current || clip.id)
 
     void (async () => {
       try {
-        await saveFastVideoClipToGallery({
+        const result = await saveFastVideoClipToGallery({
           url: clip.url,
           prompt: clip.prompt,
           subject: clip.subject,
           durationSeconds: clip.durationSeconds,
-          projectId: selectedProjectId || null,
+          projectId: clip.projectId ?? (selectedProjectId || null),
+          mediaReferences: clip.mediaReferences,
         })
+        if (result.error) toast.error(`Clip kept locally. Gallery save failed: ${result.error}`)
       } catch {
-        // Non-blocking: gallery persistence fails silently so user can still access clip locally
+        toast.error("Clip kept locally, but gallery sync failed. Retry saving when connected.")
       }
     })()
-  }
+  }, [selectedProjectId])
 
   // Provider URLs expire; upgrade a saved clip to a durable storage URL in the
   // background so the scratch list keeps playing after expiry. Best-effort.
@@ -774,6 +891,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       note: "",
       status: "ready",
       createdAt: new Date().toISOString(),
+      mediaReferences: savedClips.find((clip) => clip.id === input.sourceClipId || clip.url === input.url)?.mediaReferences
+        || (input.url === videoUrl ? generationSnapshotRef.current?.mediaReferences : undefined),
     }
     const nextItems = normalizeStoryboardItems([item, ...storyboardItems])
     setStoryboardItems(nextItems)
@@ -1334,7 +1453,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     let cancelled = false
     let inFlight = false
 
-    const interval = setInterval(async () => {
+    const pollCampaignItems = async () => {
       if (inFlight) return
       inFlight = true
       try {
@@ -1381,21 +1500,25 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       } finally {
         inFlight = false
       }
-    }, 5000)
+    }
+
+    void pollCampaignItems()
+    const interval = window.setInterval(() => { void pollCampaignItems() }, 4000)
 
     return () => {
       cancelled = true
       clearInterval(interval)
     }
-  }, [aspectRatio, campaignItems, variation])
+  }, [aspectRatio, campaignItems, saveClip, variation])
 
   useEffect(() => {
     if (!taskId || (status !== "processing" && status !== "idle")) return
 
     let attempts = 0
     let inFlight = false
-    const maxAttempts = 120
-    const interval = setInterval(async () => {
+    const maxAttempts = 150
+    let interval = 0
+    const pollGeneration = async () => {
       if (inFlight) return
       inFlight = true
       attempts += 1
@@ -1440,6 +1563,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             variation: snapshot.variation,
             durationSeconds: snapshot.durationSeconds,
             modelFamilyId: snapshot.modelFamilyId,
+            mediaReferences: snapshot.mediaReferences,
+            projectId: snapshot.projectId,
             createdAt: new Date().toISOString(),
           })
           void persistClipMedia(completedClipId, nextUrl)
@@ -1460,40 +1585,29 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       } finally {
         inFlight = false
       }
-    }, 5000)
-
-    return () => clearInterval(interval)
-  }, [taskId, status, traceId, persistClipMedia])
-
-  const handleUploadReference = async (file?: File | null) => {
-    if (!file) return
-
-    setIsUploading(true)
-    try {
-      const form = new FormData()
-      form.append("file", file)
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: form,
-      })
-
-      const data = await res.json()
-      if (!res.ok || !data?.url) throw new Error(data?.error || "Upload failed")
-
-      setReferenceImageUrl(data.url)
-      toast.success("Reference image uploaded")
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Upload failed"
-      toast.error(message)
-    } finally {
-      setIsUploading(false)
     }
-  }
+
+    void pollGeneration()
+    interval = window.setInterval(() => { void pollGeneration() }, 4000)
+
+    return () => window.clearInterval(interval)
+  }, [taskId, status, traceId, persistClipMedia, saveClip])
 
   const handleGenerate = async () => {
     if (!subject.trim()) {
       toast.error("Please add a subject prompt")
+      return
+    }
+    if (isUploading || isReferenceSyncing || isGenerating || status === "processing") {
+      toast.message("Wait for the current upload, analysis or generation to finish.")
+      return
+    }
+    const generationReferences = structuredClone(currentReferences.filter((ref) => ref.applied))
+    const referenceIssues = referenceCompatibility(generationReferences)
+    if (referenceIssues.length) { toast.error(referenceIssues.join(" ")); return }
+    if (referenceImageUrl && generationReferences.some((ref) => ref.target === "provider")) { toast.error("Remove the legacy starting image before using another direct image."); return }
+    if (!referencePromptFits(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), generationReferences)) {
+      toast.error("Shorten the prompt or approved reference directions to fit the video adapter's prompt budget.")
       return
     }
 
@@ -1509,7 +1623,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
     const selectedModel = resolveKieVideoModelByFamily({
       familyId: modelFamilyId,
-      useImageToVideo: Boolean(referenceImageUrl),
+      useImageToVideo: Boolean(referenceImageUrl) || generationReferences.some((ref) => ref.target === "provider"),
     })
 
     const subjectWithContinuity = continuityClause
@@ -1517,6 +1631,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       : subject.trim()
 
     generationSnapshotRef.current = {
+      mediaReferences: generationReferences,
+      projectId: selectedProjectId || null,
       subject: subject.trim(),
       prompt: subjectWithContinuity,
       aspectRatio,
@@ -1536,6 +1652,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           motion_preset_id: motionPresetId || null,
           aspect_ratio: aspectRatio,
           reference_image: referenceImageUrl || null,
+          media_references: generationReferences,
           variation_setting: variation,
         },
         settings: {
@@ -1556,6 +1673,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       const resolvedPrompt = res.data.prompt || subjectWithContinuity
 
       generationSnapshotRef.current = {
+        mediaReferences: generationReferences,
+        projectId: selectedProjectId || null,
         subject: subject.trim(),
         prompt: resolvedPrompt,
         aspectRatio,
@@ -1585,6 +1704,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         const completedClipId = crypto.randomUUID()
         saveClip({
           id: completedClipId,
+          mediaReferences: generationReferences,
+          projectId: selectedProjectId || null,
           taskId: res.data.taskId || null,
           url: res.data.url,
           subject: subject.trim(),
@@ -1675,6 +1796,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         motionPresetId: motionPresetId || null,
         variationSetting: payload.variationSetting,
         name: `Fast Track - ${payload.subject.slice(0, 30)}`,
+        mediaReferences: savedClips.find((clip) => clip.url === payload.outputUrl)?.mediaReferences
+          || (payload.outputUrl === videoUrl ? generationSnapshotRef.current?.mediaReferences : undefined),
       })
 
       if (res.error || !res.data) {
@@ -1732,6 +1855,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
     saveClip({
       id: crypto.randomUUID(),
+      mediaReferences: savedClips.find((clip) => clip.url === videoUrl)?.mediaReferences || generationSnapshotRef.current?.mediaReferences,
+      projectId: generationSnapshotRef.current?.projectId,
       taskId,
       url: videoUrl,
       subject: subject.trim(),
@@ -1785,27 +1910,6 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     generationSnapshotRef.current = null
   }
 
-  const addTakeFromGeneration = (clip: SavedFastClip) => {
-    const newTake: TakeItem = {
-      id: clip.id,
-      takeNumber: takes.length + 1,
-      prompt: clip.subject,
-      compiledPrompt: clip.prompt,
-      modelVersionUsed: clip.modelFamilyId || null,
-      status: "completed",
-      outputUrl: clip.url,
-      thumbnailUrl: null,
-      durationSeconds: clip.durationSeconds,
-      aspectRatio: clip.aspectRatio,
-      createdAt: clip.createdAt,
-    }
-    setTakes((prev) => [...prev, newTake])
-    setActiveTakeId(newTake.id)
-    if (!approvedTakeId) {
-      setApprovedTakeId(newTake.id)
-    }
-  }
-
   const handleSelectTake = (take: TakeItem) => {
     setActiveTakeId(take.id)
     if (take.outputUrl) {
@@ -1814,6 +1918,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       setFinalPrompt(take.compiledPrompt || take.prompt)
       setStatus("completed")
       setStatusMessage("Loaded take " + take.takeNumber)
+      restoreReferences(take.mediaReferences || [])
+      generationSnapshotRef.current = {
+        subject: take.prompt, prompt: take.compiledPrompt || take.prompt, aspectRatio,
+        variation, durationSeconds: take.durationSeconds || 5, modelFamilyId,
+        mediaReferences: take.mediaReferences || [],
+      }
     }
   }
 
@@ -2482,37 +2592,25 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     ))}
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      disabled={isUploading}
-                      onChange={(event) => void handleUploadReference(event.target.files?.[0] || null)}
-                      className="h-9 rounded-lg border-white/10 bg-transparent text-xs text-white/80"
-                    />
-                    {isUploading && <Loader2 className="h-4 w-4 animate-spin text-white/50" />}
-                    {referenceImageUrl ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setReferenceImageUrl("")
-                          toast.success("Reference image removed")
-                        }}
-                        className="h-9 rounded-lg border border-white/10 bg-white/5 px-3 text-[11px] text-white/75 hover:bg-white/12"
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
-                  </div>
-                  {referenceImageUrl ? (
-                    <div className="text-[11px] text-cyan-200/80">Reference image applied (image-to-video)</div>
-                  ) : (
-                    <div className="text-[11px] text-white/45">Optional reference image</div>
-                  )}
-                </div>
+                <MediaReferenceManager
+                  key={`${selectedProjectId}:${selectedSceneId}`}
+                  references={currentReferences}
+                  onChange={updateCurrentReferences}
+                  projectId={selectedProjectId || null}
+                  sceneId={selectedSceneId || null}
+                  onBusy={setIsUploading}
+                  disabled={isReferenceSyncing || isGenerating || status === "processing"}
+                />
+                <ReferenceLibrarySync
+                  references={referenceLibrary}
+                  onLoad={setReferenceLibrary}
+                  onBusy={setIsReferenceSyncing}
+                  disabled={isUploading || isGenerating || status === "processing"}
+                />
+                {referenceImageUrl && <div className="rounded-xl border border-amber-300/20 p-3 text-xs text-amber-100">
+                  A legacy starting image is still attached.
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setReferenceImageUrl("")}>Remove legacy image</Button>
+                </div>}
                 <ContinuityPanel
                   enabled={continuityEnabled}
                   onToggleEnabled={() => setContinuityEnabled((prev) => !prev)}
@@ -3136,6 +3234,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           onDuplicateGroup={duplicateStoryboardGroupToNext}
           onCopyGroupShotList={(group) => void copyStoryboardGroupShotList(group)}
           onContinueFromShot={async (item) => {
+            restoreReferences((item.mediaReferences || []).filter((ref) => ref.locked && ref.scope !== "shot"))
             setSubject(item.prompt)
             setActiveTab("builder")
             if (item.sourceClipId) {
@@ -3151,6 +3250,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             toast.success("Loaded shot prompt into builder — continue your sequence")
           }}
           onEditShot={(item) => {
+            restoreReferences(item.mediaReferences || [])
             setSubject(item.subject)
             setActiveTab("builder")
             toast.success("Loaded shot into builder for editing")

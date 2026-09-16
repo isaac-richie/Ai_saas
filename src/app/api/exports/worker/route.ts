@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { createClient } from "@/infrastructure/supabase/server"
+import { createAdminClient, hasSupabaseAdminEnv } from "@/infrastructure/supabase/admin"
 import { mkdir, readFile, writeFile, rm } from "fs/promises"
 import { join } from "path"
 import { execFile } from "child_process"
@@ -7,7 +9,6 @@ import { promisify } from "util"
 
 const execFileAsync = promisify(execFile)
 export const runtime = "nodejs"
-type ServerSupabase = Awaited<ReturnType<typeof createClient>>
 
 type WorkerJob = {
     id: string
@@ -61,7 +62,7 @@ async function cleanupTmpDir(tmpDir: string) {
     }
 }
 
-async function processJob(supabase: ServerSupabase, userId: string, job: WorkerJob) {
+async function processJob(supabase: SupabaseClient, userId: string, job: WorkerJob) {
     await supabase
         .from("export_jobs")
         .update({ status: "processing", progress: 5, error_message: null, updated_at: new Date().toISOString() })
@@ -260,7 +261,7 @@ export async function GET(request: Request) {
     return handleWorker(supabase, request, {})
 }
 
-async function handleWorker(supabase: ServerSupabase, request: Request, body: Record<string, unknown>) {
+async function handleWorker(supabase: SupabaseClient, request: Request, body: Record<string, unknown>) {
     const url = new URL(request.url)
     const queryLimit = url.searchParams.get("limit")
     const queryUserId = url.searchParams.get("userId")
@@ -281,15 +282,13 @@ async function handleWorker(supabase: ServerSupabase, request: Request, body: Re
         (typeof body?.userId === "string" ? body.userId : null) ||
         queryUserId
 
-    if (!effectiveUserId) {
-        if (hasInternalAccess && requestedUserId && requestedUserId.length > 10) {
-            effectiveUserId = requestedUserId
-        }
-    }
+    if (!effectiveUserId && hasInternalAccess && requestedUserId && requestedUserId.length > 10) effectiveUserId = requestedUserId
 
-    // Issue #5 fix: require a user scope even for internal access
-    if (!effectiveUserId) {
+    if (!effectiveUserId && !hasInternalAccess) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    if (hasInternalAccess && !hasSupabaseAdminEnv()) {
+        return NextResponse.json({ error: "Export worker requires Supabase admin credentials." }, { status: 503 })
     }
 
     const requestedJobId =
@@ -297,15 +296,16 @@ async function handleWorker(supabase: ServerSupabase, request: Request, body: Re
         queryJobId
     const requestedLimit = Number(body?.limit || queryLimit || (hasInternalAccess ? 3 : 1))
     const limit = Math.max(1, Math.min(5, requestedLimit))
-    const db = supabase
+    const db = hasInternalAccess ? createAdminClient() : supabase
 
     let query = db
         .from("export_jobs")
         .select("id, user_id, project_id, profile")
-        .eq("user_id", effectiveUserId)
         .in("status", ["queued", "processing"])
         .order("created_at", { ascending: true })
         .limit(limit)
+
+    if (effectiveUserId) query = query.eq("user_id", effectiveUserId)
 
     if (requestedJobId) {
         query = query.eq("id", requestedJobId)

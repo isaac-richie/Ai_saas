@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/infrastructure/supabase/server"
 import { Database } from "@/core/types/db"
+import { validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
 
 export type FastVideoStoryboardRow = Database["public"]["Tables"]["fast_video_storyboard_items"]["Row"]
 
@@ -10,6 +11,7 @@ type ReplaceFastVideoStoryboardInput = {
   projectId: string
   sceneId: string
   items: Array<{
+    mediaReferences?: MediaReference[]
     id: string
     sourceClipId: string | null
     url: string
@@ -42,6 +44,7 @@ function sanitizeStoryboardItem(
   orderIndex: number
 ): Database["public"]["Tables"]["fast_video_storyboard_items"]["Insert"] {
   return {
+    media_references: JSON.parse(JSON.stringify(item.mediaReferences || [])),
     id: item.id,
     project_id: "",
     scene_id: "",
@@ -98,6 +101,9 @@ export async function replaceFastVideoStoryboard(input: ReplaceFastVideoStoryboa
   }
 
   const items = input.items.slice(0, 60)
+  try {
+    for (const item of items) item.mediaReferences = validateOwnedReferences(item.mediaReferences, session.user!.id)
+  } catch { return { error: "Invalid storyboard media references." } }
   if (items.length === 0) {
     const { error: deleteError } = await supabase
       .from("fast_video_storyboard_items")
@@ -117,7 +123,7 @@ export async function replaceFastVideoStoryboard(input: ReplaceFastVideoStoryboa
       .from("fast_video_storyboard_items")
       .upsert(payload, { onConflict: "id" })
 
-    if (upsertError) return { error: upsertError.message }
+    if (upsertError) return { error: upsertError.message.includes("media_references") ? "Apply migration 0027 to save storyboard reference snapshots." : upsertError.message }
 
     const incomingIds = payload.map((item) => item.id)
     const { data: existingRows, error: existingError } = await supabase

@@ -1,4 +1,4 @@
-export type KieVideoModelFamilyId = "kling" | "seedance" | "sora";
+export type KieVideoModelFamilyId = "kling" | "seedance";
 
 export type KieVideoModelFamily = {
   id: KieVideoModelFamilyId;
@@ -22,13 +22,6 @@ export const KIE_VIDEO_MODEL_FAMILIES: KieVideoModelFamily[] = [
     description: "Fast, punchy renders and strong stylization.",
     t2vModel: "bytedance/seedance-2",
     i2vModel: "bytedance/seedance-2",
-  },
-  {
-    id: "sora",
-    label: "Sora",
-    description: "High-end narrative motion and scene coherence.",
-    t2vModel: "sora-2-text-to-video",
-    i2vModel: "sora-2-image-to-video",
   },
 ];
 

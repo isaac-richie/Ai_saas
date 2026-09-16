@@ -135,7 +135,6 @@ function ScrubInner() {
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/35 sm:justify-end">
               <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2 py-0.5">Kling 2.5</span>
               <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2 py-0.5">Seedance</span>
-              <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2 py-0.5">Sora 2</span>
             </div>
           </div>
         </motion.div>

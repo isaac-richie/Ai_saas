@@ -4,6 +4,7 @@ import { FastVideoStudio } from '@/interface/components/fast-video/FastVideoStud
 import { getProjects } from '@/core/actions/projects';
 import { getScenes } from '@/core/actions/scenes';
 import { WorkspaceHeading } from '@/interface/components/layout/WorkspaceHeading';
+import { ProductionDesk } from '@/interface/components/fast-video/ProductionDesk';
 
 export const metadata = { title: 'Fast Track' };
 
@@ -36,10 +37,14 @@ export default async function FastVideoPage() {
           <Film size={15} /> Fast Track
         </span>
         <span>
-          Kling <i /> Seedance <i /> Sora
+          Kling <i /> Seedance
         </span>
       </div>
-      <FastVideoStudio projects={projectsWithScenes} />
+      <ProductionDesk />
+      <details className="mb-8 rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:p-6">
+        <summary className="cursor-pointer text-base text-white">Single-shot studio <span className="ml-2 text-xs text-white/50">Create one video directly</span></summary>
+        <div className="mt-6"><FastVideoStudio projects={projectsWithScenes} /></div>
+      </details>
     </div>
   );
 }

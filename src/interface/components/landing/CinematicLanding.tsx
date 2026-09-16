@@ -275,12 +275,12 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 <em>Your signature.</em>
               </h2>
               <p>
-                Explore Kling, Seedance, and Sora from the same workspace. Choose your model and
+                Explore Kling and Seedance from the same workspace. Choose your model and
                 direct the result.
               </p>
             </div>
             <div className="cinema-model-list">
-              {['Kling', 'Seedance', 'Sora'].map((model, i) => (
+              {['Kling', 'Seedance'].map((model, i) => (
                 <Link href={destination} key={model}>
                   <span className="cinema-model-index">0{i + 1}</span>
                   <h3>{model}</h3>

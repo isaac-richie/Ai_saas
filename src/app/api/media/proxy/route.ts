@@ -36,10 +36,31 @@ export async function GET(request: NextRequest) {
         return new Response("Host not allowed", { status: 403 });
     }
 
+    // Supabase Storage can set the attachment header itself. Redirecting durable
+    // assets there avoids piping an entire video through a serverless function,
+    // which can time out on mobile or slower connections.
+    if (requestedFilename && target.hostname === supabaseHost() && target.pathname.includes("/storage/v1/object/public/")) {
+        const safeFilename = sanitizeFilename(requestedFilename) || "visiowave-download";
+        target.searchParams.set("download", safeFilename);
+        return Response.redirect(target, 302);
+    }
+
+    // Kie's temporary delivery host already responds as an attachment. Sending
+    // users there directly prevents large legacy clips from exhausting Vercel's
+    // streaming request window.
+    if (requestedFilename && target.hostname === "tempfile.aiquickdraw.com") {
+        return Response.redirect(target, 302);
+    }
+
+    const range = request.headers.get("range");
+    const upstreamHeaders = new Headers();
+    if (range) upstreamHeaders.set("range", range);
+
     let upstream: Response;
     try {
         upstream = await fetch(target.toString(), {
             redirect: "follow",
+            headers: upstreamHeaders,
             signal: AbortSignal.timeout(60000),
         });
     } catch {
@@ -53,16 +74,14 @@ export async function GET(request: NextRequest) {
     const contentType = upstream.headers.get("content-type") || "application/octet-stream";
 
     const isVideo = contentType.startsWith("video/");
-    const range = request.headers.get("range");
 
     if (isVideo) {
-        const buffer = Buffer.from(await upstream.arrayBuffer());
-        const total = buffer.byteLength;
-
         const headers = new Headers();
         headers.set("Content-Type", contentType);
         headers.set("Accept-Ranges", "bytes");
         headers.set("Cache-Control", "public, max-age=3600");
+        copyHeader(upstream.headers, headers, "Content-Length");
+        copyHeader(upstream.headers, headers, "Content-Range");
 
         if (requestedFilename) {
             const safeFilename = sanitizeFilename(requestedFilename) || "visiowave-download";
@@ -71,27 +90,7 @@ export async function GET(request: NextRequest) {
             headers.set("Content-Disposition", "inline");
         }
 
-        if (range) {
-            const match = range.match(/bytes=(\d+)-(\d*)/);
-            if (match) {
-                const start = parseInt(match[1], 10);
-                const end = match[2] ? parseInt(match[2], 10) : total - 1;
-                const clampedEnd = Math.min(end, total - 1);
-
-                if (start >= total || start > clampedEnd) {
-                    headers.set("Content-Range", `bytes */${total}`);
-                    return new Response(null, { status: 416, headers });
-                }
-
-                const slice = buffer.subarray(start, clampedEnd + 1);
-                headers.set("Content-Range", `bytes ${start}-${clampedEnd}/${total}`);
-                headers.set("Content-Length", String(slice.byteLength));
-                return new Response(slice, { status: 206, headers });
-            }
-        }
-
-        headers.set("Content-Length", String(total));
-        return new Response(buffer, { status: 200, headers });
+        return new Response(upstream.body, { status: upstream.status, headers });
     }
 
     const headers = new Headers();
@@ -109,4 +108,9 @@ export async function GET(request: NextRequest) {
     }
 
     return new Response(upstream.body, { status: 200, headers });
+}
+
+function copyHeader(source: Headers, target: Headers, name: string) {
+    const value = source.get(name);
+    if (value) target.set(name, value);
 }
