@@ -10,7 +10,7 @@ import styles from "./ProductionDesk.module.css"
 import { ProductionReferences } from "./ProductionReferences"
 import { productionAssetsSchema, type ProductionAsset } from "@/core/validation/production-assets"
 
-type Production = { id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; revision_number?: number }
+type Production = { id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
 type ProductionView = "brief" | "direction" | "takes"
 
 const PRODUCTION_DESK_STORAGE_KEY = "aisas.production-desk.v1"
@@ -93,10 +93,16 @@ export function ProductionDesk() {
   }
 
   async function developWithCrew(jobId: string) {
-    for (let step = 0; step < 5; step += 1) {
+    // Older checkpoints can need an extra department repair pass before shots are compiled.
+    for (let step = 0; step < 8; step += 1) {
       const response = await fetch("/api/ad/production-crew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobId }) })
       const result = await response.json()
-      if (!response.ok || !result.ok) throw new Error(result.error || "The director could not continue the plan.")
+      if (!response.ok || !result.ok) {
+        const latest = (await listProductions()).data as Production[] | undefined
+        const current = latest?.find(job => job.id === jobId)
+        const diagnostic = current?.planning_error ? ` Diagnostic: ${current.planning_error}` : ""
+        throw new Error(`${result.error || "The director could not continue the plan."}${diagnostic}`)
+      }
       setCrewStatus(result.message || "Finalizing production plan")
       await refresh()
       if (result.complete) {
@@ -148,6 +154,7 @@ export function ProductionDesk() {
           <ProductionReferences assets={productionAssetsSchema.safeParse((job as Production & { reference_assets?: unknown }).reference_assets).data || []} />
           <details className="mt-3 text-sm text-white/60"><summary className="cursor-pointer">Read original brief</summary><p className="mt-3 whitespace-pre-wrap">{job.brief}</p></details>
           {view === "direction" && job.planning_stage && job.status === "brief" && <p className={styles.checkpoint}>Saved progress: {job.planning_stage === "brief" ? "Brief ready for the crew" : job.planning_stage === "story" ? "Story bible ready" : job.planning_stage === "departments" ? "Department direction ready" : "Shot prompts ready for review"}</p>}
+          {view === "direction" && job.planning_error && job.status === "brief" && <p role="status" className="mt-3 text-sm text-amber-200">Last crew attempt: {job.planning_error}</p>}
           {view === "direction" && job.plan && <div className="mt-4">
             <p className="text-sm text-white/70">{job.plan.creativeStrategy}</p>
             {job.plan.crew && <details className="mt-4 rounded-xl border border-white/10 p-4">

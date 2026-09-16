@@ -12,6 +12,7 @@
 .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 12px; margin-top: 16px; }
 .grid figure { margin: 0; min-width: 0; position: relative; border: 1px solid #ffffff1a; border-radius: 12px; overflow: hidden; background: #0d1210; }
 .grid img { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #080b09; }
+.grid video { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #080b09; }
 .grid figcaption { padding: 10px; display: grid; gap: 4px; font-size: 11px; }
 .grid strong { color: #d6ede7; text-transform: capitalize; }
 .grid figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ffffff80; }

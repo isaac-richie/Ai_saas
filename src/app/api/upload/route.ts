@@ -1,15 +1,17 @@
 import { createClient } from "@/infrastructure/supabase/server"
 import { NextResponse } from "next/server"
 
-// Only allow raster image types. SVG is intentionally excluded because the
-// bucket is public and SVG can carry executable script (stored XSS).
+// SVG is intentionally excluded because the bucket is public and SVG can carry executable script.
 const ALLOWED_MIME_TYPES: Record<string, string> = {
     "image/jpeg": "jpg",
     "image/png": "png",
     "image/webp": "webp",
     "image/gif": "gif",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/quicktime": "mov",
 }
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024 // 25 MB
 
 export async function POST(request: Request) {
     const supabase = await createClient()
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
         const fileExt = ALLOWED_MIME_TYPES[file.type]
         if (!fileExt) {
             return NextResponse.json(
-                { error: "Unsupported file type. Upload a JPEG, PNG, WebP, or GIF image." },
+                { error: "Unsupported file type. Upload a JPEG, PNG, WebP, MP4, WebM, or MOV file." },
                 { status: 415 }
             )
         }
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
 
         if (file.size > MAX_UPLOAD_BYTES) {
             return NextResponse.json(
-                { error: "File is too large. Maximum upload size is 10 MB." },
+                { error: "File is too large. Maximum upload size is 25 MB." },
                 { status: 413 }
             )
         }

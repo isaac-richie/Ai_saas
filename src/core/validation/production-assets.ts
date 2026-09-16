@@ -5,6 +5,7 @@ export const productionAssetSchema = z.object({
   name: z.string().min(1).max(160),
   url: z.string().url(),
   role: z.enum(["character", "wardrobe", "product", "location", "lighting"]),
+  mediaType: z.enum(["image", "video"]).default("image"),
 })
 export const productionAssetsSchema = z.array(productionAssetSchema).max(6)
 export type ProductionAsset = z.infer<typeof productionAssetSchema>
