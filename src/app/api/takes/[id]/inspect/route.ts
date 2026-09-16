@@ -9,6 +9,7 @@ import { zodTextFormat } from "openai/helpers/zod"
 import { createClient } from "@/infrastructure/supabase/server"
 import { REFERENCE_BUCKET, validateOwnedReferences } from "@/core/validation/media-reference"
 import { readBoundedBytes } from "@/core/utils/security/bounded-body"
+import { MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
 
 const execFileAsync = promisify(execFile)
 export const runtime = "nodejs"
@@ -41,11 +42,13 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   if (target.protocol !== "https:" || !new Set(["tempfile.aiquickdraw.com", "oaidalleapiprodscus.blob.core.windows.net", supabaseHost]).has(target.hostname)) return NextResponse.json({ error: "Media host is not approved for inspection." }, { status: 403 })
 
   let tempDir: string | undefined
+  const signal = AbortSignal.timeout(150_000)
   try {
+    await requireMediaRuntime(true, signal)
     const quota = await db.rpc("consume_reference_analysis")
     if (quota.error) return NextResponse.json({ error: "Apply migration 0028 to enable shared inspection limits." }, { status: 503 })
     if (quota.data !== true) return NextResponse.json({ error: "Analysis limit reached. Please retry later." }, { status: 429 })
-    const response = await fetch(target, { redirect: "error", signal: AbortSignal.timeout(30_000) })
+    const response = await fetch(target, { redirect: "error", signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) })
     if (!response.ok) throw new Error(`Media download failed (${response.status})`)
     const declaredSize = Number(response.headers.get("content-length") || 0)
     if (declaredSize > 250 * 1024 * 1024) throw new Error("Media is too large for keyframe inspection.")
@@ -53,14 +56,14 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     tempDir = await mkdtemp(join("/tmp", `take-inspection-${take.id}-`))
     const videoPath = join(tempDir, "source.mp4")
     await writeFile(videoPath, buffer)
-    const { stdout } = await execFileAsync(process.env.FFPROBE_PATH || "ffprobe", ["-v", "error", "-protocol_whitelist", "file,pipe", "-f", "mov", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", videoPath], { timeout: 10000, maxBuffer: 1024 * 1024 })
+    const { stdout } = await execFileAsync(process.env.FFPROBE_PATH || "ffprobe", ["-v", "error", "-protocol_whitelist", "file,pipe", "-f", "mov", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", videoPath], { timeout: 10000, maxBuffer: 1024 * 1024, signal })
     const duration = Number.parseFloat(stdout.trim())
     if (!Number.isFinite(duration) || duration <= 0) throw new Error("Could not read the media duration.")
     const timestamps = [Math.min(0.15, duration / 10), duration / 2, Math.max(0, duration - 0.15)]
     const frames: Buffer[] = []
     for (let index = 0; index < timestamps.length; index += 1) {
       const framePath = join(tempDir, `frame-${index}.jpg`)
-      await execFileAsync(process.env.FFMPEG_PATH || "ffmpeg", ["-nostdin", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", "mov", "-y", "-ss", String(timestamps[index]), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", framePath], { timeout: 12000, maxBuffer: 1024 * 1024 })
+      await execFileAsync(process.env.FFMPEG_PATH || "ffmpeg", ["-nostdin", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", "mov", "-y", "-ss", String(timestamps[index]), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", framePath], { timeout: 12000, maxBuffer: 1024 * 1024, signal })
       frames.push(await readFile(framePath))
     }
     const frameUrls: string[] = []
@@ -103,7 +106,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
         ...referenceContent,
       ] }],
       text: { format: zodTextFormat(reviewSchema, "keyframe_review") },
-    })
+    }, { signal })
     if (result.status !== "completed" || !result.output_parsed) throw new Error("Visual review was incomplete.")
     const review = reviewSchema.parse(result.output_parsed)
     const reviewStatus = review.overall === "pass" ? "pass" : review.overall === "reject" ? "rejected" : "warning"
@@ -113,8 +116,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ ok: true, data: { reviewStatus, frameUrls, review } })
   } catch (cause) {
     console.error("Keyframe inspection failed", { takeId: take.id, error: cause instanceof Error ? cause.message : "unknown" })
-    return NextResponse.json({ error: cause instanceof Error ? cause.message : "Keyframe inspection failed." }, { status: 502 })
+    if (cause instanceof MediaRuntimeUnavailableError) return NextResponse.json({ error: cause.message }, { status: 503 })
+    return NextResponse.json({ error: signal.aborted
+      ? "Inspection timed out. Your take is unchanged; please retry later."
+      : "Could not inspect this take. Check that the media is still available and retry." }, { status: signal.aborted ? 504 : 502 })
   } finally {
-    if (tempDir) await rm(tempDir, { recursive: true, force: true })
+    if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(() => console.error("Inspection temporary-file cleanup failed"))
   }
 }

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test scripts/test-media-references.mjs scripts/test-bounded-body.mjs scripts/test-media-runtime.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
