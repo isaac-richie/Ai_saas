@@ -21,6 +21,21 @@ const exec = promisify(execFile)
 
 type CrewReferenceInput = OpenAI.Responses.ResponseInputText | OpenAI.Responses.ResponseInputImage
 
+function safeCrewError(cause: unknown) {
+  if (!cause || typeof cause !== "object") return "unknown"
+  const error = cause as { code?: unknown; status?: unknown; name?: unknown; message?: unknown; error?: { code?: unknown; message?: unknown } }
+  const code = error.code || error.error?.code || error.status || error.name || "unknown"
+  const detail = error.message || error.error?.message
+  return `${String(code).slice(0, 80)}${detail ? `: ${String(detail).replace(/\s+/g, " ").slice(0, 220)}` : ""}`
+}
+
+function responseFailureDetail(result: unknown) {
+  const response = result as { status?: unknown; output?: Array<{ content?: Array<{ type?: unknown; refusal?: unknown; text?: unknown }> }> }
+  const refusal = response.output?.flatMap(item => item.content || []).find(item => item.type === "refusal")?.refusal
+  if (refusal) return `director_refusal: ${String(refusal).replace(/\s+/g, " ").slice(0, 220)}`
+  return `incomplete_response:${String(response.status || "unknown")}`
+}
+
 async function sampleVideoReference(asset: ProductionAsset): Promise<CrewReferenceInput[]> {
   let directory: string | undefined
   try {
@@ -178,11 +193,10 @@ export function createCrewRunner(model: string, references: ProductionAsset[] = 
         input: references.length ? [{ role: "user", content: [{ type: "input_text", text: JSON.stringify({ context }) }, ...(await referenceInput)] }] : JSON.stringify(context),
         text: { format: zodTextFormat(schema, role.replaceAll("-", "_")) },
       })
-      if (result.status !== "completed" || !result.output_parsed) throw new Error("incomplete_response")
+      if (result.status !== "completed" || !result.output_parsed) throw new Error(responseFailureDetail(result))
       return { value: schema.parse(result.output_parsed), responseId: result.id }
     } catch (cause) {
-      const code = cause instanceof OpenAI.APIError ? cause.code || cause.status : cause instanceof Error ? cause.name : "unknown"
-      throw new Error(`${role}:${code}`, { cause })
+      throw new Error(`${role}:${safeCrewError(cause)}`, { cause })
     }
   }
 }
