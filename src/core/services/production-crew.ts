@@ -26,6 +26,10 @@ function safeCrewError(cause: unknown) {
   const error = cause as { code?: unknown; status?: unknown; name?: unknown; message?: unknown; error?: { code?: unknown; message?: unknown } }
   const code = error.code || error.error?.code || error.status || error.name || "unknown"
   const detail = error.message || error.error?.message
+  const billingText = `${String(code)} ${String(detail || "")}`.toLowerCase()
+  if (billingText.includes("credit_balance_exhausted") || billingText.includes("no credits remaining") || billingText.includes("insufficient_quota")) {
+    return "openai_api_credits_exhausted: add credits in the OpenAI API billing portal"
+  }
   return `${String(code).slice(0, 80)}${detail ? `: ${String(detail).replace(/\s+/g, " ").slice(0, 220)}` : ""}`
 }
 
