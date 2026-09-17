@@ -30,7 +30,8 @@ export const productionBibleSchema = z.object({
   world: note,
   continuityAnchors: z.array(z.string().min(3).max(240)).min(1).max(8),
   // Optional only so productions planned before continuity-ledger v2 remain readable.
-  continuityLedger: continuityLedgerSchema.optional(),
+  // Structured Outputs requires optional object properties to be nullable.
+  continuityLedger: continuityLedgerSchema.nullable(),
   beats: z.array(note).length(3),
   assumptions: z.array(note).max(6),
 })
@@ -50,7 +51,7 @@ export const crewShotsSchema = z.object({
     negativePrompt: z.string().min(5).max(500),
     model: z.enum(["kling", "seedance"]),
     editNote: z.string().min(3).max(220),
-    continuity: shotContinuityStateSchema.optional(),
+    continuity: shotContinuityStateSchema.nullable(),
   })).length(3),
 })
 

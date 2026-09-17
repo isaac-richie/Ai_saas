@@ -146,7 +146,7 @@ export function compileProductionPlan(input: {
         ? shots[index - 1].continuity!.endState
         : shot.continuity.startState,
       carriedDetails: [...new Set([...shot.continuity.carriedDetails, ...ledger.invariants])].slice(0, 12),
-    } : undefined,
+    } : null,
   }))
   return productionPlanSchema.parse({
     campaignSummary: input.story.treatment,
