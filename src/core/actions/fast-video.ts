@@ -19,6 +19,7 @@ import { consumeUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { REFERENCE_BUCKET, referenceCompatibility, referenceIsInContext, referencePrompt, referencePromptFits, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
 import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
+import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
   strict: "preserve subject identity and scene composition with minimal deviation",
@@ -149,17 +150,6 @@ function dedupeClauses(parts: string[]): string[] {
   }
 
   return out
-}
-
-function trimPromptBySegments(parts: string[], limit: number): string {
-  const kept: string[] = []
-  for (const part of parts) {
-    const candidate = [...kept, part].join(", ")
-    if (candidate.length > limit) break
-    kept.push(part)
-  }
-  const merged = kept.join(", ")
-  return merged.length <= limit ? merged : `${merged.slice(0, Math.max(0, limit - 3))}...`
 }
 
 function inferSubjectClass(subject: string): "product" | "portrait" | "vehicle" | "environment" | "action" {
@@ -315,10 +305,11 @@ function assembleFastVideoPrompt(
   if (guidance) parts.push(`Reference direction: ${guidance}`)
   parts.push(`duration ${safeDuration}s with coherent start-middle-end motion arc`)
 
+  if (extra?.continuity?.clause) parts.push(extra.continuity.clause)
+
   if (extra?.scene?.locationPrompt) parts.push(`location: ${extra.scene.locationPrompt}`)
   if (extra?.scene?.lightingPrompt) parts.push(`lighting: ${extra.scene.lightingPrompt}`)
   if (extra?.scene?.colorPrompt) parts.push(`color grade: ${extra.scene.colorPrompt}`)
-  if (extra?.continuity?.clause) parts.push(extra.continuity.clause)
 
   if (style?.styleTokens) parts.push(style.styleTokens)
   if (motion?.motionTokens) parts.push(motion.motionTokens)

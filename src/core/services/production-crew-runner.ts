@@ -1,6 +1,6 @@
 import { z } from "zod"
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { compileProductionPlan, createCrewRunner } from "@/core/services/production-crew"
+import { compileCrewShotsForReview, compileProductionPlan, createCrewRunner } from "@/core/services/production-crew"
 import { crewReviewSchema, crewShotsSchema, departmentDirectionSchema, productionBibleSchema } from "@/core/validation/production-crew"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
@@ -40,7 +40,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
 
   try {
     const context = stageContextSchema.parse(job.planning_context || {})
-    const model = context.model || process.env.PRODUCTION_CREW_MODEL || "gpt-6-astra"
+    const model = process.env.PRODUCTION_CREW_MODEL?.trim() || context.model || "gpt-6-astra"
     context.model = model
     const references = productionAssetsSchema.parse(job.reference_assets || [])
     if (references.some(asset => !ownsAssetUrl(asset.url, userId))) throw new Error("Invalid reference ownership")
@@ -72,7 +72,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       return { data: { complete: false, stage: "departments", message: "Production design and performance direction added" } }
     }
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && context.productionDesign && context.performance) {
-      const editor = await run("shot-editor", "Compile exactly three executable prompts in beat order. Repeat concrete continuity-ledger details inside every prompt; never say only same or unchanged. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Shot 2 must begin at shot 1's end state; shot 3 must begin at shot 2's end state. Include action progression, framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
+      const editor = await run("shot-editor", "Compile exactly three executable prompts in beat order. The action field must contain the complete timed choreography, performance, and dialogue for the ten-second shot. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Shot 2 must begin at shot 1's end state; shot 3 must begin at shot 2's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
       if (editor.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
       for (const shot of editor.value.shots) {
         const checked = enforcePromptCompliance({ prompt: shot.prompt, negativePrompt: shot.negativePrompt, outputType: "video" })
@@ -91,7 +91,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       return { data: { complete: false, stage: "departments", message: "New department direction added; shot prompts will be recompiled" } }
     }
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.productionDesign && context.performance && context.editor) {
-      const review = await run("continuity-reviewer", "Audit every locked ledger field in every shot and compare each endState with the next startState. Cite concrete identity, wardrobe, object count/placement, material, palette, lighting, weather, blocking, eyeline, screen-direction, geography, or camera-rule conflicts. Any unapproved change, missing invariant, or broken handoff is blocking. Do not grade footage: none exists.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, shots: context.editor.shots }, crewReviewSchema)
+      const review = await run("continuity-reviewer", "Audit the exact compiled provider prompts and compare each endState with the next startState. A contradiction, incomplete sentence, missing executable action/camera instruction, unapproved identity/object change, or broken handoff is blocking. A detail already represented by the locked continuity contract is not missing merely because it is compact. Do not grade footage: none exists.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, shots: compileCrewShotsForReview(context.story, context.editor) }, crewReviewSchema)
       const stages = [...context.stages, { role: "continuity-reviewer", responseId: review.responseId }]
       const plan = compileProductionPlan({ model, story: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, editor: context.editor, review: review.value, stages })
       const { data: saved, error } = await client.from("production_jobs").update({ status: "awaiting_approval", plan, planning_stage: "complete", planning_context: { ...context, stages }, planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", job.id).eq("planning_stage", "shots").eq("planning_claimed_until", claimUntil).select("id").maybeSingle()

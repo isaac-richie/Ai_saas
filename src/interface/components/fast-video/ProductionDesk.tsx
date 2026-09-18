@@ -103,7 +103,7 @@ export function ProductionDesk() {
     // Older checkpoints can need an extra department repair pass before shots are compiled.
     for (let step = 0; step < 8; step += 1) {
       const response = await fetch("/api/ad/production-crew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobId }) })
-      const result = await response.json()
+      const result = await response.json().catch(() => ({ ok: false, error: response.status >= 500 ? "The crew request timed out. Its completed checkpoint is safe; resume to continue." : "The crew returned an unreadable response." }))
       if (!response.ok || !result.ok) {
         const latest = (await listProductions()).data as Production[] | undefined
         const current = latest?.find(job => job.id === jobId)
@@ -208,7 +208,15 @@ export function ProductionDesk() {
             if (result.error) throw new Error(result.error)
             keep(result.data as Production)
           })}>Approve direction</button>}
-          {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <p className="mt-3 text-sm text-amber-200">The crew found a blocking issue. Use the review notes in a revised brief above to develop a new plan.</p>}
+          {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <p className="mt-3 text-sm text-amber-200">The crew found a blocking issue. Review the findings or let the crew repair the executable prompts without changing your concept.</p>}
+          {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <button disabled={busy} className="mt-3 rounded-full bg-[#d6ede7] px-4 py-2 text-sm font-medium text-black disabled:opacity-40" onClick={() => void run(async () => {
+            const corrections = job.plan?.crew?.review.findings.filter(finding => finding.severity === "blocking").map(finding => `Shot ${finding.shotNumber}: ${finding.correction}`).join(" ") || "Resolve every blocking continuity finding."
+            const result = await createProductionRevision({ productionId: job.id, direction: `Repair the executable provider prompts without changing the concept, references, shot count, duration, or aspect ratio. ${corrections}`.slice(0, 2000) })
+            if (result.error || !result.data) throw new Error(result.error || "Could not create a repair revision.")
+            const repaired = result.data as Production
+            keep(repaired)
+            await developWithCrew(repaired.id)
+          })}>Repair plan with crew</button>}
           {view === "direction" && job.status === "approved" && <p className="mt-4 text-sm text-[#d6ede7]">Direction approved. {job.project_id ? "Continue to Takes & review to direct your production." : "Create the workspace to begin generating your shots."}</p>}
           {view === "direction" && job.project_id && <button className="mt-4 rounded-full bg-[#d6ede7] px-5 py-2.5 text-sm font-medium text-black" onClick={() => setView("takes")}>Continue to takes</button>}
           {job.status === "approved" && !job.project_id && <button disabled={busy} className="mt-4 rounded-full bg-[#d6ede7] px-4 py-2 text-sm font-medium text-black disabled:opacity-40" onClick={() => void run(async () => {
