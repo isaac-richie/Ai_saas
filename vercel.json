@@ -1,4 +1,7 @@
 {
+  "env": {
+    "PRODUCTION_CREW_MODEL": "gpt-6-astra"
+  },
   "crons": [
     {
       "path": "/api/exports/worker",

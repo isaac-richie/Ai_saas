@@ -9,6 +9,7 @@ import { ArrowUpRight, Clapperboard, Plus, RefreshCw } from "lucide-react"
 import styles from "./ProductionDesk.module.css"
 import { ProductionReferences } from "./ProductionReferences"
 import { productionAssetsSchema, type ProductionAsset } from "@/core/validation/production-assets"
+import { isStaleServerActionError, recoverFromStaleServerAction } from "@/interface/lib/server-action-recovery"
 
 type Production = { id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
 type ProductionView = "brief" | "direction" | "takes"
@@ -67,7 +68,10 @@ export function ProductionDesk() {
         setReady(true)
         setSessionRestored(true)
       }
-    }).catch(() => { if (active) setError("Could not load productions. Please reload.") })
+    }).catch(cause => {
+      if (!active || recoverFromStaleServerAction(cause)) return
+      setError(isStaleServerActionError(cause) ? "The studio was updated. Reload once to continue your saved production." : "Could not load productions. Please reload.")
+    })
     return () => { active = false }
   }, [])
 
@@ -88,7 +92,10 @@ export function ProductionDesk() {
 
   async function run(work: () => Promise<void>) {
     setBusy(true); setError("")
-    try { await work() } catch (cause) { setError(cause instanceof Error ? cause.message : "Please try again.") }
+    try { await work() } catch (cause) {
+      if (recoverFromStaleServerAction(cause)) return
+      setError(isStaleServerActionError(cause) ? "The studio was updated. Reload once to continue your saved production." : cause instanceof Error ? cause.message : "Please try again.")
+    }
     finally { setBusy(false); setCrewStatus("") }
   }
 

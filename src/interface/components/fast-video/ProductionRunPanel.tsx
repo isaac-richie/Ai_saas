@@ -8,6 +8,7 @@ import { cancelGenerationJob } from "@/core/actions/generation-jobs"
 import { listProductionShots, pollProductionGeneration, queueProductionShot } from "@/core/actions/production"
 import { applyTakeCorrection, proposeTakeCorrection, recordTakeInspection, submitProductionEvaluation } from "@/core/actions/production-review"
 import styles from "./ProductionDesk.module.css"
+import { recoverFromStaleServerAction } from "@/interface/lib/server-action-recovery"
 
 type Take = { id: string; take_number: number; status: string; output_url: string | null; model_version_used: string | null; review_status?: string; review_notes?: string | null; media_inspection?: unknown; first_frame_url?: string | null; last_frame_url?: string | null; created_at?: string }
 type Job = { id: string; status: string; progress: number; error_message: string | null; provider_task_id: string | null; take_id: string | null; created_at?: string }
@@ -68,7 +69,9 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
         if (result.error) toast.error(`${shot.name}: ${result.error}`)
       })
       await refresh()
-    } catch { toast.error("Could not submit the production. Refresh and try again.") }
+    } catch (cause) {
+      if (!recoverFromStaleServerAction(cause)) toast.error("Could not submit the production. Refresh and try again.")
+    }
     finally { setBusy(false) }
   }
 

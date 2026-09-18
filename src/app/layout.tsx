@@ -5,6 +5,7 @@ import "./workspace.css";
 import { ThemeProvider } from "@/interface/providers/theme-provider";
 import { AppShell } from "@/interface/components/layout/AppShell";
 import { Toaster } from "@/interface/components/ui/sonner";
+import { DeploymentRecovery } from "@/interface/components/system/DeploymentRecovery";
 
 export const metadata: Metadata = {
   title: {
@@ -32,6 +33,7 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
+          <DeploymentRecovery />
           <AppShell>{children}</AppShell>
           <Toaster />
         </ThemeProvider>
