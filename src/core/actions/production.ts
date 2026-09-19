@@ -18,8 +18,13 @@ export async function listProductions() {
   const db = await createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return { error: "Please sign in." }
-  const { data, error } = await db.from("production_jobs").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20)
-  if (error) return { error: "Production Desk is not available yet. Apply migration 0021 to enable saved productions." }
+  const data = []
+  for (let offset = 0; ; offset += 100) {
+    const { data: page, error } = await db.from("production_jobs").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).order("id").range(offset, offset + 99)
+    if (error) return { error: "Could not load saved productions. Please retry." }
+    data.push(...(page || []))
+    if (!page || page.length < 100) break
+  }
   return { data }
 }
 
@@ -61,7 +66,13 @@ export async function createProductionRevision(input: unknown) {
   const { data: source } = await db.from("production_jobs").select("*").eq("id", parsed.data.productionId).eq("user_id", user.id).maybeSingle()
   if (!source) return { error: "Production not found." }
   const lineageRoot = source.parent_job_id || source.id
-  const { data: latestRevision } = await db.from("production_jobs").select("revision_number").eq("user_id", user.id).eq("parent_job_id", lineageRoot).order("revision_number", { ascending: false }).limit(1).maybeSingle()
+  const { data: latestRevision, error: latestError } = await db.from("production_jobs").select("*").eq("user_id", user.id).eq("parent_job_id", lineageRoot).order("revision_number", { ascending: false }).limit(1).maybeSingle()
+  if (latestError) return { error: "Could not load the current film. Please retry." }
+  if (parsed.data.repair) {
+    if (latestRevision && latestRevision.id !== source.id && latestRevision.revision_number > source.revision_number) return { data: latestRevision }
+    if (source.status === "brief") return { data: source }
+    if (source.status !== "awaiting_approval" || canApproveProduction(source.plan)) return { error: "This film does not need a repair. Refresh to see its current direction." }
+  }
   const nextRevision = Math.max(source.revision_number || 1, latestRevision?.revision_number || 1) + 1
   const sourcePlan = productionPlanSchema.safeParse(source.plan)
   const findings = parsed.data.repair && sourcePlan.success
@@ -71,6 +82,10 @@ export async function createProductionRevision(input: unknown) {
   const revisedBrief = `${source.brief}\n\nRevision direction:\n${parsed.data.direction}${corrections ? `\n\nSaved review findings:\n${corrections}` : ""}`
   const { data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: revisedBrief, parent_job_id: lineageRoot, revision_number: nextRevision, ...(source.reference_assets ? { reference_assets: source.reference_assets } : {}) }).select("*").single()
   if (error) {
+    if (error.code === "23505" && parsed.data.repair) {
+      const { data: concurrent } = await db.from("production_jobs").select("*").eq("user_id", user.id).eq("parent_job_id", lineageRoot).eq("revision_number", nextRevision).maybeSingle()
+      if (concurrent) return { data: concurrent }
+    }
     const migrationMissing = ["42703", "PGRST204"].includes(error.code || "")
     return { error: migrationMissing ? "Apply migration 0024 to create versioned production revisions." : "Another revision was created at the same time. Refresh and retry." }
   }

@@ -26,3 +26,16 @@ test('oversized provider instructions are rejected instead of sliced', () => {
   assert.throws(() => compile({ shots: [{ prompt: 'x'.repeat(1001), continuity: null }] }), /exceeds/)
   assert.equal(compile({ shots: [{ prompt: 'x'.repeat(1000), continuity: null }] })[0].prompt.length, 1000)
 })
+
+const groupingModule = { exports: {} }
+const groupingSource = readFileSync(new URL('../src/core/utils/production/latest-films.ts', import.meta.url), 'utf8')
+vm.runInNewContext(ts.transpileModule(groupingSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: groupingModule, exports: groupingModule.exports })
+test('film picker keeps latest lineage revision without merging separate films or mutating history', () => {
+  const rows = [{ id: 'v4', parent_job_id: 'root', revision_number: 4 }, { id: 'other', revision_number: 1 }, { id: 'root', revision_number: 1 }, { id: 'v5', parent_job_id: 'root', revision_number: 5 }]
+  const before = JSON.stringify(rows)
+  const result = groupingModule.exports.latestFilms(rows)
+  assert.equal(result.length, 2)
+  assert.equal(result[0].id, 'v5')
+  assert.equal(result[1].id, 'other')
+  assert.equal(JSON.stringify(rows), before)
+})

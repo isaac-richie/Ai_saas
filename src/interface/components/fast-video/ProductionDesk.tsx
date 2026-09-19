@@ -11,7 +11,9 @@ import { ProductionReferences } from "./ProductionReferences"
 import { productionAssetsSchema, type ProductionAsset } from "@/core/validation/production-assets"
 import { isStaleServerActionError, recoverFromStaleServerAction } from "@/interface/lib/server-action-recovery"
 
-type Production = { id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
+import { latestFilms } from "@/core/utils/production/latest-films"
+
+type Production = { parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
 type ProductionView = "brief" | "direction" | "takes"
 
 const PRODUCTION_DESK_STORAGE_KEY = "aisas.production-desk.v1"
@@ -29,7 +31,9 @@ export function ProductionDesk() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<ProductionView>("brief")
   const [sessionRestored, setSessionRestored] = useState(false)
-  const selected = jobs.find(job => job.id === selectedId)
+  const films = latestFilms(jobs)
+  const selectedRevision = jobs.find(job => job.id === selectedId)
+  const selected = films.find(job => (job.parent_job_id || job.id) === (selectedRevision?.parent_job_id || selectedRevision?.id))
 
   async function refresh() {
     const result = await listProductions()
@@ -130,7 +134,7 @@ export function ProductionDesk() {
         <div className={styles.slate}><span>CREW / 07</span><strong>One shared vision.</strong><p>Story · Camera · Light<br />Design · Performance · Edit · Continuity</p></div>
       </header>
       <div className={styles.toolbar}>
-        <label className={styles.projectPicker}>PRODUCTION<select aria-label="Choose production" value={selectedId || ""} disabled={busy} onChange={event => { const job = jobs.find(item => item.id === event.target.value); setSelectedId(job?.id || null); setView(job ? (job.project_id ? "takes" : "direction") : "brief") }}><option value="">Start a new film</option>{jobs.map(job => <option key={job.id} value={job.id}>{job.plan?.crew?.bible.title || job.brief.slice(0, 64)} · v{job.revision_number || 1}</option>)}</select></label>
+        <label className={styles.projectPicker}>PRODUCTION<select aria-label="Choose production" value={selected?.id || ""} disabled={busy} onChange={event => { const job = jobs.find(item => item.id === event.target.value); setSelectedId(job?.id || null); setView(job ? (job.project_id ? "takes" : "direction") : "brief") }}><option value="">Start a new film</option>{films.map(job => <option key={job.id} value={job.id}>{job.plan?.crew?.bible.title || job.brief.slice(0, 64)}</option>)}</select></label>
         <button type="button" disabled={busy} onClick={() => { setSelectedId(null); setView("brief") }}><Plus size={16} /> New film</button>
         <button type="button" disabled={busy} onClick={() => void run(refresh)} aria-label="Refresh productions"><RefreshCw size={16} /></button>
       </div>
@@ -155,8 +159,8 @@ export function ProductionDesk() {
       {busy && <div role="status" className={styles.progress}><span />{crewStatus || "Working on your production..."}<small>Completed stages are saved.</small></div>}
       {!ready && !error && <p role="status" className="mt-4 text-sm text-white/60">Loading your productions...</p>}
       <div aria-busy={busy}>
-        {jobs.filter(job => job.id === selectedId && view !== "brief").map(job => <article key={job.id} className={styles.production}>
-          <p className="text-xs uppercase tracking-widest text-white/40">{job.status.replaceAll("_", " ")} / version {job.revision_number || 1}</p>
+        {films.filter(job => job.id === selected?.id && view !== "brief").map(job => <article key={job.id} className={styles.production}>
+          <p className="text-xs uppercase tracking-widest text-white/40">{job.status.replaceAll("_", " ")}</p>
           <h3 className={styles.productionTitle}>{job.plan?.crew?.bible.title || "Your film, in development."}</h3>
           <ProductionReferences assets={productionAssetsSchema.safeParse((job as Production & { reference_assets?: unknown }).reference_assets).data || []} />
           <details className="mt-3 text-sm text-white/60"><summary className="cursor-pointer">Read original brief</summary><p className="mt-3 whitespace-pre-wrap">{job.brief}</p></details>
@@ -228,7 +232,7 @@ export function ProductionDesk() {
             {job.sequence_id && <Link className="rounded-full border border-white/20 px-4 py-2 text-sm text-white" href={`/dashboard/sequences/${job.sequence_id}`}>Open first cut</Link>}
           </div>}
           {view === "takes" && job.project_id && job.scene_id && <ProductionRunPanel productionId={job.id} projectId={job.project_id} sceneId={job.scene_id} sequenceId={job.sequence_id} />}
-          {job.status !== "brief" && <details className="mt-4 rounded-xl border border-white/10 p-3"><summary className="cursor-pointer text-xs text-white/55">Create a revised production direction</summary><textarea value={revisionNotes[job.id] || ""} onChange={event => setRevisionNotes(current => ({ ...current, [job.id]: event.target.value }))} maxLength={2000} placeholder="Keep the approved history and describe only what should change..." className="mt-3 min-h-20 w-full rounded-lg border border-white/10 bg-black/30 p-3 text-sm text-white placeholder:text-white/30" /><button disabled={busy || (revisionNotes[job.id] || "").trim().length < 8} className="mt-3 rounded-full border border-white/15 px-4 py-2 text-xs text-white disabled:opacity-40" onClick={() => void run(async () => { const result = await createProductionRevision({ productionId: job.id, direction: revisionNotes[job.id] || "" }); if (result.error || !result.data) throw new Error(result.error || "Could not create revision."); keep(result.data as Production); setRevisionNotes(current => ({ ...current, [job.id]: "" })) })}>Create versioned revision</button></details>}
+          {job.status !== "brief" && <details className="mt-4 rounded-xl border border-white/10 p-3"><summary className="cursor-pointer text-xs text-white/55">Adjust production direction</summary><textarea value={revisionNotes[job.id] || ""} onChange={event => setRevisionNotes(current => ({ ...current, [job.id]: event.target.value }))} maxLength={2000} placeholder="Keep the approved history and describe only what should change..." className="mt-3 min-h-20 w-full rounded-lg border border-white/10 bg-black/30 p-3 text-sm text-white placeholder:text-white/30" /><button disabled={busy || (revisionNotes[job.id] || "").trim().length < 8} className="mt-3 rounded-full border border-white/15 px-4 py-2 text-xs text-white disabled:opacity-40" onClick={() => void run(async () => { const result = await createProductionRevision({ productionId: job.id, direction: revisionNotes[job.id] || "" }); if (result.error || !result.data) throw new Error(result.error || "Could not create revision."); keep(result.data as Production); setRevisionNotes(current => ({ ...current, [job.id]: "" })) })}>Update direction</button></details>}
         </article>)}
       </div>
       </div>
