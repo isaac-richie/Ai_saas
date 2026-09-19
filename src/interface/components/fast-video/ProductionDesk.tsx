@@ -216,7 +216,7 @@ export function ProductionDesk() {
               <p className="mt-3 text-sm text-white/70">{shot.creatorDirection}</p>
               {shot.continuityStartState && <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
               <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2 whitespace-pre-wrap">{shot.masterPrompt}</p></details>
-              {shot.productionNotes.length > 0 && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
+              {!!shot.productionNotes?.length && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
             </section>)}</div>
           </div>}
           {job.status === "brief" && <button disabled={busy} className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => void run(async () => {

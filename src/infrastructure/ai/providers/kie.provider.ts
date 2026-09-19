@@ -93,7 +93,9 @@ export class KieProvider extends BaseProvider {
 
         if (request.image_prompt) {
             const normalizedModel = model.toLowerCase();
-            if (normalizedModel.includes("kling-3.0")) {
+            if (normalizedModel.includes("seedance-2")) {
+                input.first_frame_url = request.image_prompt;
+            } else if (normalizedModel.includes("kling-3.0")) {
                 input.image_urls = [request.image_prompt];
             } else {
                 input.image_url = request.image_prompt;

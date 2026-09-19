@@ -132,6 +132,7 @@ function normalizeCrewShots(editor: z.infer<typeof crewShotsSchema>) {
 }
 
 export function compileCrewShotsForReview(_story: z.infer<typeof productionBibleSchema>, editor: z.infer<typeof crewShotsSchema>, settings?: ProductionShotSettings) {
+  if (settings && editor.shots.length !== settings.length) throw new Error("The crew returned the wrong shot count. Resume planning before review.")
   return normalizeCrewShots(editor).map((shot, index) => ({
     ...shot,
     prompt: compileContinuityPrompt(shot),

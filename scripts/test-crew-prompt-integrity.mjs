@@ -235,6 +235,13 @@ test('Seedance duration survives action normalization and numeric provider paylo
     require: name => name.endsWith('base.provider') ? { BaseProvider: class {} } : {},
   })
   const provider = new result.exports.KieProvider()
+  const reference = 'https://example.com/approved-last-frame.jpg'
+  const seedance = provider.buildMarketInput({ prompt: 'Continue the shot.', output_type: 'video', image_prompt: reference, duration_seconds: 15 }, 'bytedance/seedance-2')
+  assert.equal(seedance.first_frame_url, reference)
+  assert.equal(seedance.image_url, undefined)
+  const kling = provider.buildMarketInput({ prompt: 'Continue the shot.', output_type: 'video', image_prompt: reference, duration_seconds: 10 }, 'kling/v2-5-turbo-image-to-video-pro')
+  assert.equal(kling.image_url, reference)
+  assert.equal(kling.first_frame_url, undefined)
   for (const duration of [4, 5, 7, 10, 12, 15]) {
     const applied = context.resolveModelAwareDuration(duration, 'bytedance/seedance-2')
     assert.equal(applied, duration)
@@ -255,4 +262,25 @@ test('longer plans cannot silently lose shots during compilation', () => {
   assert.equal(plan.deliverables.length, 12)
   assert.equal(plan.deliverables.reduce((total, shot) => total + shot.durationSeconds, 0), 180)
   assert.throws(() => module.exports.compileProductionPlan({ ...input, editor: { shots: input.editor.shots.slice(0, 3) } }), /wrong shot count/)
+  assert.throws(() => module.exports.compileCrewShotsForReview({}, { shots: input.editor.shots.slice(0, 3) }, settings), /wrong shot count/)
+})
+
+test('shot settings frontend renders twelve editable shots with model-specific duration choices', async () => {
+  const React = await import('react')
+  const jsxRuntime = await import('react/jsx-runtime')
+  const { renderToStaticMarkup } = await import('react-dom/server')
+  const result = { exports: {} }
+  const source = readFileSync(new URL('../src/interface/components/fast-video/ProductionShotSettings.tsx', import.meta.url), 'utf8')
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
+    module: result, exports: result.exports,
+    require: name => name === 'react' ? React : name === 'react/jsx-runtime' ? jsxRuntime : { productionShotSettingsSchema },
+  })
+  const render = model => renderToStaticMarkup(React.createElement(result.exports.ProductionShotSettings, { value: Array.from({ length: 12 }, () => ({ model, durationSeconds: model === 'seedance' ? 15 : 10 })), onChange() {}, disabled: false }))
+  const seedance = render('seedance')
+  assert.equal((seedance.match(/aria-label="Shot \d+ duration"/g) || []).length, 12)
+  assert.match(seedance, /value="15" selected=""/)
+  assert.match(seedance, /value="4"/)
+  const kling = render('kling')
+  assert.doesNotMatch(kling, /value="15"/)
+  assert.match(kling, /value="10" selected=""/)
 })
