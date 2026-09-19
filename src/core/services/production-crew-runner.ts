@@ -5,6 +5,7 @@ import { crewReviewSchema, crewShotsSchema, departmentDirectionSchema, productio
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
+import { compactRevisionContext } from "@/core/utils/production/revision-context"
 
 const stageContextSchema = z.object({
   shotSettings: productionShotSettingsSchema.optional(),
@@ -58,7 +59,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     const runner = createCrewRunner(model, references, context.shotSettings?.length ?? 3)
     const run: typeof runner = (role, instruction, input, schema) => runner(
       role, instruction,
-      { source: input, revision: context.revision ?? null, shotSettings: context.shotSettings ?? null }, schema,
+      { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: context.shotSettings ?? null }, schema,
     )
     if (job.planning_stage === "brief") {
       const safe = enforcePromptCompliance({ prompt: job.brief, outputType: "video" })

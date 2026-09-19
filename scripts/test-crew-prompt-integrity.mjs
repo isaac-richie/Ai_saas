@@ -47,22 +47,25 @@ test('film picker keeps latest lineage revision without merging separate films o
 const revisionModule = { exports: {} }
 const revisionSource = readFileSync(new URL('../src/core/utils/production/revision-context.ts', import.meta.url), 'utf8')
 vm.runInNewContext(ts.transpileModule(revisionSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: revisionModule, exports: revisionModule.exports })
-const { buildRevisionContext, revisionSaveError } = revisionModule.exports
+const { buildRevisionContext, compactRevisionContext, revisionSaveError } = revisionModule.exports
 
 test('repair stores complete large findings separately and never carries stale checkpoints', () => {
   const findings = Array.from({ length: 8 }, (_, i) => ({ shotNumber: i % 3 + 1, severity: 'blocking', evidence: 'e'.repeat(600), correction: 'c'.repeat(600) }))
   const previous = { revision: { directions: ['Keep the chair brown.'], findings: [] }, story: { stale: true }, editor: { stale: true }, stages: [{ role: 'shot-editor' }] }
   const before = JSON.stringify(previous)
   const context = buildRevisionContext(previous, 'Repair the complete dialogue.', findings)
-  assert.ok(JSON.stringify(context).length > 4000)
-  assert.equal(JSON.stringify(context.revision.findings), JSON.stringify(findings))
-  assert.equal(context.revision.directions.join('|'), 'Keep the chair brown.|Repair the complete dialogue.')
+  assert.ok(JSON.stringify(context).length < 5000)
+  assert.equal(context.revision.findings.length, 3)
+  assert.equal(context.revision.directions.join('|'), 'Repair the complete dialogue.')
   assert.equal(context.story, undefined)
   assert.equal(context.editor, undefined)
   assert.equal(JSON.stringify(previous), before)
   const retry = buildRevisionContext(context, 'Repair the complete dialogue.', [])
-  assert.equal(retry.revision.directions.length, 2)
+  assert.equal(retry.revision.directions.length, 1)
   assert.equal(retry.revision.findings.length, 0)
+  const compact = compactRevisionContext(context)
+  assert.equal(compact.directions.length, 1)
+  assert.ok(compact.findings.every(finding => finding.evidence.length <= 420 && finding.correction.length <= 420))
 })
 
 test('only unique violations are described as revision conflicts', () => {
@@ -110,7 +113,7 @@ test('revision action saves a 4000-character brief unchanged with large repair n
   assert.equal(JSON.stringify(inserted.planning_context.shotSettings), JSON.stringify(sourceJob.planning_context.shotSettings))
   assert.equal(inserted.parent_job_id, sourceJob.id)
   assert.equal(inserted.revision_number, 2)
-  assert.equal(JSON.stringify(inserted.planning_context.revision.findings), JSON.stringify(findings))
+  assert.equal(inserted.planning_context.revision.findings.length, 1)
 })
 
 for (const failedRole of [null, 'story-director', 'cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) test(`crew pipeline resumes without repeating successful calls after ${failedRole || 'no failure'}`, async () => {
@@ -149,6 +152,7 @@ for (const failedRole of [null, 'story-director', 'cinematographer', 'lighting-d
       if (name.endsWith('/validation/production-crew')) return { productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
+      if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
       throw new Error(`Unexpected import ${name}`)
     },
   })

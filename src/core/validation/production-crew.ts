@@ -47,7 +47,7 @@ export const crewShotsSchema = z.object({
     title: z.string().min(3).max(120),
     intent: z.string().min(5).max(220),
     action: z.string().min(10).max(500),
-    prompt: z.string().min(30).max(1200),
+    prompt: z.string().min(30).max(1000),
     negativePrompt: z.string().min(5).max(500),
     model: z.enum(["kling", "seedance"]),
     editNote: z.string().min(3).max(1200),
