@@ -15,6 +15,9 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Choose a saved production brief." }, { status: 400 })
   if (!checkStudioAdRateLimit(`production-crew:${user.id}`).allowed) return NextResponse.json({ error: "Please wait before continuing the crew plan." }, { status: 429 })
   const result = await advanceProductionCrew(db, user.id, parsed.data.jobId)
-  if (result.error) return NextResponse.json({ error: result.error }, { status: result.error.includes("already working") ? 409 : 502 })
+  if (result.error) {
+    const policyBlocked = result.error.includes("blocked by safety policy")
+    return NextResponse.json({ error: result.error }, { status: result.error.includes("already working") ? 409 : policyBlocked ? 422 : 502 })
+  }
   return NextResponse.json({ ok: true, ...result.data })
 }

@@ -54,6 +54,9 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     const context = stageContextSchema.parse(job.planning_context || {})
     const model = process.env.PRODUCTION_CREW_MODEL?.trim() || context.model || "gpt-6-astra"
     context.model = model
+    const safeBrief = enforcePromptCompliance({ prompt: job.brief, outputType: "video" })
+    if (safeBrief.blocked) throw new Error(`The brief is blocked by safety policy: ${safeBrief.reason || "rewrite the brief and retry."}`)
+    const planningBrief = safeBrief.prompt || job.brief
     const references = productionAssetsSchema.parse(job.reference_assets || [])
     if (references.some(asset => !ownsAssetUrl(asset.url, userId))) throw new Error("Invalid reference ownership")
     const runner = createCrewRunner(model, references, context.shotSettings?.length ?? 3)
@@ -62,9 +65,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: context.shotSettings ?? null }, schema,
     )
     if (job.planning_stage === "brief") {
-      const safe = enforcePromptCompliance({ prompt: job.brief, outputType: "video" })
-      if (safe.blocked || safe.flags.length) throw new Error("The brief requires a policy-safe rewrite.")
-      const story = await run("story-director", "Write the treatment and world bible. Give each beat an emotional purpose. Build a continuityLedger with concrete reusable identity, wardrobe, hero objects, materials, location, environment, palette, lighting, screen direction, camera rules, and invariants. Mark invented creative choices as assumptions.", { brief: job.brief }, productionBibleSchema)
+      const story = await run("story-director", "Write the treatment and world bible. Give each beat an emotional purpose. Build a continuityLedger with concrete reusable identity, wardrobe, hero objects, materials, location, environment, palette, lighting, screen direction, camera rules, and invariants. Mark invented creative choices as assumptions.", { brief: planningBrief }, productionBibleSchema)
       if (!story.value.continuityLedger) throw new Error("The story crew did not produce a complete continuity ledger.")
       await saveCheckpoint(client, job.id, claimUntil, "brief", "story", { ...context, story: story.value, stages: [...context.stages, { role: "story-director", responseId: story.responseId }] })
       return { data: { complete: false, stage: "story", message: "Story bible locked" } }
@@ -78,7 +79,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
         { key: "performance", role: "performance-director", instruction: "Direct behavior for all planned beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity." },
       ] as const
       const department = departments.find(item => !context[item.key])!
-      const result = await run(department.role, department.instruction, { brief: job.brief, bible: context.story }, departmentDirectionSchema)
+      const result = await run(department.role, department.instruction, { brief: planningBrief, bible: context.story }, departmentDirectionSchema)
       const nextContext = { ...context, [department.key]: result.value, editor: undefined, stages: [...context.stages.filter(stage => stage.role !== department.role && stage.role !== "shot-editor"), { role: department.role, responseId: result.responseId }] }
       const complete = departments.every(item => Boolean(nextContext[item.key]))
       const nextStage = complete ? "departments" : "story"
@@ -86,18 +87,20 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       return { data: { complete: false, stage: nextStage, message: department.role + " saved; completed departments will not be repeated" } }
     }
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && context.productionDesign && context.performance) {
-      const editor = await run("shot-editor", "Compile one executable prompt per selected shot, in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the preceding shot's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
+      const editor = await run("shot-editor", "Compile one executable prompt per selected shot, in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the preceding shot's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
       if (editor.value.shots.length !== (context.shotSettings?.length ?? 3)) throw new Error("The crew returned the wrong shot count. Retry this stage.")
       if (editor.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
-      for (const shot of editor.value.shots) {
+      const sanitizedShots = editor.value.shots.map(shot => {
         const checked = enforcePromptCompliance({ prompt: shot.prompt, negativePrompt: shot.negativePrompt, outputType: "video" })
-        if (checked.blocked || checked.flags.length) throw new Error("A compiled shot needs a policy-safe rewrite.")
-      }
-      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, editor: editor.value, stages: [...context.stages, { role: "shot-editor", responseId: editor.responseId }] })
+        if (checked.blocked) throw new Error(`A compiled shot is blocked by safety policy: ${checked.reason || "rewrite the shot and retry."}`)
+        return { ...shot, prompt: checked.prompt, negativePrompt: checked.negativePrompt }
+      })
+      const sanitizedEditor = { ...editor.value, shots: sanitizedShots }
+      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, editor: sanitizedEditor, stages: [...context.stages, { role: "shot-editor", responseId: editor.responseId }] })
       return { data: { complete: false, stage: "shots", message: "Shot prompts compiled" } }
     }
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.productionDesign && context.performance && context.editor) {
-      const review = await run("continuity-reviewer", "Audit the exact compiled provider prompts and compare each endState with the next startState. A contradiction, incomplete sentence, missing executable action/camera instruction, unapproved identity/object change, or broken handoff is blocking. The provider sees only the prompt, not the separate metadata or ledger. Missing required details must remain blocking; accept concise wording only when it preserves their meaning. Do not grade footage: none exists.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, shots: compileCrewShotsForReview(context.story, context.editor, context.shotSettings) }, crewReviewSchema)
+      const review = await run("continuity-reviewer", "Audit the exact compiled provider prompts and compare each endState with the next startState. A contradiction, incomplete sentence, missing executable action/camera instruction, unapproved identity/object change, or broken handoff is blocking. The provider sees only the prompt, not the separate metadata or ledger. Missing required details must remain blocking; accept concise wording only when it preserves their meaning. Do not grade footage: none exists.", { brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, shots: compileCrewShotsForReview(context.story, context.editor, context.shotSettings) }, crewReviewSchema)
       const stages = [...context.stages, { role: "continuity-reviewer", responseId: review.responseId }]
       const plan = compileProductionPlan({ shotSettings: context.shotSettings, model, story: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, editor: context.editor, review: review.value, stages })
       const { data: saved, error } = await client.from("production_jobs").update({ status: "awaiting_approval", plan, planning_stage: "complete", planning_context: { ...context, stages }, planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", job.id).eq("planning_stage", "shots").eq("planning_claimed_until", claimUntil).select("id").maybeSingle()
