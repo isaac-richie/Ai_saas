@@ -92,14 +92,6 @@ function clip(value: string, limit: number) {
   return `${(boundary > limit * 0.6 ? candidate.slice(0, boundary) : candidate).trimEnd()}...`
 }
 
-function compact(value: string, limit: number) {
-  const normalized = value.replace(/\s+/g, " ").trim()
-  if (normalized.length <= limit) return normalized
-  const candidate = normalized.slice(0, limit).trimEnd()
-  const boundary = candidate.lastIndexOf(" ")
-  return (boundary > limit * 0.6 ? candidate.slice(0, boundary) : candidate).trimEnd()
-}
-
 function fallbackLedger(story: z.infer<typeof productionBibleSchema>): ContinuityLedger {
   const anchors = story.continuityAnchors
   return {
@@ -116,23 +108,10 @@ function fallbackLedger(story: z.infer<typeof productionBibleSchema>): Continuit
   }
 }
 
-function compileContinuityPrompt(ledger: ContinuityLedger, shot: z.infer<typeof crewShotsSchema>["shots"][number]) {
-  const state = shot.continuity
-  const lock = [
-    `identity=${compact(ledger.subjectIdentity, 50)}`,
-    `wardrobe=${compact(ledger.wardrobe, 50)}`,
-    ledger.heroObjects.length ? `objects=${compact(ledger.heroObjects.join(", "), 55)}` : "",
-    `place=${compact(`${ledger.location}; ${ledger.environment}`, 50)}`,
-    `palette=${compact(ledger.palette.join(", "), 35)}`,
-    `light=${compact(ledger.lighting, 40)}`,
-    `geography=${compact(ledger.screenDirection, 35)}`,
-    state?.intentionalChanges.length ? `only changes=${compact(state.intentionalChanges.join(", "), 35)}` : "only changes=none",
-  ].filter(Boolean).join("; ")
-  const action = compact(shot.action, 220)
-  const camera = compact(ledger.cameraRules, 80)
-  const handoff = state ? `START: ${compact(state.startState, 65)}. END: ${compact(state.endState, 65)}.` : ""
-  const contract = `LOCKED CONTINUITY: ${lock}. No unexplained substitutions or drift.`
-  return compact(`10-second 16:9 shot. ACTION: ${action}. CAMERA: ${camera}. ${handoff} ${contract}`, 1000)
+function compileContinuityPrompt(shot: z.infer<typeof crewShotsSchema>["shots"][number]) {
+  // Preserve the editor's executable request exactly; never synthesize clipped prose.
+  if (shot.prompt.length > 1000) throw new Error("Shot prompt exceeds the 1000-character studio budget. Create a repair revision with complete concise prompts.")
+  return shot.prompt
 }
 
 function compileContinuityNegativePrompt(basePrompt: string) {
@@ -141,23 +120,19 @@ function compileContinuityNegativePrompt(basePrompt: string) {
 }
 
 function normalizeCrewShots(editor: z.infer<typeof crewShotsSchema>) {
-  return editor.shots.map((shot, index, shots) => ({
+  return editor.shots.map(shot => ({
     ...shot,
     continuity: shot.continuity ? {
       ...shot.continuity,
-      startState: index > 0 && shots[index - 1]?.continuity?.endState
-        ? shots[index - 1].continuity!.endState
-        : shot.continuity.startState,
       carriedDetails: [...new Set([...shot.continuity.carriedDetails])].slice(0, 12),
     } : null,
   }))
 }
 
-export function compileCrewShotsForReview(story: z.infer<typeof productionBibleSchema>, editor: z.infer<typeof crewShotsSchema>) {
-  const ledger = story.continuityLedger || fallbackLedger(story)
+export function compileCrewShotsForReview(_story: z.infer<typeof productionBibleSchema>, editor: z.infer<typeof crewShotsSchema>) {
   return normalizeCrewShots(editor).map(shot => ({
     ...shot,
-    prompt: compileContinuityPrompt(ledger, shot),
+    prompt: compileContinuityPrompt(shot),
   }))
 }
 
@@ -186,7 +161,7 @@ export function compileProductionPlan(input: {
     creativeStrategy: input.story.treatment.slice(0, 500),
     deliverables: normalizedShots.map((shot, index) => ({
       id: `shot-${index + 1}`, title: shot.title, conceptType: "Narrative coverage", hook: shot.intent,
-      creatorDirection: shot.action, masterPrompt: compileContinuityPrompt(ledger, shot), negativePrompt: compileContinuityNegativePrompt(shot.negativePrompt),
+      creatorDirection: shot.action, masterPrompt: compileContinuityPrompt(shot), negativePrompt: compileContinuityNegativePrompt(shot.negativePrompt),
       durationSeconds: 10, aspectRatio: "16:9", modelFamilyId: shot.model,
       continuityAnchors: [...input.story.continuityAnchors, ...ledger.invariants].slice(0, 12), productionNotes: [shot.editNote],
       continuityStartState: shot.continuity?.startState,
@@ -219,7 +194,7 @@ export function createCrewRunner(model: string, references: ProductionAsset[] = 
           "Work only on the supplied brief. Preserve its intent. State assumptions; do not invent user approvals, generated media, or verified quality.",
           "Plan exactly three connected 10-second shots in 16:9 for Kling or Seedance. These are provider requests, not a promise of exact footage.",
           "Continuity is a hard production contract: repeat exact identity, wardrobe, hero-object, material, location, palette, lighting, weather, geography, and camera facts. Never replace details with vague phrases such as same as before.",
-          "Keep every field concise, physically legible, executable, and complete. Never end a field mid-sentence. Respect provider content policies.",
+          "The shot prompt is the exact request sent to the video provider: maximum 1000 characters. Write complete concise sentences with the shot-specific camera, action, exact dialogue, handoff, and essential visual identity. Do not rely on other fields reaching the provider. Put editorial compositing instructions in editNote. If the budget prevents faithful execution, report that conflict instead of truncating. Keep every field concise, physically legible, executable, and complete. Never end a field mid-sentence. Respect provider content policies.",
           instruction,
         ].join(" "),
         input: references.length ? [{ role: "user", content: [{ type: "input_text", text: JSON.stringify({ context }) }, ...(await referenceInput)] }] : JSON.stringify(context),
@@ -260,7 +235,7 @@ export async function developProductionCrew(brief: string, model: string, run: C
     const checked = enforcePromptCompliance({ prompt: shot.prompt, negativePrompt: shot.negativePrompt, outputType: "video" })
     if (checked.blocked || checked.flags.length) throw new Error("A shot needs a compliant rewrite. Please revise the brief and retry.")
   }
-  const review = await run("continuity-reviewer", "Audit the exact compiled provider prompts and compare each endState with the next startState. A contradiction, incomplete sentence, missing executable action/camera instruction, unapproved identity/object change, or broken handoff is blocking. A detail already represented by the locked continuity contract is not missing merely because it is compact. Do not grade footage: none exists. Empty findings is allowed when the executable prompts and handoffs pass.", { ...context, shots: compileCrewShotsForReview(story.value, editor.value) }, crewReviewSchema)
+  const review = await run("continuity-reviewer", "Audit the exact compiled provider prompts and compare each endState with the next startState. A contradiction, incomplete sentence, missing executable action/camera instruction, unapproved identity/object change, or broken handoff is blocking. The provider sees only the prompt, not the separate metadata or ledger. Missing required details must remain blocking; accept concise wording only when it preserves their meaning. Do not grade footage: none exists. Empty findings is allowed when the executable prompts and handoffs pass.", { ...context, shots: compileCrewShotsForReview(story.value, editor.value) }, crewReviewSchema)
 
   return compileProductionPlan({
     model, story: story.value, camera: camera.value, lighting: lighting.value, productionDesign: productionDesign.value, performance: performance.value, editor: editor.value, review: review.value,

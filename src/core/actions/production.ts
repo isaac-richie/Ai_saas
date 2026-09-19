@@ -49,6 +49,7 @@ export async function updateProduction(input: unknown) {
 const productionRevisionSchema = z.object({
   productionId: z.string().uuid(),
   direction: z.string().trim().min(8).max(2000),
+  repair: z.boolean().optional(),
 })
 
 export async function createProductionRevision(input: unknown) {
@@ -62,7 +63,12 @@ export async function createProductionRevision(input: unknown) {
   const lineageRoot = source.parent_job_id || source.id
   const { data: latestRevision } = await db.from("production_jobs").select("revision_number").eq("user_id", user.id).eq("parent_job_id", lineageRoot).order("revision_number", { ascending: false }).limit(1).maybeSingle()
   const nextRevision = Math.max(source.revision_number || 1, latestRevision?.revision_number || 1) + 1
-  const revisedBrief = `${source.brief}\n\nRevision direction:\n${parsed.data.direction}`
+  const sourcePlan = productionPlanSchema.safeParse(source.plan)
+  const findings = parsed.data.repair && sourcePlan.success
+    ? sourcePlan.data.crew?.review.findings.filter(item => item.severity === "blocking") || []
+    : []
+  const corrections = findings.map(item => `Shot ${item.shotNumber}: ${item.evidence}\nRequired correction: ${item.correction}`).join("\n\n")
+  const revisedBrief = `${source.brief}\n\nRevision direction:\n${parsed.data.direction}${corrections ? `\n\nSaved review findings:\n${corrections}` : ""}`
   const { data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: revisedBrief, parent_job_id: lineageRoot, revision_number: nextRevision, ...(source.reference_assets ? { reference_assets: source.reference_assets } : {}) }).select("*").single()
   if (error) {
     const migrationMissing = ["42703", "PGRST204"].includes(error.code || "")

@@ -210,8 +210,7 @@ export function ProductionDesk() {
           })}>Approve direction</button>}
           {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <p className="mt-3 text-sm text-amber-200">The crew found a blocking issue. Review the findings or let the crew repair the executable prompts without changing your concept.</p>}
           {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <button disabled={busy} className="mt-3 rounded-full bg-[#d6ede7] px-4 py-2 text-sm font-medium text-black disabled:opacity-40" onClick={() => void run(async () => {
-            const corrections = job.plan?.crew?.review.findings.filter(finding => finding.severity === "blocking").map(finding => `Shot ${finding.shotNumber}: ${finding.correction}`).join(" ") || "Resolve every blocking continuity finding."
-            const result = await createProductionRevision({ productionId: job.id, direction: `Repair the executable provider prompts without changing the concept, references, shot count, duration, or aspect ratio. ${corrections}`.slice(0, 2000) })
+            const result = await createProductionRevision({ productionId: job.id, direction: "Repair the blocked plan using all saved reviewer findings.", repair: true })
             if (result.error || !result.data) throw new Error(result.error || "Could not create a repair revision.")
             const repaired = result.data as Production
             keep(repaired)
