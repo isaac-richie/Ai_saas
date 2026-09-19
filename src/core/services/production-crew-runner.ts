@@ -6,6 +6,10 @@ import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
 
 const stageContextSchema = z.object({
+  revision: z.object({
+    directions: z.array(z.string()),
+    findings: crewReviewSchema.shape.findings,
+  }).optional(),
   model: z.string().optional(),
   story: productionBibleSchema.optional(),
   camera: departmentDirectionSchema.optional(),
@@ -31,7 +35,12 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     .eq("id", jobId).eq("user_id", userId).eq("status", "brief")
     .or(`planning_claimed_until.is.null,planning_claimed_until.lt.${now}`)
     .select("*").maybeSingle()
-  if (claimError) return { error: "Apply migration 0025 to enable resumable crew planning." }
+  if (claimError) {
+    console.error("Production crew claim failed", { jobId, code: claimError.code })
+    return { error: ["42703", "PGRST204"].includes(claimError.code)
+      ? "Apply migration 0025 to enable resumable crew planning."
+      : "Could not start the crew stage. Your saved checkpoint is unchanged; please retry." }
+  }
   if (!job) {
     const { data: existing } = await client.from("production_jobs").select("status,plan").eq("id", jobId).eq("user_id", userId).maybeSingle()
     if (existing?.status === "awaiting_approval" || existing?.status === "approved") return { data: { complete: true, stage: "complete", message: "Production plan is ready", plan: existing.plan } }
@@ -44,7 +53,11 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     context.model = model
     const references = productionAssetsSchema.parse(job.reference_assets || [])
     if (references.some(asset => !ownsAssetUrl(asset.url, userId))) throw new Error("Invalid reference ownership")
-    const run = createCrewRunner(model, references)
+    const runner = createCrewRunner(model, references)
+    const run: typeof runner = (role, instruction, input, schema) => runner(
+      role, instruction,
+      { source: input, revision: context.revision ?? null }, schema,
+    )
     if (job.planning_stage === "brief") {
       const safe = enforcePromptCompliance({ prompt: job.brief, outputType: "video" })
       if (safe.blocked || safe.flags.length) throw new Error("The brief requires a policy-safe rewrite.")

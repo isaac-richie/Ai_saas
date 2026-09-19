@@ -7,6 +7,7 @@ import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@
 import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
 import type { Json } from "@/core/types/db"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
+import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
 
 const updateSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(4000), assets: productionAssetsSchema.default([]) }),
@@ -78,16 +79,15 @@ export async function createProductionRevision(input: unknown) {
   const findings = parsed.data.repair && sourcePlan.success
     ? sourcePlan.data.crew?.review.findings.filter(item => item.severity === "blocking") || []
     : []
-  const corrections = findings.map(item => `Shot ${item.shotNumber}: ${item.evidence}\nRequired correction: ${item.correction}`).join("\n\n")
-  const revisedBrief = `${source.brief}\n\nRevision direction:\n${parsed.data.direction}${corrections ? `\n\nSaved review findings:\n${corrections}` : ""}`
-  const { data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: revisedBrief, parent_job_id: lineageRoot, revision_number: nextRevision, ...(source.reference_assets ? { reference_assets: source.reference_assets } : {}) }).select("*").single()
+  const planningContext = buildRevisionContext(source.planning_context, parsed.data.direction, findings)
+  const { data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: source.brief, planning_context: planningContext, parent_job_id: lineageRoot, revision_number: nextRevision, ...(source.reference_assets ? { reference_assets: source.reference_assets } : {}) }).select("*").single()
   if (error) {
     if (error.code === "23505" && parsed.data.repair) {
       const { data: concurrent } = await db.from("production_jobs").select("*").eq("user_id", user.id).eq("parent_job_id", lineageRoot).eq("revision_number", nextRevision).maybeSingle()
       if (concurrent) return { data: concurrent }
     }
-    const migrationMissing = ["42703", "PGRST204"].includes(error.code || "")
-    return { error: migrationMissing ? "Apply migration 0024 to create versioned production revisions." : "Another revision was created at the same time. Refresh and retry." }
+    console.error("Production revision save failed", { productionId: source.id, code: error.code })
+    return { error: revisionSaveError(error.code) }
   }
   return { data }
 }
