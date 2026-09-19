@@ -113,25 +113,30 @@ test('revision action saves a 4000-character brief unchanged with large repair n
   assert.equal(JSON.stringify(inserted.planning_context.revision.findings), JSON.stringify(findings))
 })
 
-test('repair directions survive checkpoint parsing and reach every planning stage', async () => {
+for (const failedRole of [null, 'story-director', 'cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) test(`crew pipeline resumes without repeating successful calls after ${failedRole || 'no failure'}`, async () => {
   const { z } = await import('zod')
   const runnerSource = readFileSync(new URL('../src/core/services/production-crew-runner.ts', import.meta.url), 'utf8')
   const revision = { directions: ['Preserve the exact dialogue.'], findings: [{ shotNumber: 2, severity: 'blocking', evidence: 'Dialogue cut short.', correction: 'Restore complete dialogue.' }] }
   const received = []
-  let job = { id: 'job', brief: 'Make three connected shots.', status: 'brief', planning_stage: 'brief', planning_context: { revision, shotSettings: [{ model: 'seedance', durationSeconds: 5 }, { model: 'kling', durationSeconds: 10 }, { model: 'seedance', durationSeconds: 5 }] }, reference_assets: [] }
+  let injected = false
+  let job = { id: 'job', user_id: 'owner', brief: 'Make three connected shots.', status: 'brief', planning_stage: 'brief', planning_context: { revision, shotSettings: [{ model: 'seedance', durationSeconds: 5 }, { model: 'kling', durationSeconds: 10 }, { model: 'seedance', durationSeconds: 5 }] }, reference_assets: [] }
   const db = { from: () => {
     let update
+    const filters = []
     const query = {
-      update: value => { update = value; return query }, eq: () => query, or: () => query, select: () => query,
+      update: value => { update = value; return query }, eq: (key, value) => { filters.push([key, value]); return query }, or: () => query, select: () => query,
       maybeSingle: async () => {
+        if (filters.some(([key, value]) => job[key] !== value)) return { data: null, error: null }
         job = { ...job, ...update }
         return { data: job, error: null }
       },
+      then: (resolve, reject) => query.maybeSingle().then(resolve, reject),
     }
     return query
   } }
   const mockRun = async (role, instruction, context) => {
     received.push({ role, context })
+    if (role === failedRole && !injected) { injected = true; throw new Error('Simulated provider failure') }
     return { value: role === 'story-director' ? { continuityLedger: {} } : role === 'shot-editor' ? { shots: Array.from({ length: 3 }, () => ({ prompt: 'A complete shot.', continuity: {} })) } : {}, responseId: role }
   }
   const runnerModule = { exports: {} }
@@ -147,13 +152,22 @@ test('repair directions survive checkpoint parsing and reach every planning stag
       throw new Error(`Unexpected import ${name}`)
     },
   })
-  for (let i = 0; i < 4; i++) {
+  let completed = false
+  for (let i = 0; i < 9; i++) {
     const result = await runnerModule.exports.advanceProductionCrew(db, 'owner', 'job')
+    if (result.error) {
+      assert.ok(failedRole && injected)
+      continue
+    }
     assert.equal(result.error, undefined)
-    assert.equal(result.data.complete, i === 3)
     assert.equal(JSON.stringify(job.planning_context.revision), JSON.stringify(revision))
+    if (result.data.complete) { completed = true; break }
   }
-  assert.equal(received.length, 7)
+  assert.equal(completed, true)
+  assert.equal(received.length, failedRole ? 8 : 7)
+  for (const role of ['story-director', 'cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) {
+    assert.equal(received.filter(call => call.role === role).length, role === failedRole ? 2 : 1)
+  }
   for (const call of received) {
     assert.equal(JSON.stringify(call.context.revision), JSON.stringify(revision), call.role)
     assert.equal(call.context.source.brief, job.brief)
@@ -328,4 +342,79 @@ test('sequence editor preserves other shots and clears unsupported model timing'
   render().find(node => node.type === 'button' && node.props.children === '30 sec').props.onClick()
   assert.equal(value.length, 3)
   assert.equal(selection, 0)
+})
+
+test('batch retries only failed or missing footage, never completed or active shots', () => {
+  const module = { exports: {} }
+  const source = readFileSync(new URL('../src/core/utils/production/retry-eligibility.ts', import.meta.url), 'utf8')
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports })
+  const eligible = module.exports.needsProductionTake
+  const shot = (status, url = null) => ({ approved_take_id: null, shot_generations: [{ status, output_url: url }], generation_jobs: [] })
+  const shots = [shot('completed', 'saved-one.mp4'), shot('completed', 'saved-two.mp4'), shot('failed')]
+  assert.deepEqual(shots.map(eligible), [false, false, true])
+  for (const status of module.exports.activeProductionStatuses) {
+    assert.equal(eligible({ ...shot('failed'), generation_jobs: [{ status }] }), false)
+  }
+  assert.equal(eligible({ ...shot('failed'), approved_take_id: 'approved' }), false)
+  assert.equal(eligible({ approved_take_id: null, shot_generations: [], generation_jobs: [] }), true)
+  assert.equal(eligible({ ...shot('failed'), shot_generations: [...shots[0].shot_generations, ...shot('failed').shot_generations] }), false)
+})
+
+test('provider structured output contract requires exact shot count for 2 through 12 shots', async () => {
+  const { z } = await import('zod')
+  const { zodTextFormat } = await import('openai/helpers/zod')
+  const load = (path, dependencies = {}) => {
+    const module = { exports: {} }
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports, require: name => name === 'zod' ? { z } : dependencies[name] })
+    return module.exports
+  }
+  const studio = load('../src/core/validation/studio-ad.ts')
+  const schemas = load('../src/core/validation/production-crew.ts', { './studio-ad': studio })
+  const fn = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'createCrewRunner').getText(tree)
+  let request
+  const module = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(fn, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
+    module, exports: module.exports, ...schemas, zodTextFormat,
+    process: { env: { OPENAI_API_KEY: 'mock-no-network' } }, buildReferenceInput: () => [],
+    OpenAI: class { responses = { parse: async input => { request = input; return { status: 'incomplete' } } } },
+    responseFailureDetail: () => 'simulated stop before paid output', safeCrewError: error => error.message,
+  })
+  for (let count = 2; count <= 12; count++) {
+    for (const [schema, field] of [[schemas.productionBibleSchema, 'beats'], [schemas.departmentDirectionSchema, 'shotDirections'], [schemas.crewShotsSchema, 'shots']]) {
+      await assert.rejects(module.exports.createCrewRunner('mock', [], count)('test-role', 'test', {}, schema), /simulated stop/)
+      assert.equal(request.text.format.schema.properties[field].minItems, count)
+      assert.equal(request.text.format.schema.properties[field].maxItems, count)
+    }
+  }
+})
+
+for (const scenario of ['completed', 'lookup-error', 'active', 'active-error', 'history-error']) test(`paid video submission is blocked safely for ${scenario}`, async () => {
+  const z = settingsZod
+  const source = readFileSync(new URL('../src/core/actions/production.ts', import.meta.url), 'utf8')
+  const ast = ts.createSourceFile('production.ts', source, ts.ScriptTarget.Latest, true)
+  const fn = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'queueProductionShot').getText(ast)
+  let calls = 0
+  const db = { auth: { getUser: async () => ({ data: { user: { id: 'owner' } } }) }, from: table => {
+    let columns
+    const q = { select: value => { columns = value; return q }, eq: () => q, not: () => q, in: () => q, limit: () => q, order: () => q,
+      maybeSingle: async () => {
+        if (table === 'generation_jobs') return { data: scenario === 'active' ? { id: 'existing', status: 'submitted' } : null, error: scenario === 'active-error' ? { code: 'offline' } : null }
+        if (columns === 'take_number') return { data: null, error: { code: 'offline' } }
+        return { data: scenario === 'completed' ? { id: 'saved-take' } : null, error: scenario === 'lookup-error' ? { code: 'offline' } : null }
+      }, insert: () => { throw new Error('Unexpected paid-work record') } }
+    return q
+  } }
+  const module = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(fn, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
+    module, exports: module.exports,
+    productionShotSchema: z.object({ productionId: z.string(), shotId: z.string(), newTake: z.boolean().default(false) }),
+    createClient: async () => db,
+    getOwnedProductionShot: async () => ({ shot: { id: 'shot', previous_shot_id: null }, production: { id: 'film', reference_assets: [] } }),
+    productionAssetsSchema: z.array(z.any()), activeGenerationStatuses: ['submitted'],
+    generateFastVideo: () => { calls++; throw new Error('Unexpected provider call') },
+  })
+  const result = await module.exports.queueProductionShot({ productionId: 'film', shotId: 'shot' })
+  if (scenario === 'active') assert.equal(result.data.id, 'existing')
+  else assert.ok(result.error)
+  assert.equal(calls, 0)
 })

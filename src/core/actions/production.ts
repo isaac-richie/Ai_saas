@@ -152,7 +152,7 @@ function isJsonObject(value: Json | null): value is { [key: string]: Json | unde
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-const productionShotSchema = z.object({ productionId: z.string().uuid(), shotId: z.string().uuid() })
+const productionShotSchema = z.object({ productionId: z.string().uuid(), shotId: z.string().uuid(), newTake: z.boolean().default(false) })
 const activeGenerationStatuses = ["queued", "preparing", "submitted", "generating", "downloading", "processing"]
 
 async function getOwnedProductionShot(db: Awaited<ReturnType<typeof createClient>>, userId: string, productionId: string, shotId: string) {
@@ -184,6 +184,11 @@ export async function queueProductionShot(input: unknown) {
   const owned = await getOwnedProductionShot(db, user.id, parsed.data.productionId, parsed.data.shotId)
   if (!owned) return { error: "Approved production shot not found." }
   const { shot, production } = owned
+  if (!parsed.data.newTake) {
+    const { data: completed, error } = await db.from("shot_generations").select("id").eq("shot_id", shot.id).eq("status", "completed").not("output_url", "is", null).limit(1).maybeSingle()
+    if (error) return { error: "Could not verify existing takes. No generation was submitted." }
+    if (completed || shot.approved_take_id) return { error: "This shot already has a completed take. Review it or explicitly generate another take." }
+  }
   let continuityReferenceUrl: string | null = null
   if (!shot.previous_shot_id) {
     const references = productionAssetsSchema.safeParse(production.reference_assets || [])
@@ -197,10 +202,12 @@ export async function queueProductionShot(input: unknown) {
     if (!previousTake?.last_frame_url) return { error: "Inspect the approved previous take first so its ending frame can guide this shot." }
     continuityReferenceUrl = previousTake.last_frame_url
   }
-  const { data: active } = await db.from("generation_jobs").select("id,status,provider_task_id,take_id").eq("user_id", user.id).eq("shot_id", shot.id).in("status", activeGenerationStatuses).limit(1).maybeSingle()
+  const { data: active, error: activeError } = await db.from("generation_jobs").select("id,status,provider_task_id,take_id").eq("user_id", user.id).eq("shot_id", shot.id).in("status", activeGenerationStatuses).limit(1).maybeSingle()
+  if (activeError) return { error: "Could not verify active generations. No generation was submitted." }
   if (active) return { data: active, existing: true }
 
-  const { data: latestTake } = await db.from("shot_generations").select("take_number").eq("shot_id", shot.id).order("take_number", { ascending: false }).limit(1).maybeSingle()
+  const { data: latestTake, error: latestTakeError } = await db.from("shot_generations").select("take_number").eq("shot_id", shot.id).order("take_number", { ascending: false }).limit(1).maybeSingle()
+  if (latestTakeError) return { error: "Could not load take history. No generation was submitted." }
   const family = shot.model === "seedance" ? "seedance" : "kling"
   const model = resolveKieVideoModelByFamily({ familyId: family, useImageToVideo: Boolean(continuityReferenceUrl) })
   const duration = Math.max(4, Math.min(15, shot.duration_target || 10))

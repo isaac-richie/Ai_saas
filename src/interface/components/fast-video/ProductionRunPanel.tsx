@@ -9,6 +9,7 @@ import { listProductionShots, pollProductionGeneration, queueProductionShot } fr
 import { applyTakeCorrection, proposeTakeCorrection, recordTakeInspection, submitProductionEvaluation } from "@/core/actions/production-review"
 import styles from "./ProductionDesk.module.css"
 import { recoverFromStaleServerAction } from "@/interface/lib/server-action-recovery"
+import { needsProductionTake } from "@/core/utils/production/retry-eligibility"
 
 type Take = { id: string; take_number: number; status: string; output_url: string | null; model_version_used: string | null; review_status?: string; review_notes?: string | null; media_inspection?: unknown; first_frame_url?: string | null; last_frame_url?: string | null; created_at?: string }
 type Job = { id: string; status: string; progress: number; error_message: string | null; provider_task_id: string | null; take_id: string | null; created_at?: string }
@@ -49,6 +50,8 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
       try {
         await Promise.all(ids.map(id => pollProductionGeneration(id)))
         await refresh()
+      } catch (cause) {
+        if (!recoverFromStaleServerAction(cause)) setError("Status check interrupted. Existing generations are still tracked; retrying shortly.")
       } finally {
         polling = false
       }
@@ -58,14 +61,19 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
     return () => window.clearInterval(timer)
   }, [activeJobKey, refresh])
 
-  async function generate(shotsToRun: Shot[]) {
+  async function generate(shotsToRun: Shot[], newTake = false) {
     setBusy(true); setError("")
     try {
-      const results = await Promise.all(shotsToRun.map(async shot => ({
+      const results = await Promise.allSettled(shotsToRun.map(async shot => ({
         shot,
-        result: await queueProductionShot({ productionId, shotId: shot.id }),
+        result: await queueProductionShot({ productionId, shotId: shot.id, newTake }),
       })))
-      results.forEach(({ shot, result }) => {
+      results.forEach((outcome, index) => {
+        if (outcome.status === "rejected") {
+          if (!recoverFromStaleServerAction(outcome.reason)) toast.error(`${shotsToRun[index].name}: submission interrupted. Refresh its status before retrying.`)
+          return
+        }
+        const { shot, result } = outcome.value
         if (result.error) toast.error(`${shot.name}: ${result.error}`)
       })
       await refresh()
@@ -107,7 +115,7 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
   const allApproved = shots.length > 0 && shots.every(shot => Boolean(shot.approved_take_id))
   const hasTakes = shots.some(shot => shot.shot_generations.length > 0)
   const hasApprovedContinuityFrame = (shot: Shot | undefined) => Boolean(shot?.approved_take_id && shot.shot_generations.some(take => take.id === shot.approved_take_id && take.last_frame_url && take.review_status !== "rejected"))
-  const continuityReadyShots = shots.filter((shot, index) => !shot.approved_take_id && (index === 0 || hasApprovedContinuityFrame(shots[index - 1])))
+  const continuityReadyShots = shots.filter((shot, index) => needsProductionTake(shot) && (index === 0 || hasApprovedContinuityFrame(shots[index - 1])))
   const waitingForInspection = shots.some((shot, index) => index < shots.length - 1 && shot.approved_take_id && !hasApprovedContinuityFrame(shot))
 
   return <section className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4">
@@ -143,7 +151,7 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
           {take.status === "completed" && <details className="mt-3 rounded-lg border border-white/10 p-2"><summary className="cursor-pointer text-xs text-white/60">Request a corrected take</summary><textarea value={reviewNotes[take.id] || ""} onChange={event => setReviewNotes(current => ({ ...current, [take.id]: event.target.value }))} maxLength={1200} placeholder="Describe only what is visibly wrong: motion, continuity, framing, lighting..." className="mt-2 min-h-20 w-full rounded-lg border border-white/10 bg-black/30 p-2 text-xs text-white placeholder:text-white/30" /><button disabled={(reviewNotes[take.id] || "").trim().length < 3} onClick={() => void proposeCorrection(take)} className="mt-2 text-xs text-[#d6ede7] disabled:opacity-40">Ask correction supervisor</button>{corrections[take.id] && <div className="mt-3 rounded-lg bg-black/30 p-3"><p className="text-xs text-white/80">Proposed prompt</p><p className="mt-2 whitespace-pre-wrap text-xs text-white/55">{corrections[take.id].revisedPrompt}</p><p className="mt-2 text-xs text-white/40">Changes: {corrections[take.id].changes.join(" ")}</p><button onClick={() => void applyCorrection(take.id)} className="mt-3 rounded-full bg-[#d6ede7] px-3 py-1.5 text-xs font-medium text-black">Apply to next take</button></div>}</details>}
         </div>)}
         {job && active.has(job.status) && <button className="mt-3 text-xs text-white/50" onClick={() => void cancelGenerationJob(job.id).then(refresh)}>Cancel tracking</button>}
-        {(!job || !active.has(job.status)) && <button disabled={busy || continuityBlocked} className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm text-[#d6ede7] disabled:opacity-40" onClick={() => { setFocusedTakes(current => ({ ...current, [shot.id]: "" })); void generate([shot]) }}>{continuityBlocked ? "Complete previous shot handoff first" : `Generate ${takes.length ? "another" : "first"} take for this shot`}</button>}
+        {(!job || !active.has(job.status)) && <button disabled={busy || continuityBlocked} className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm text-[#d6ede7] disabled:opacity-40" onClick={() => { setFocusedTakes(current => ({ ...current, [shot.id]: "" })); void generate([shot], true) }}>{continuityBlocked ? "Complete previous shot handoff first" : `Generate ${takes.length ? "another" : "first"} take for this shot`}</button>}
       </article>
     })}</div>
     {allApproved && <form className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4" onSubmit={event => { event.preventDefault(); void submitProductionEvaluation({ productionId, ...scores }).then(result => { if (result.error) toast.error(result.error); else { setEvaluationSaved(true); toast.success("Production scorecard saved") } }) }}><div className="flex flex-wrap items-start justify-between gap-3"><div><h5 className="text-sm text-white">Beta production scorecard</h5><p className="mt-1 text-xs text-white/45">Rate the approved cut evidence. This data guides crew improvements.</p></div><button disabled={evaluationSaved} className="rounded-full border border-white/15 px-4 py-2 text-xs text-white disabled:opacity-40">{evaluationSaved ? "Scorecard saved" : "Save scorecard"}</button></div><div className="mt-4 grid gap-3 sm:grid-cols-4">{(["story", "continuity", "visual", "editability"] as const).map(key => <label key={key} className="text-xs capitalize text-white/50">{key}<select value={scores[key]} onChange={event => setScores(current => ({ ...current, [key]: Number(event.target.value) }))} className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 p-2 text-white">{[1,2,3,4,5].map(value => <option key={value} value={value}>{value} / 5</option>)}</select></label>)}</div><textarea value={scores.notes} onChange={event => setScores(current => ({ ...current, notes: event.target.value }))} maxLength={2000} placeholder="Optional production notes" className="mt-3 min-h-16 w-full rounded-lg border border-white/10 bg-black/30 p-2 text-xs text-white placeholder:text-white/30" /></form>}

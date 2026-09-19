@@ -190,6 +190,14 @@ export function createCrewRunner(model: string, references: ProductionAsset[] = 
   const referenceInput = buildReferenceInput(references)
   return async <T>(role: string, instruction: string, context: unknown, schema: z.ZodType<T>) => {
     try {
+      // Put exact cardinality in the provider contract, not only a post-call check.
+      const outputSchema = Object.is(schema, productionBibleSchema)
+        ? productionBibleSchema.extend({ beats: productionBibleSchema.shape.beats.length(shotCount) })
+        : Object.is(schema, departmentDirectionSchema)
+          ? departmentDirectionSchema.extend({ shotDirections: departmentDirectionSchema.shape.shotDirections.length(shotCount) })
+          : Object.is(schema, crewShotsSchema)
+            ? crewShotsSchema.extend({ shots: crewShotsSchema.shape.shots.length(shotCount) })
+            : schema
       const result = await client.responses.parse({
         model,
         reasoning: { effort: "low" },
@@ -207,7 +215,7 @@ export function createCrewRunner(model: string, references: ProductionAsset[] = 
           instruction,
         ].join(" "),
         input: references.length ? [{ role: "user", content: [{ type: "input_text", text: JSON.stringify({ context }) }, ...(await referenceInput)] }] : JSON.stringify(context),
-        text: { format: zodTextFormat(schema, role.replaceAll("-", "_")) },
+        text: { format: zodTextFormat(outputSchema, role.replaceAll("-", "_")) },
       })
       if (result.status !== "completed" || !result.output_parsed) throw new Error(responseFailureDetail(result))
       const value = schema.parse(result.output_parsed)
