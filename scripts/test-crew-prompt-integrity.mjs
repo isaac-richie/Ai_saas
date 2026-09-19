@@ -16,6 +16,16 @@ const module = { exports: {} }
 vm.runInNewContext(ts.transpileModule(functions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module, exports: module.exports, productionPlanSchema: { parse: value => value } })
 const compile = editor => module.exports.compileCrewShotsForReview({}, editor)
 
+const errorModule = { exports: {} }
+const errorSource = readFileSync(new URL('../src/core/services/production-crew.ts', import.meta.url), 'utf8')
+const errorTree = ts.createSourceFile('crew-error.ts', errorSource, ts.ScriptTarget.Latest, true)
+const errorFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'isRecoverableStructuredOutputError').getText(errorTree)
+vm.runInNewContext(ts.transpileModule(errorFn, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: errorModule, exports: errorModule.exports })
+test('malformed structured output is classified as safe to retry once', () => {
+  assert.equal(errorModule.exports.isRecoverableStructuredOutputError(new SyntaxError('Expected comma')), true)
+  assert.equal(errorModule.exports.isRecoverableStructuredOutputError(new Error('rate limit')), false)
+})
+
 test('review receives complete authored dialogue, camera and handoff without rewriting', () => {
   const prompt = 'Locked frontal medium. He says: "We were born to create, not destroy." End with the white megaphone at his lips.'
   const editor = { shots: [{ prompt, continuity: { startState: 'standing', endState: 'seated', carriedDetails: ['white prop'] } }, { prompt, continuity: { startState: 'different authored pose', endState: 'speaking', carriedDetails: ['white prop'] } }] }
