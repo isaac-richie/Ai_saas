@@ -64,7 +64,7 @@ function resolveModelAwareDuration(seconds: number, model?: string | null): numb
   if (normalizedModel.includes("kling/v2-5")) return nearestAllowedDuration(clamped, [5, 10])
   if (normalizedModel.includes("runway/")) return nearestAllowedDuration(clamped, [5, 10])
   if (normalizedModel.includes("veo/")) return nearestAllowedDuration(clamped, [5, 8])
-  if (normalizedModel.includes("seedance-2")) return nearestAllowedDuration(clamped, [5, 10])
+  if (normalizedModel.includes("seedance-2")) return Math.max(4, Math.min(15, Math.floor(seconds)))
   if (normalizedModel.includes("hailuo/2-3")) return 6
 
   return clamped
@@ -390,7 +390,7 @@ export async function generateFastVideo(input: unknown) {
   }
 
   const payload = parsed.data
-  const requestedDuration = Math.max(5, Math.min(15, payload.settings.duration_seconds || 5))
+  const requestedDuration = Math.max(4, Math.min(15, payload.settings.duration_seconds || 5))
   const safeDuration = resolveModelAwareDuration(requestedDuration, payload.settings.model?.trim() || undefined)
   debug.push("request.validated", {
     hasReference: Boolean(payload.prompt_inputs.reference_image),
@@ -1008,7 +1008,7 @@ export async function compilePromptPreview(input: {
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
 
-  const safeDuration = Math.max(5, Math.min(15, input.durationSeconds || 5))
+  const safeDuration = Math.max(4, Math.min(15, input.durationSeconds || 5))
 
   const { sceneCtx, continuityCtx } = await fetchPromptContext(supabase, input.sceneId, input.shotId)
 

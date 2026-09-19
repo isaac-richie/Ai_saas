@@ -132,7 +132,7 @@ test('repair directions survive checkpoint parsing and reach every planning stag
   } }
   const mockRun = async (role, instruction, context) => {
     received.push({ role, context })
-    return { value: role === 'story-director' ? { continuityLedger: {} } : role === 'shot-editor' ? { shots: [{ prompt: 'A complete shot.', continuity: {} }] } : {}, responseId: role }
+    return { value: role === 'story-director' ? { continuityLedger: {} } : role === 'shot-editor' ? { shots: Array.from({ length: 3 }, () => ({ prompt: 'A complete shot.', continuity: {} })) } : {}, responseId: role }
   }
   const runnerModule = { exports: {} }
   vm.runInNewContext(ts.transpileModule(runnerSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
@@ -192,7 +192,7 @@ test('per-shot settings reject unsupported choices and reach the review compiler
   assert.equal(productionShotSettingsSchema.safeParse(settings).success, true)
   assert.equal(productionShotSettingsSchema.safeParse([{ model: 'sora', durationSeconds: 5 }, ...settings.slice(1)]).success, false)
   assert.equal(productionShotSettingsSchema.safeParse([{ model: 'kling', durationSeconds: 7 }, ...settings.slice(1)]).success, false)
-  assert.equal(productionShotSettingsSchema.safeParse(settings.slice(1)).success, false)
+  assert.equal(productionShotSettingsSchema.safeParse(settings.slice(0, 1)).success, false)
   const shots = module.exports.compileCrewShotsForReview({}, { shots: settings.map(() => ({ prompt: 'Track the runner for the selected duration.', model: 'kling', continuity: null })) }, settings)
   assert.equal(shots[0].model, 'seedance')
   assert.equal(shots[0].durationSeconds, 5)
@@ -212,4 +212,47 @@ test('saved production deliverables use the user model and duration rather than 
   assert.equal(plan.deliverables[0].modelFamilyId, 'seedance')
   assert.equal(plan.deliverables[1].durationSeconds, 10)
   assert.equal(plan.deliverables[2].modelFamilyId, 'seedance')
+})
+
+test('long film settings accept 12 shots and Seedance 4-15s but reject invalid model durations', () => {
+  for (const seconds of [4, 7, 12, 15]) {
+    assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 12 }, () => ({ model: 'seedance', durationSeconds: seconds }))).success, true)
+  }
+  assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 13 }, () => ({ model: 'seedance', durationSeconds: 15 }))).success, false)
+  for (const seconds of [4, 7, 15]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'kling', durationSeconds: seconds }))).success, false)
+})
+
+test('Seedance duration survives action normalization and numeric provider payload without rounding', () => {
+  const action = readFileSync(new URL('../src/core/actions/fast-video.ts', import.meta.url), 'utf8')
+  const parsed = ts.createSourceFile('fast-video.ts', action, ts.ScriptTarget.Latest, true)
+  const parts = parsed.statements.filter(node => ts.isFunctionDeclaration(node) && ['nearestAllowedDuration', 'resolveModelAwareDuration'].includes(node.name?.text)).map(node => node.getText(parsed)).join('\n')
+  const context = {}
+  vm.runInNewContext(ts.transpileModule(parts, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, context)
+  const providerSource = readFileSync(new URL('../src/infrastructure/ai/providers/kie.provider.ts', import.meta.url), 'utf8')
+  const result = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(providerSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
+    module: result, exports: result.exports,
+    require: name => name.endsWith('base.provider') ? { BaseProvider: class {} } : {},
+  })
+  const provider = new result.exports.KieProvider()
+  for (const duration of [4, 5, 7, 10, 12, 15]) {
+    const applied = context.resolveModelAwareDuration(duration, 'bytedance/seedance-2')
+    assert.equal(applied, duration)
+    assert.equal(provider.buildMarketInput({ prompt: 'A running scene.', output_type: 'video', duration_seconds: applied }, 'bytedance/seedance-2').duration, duration)
+  }
+  assert.equal(provider.buildMarketInput({ prompt: 'Scene', output_type: 'video', duration_seconds: 10 }, 'kling/v2-5-turbo-text-to-video-pro').duration, '10')
+})
+
+test('longer plans cannot silently lose shots during compilation', () => {
+  const settings = Array.from({ length: 12 }, () => ({ model: 'seedance', durationSeconds: 15 }))
+  const input = {
+    shotSettings: settings, model: 'test',
+    story: { treatment: 'A running sequence.', audienceEmotion: 'Hope', continuityAnchors: [], continuityLedger: { invariants: [] } },
+    editor: { shots: settings.map(() => ({ prompt: 'A complete prompt.', model: 'seedance', negativePrompt: 'No drift.', continuity: null })) },
+    review: { findings: [] }, stages: [],
+  }
+  const plan = module.exports.compileProductionPlan(input)
+  assert.equal(plan.deliverables.length, 12)
+  assert.equal(plan.deliverables.reduce((total, shot) => total + shot.durationSeconds, 0), 180)
+  assert.throws(() => module.exports.compileProductionPlan({ ...input, editor: { shots: input.editor.shots.slice(0, 3) } }), /wrong shot count/)
 })

@@ -32,13 +32,13 @@ export const productionBibleSchema = z.object({
   // Optional only so productions planned before continuity-ledger v2 remain readable.
   // Structured Outputs requires optional object properties to be nullable.
   continuityLedger: continuityLedgerSchema.nullable(),
-  beats: z.array(note).length(3),
+  beats: z.array(note).min(2).max(12),
   assumptions: z.array(note).max(6),
 })
 
 export const departmentDirectionSchema = z.object({
   approach: note,
-  shotDirections: z.array(note).length(3),
+  shotDirections: z.array(note).min(2).max(12),
   constraints: z.array(note).min(1).max(6),
 })
 
@@ -52,17 +52,17 @@ export const crewShotsSchema = z.object({
     model: z.enum(["kling", "seedance"]),
     editNote: z.string().min(3).max(1200),
     continuity: shotContinuityStateSchema.nullable(),
-  })).length(3),
+  })).min(2).max(12),
 })
 
 export const crewReviewSchema = z.object({
   summary: note,
   findings: z.array(z.object({
-    shotNumber: z.number().int().min(1).max(3),
+    shotNumber: z.number().int().min(1).max(12),
     severity: z.enum(["note", "blocking"]),
     evidence: note,
     correction: note,
-  })).max(8),
+  })).max(24),
 })
 
 export const crewMetadataSchema = z.object({
@@ -85,8 +85,9 @@ export const crewMetadataSchema = z.object({
 export const productionPlanSchema = studioAdCampaignPlanSchema.extend({
   // Editorial notes are not provider prompts and need room for complete cut/compositing instructions.
   deliverables: z.array(studioAdCampaignDeliverableSchema.extend({
+    durationSeconds: z.number().int().min(4).max(15),
     productionNotes: z.array(z.string().min(3).max(1200)).max(5).default([]),
-  })).min(2).max(5),
+  })).min(2).max(12),
   crew: crewMetadataSchema.optional(),
 })
 export type ProductionPlan = z.infer<typeof productionPlanSchema>

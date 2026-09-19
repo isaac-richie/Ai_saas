@@ -149,7 +149,7 @@ export function ProductionDesk() {
         {selected?.sequence_id ? <Link href={`/dashboard/sequences/${selected.sequence_id}`}><span>04</span>Edit & deliver <ArrowUpRight size={14} /></Link> : <span className={styles.locked}><span>04</span>Edit & deliver</span>}
       </nav>
       <div className={styles.body}>
-      {view === "brief" && <div className={styles.briefGrid}><div><p className={styles.eyebrow}>01 / THE STARTING POINT</p><h3>Every film starts<br />with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop three connected shots.</p><span className={styles.format}>3 SHOTS / YOUR MODEL & TIMING / 16:9</span></div>
+      {view === "brief" && <div className={styles.briefGrid}><div><p className={styles.eyebrow}>01 / THE STARTING POINT</p><h3>Every film starts<br />with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop connected shots with your chosen models and timing.</p><span className={styles.format}>2-12 SHOTS / YOUR MODEL & TIMING / 16:9</span></div>
       <form onSubmit={event => { event.preventDefault(); void run(async () => {
         if (uploading) return
         const settings = productionShotSettingsSchema.safeParse(shotSettings)

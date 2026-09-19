@@ -55,7 +55,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     context.model = model
     const references = productionAssetsSchema.parse(job.reference_assets || [])
     if (references.some(asset => !ownsAssetUrl(asset.url, userId))) throw new Error("Invalid reference ownership")
-    const runner = createCrewRunner(model, references)
+    const runner = createCrewRunner(model, references, context.shotSettings?.length ?? 3)
     const run: typeof runner = (role, instruction, input, schema) => runner(
       role, instruction,
       { source: input, revision: context.revision ?? null, shotSettings: context.shotSettings ?? null }, schema,
@@ -70,24 +70,25 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     }
     if (job.planning_stage === "story" && context.story) {
       const [camera, lighting, productionDesign, performance] = await Promise.all([
-        run("cinematographer", "Design coverage for all three beats: framing, lens intent, one motivated movement, blocking, eyeline, and cut point. Preserve the shared bible.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("cinematographer", "Design coverage for all planned beats: framing, lens intent, one motivated movement, blocking, eyeline, and cut point. Preserve the shared bible.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
         run("lighting-director", "Define motivated key, fill, practicals, palette, and exposure intent for each beat. Maintain time of day and light direction. Do not invent independent scene changes.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
-        run("production-designer", "Lock the physical world for all three beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
-        run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("production-designer", "Lock the physical world for all planned beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("performance-director", "Direct behavior for all planned beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
       ])
       await saveCheckpoint(client, job.id, claimUntil, "story", "departments", { ...context, camera: camera.value, lighting: lighting.value, productionDesign: productionDesign.value, performance: performance.value, stages: [...context.stages, { role: "cinematographer", responseId: camera.responseId }, { role: "lighting-director", responseId: lighting.responseId }, { role: "production-designer", responseId: productionDesign.responseId }, { role: "performance-director", responseId: performance.responseId }] })
       return { data: { complete: false, stage: "departments", message: "Camera, lighting, design, and performance locked" } }
     }
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && (!context.productionDesign || !context.performance)) {
       const [productionDesign, performance] = await Promise.all([
-        run("production-designer", "Lock the physical world for all three beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
-        run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("production-designer", "Lock the physical world for all planned beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("performance-director", "Direct behavior for all planned beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
       ])
       await saveCheckpoint(client, job.id, claimUntil, "departments", "departments", { ...context, productionDesign: productionDesign.value, performance: performance.value, stages: [...context.stages, { role: "production-designer", responseId: productionDesign.responseId }, { role: "performance-director", responseId: performance.responseId }] })
       return { data: { complete: false, stage: "departments", message: "Production design and performance direction added" } }
     }
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && context.productionDesign && context.performance) {
-      const editor = await run("shot-editor", "Compile exactly three executable prompts in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Shot 2 must begin at shot 1's end state; shot 3 must begin at shot 2's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
+      const editor = await run("shot-editor", "Compile one executable prompt per selected shot, in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the preceding shot's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
+      if (editor.value.shots.length !== (context.shotSettings?.length ?? 3)) throw new Error("The crew returned the wrong shot count. Retry this stage.")
       if (editor.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
       for (const shot of editor.value.shots) {
         const checked = enforcePromptCompliance({ prompt: shot.prompt, negativePrompt: shot.negativePrompt, outputType: "video" })
@@ -98,8 +99,8 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     }
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.editor && (!context.productionDesign || !context.performance)) {
       const [productionDesign, performance] = await Promise.all([
-        run("production-designer", "Lock the physical world for all three beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
-        run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("production-designer", "Lock the physical world for all planned beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("performance-director", "Direct behavior for all planned beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
       ])
       const stagesWithoutStaleEditor = context.stages.filter((stage) => stage.role !== "shot-editor")
       await saveCheckpoint(client, job.id, claimUntil, "shots", "departments", { ...context, editor: undefined, productionDesign: productionDesign.value, performance: performance.value, stages: [...stagesWithoutStaleEditor, { role: "production-designer", responseId: productionDesign.responseId }, { role: "performance-director", responseId: performance.responseId }] })

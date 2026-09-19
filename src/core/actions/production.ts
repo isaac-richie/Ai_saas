@@ -104,6 +104,7 @@ export async function materializeProduction(jobId: string) {
   if (!user) return { error: "Please sign in." }
   const { data: sourceJob } = await db.from("production_jobs").select("plan").eq("id", id.data).eq("user_id", user.id).maybeSingle()
   const { data, error } = await db.rpc("materialize_production_job", { target_job: id.data })
+  if (error?.message.includes("Production requires three shots")) return { error: "Apply migration 0029 to create workspaces for longer films. Your approved plan is saved." }
   if (error) return { error: error.message.includes("Could not find") ? "Apply migration 0022 to create production workspaces." : "Could not create the production workspace." }
   const workspace = data as { projectId: string; sceneId: string; sequenceId: string; existing: boolean }
   const plan = productionPlanSchema.safeParse(sourceJob?.plan)
@@ -202,7 +203,7 @@ export async function queueProductionShot(input: unknown) {
   const { data: latestTake } = await db.from("shot_generations").select("take_number").eq("shot_id", shot.id).order("take_number", { ascending: false }).limit(1).maybeSingle()
   const family = shot.model === "seedance" ? "seedance" : "kling"
   const model = resolveKieVideoModelByFamily({ familyId: family, useImageToVideo: Boolean(continuityReferenceUrl) })
-  const duration = Math.max(5, Math.min(15, shot.duration_target || 10))
+  const duration = Math.max(4, Math.min(15, shot.duration_target || 10))
   const aspect = ["16:9", "9:16", "1:1", "4:5", "21:9"].includes(shot.aspect_ratio || "") ? shot.aspect_ratio! : "16:9"
   const settings = (shot.generation_settings || {}) as Record<string, unknown>
   const { data: take, error: takeError } = await db.from("shot_generations").insert({

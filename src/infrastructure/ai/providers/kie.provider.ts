@@ -48,7 +48,7 @@ export class KieProvider extends BaseProvider {
         }
 
         if (normalizedModel.includes("seedance-2")) {
-            return String(this.nearestAllowedDuration(duration, [5, 10]));
+            return String(Math.max(4, Math.min(15, Math.floor(seconds ?? 5))));
         }
 
         if (normalizedModel.includes("hailuo/2-3")) {
@@ -114,7 +114,7 @@ export class KieProvider extends BaseProvider {
         ) {
             const resolvedDuration = this.resolveDurationForModel(request.duration_seconds, model);
             if (resolvedDuration) {
-                input.duration = resolvedDuration;
+                input.duration = model.toLowerCase().includes("seedance-2") ? Number(resolvedDuration) : resolvedDuration;
             }
 
             // Always enable audio for Seedance or if explicitly requested for any video model
