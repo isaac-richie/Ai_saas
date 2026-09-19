@@ -273,14 +273,59 @@ test('shot settings frontend renders twelve editable shots with model-specific d
   const source = readFileSync(new URL('../src/interface/components/fast-video/ProductionShotSettings.tsx', import.meta.url), 'utf8')
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
     module: result, exports: result.exports,
-    require: name => name === 'react' ? React : name === 'react/jsx-runtime' ? jsxRuntime : { productionShotSettingsSchema },
+    require: name => name === 'react' ? React : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : { productionShotSettingsSchema },
   })
   const render = model => renderToStaticMarkup(React.createElement(result.exports.ProductionShotSettings, { value: Array.from({ length: 12 }, () => ({ model, durationSeconds: model === 'seedance' ? 15 : 10 })), onChange() {}, disabled: false }))
   const seedance = render('seedance')
-  assert.equal((seedance.match(/aria-label="Shot \d+ duration"/g) || []).length, 12)
+  assert.equal((seedance.match(/role="tab"/g) || []).length, 12)
+  assert.equal((seedance.match(/aria-label="Shot \d+ duration"/g) || []).length, 1)
   assert.match(seedance, /value="15" selected=""/)
   assert.match(seedance, /value="4"/)
   const kling = render('kling')
   assert.doesNotMatch(kling, /value="15"/)
   assert.match(kling, /value="10" selected=""/)
+})
+
+test('sequence editor preserves other shots and clears unsupported model timing', async () => {
+  const jsxRuntime = await import('react/jsx-runtime')
+  let selection = 0
+  const result = { exports: {} }
+  const source = readFileSync(new URL('../src/interface/components/fast-video/ProductionShotSettings.tsx', import.meta.url), 'utf8')
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
+    module: result, exports: result.exports,
+    require: name => name === 'react' ? { useId: () => 'sequence', useRef: () => ({ current: [] }), useState: () => [selection, next => { selection = next }] } : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : { productionShotSettingsSchema },
+  })
+  let value = [{ model: 'seedance', durationSeconds: 15 }, { model: 'kling', durationSeconds: 10 }, { model: 'kling', durationSeconds: 5 }]
+  function render() {
+    const tree = result.exports.ProductionShotSettings({ value, onChange: next => { value = next }, disabled: false })
+    const nodes = []
+    function walk(node) {
+      if (Array.isArray(node)) return node.forEach(walk)
+      if (!node || typeof node !== 'object') return
+      nodes.push(node)
+      walk(node.props?.children)
+    }
+    walk(tree)
+    return nodes
+  }
+  render().find(node => node.type === 'button' && node.props.children === 'Kling').props.onClick()
+  assert.equal(value[0].model, 'kling')
+  assert.equal(value[0].durationSeconds, 0)
+  assert.equal(value[1].durationSeconds, 10)
+  render().find(node => node.props?.['aria-label'] === 'Increase shot duration').props.onClick()
+  assert.equal(value[0].durationSeconds, 5)
+  render().filter(node => node.props?.role === 'tab')[1].props.onClick()
+  assert.equal(selection, 1)
+  render().find(node => node.props?.['aria-label'] === 'Shot 2 duration').props.onChange({ target: { value: '5' } })
+  assert.equal(value[1].durationSeconds, 5)
+  render().find(node => node.type === 'button' && node.props.children === '2 min').props.onClick()
+  assert.equal(value.length, 12)
+  assert.equal(value.reduce((sum, shot) => sum + shot.durationSeconds, 0), 120)
+  assert.equal(selection, 0)
+  assert.equal(productionShotSettingsSchema.safeParse(value).success, true)
+  render().filter(node => node.props?.role === 'tab')[0].props.onKeyDown({ key: 'End', preventDefault() {} })
+  assert.equal(selection, 11)
+  render().find(node => node.type === 'button' && node.props.children === '30 sec').props.onClick()
+  assert.equal(value.length, 3)
+  assert.equal(selection, 0)
 })

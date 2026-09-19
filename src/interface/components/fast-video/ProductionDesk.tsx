@@ -175,6 +175,7 @@ export function ProductionDesk() {
             const result = await createProductionRevision({ productionId: job.id, direction: "Use the selected shot models and durations. Retime all action, dialogue and transitions to fit; preserve the concept.", shotSettings: settings })
             if (result.error || !result.data) throw new Error(result.error || "Could not save settings.")
             keep(result.data as Production)
+            await developWithCrew(result.data.id)
           })} />
           <ProductionReferences assets={productionAssetsSchema.safeParse((job as Production & { reference_assets?: unknown }).reference_assets).data || []} />
           <details className="mt-3 text-sm text-white/60"><summary className="cursor-pointer">Read original brief</summary><p className="mt-3 whitespace-pre-wrap">{job.brief}</p></details>
