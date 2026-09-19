@@ -202,6 +202,7 @@ export function ProductionDesk() {
               <p className="mt-3 text-sm text-white/70">{shot.creatorDirection}</p>
               {shot.continuityStartState && <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
               <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2 whitespace-pre-wrap">{shot.masterPrompt}</p></details>
+              {shot.productionNotes.length > 0 && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
             </section>)}</div>
           </div>}
           {job.status === "brief" && <button disabled={busy} className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => void run(async () => {
@@ -212,7 +213,11 @@ export function ProductionDesk() {
             if (result.error) throw new Error(result.error)
             keep(result.data as Production)
           })}>Approve direction</button>}
-          {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <p className="mt-3 text-sm text-amber-200">The crew found a blocking issue. Review the findings or let the crew repair the executable prompts without changing your concept.</p>}
+          {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <div className="mt-3 rounded-lg border border-amber-200/20 p-4 text-sm text-amber-200" role="status">
+            <p>Plan needs revision before approval. Your saved work is safe.</p>
+            <ul className="mt-2 list-disc space-y-2 pl-5">{job.plan?.crew?.review.findings.filter(finding => finding.severity === "blocking").map((finding, index) => <li key={index}><strong>Shot {finding.shotNumber}:</strong> {finding.evidence}<p className="mt-1 text-white/70">Required fix: {finding.correction}</p></li>)}</ul>
+            <p className="mt-3 text-white/60">Repair asks the crew to address these findings, then reviews the new plan. It uses AI planning credits, but does not generate video takes.</p>
+          </div>}
           {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <button disabled={busy} className="mt-3 rounded-full bg-[#d6ede7] px-4 py-2 text-sm font-medium text-black disabled:opacity-40" onClick={() => void run(async () => {
             const result = await createProductionRevision({ productionId: job.id, direction: "Repair the blocked plan using all saved reviewer findings.", repair: true })
             if (result.error || !result.data) throw new Error(result.error || "Could not create a repair revision.")

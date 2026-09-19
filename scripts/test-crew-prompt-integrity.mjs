@@ -153,3 +153,29 @@ test('repair directions survive checkpoint parsing and reach every planning stag
     assert.equal(call.context.source.brief, job.brief)
   }
 })
+
+test('complete editorial repair notes survive crew and saved-plan validation without enlarging provider prompts', async () => {
+  const { z } = await import('zod')
+  const loadSchema = (path, dependencies = {}) => {
+    const result = { exports: {} }
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8')
+    vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
+      module: result, exports: result.exports,
+      require: name => name === 'zod' ? { z } : dependencies[name],
+    })
+    return result.exports
+  }
+  const studio = loadSchema('../src/core/validation/studio-ad.ts')
+  const crew = loadSchema('../src/core/validation/production-crew.ts', { './studio-ad': studio })
+  const note = 'Cut at right toe-off into shot 2, matching the advancing left knee and preserving forward motion. Assumption: runner and styling are proposed specifications, not approved assets. If supported and available, use an approved identity reference and shot 1 selected end frame as reference controls; these do not guarantee continuity.'
+  assert.ok(note.length > 220)
+  const editSchema = crew.crewShotsSchema.shape.shots.element.shape.editNote
+  const savedSchema = crew.productionPlanSchema.shape.deliverables.element.shape.productionNotes
+  assert.equal(editSchema.parse(note), note)
+  assert.equal(savedSchema.parse([note])[0], note)
+  assert.equal(editSchema.safeParse('x'.repeat(1201)).success, false)
+  assert.equal(savedSchema.safeParse(['x'.repeat(1201)]).success, false)
+  assert.equal(savedSchema.parse(['Match the outgoing stride.'])[0], 'Match the outgoing stride.')
+  assert.equal(studio.studioAdCampaignDeliverableSchema.shape.productionNotes.safeParse([note]).success, false)
+  assert.throws(() => compile({ shots: [{ prompt: 'x'.repeat(1001), continuity: null }] }), /exceeds/)
+})

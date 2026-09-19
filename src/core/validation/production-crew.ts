@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { studioAdCampaignPlanSchema } from "./studio-ad"
+import { studioAdCampaignPlanSchema, studioAdCampaignDeliverableSchema } from "./studio-ad"
 
 const note = z.string().min(3).max(600)
 
@@ -50,7 +50,7 @@ export const crewShotsSchema = z.object({
     prompt: z.string().min(30).max(1200),
     negativePrompt: z.string().min(5).max(500),
     model: z.enum(["kling", "seedance"]),
-    editNote: z.string().min(3).max(220),
+    editNote: z.string().min(3).max(1200),
     continuity: shotContinuityStateSchema.nullable(),
   })).length(3),
 })
@@ -82,7 +82,13 @@ export const crewMetadataSchema = z.object({
   ),
 })
 
-export const productionPlanSchema = studioAdCampaignPlanSchema.extend({ crew: crewMetadataSchema.optional() })
+export const productionPlanSchema = studioAdCampaignPlanSchema.extend({
+  // Editorial notes are not provider prompts and need room for complete cut/compositing instructions.
+  deliverables: z.array(studioAdCampaignDeliverableSchema.extend({
+    productionNotes: z.array(z.string().min(3).max(1200)).max(5).default([]),
+  })).min(2).max(5),
+  crew: crewMetadataSchema.optional(),
+})
 export type ProductionPlan = z.infer<typeof productionPlanSchema>
 export type CrewMetadata = z.infer<typeof crewMetadataSchema>
 
