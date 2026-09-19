@@ -16,6 +16,13 @@ const module = { exports: {} }
 vm.runInNewContext(ts.transpileModule(functions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module, exports: module.exports, productionPlanSchema: { parse: value => value } })
 const compile = editor => module.exports.compileCrewShotsForReview({}, editor)
 
+const approvalSource = readFileSync(new URL('../src/core/validation/production-crew.ts', import.meta.url), 'utf8')
+const approvalTree = ts.createSourceFile('production-crew-validation.ts', approvalSource, ts.ScriptTarget.Latest, true)
+const approvalNames = new Set(['hasExecutableProviderPrompt', 'supportsRequestedTiming', 'canApproveProduction'])
+const approvalFunctions = approvalTree.statements.filter(node => ts.isFunctionDeclaration(node) && approvalNames.has(node.name?.text)).map(node => node.getText(approvalTree)).join('\n')
+const approvalModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(approvalFunctions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: approvalModule, exports: approvalModule.exports, productionPlanSchema: { safeParse: value => ({ success: true, data: value }) } })
+
 const errorModule = { exports: {} }
 const errorSource = readFileSync(new URL('../src/core/services/production-crew.ts', import.meta.url), 'utf8')
 const errorTree = ts.createSourceFile('crew-error.ts', errorSource, ts.ScriptTarget.Latest, true)
@@ -49,6 +56,18 @@ test('review receives complete authored dialogue, camera and handoff without rew
 test('oversized provider instructions are rejected instead of sliced', () => {
   assert.throws(() => compile({ shots: [{ prompt: 'x'.repeat(1001), continuity: null }] }), /exceeds/)
   assert.equal(compile({ shots: [{ prompt: 'x'.repeat(1000), continuity: null }] })[0].prompt.length, 1000)
+})
+
+test('blocking crew notes cannot trap an executable plan before takes', () => {
+  const plan = {
+    deliverables: [
+      { masterPrompt: 'Track the adult runner across the empty track, then hold on the finish line.', modelFamilyId: 'kling', durationSeconds: 10, continuityStartState: 'Runner waits at lane four.', continuityEndState: 'Runner crosses the finish line.' },
+      { masterPrompt: 'Begin on the runner crossing the finish line, then settle into a calm close-up.', modelFamilyId: 'seedance', durationSeconds: 5, continuityStartState: 'Runner crosses the finish line.', continuityEndState: 'Runner takes a calm breath.' },
+    ],
+    crew: { version: 2, bible: { continuityLedger: { invariants: ['same runner'] } }, review: { findings: [{ severity: 'blocking', evidence: 'A department note is truncated.', correction: 'Rewrite the note.' }] } },
+  }
+  assert.equal(approvalModule.exports.canApproveProduction(plan), true)
+  assert.equal(approvalModule.exports.canApproveProduction({ ...plan, deliverables: [{ ...plan.deliverables[0], masterPrompt: 'Track the runner across' }, plan.deliverables[1]] }), false)
 })
 
 const groupingModule = { exports: {} }
@@ -194,8 +213,13 @@ for (const failedRole of [null, 'story-director', 'cinematographer', 'lighting-d
   }
   for (const call of received) {
     assert.equal(JSON.stringify(call.context.revision), JSON.stringify(revision), call.role)
-    assert.equal(call.context.source.brief, job.brief)
-    assert.equal(JSON.stringify(call.context.shotSettings), JSON.stringify(job.planning_context.shotSettings))
+    if (call.role === 'continuity-reviewer') {
+      assert.ok(call.context.source.continuityContract)
+      assert.ok(Array.isArray(call.context.source.shots))
+    } else {
+      assert.equal(call.context.source.brief, job.brief)
+      assert.equal(JSON.stringify(call.context.shotSettings), JSON.stringify(job.planning_context.shotSettings))
+    }
   }
 })
 

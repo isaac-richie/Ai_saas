@@ -160,10 +160,12 @@ function normalizeCrewShots(editor: z.infer<typeof crewShotsSchema>) {
 export function compileCrewShotsForReview(_story: z.infer<typeof productionBibleSchema>, editor: z.infer<typeof crewShotsSchema>, settings?: ProductionShotSettings) {
   if (settings && editor.shots.length !== settings.length) throw new Error("The crew returned the wrong shot count. Resume planning before review.")
   return normalizeCrewShots(editor).map((shot, index) => ({
-    ...shot,
+    shotNumber: index + 1,
     prompt: compileContinuityPrompt(shot),
+    negativePrompt: shot.negativePrompt,
     model: settings?.[index].model ?? shot.model,
     durationSeconds: settings?.[index].durationSeconds ?? 10,
+    continuity: shot.continuity,
   }))
 }
 
@@ -298,7 +300,7 @@ export async function developProductionCrew(brief: string, model: string, run: C
     shot.prompt = checked.prompt
     shot.negativePrompt = checked.negativePrompt
   }
-  const review = await run("continuity-reviewer", "Audit the exact compiled provider prompts and compare each endState with the next startState. A contradiction, incomplete sentence, missing executable action/camera instruction, unapproved identity/object change, or broken handoff is blocking. The provider sees only the prompt, not the separate metadata or ledger. Missing required details must remain blocking; accept concise wording only when it preserves their meaning. Do not grade footage: none exists. Empty findings is allowed when the executable prompts and handoffs pass.", { ...context, shots: compileCrewShotsForReview(story.value, editor.value) }, crewReviewSchema)
+  const review = await run("continuity-reviewer", "Audit only the exact provider prompts and continuity handoffs supplied below. A finding is blocking only when a provider prompt itself is incomplete, contradictory, exceeds the stated limit, or conflicts with the adjacent start/end handoff. Do not block on bible, department, action, edit-note, or other source metadata: it is not sent to the provider. Treat uncertainty or creative suggestions as notes. Do not grade footage: none exists. Empty findings is allowed when the executable prompts and handoffs pass.", { continuityContract: story.value.continuityLedger || { anchors: story.value.continuityAnchors }, shots: compileCrewShotsForReview(story.value, editor.value) }, crewReviewSchema)
 
   return compileProductionPlan({
     model, story: story.value, camera: camera.value, lighting: lighting.value, productionDesign: productionDesign.value, performance: performance.value, editor: editor.value, review: review.value,

@@ -93,9 +93,28 @@ export const productionPlanSchema = studioAdCampaignPlanSchema.extend({
 export type ProductionPlan = z.infer<typeof productionPlanSchema>
 export type CrewMetadata = z.infer<typeof crewMetadataSchema>
 
+function hasExecutableProviderPrompt(prompt: string) {
+  const normalized = prompt.replace(/\s+/g, " ").trim()
+  // Provider prompts are the only text the renderer executes. Do not let a
+  // truncated internal planning note prevent a creator from reaching takes.
+  return normalized.length >= 30
+    && normalized.length <= 1000
+    && /[.!?…][\])"']*$/.test(normalized)
+}
+
+function supportsRequestedTiming(model: string, durationSeconds: number) {
+  return model === "seedance"
+    ? durationSeconds >= 4 && durationSeconds <= 15
+    : model === "kling" && [5, 10].includes(durationSeconds)
+}
+
 export function canApproveProduction(plan: unknown): boolean {
   const parsed = productionPlanSchema.safeParse(plan)
-  if (!parsed.success || parsed.data.crew?.review.findings.some(finding => finding.severity === "blocking")) return false
+  if (!parsed.success) return false
+  if (!parsed.data.deliverables.every(shot =>
+    hasExecutableProviderPrompt(shot.masterPrompt)
+    && supportsRequestedTiming(shot.modelFamilyId, shot.durationSeconds)
+  )) return false
   if (parsed.data.crew?.version === 2) {
     return Boolean(
       parsed.data.crew.bible.continuityLedger

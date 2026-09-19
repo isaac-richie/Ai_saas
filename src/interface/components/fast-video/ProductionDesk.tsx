@@ -207,9 +207,9 @@ export function ProductionDesk() {
                 { name: "Performance", direction: job.plan.crew.performance },
               ].filter(department => department.direction).map(department => <details key={department.name}><summary>{department.name}</summary><p>{department.direction?.approach}</p>{department.direction?.shotDirections.map((direction, index) => <p key={index}><strong>Shot {index + 1}</strong> {direction}</p>)}</details>)}</div>
               {job.plan.crew.bible.assumptions.length > 0 && <p className="mt-3 text-sm text-white/60">Creative assumptions: {job.plan.crew.bible.assumptions.join(" ")}</p>}
-              <p className="mt-4 text-sm text-white/80">Plan review: {job.plan.crew.review.summary}</p>
-              {job.plan.crew.review.findings.map((finding, i) => <p key={i} className="mt-2 text-sm text-amber-200">Shot {finding.shotNumber} / {finding.severity}: {finding.evidence} {finding.correction}</p>)}
-              <p className="mt-3 text-xs text-white/50">This review covers the written direction. Review generated footage in Takes & review.</p>
+              <p className="mt-4 text-sm text-white/80">Crew review: {job.plan.crew.review.summary}</p>
+              {job.plan.crew.review.findings.map((finding, i) => <p key={i} className="mt-2 text-sm text-amber-200">Shot {finding.shotNumber} / {finding.severity === "blocking" ? "review note" : finding.severity}: {finding.evidence} {finding.correction}</p>)}
+              <p className="mt-3 text-xs text-white/50">The release gate validates executable prompts and handoffs. Crew notes are advisory; review generated footage in Takes & review.</p>
             </details>}
             <div className="mt-4 grid gap-3 lg:grid-cols-3">{job.plan.deliverables.map((shot, index) => <section key={`${shot.id}-${index}`} className="min-w-0 rounded-lg bg-white/5 p-4">
               <h4 className="text-sm font-medium text-white">{index + 1}. {shot.title}</h4>

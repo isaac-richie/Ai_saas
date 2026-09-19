@@ -40,7 +40,7 @@ export async function updateProduction(input: unknown) {
   if (payload.action === "create" && payload.assets.some(asset => !ownsAssetUrl(asset.url, user.id))) return { error: "Choose references uploaded to your account." }
   if (payload.action === "approve") {
     const { data: job, error } = await db.from("production_jobs").select("plan").eq("id", payload.id).eq("user_id", user.id).maybeSingle()
-    if (error || !job || !canApproveProduction(job.plan)) return { error: "Resolve the crew's blocking review notes before approval. Create a revised brief to develop a new plan." }
+    if (error || !job || !canApproveProduction(job.plan)) return { error: "The executable prompts need a repair before approval. Check each shot's prompt, model, duration, and continuity handoff." }
   }
   const query = payload.action === "create"
     ? db.from("production_jobs").insert({ user_id: user.id, brief: payload.brief, planning_context: { shotSettings: payload.shotSettings }, ...(payload.assets.length ? { reference_assets: payload.assets } : {}) })
