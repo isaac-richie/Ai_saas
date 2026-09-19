@@ -23,16 +23,34 @@ const exec = promisify(execFile)
 
 type CrewReferenceInput = OpenAI.Responses.ResponseInputText | OpenAI.Responses.ResponseInputImage
 
-function safeCrewError(cause: unknown) {
-  if (!cause || typeof cause !== "object") return "unknown"
-  const error = cause as { code?: unknown; status?: unknown; name?: unknown; message?: unknown; error?: { code?: unknown; message?: unknown } }
+export function safeCrewError(cause: unknown) {
+  if (cause instanceof Error && cause.message) {
+    return `${cause.name || "Error"}: ${redactCrewError(cause.message)}`.slice(0, 320)
+  }
+  if (!cause || typeof cause !== "object") return redactCrewError(String(cause || "unknown"))
+  const error = cause as { code?: unknown; status?: unknown; name?: unknown; message?: unknown; details?: unknown; hint?: unknown; error?: { code?: unknown; message?: unknown } }
   const code = error.code || error.error?.code || error.status || error.name || "unknown"
-  const detail = error.message || error.error?.message
+  const detail = error.message || error.error?.message || error.details || error.hint
   const billingText = `${String(code)} ${String(detail || "")}`.toLowerCase()
   if (billingText.includes("credit_balance_exhausted") || billingText.includes("no credits remaining") || billingText.includes("insufficient_quota")) {
     return "openai_api_credits_exhausted: add credits in the OpenAI API billing portal"
   }
-  return `${String(code).slice(0, 80)}${detail ? `: ${String(detail).replace(/\s+/g, " ").slice(0, 220)}` : ""}`
+  if (detail) return `${String(code).slice(0, 80)}: ${redactCrewError(String(detail))}`.slice(0, 320)
+  try {
+    const serialized = JSON.stringify(cause)
+    if (serialized && serialized !== "{}") return `${String(code).slice(0, 80)}: ${redactCrewError(serialized)}`.slice(0, 320)
+  } catch {
+    // Some provider error objects contain circular references.
+  }
+  return String(code).slice(0, 80)
+}
+
+function redactCrewError(value: string) {
+  return value
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-[redacted]")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 function responseFailureDetail(result: unknown) {

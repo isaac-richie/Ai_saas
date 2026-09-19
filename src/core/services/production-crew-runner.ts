@@ -1,6 +1,6 @@
 import { z } from "zod"
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { compileCrewShotsForReview, compileProductionPlan, createCrewRunner } from "@/core/services/production-crew"
+import { compileCrewShotsForReview, compileProductionPlan, createCrewRunner, safeCrewError } from "@/core/services/production-crew"
 import { crewReviewSchema, crewShotsSchema, departmentDirectionSchema, productionBibleSchema } from "@/core/validation/production-crew"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
@@ -110,10 +110,10 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     }
     throw new Error("The saved planning checkpoint is incomplete.")
   } catch (cause) {
-    const message = cause instanceof Error ? cause.message : "unknown"
+    const message = safeCrewError(cause)
     console.error("Production crew stage failed", { jobId: job.id, stage: job.planning_stage, error: message })
     await client.from("production_jobs").update({ planning_error: message.slice(0, 500), planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", job.id).eq("planning_claimed_until", claimUntil)
-    return { error: `The crew could not finish the ${job.planning_stage} stage. Its last completed checkpoint is safe; retry to resume.` }
+    return { error: `The crew could not finish the ${job.planning_stage} stage. Its last completed checkpoint is safe; retry to resume. Diagnostic: ${message}` }
   }
 }
 

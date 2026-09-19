@@ -26,6 +26,16 @@ test('malformed structured output is classified as safe to retry once', () => {
   assert.equal(errorModule.exports.isRecoverableStructuredOutputError(new Error('rate limit')), false)
 })
 
+const safeErrorFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'safeCrewError').getText(errorTree)
+const redactErrorFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'redactCrewError').getText(errorTree)
+const safeErrorModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(`${redactErrorFn}\n${safeErrorFn}`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: safeErrorModule, exports: safeErrorModule.exports })
+test('crew diagnostics preserve plain provider errors without leaking credentials', () => {
+  assert.match(safeErrorModule.exports.safeCrewError({ code: 502, message: 'upstream failed' }), /502: upstream failed/)
+  assert.match(safeErrorModule.exports.safeCrewError({ error: { message: 'Bearer secret failed' } }), /Bearer \[redacted\]/)
+  assert.doesNotMatch(safeErrorModule.exports.safeCrewError({ message: 'sk-proj-secret failed' }), /sk-proj-secret/)
+})
+
 test('review receives complete authored dialogue, camera and handoff without rewriting', () => {
   const prompt = 'Locked frontal medium. He says: "We were born to create, not destroy." End with the white megaphone at his lips.'
   const editor = { shots: [{ prompt, continuity: { startState: 'standing', endState: 'seated', carriedDetails: ['white prop'] } }, { prompt, continuity: { startState: 'different authored pose', endState: 'speaking', carriedDetails: ['white prop'] } }] }
@@ -158,7 +168,7 @@ for (const failedRole of [null, 'story-director', 'cinematographer', 'lighting-d
     require: name => {
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
-      if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }) }
+      if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
       if (name.endsWith('/validation/production-crew')) return { productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
