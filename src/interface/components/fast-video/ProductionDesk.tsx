@@ -11,15 +11,19 @@ import { ProductionReferences } from "./ProductionReferences"
 import { productionAssetsSchema, type ProductionAsset } from "@/core/validation/production-assets"
 import { isStaleServerActionError, recoverFromStaleServerAction } from "@/interface/lib/server-action-recovery"
 
+import { productionShotSettingsSchema } from "@/core/validation/production-settings"
+import { ProductionShotSettings, ReviseProductionSettings, emptyShotSettings, type ShotSettingDraft } from "./ProductionShotSettings"
+
 import { latestFilms } from "@/core/utils/production/latest-films"
 
-type Production = { parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
+type Production = { planning_context?: { shotSettings?: ShotSettingDraft[] }; parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
 type ProductionView = "brief" | "direction" | "takes"
 
 const PRODUCTION_DESK_STORAGE_KEY = "aisas.production-desk.v1"
 
 export function ProductionDesk() {
   const [jobs, setJobs] = useState<Production[]>([])
+  const [shotSettings, setShotSettings] = useState<ShotSettingDraft[]>(emptyShotSettings)
   const [brief, setBrief] = useState("")
   const [assets, setAssets] = useState<ProductionAsset[]>([])
   const [uploading, setUploading] = useState(false)
@@ -54,7 +58,9 @@ export function ProductionDesk() {
         let hasSavedSession = false
         try {
           const raw = window.localStorage.getItem(PRODUCTION_DESK_STORAGE_KEY)
-          const saved = raw ? JSON.parse(raw) as { brief?: string; selectedId?: string | null; view?: ProductionView; assets?: unknown } : null
+          const saved = raw ? JSON.parse(raw) as { brief?: string; selectedId?: string | null; view?: ProductionView; assets?: unknown; shotSettings?: unknown } : null
+          const restoredSettings = productionShotSettingsSchema.safeParse(saved?.shotSettings)
+          if (restoredSettings.success) setShotSettings(restoredSettings.data)
           const restoredAssets = productionAssetsSchema.safeParse(saved?.assets)
           if (restoredAssets.success) setAssets(restoredAssets.data)
           hasSavedSession = Boolean(saved)
@@ -82,11 +88,11 @@ export function ProductionDesk() {
   useEffect(() => {
     if (!sessionRestored) return
     try {
-      window.localStorage.setItem(PRODUCTION_DESK_STORAGE_KEY, JSON.stringify({ brief, selectedId, view, assets }))
+      window.localStorage.setItem(PRODUCTION_DESK_STORAGE_KEY, JSON.stringify({ brief, selectedId, view, assets, shotSettings }))
     } catch {
       // Server state remains authoritative when browser storage is unavailable.
     }
-  }, [brief, selectedId, sessionRestored, view, assets])
+  }, [brief, selectedId, sessionRestored, view, assets, shotSettings])
 
   function keep(job: Production) {
     setJobs(current => [job, ...current.filter(item => item.id !== job.id)])
@@ -143,15 +149,18 @@ export function ProductionDesk() {
         {selected?.sequence_id ? <Link href={`/dashboard/sequences/${selected.sequence_id}`}><span>04</span>Edit & deliver <ArrowUpRight size={14} /></Link> : <span className={styles.locked}><span>04</span>Edit & deliver</span>}
       </nav>
       <div className={styles.body}>
-      {view === "brief" && <div className={styles.briefGrid}><div><p className={styles.eyebrow}>01 / THE STARTING POINT</p><h3>Every film starts<br />with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop three connected shots.</p><span className={styles.format}>3 SHOTS / 10 SECONDS EACH / 16:9</span></div>
+      {view === "brief" && <div className={styles.briefGrid}><div><p className={styles.eyebrow}>01 / THE STARTING POINT</p><h3>Every film starts<br />with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop three connected shots.</p><span className={styles.format}>3 SHOTS / YOUR MODEL & TIMING / 16:9</span></div>
       <form onSubmit={event => { event.preventDefault(); void run(async () => {
         if (uploading) return
-        const result = await updateProduction({ action: "create", brief, assets })
+        const settings = productionShotSettingsSchema.safeParse(shotSettings)
+        if (!settings.success) throw new Error("Choose a model and duration for each shot.")
+        const result = await updateProduction({ action: "create", brief, assets, shotSettings: settings.data })
         if (result.error) throw new Error(result.error)
         keep(result.data as Production); setBrief(""); setAssets([])
       }) }}>
         <label htmlFor="production-brief" className="text-sm text-white/80">What should the audience feel?</label>
         <textarea id="production-brief" required minLength={8} maxLength={4000} value={brief} onChange={event => setBrief(event.target.value)} placeholder="A quiet fashion film at dawn. One protagonist, an ivory coat, and a city coming to life..." className="mt-2 min-h-28 w-full rounded-xl border border-white/15 bg-black/30 p-4 text-white placeholder:text-white/30" />
+        <ProductionShotSettings value={shotSettings} onChange={setShotSettings} disabled={busy} />
         <ProductionReferences assets={assets} onChange={setAssets} disabled={busy} onBusy={setUploading} />
         <button disabled={busy || !ready || uploading} className="mt-3 rounded-full bg-[#d6ede7] px-5 py-2 text-sm font-medium text-black disabled:opacity-40">{busy ? "Working..." : "Save film brief"}</button>
       </form></div>}
@@ -162,6 +171,11 @@ export function ProductionDesk() {
         {films.filter(job => job.id === selected?.id && view !== "brief").map(job => <article key={job.id} className={styles.production}>
           <p className="text-xs uppercase tracking-widest text-white/40">{job.status.replaceAll("_", " ")}</p>
           <h3 className={styles.productionTitle}>{job.plan?.crew?.bible.title || "Your film, in development."}</h3>
+          <ReviseProductionSettings key={job.id} disabled={busy} initial={job.planning_context?.shotSettings || job.plan?.deliverables.map(shot => ({ model: shot.modelFamilyId, durationSeconds: shot.durationSeconds })) || emptyShotSettings()} onSubmit={settings => void run(async () => {
+            const result = await createProductionRevision({ productionId: job.id, direction: "Use the selected shot models and durations. Retime all action, dialogue and transitions to fit; preserve the concept.", shotSettings: settings })
+            if (result.error || !result.data) throw new Error(result.error || "Could not save settings.")
+            keep(result.data as Production)
+          })} />
           <ProductionReferences assets={productionAssetsSchema.safeParse((job as Production & { reference_assets?: unknown }).reference_assets).data || []} />
           <details className="mt-3 text-sm text-white/60"><summary className="cursor-pointer">Read original brief</summary><p className="mt-3 whitespace-pre-wrap">{job.brief}</p></details>
           {view === "direction" && job.planning_stage && job.status === "brief" && <p className={styles.checkpoint}>Saved progress: {job.planning_stage === "brief" ? "Brief ready for the crew" : job.planning_stage === "story" ? "Story bible ready" : job.planning_stage === "departments" ? "Department direction ready" : "Shot prompts ready for review"}</p>}

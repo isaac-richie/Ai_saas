@@ -8,9 +8,10 @@ import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
 import type { Json } from "@/core/types/db"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
 import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
+import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 
 const updateSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(4000), assets: productionAssetsSchema.default([]) }),
+  z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(4000), assets: productionAssetsSchema.default([]), shotSettings: productionShotSettingsSchema }),
   z.object({ action: z.literal("plan"), id: z.string().uuid(), plan: productionPlanSchema }),
   z.object({ action: z.literal("approve"), id: z.string().uuid() }),
 ])
@@ -42,7 +43,7 @@ export async function updateProduction(input: unknown) {
     if (error || !job || !canApproveProduction(job.plan)) return { error: "Resolve the crew's blocking review notes before approval. Create a revised brief to develop a new plan." }
   }
   const query = payload.action === "create"
-    ? db.from("production_jobs").insert({ user_id: user.id, brief: payload.brief, ...(payload.assets.length ? { reference_assets: payload.assets } : {}) })
+    ? db.from("production_jobs").insert({ user_id: user.id, brief: payload.brief, planning_context: { shotSettings: payload.shotSettings }, ...(payload.assets.length ? { reference_assets: payload.assets } : {}) })
     : db.from("production_jobs").update(payload.action === "plan"
       ? { status: "awaiting_approval", plan: payload.plan }
       : { status: "approved" }).eq("id", payload.id).eq("user_id", user.id).eq("status", payload.action === "plan" ? "brief" : "awaiting_approval")
@@ -56,6 +57,7 @@ const productionRevisionSchema = z.object({
   productionId: z.string().uuid(),
   direction: z.string().trim().min(8).max(2000),
   repair: z.boolean().optional(),
+  shotSettings: productionShotSettingsSchema.optional(),
 })
 
 export async function createProductionRevision(input: unknown) {
@@ -79,7 +81,9 @@ export async function createProductionRevision(input: unknown) {
   const findings = parsed.data.repair && sourcePlan.success
     ? sourcePlan.data.crew?.review.findings.filter(item => item.severity === "blocking") || []
     : []
-  const planningContext = buildRevisionContext(source.planning_context, parsed.data.direction, findings)
+  const existingSettings = productionShotSettingsSchema.safeParse(isJsonObject(source.planning_context) ? source.planning_context.shotSettings : undefined)
+  const shotSettings = parsed.data.shotSettings ?? (existingSettings.success ? existingSettings.data : undefined)
+  const planningContext = { ...buildRevisionContext(source.planning_context, parsed.data.direction, findings), ...(shotSettings ? { shotSettings } : {}) }
   const { data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: source.brief, planning_context: planningContext, parent_job_id: lineageRoot, revision_number: nextRevision, ...(source.reference_assets ? { reference_assets: source.reference_assets } : {}) }).select("*").single()
   if (error) {
     if (error.code === "23505" && parsed.data.repair) {

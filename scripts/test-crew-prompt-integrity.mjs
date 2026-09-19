@@ -3,13 +3,17 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { z as settingsZod } from 'zod'
+const settingsModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/validation/production-settings.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: settingsModule, exports: settingsModule.exports, require: () => ({ z: settingsZod }) })
+const { productionShotSettingsSchema } = settingsModule.exports
 
 const source = readFileSync(new URL('../src/core/services/production-crew.ts', import.meta.url), 'utf8')
 const tree = ts.createSourceFile('crew.ts', source, ts.ScriptTarget.Latest, true)
-const names = new Set(['compileContinuityPrompt', 'normalizeCrewShots', 'compileCrewShotsForReview'])
+const names = new Set(['compileContinuityPrompt', 'normalizeCrewShots', 'compileCrewShotsForReview', 'compileProductionPlan', 'compileContinuityNegativePrompt', 'clip'])
 const functions = tree.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text)).map(node => node.getText(tree)).join('\n')
 const module = { exports: {} }
-vm.runInNewContext(ts.transpileModule(functions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module, exports: module.exports })
+vm.runInNewContext(ts.transpileModule(functions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module, exports: module.exports, productionPlanSchema: { parse: value => value } })
 const compile = editor => module.exports.compileCrewShotsForReview({}, editor)
 
 test('review receives complete authored dialogue, camera and handoff without rewriting', () => {
@@ -77,7 +81,7 @@ test('revision action saves a 4000-character brief unchanged with large repair n
     (ts.isFunctionDeclaration(node) && node.name?.text === 'createProductionRevision') ||
     (ts.isVariableStatement(node) && node.declarationList.declarations.some(item => item.name.getText(actionTree) === 'productionRevisionSchema'))
   ).map(node => node.getText(actionTree)).join('\n')
-  const sourceJob = { id: 'f8a78482-293d-4de1-aa95-0914f1140a24', brief: 'b'.repeat(4000), revision_number: 1, status: 'awaiting_approval', planning_context: {}, reference_assets: [] }
+  const sourceJob = { id: 'f8a78482-293d-4de1-aa95-0914f1140a24', brief: 'b'.repeat(4000), revision_number: 1, status: 'awaiting_approval', planning_context: { shotSettings: [{ model: 'seedance', durationSeconds: 5 }, { model: 'kling', durationSeconds: 10 }, { model: 'seedance', durationSeconds: 5 }] }, reference_assets: [] }
   const findings = Array.from({ length: 8 }, () => ({ shotNumber: 1, severity: 'blocking', evidence: 'e'.repeat(600), correction: 'c'.repeat(600) }))
   let inserted
   let reads = 0
@@ -95,7 +99,7 @@ test('revision action saves a 4000-character brief unchanged with large repair n
   }
   const actionModule = { exports: {} }
   vm.runInNewContext(ts.transpileModule(actionCode, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
-    module: actionModule, exports: actionModule.exports, z, createClient: async () => db,
+    module: actionModule, exports: actionModule.exports, z, productionShotSettingsSchema, isJsonObject: value => value && typeof value === "object" && !Array.isArray(value), createClient: async () => db,
     productionPlanSchema: { safeParse: () => ({ success: true, data: { crew: { review: { findings } } } }) },
     canApproveProduction: () => false, buildRevisionContext, revisionSaveError,
   })
@@ -103,6 +107,7 @@ test('revision action saves a 4000-character brief unchanged with large repair n
   assert.equal(result.data.id, 'saved')
   assert.equal(inserted.brief, sourceJob.brief)
   assert.equal(inserted.brief.length, 4000)
+  assert.equal(JSON.stringify(inserted.planning_context.shotSettings), JSON.stringify(sourceJob.planning_context.shotSettings))
   assert.equal(inserted.parent_job_id, sourceJob.id)
   assert.equal(inserted.revision_number, 2)
   assert.equal(JSON.stringify(inserted.planning_context.revision.findings), JSON.stringify(findings))
@@ -113,7 +118,7 @@ test('repair directions survive checkpoint parsing and reach every planning stag
   const runnerSource = readFileSync(new URL('../src/core/services/production-crew-runner.ts', import.meta.url), 'utf8')
   const revision = { directions: ['Preserve the exact dialogue.'], findings: [{ shotNumber: 2, severity: 'blocking', evidence: 'Dialogue cut short.', correction: 'Restore complete dialogue.' }] }
   const received = []
-  let job = { id: 'job', brief: 'Make three connected shots.', status: 'brief', planning_stage: 'brief', planning_context: { revision }, reference_assets: [] }
+  let job = { id: 'job', brief: 'Make three connected shots.', status: 'brief', planning_stage: 'brief', planning_context: { revision, shotSettings: [{ model: 'seedance', durationSeconds: 5 }, { model: 'kling', durationSeconds: 10 }, { model: 'seedance', durationSeconds: 5 }] }, reference_assets: [] }
   const db = { from: () => {
     let update
     const query = {
@@ -134,6 +139,7 @@ test('repair directions survive checkpoint parsing and reach every planning stag
     module: runnerModule, exports: runnerModule.exports, process: { env: {} }, console,
     require: name => {
       if (name === 'zod') return { z }
+      if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }) }
       if (name.endsWith('/validation/production-crew')) return { productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
@@ -151,6 +157,7 @@ test('repair directions survive checkpoint parsing and reach every planning stag
   for (const call of received) {
     assert.equal(JSON.stringify(call.context.revision), JSON.stringify(revision), call.role)
     assert.equal(call.context.source.brief, job.brief)
+    assert.equal(JSON.stringify(call.context.shotSettings), JSON.stringify(job.planning_context.shotSettings))
   }
 })
 
@@ -178,4 +185,31 @@ test('complete editorial repair notes survive crew and saved-plan validation wit
   assert.equal(savedSchema.parse(['Match the outgoing stride.'])[0], 'Match the outgoing stride.')
   assert.equal(studio.studioAdCampaignDeliverableSchema.shape.productionNotes.safeParse([note]).success, false)
   assert.throws(() => compile({ shots: [{ prompt: 'x'.repeat(1001), continuity: null }] }), /exceeds/)
+})
+
+test('per-shot settings reject unsupported choices and reach the review compiler', () => {
+  const settings = [{ model: 'seedance', durationSeconds: 5 }, { model: 'kling', durationSeconds: 10 }, { model: 'seedance', durationSeconds: 10 }]
+  assert.equal(productionShotSettingsSchema.safeParse(settings).success, true)
+  assert.equal(productionShotSettingsSchema.safeParse([{ model: 'sora', durationSeconds: 5 }, ...settings.slice(1)]).success, false)
+  assert.equal(productionShotSettingsSchema.safeParse([{ model: 'kling', durationSeconds: 7 }, ...settings.slice(1)]).success, false)
+  assert.equal(productionShotSettingsSchema.safeParse(settings.slice(1)).success, false)
+  const shots = module.exports.compileCrewShotsForReview({}, { shots: settings.map(() => ({ prompt: 'Track the runner for the selected duration.', model: 'kling', continuity: null })) }, settings)
+  assert.equal(shots[0].model, 'seedance')
+  assert.equal(shots[0].durationSeconds, 5)
+  assert.equal(shots[1].model, 'kling')
+  assert.equal(shots[1].durationSeconds, 10)
+})
+
+test('saved production deliverables use the user model and duration rather than the editor default', () => {
+  const settings = [{ model: 'seedance', durationSeconds: 5 }, { model: 'kling', durationSeconds: 10 }, { model: 'seedance', durationSeconds: 5 }]
+  const plan = module.exports.compileProductionPlan({
+    shotSettings: settings, model: 'test',
+    story: { treatment: 'A running sequence.', audienceEmotion: 'Hope', continuityAnchors: [], continuityLedger: { invariants: [] } },
+    editor: { shots: settings.map(() => ({ prompt: 'A complete prompt.', model: 'kling', negativePrompt: 'No drift.', continuity: null })) },
+    review: { findings: [] }, stages: [],
+  })
+  assert.equal(plan.deliverables[0].durationSeconds, 5)
+  assert.equal(plan.deliverables[0].modelFamilyId, 'seedance')
+  assert.equal(plan.deliverables[1].durationSeconds, 10)
+  assert.equal(plan.deliverables[2].modelFamilyId, 'seedance')
 })

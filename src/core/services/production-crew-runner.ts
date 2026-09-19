@@ -4,8 +4,10 @@ import { compileCrewShotsForReview, compileProductionPlan, createCrewRunner } fr
 import { crewReviewSchema, crewShotsSchema, departmentDirectionSchema, productionBibleSchema } from "@/core/validation/production-crew"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
+import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 
 const stageContextSchema = z.object({
+  shotSettings: productionShotSettingsSchema.optional(),
   revision: z.object({
     directions: z.array(z.string()),
     findings: crewReviewSchema.shape.findings,
@@ -56,7 +58,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     const runner = createCrewRunner(model, references)
     const run: typeof runner = (role, instruction, input, schema) => runner(
       role, instruction,
-      { source: input, revision: context.revision ?? null }, schema,
+      { source: input, revision: context.revision ?? null, shotSettings: context.shotSettings ?? null }, schema,
     )
     if (job.planning_stage === "brief") {
       const safe = enforcePromptCompliance({ prompt: job.brief, outputType: "video" })
@@ -71,7 +73,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
         run("cinematographer", "Design coverage for all three beats: framing, lens intent, one motivated movement, blocking, eyeline, and cut point. Preserve the shared bible.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
         run("lighting-director", "Define motivated key, fill, practicals, palette, and exposure intent for each beat. Maintain time of day and light direction. Do not invent independent scene changes.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
         run("production-designer", "Lock the physical world for all three beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
-        run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for a ten-second shot and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
       ])
       await saveCheckpoint(client, job.id, claimUntil, "story", "departments", { ...context, camera: camera.value, lighting: lighting.value, productionDesign: productionDesign.value, performance: performance.value, stages: [...context.stages, { role: "cinematographer", responseId: camera.responseId }, { role: "lighting-director", responseId: lighting.responseId }, { role: "production-designer", responseId: productionDesign.responseId }, { role: "performance-director", responseId: performance.responseId }] })
       return { data: { complete: false, stage: "departments", message: "Camera, lighting, design, and performance locked" } }
@@ -79,13 +81,13 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && (!context.productionDesign || !context.performance)) {
       const [productionDesign, performance] = await Promise.all([
         run("production-designer", "Lock the physical world for all three beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
-        run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for a ten-second shot and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
       ])
       await saveCheckpoint(client, job.id, claimUntil, "departments", "departments", { ...context, productionDesign: productionDesign.value, performance: performance.value, stages: [...context.stages, { role: "production-designer", responseId: productionDesign.responseId }, { role: "performance-director", responseId: performance.responseId }] })
       return { data: { complete: false, stage: "departments", message: "Production design and performance direction added" } }
     }
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && context.productionDesign && context.performance) {
-      const editor = await run("shot-editor", "Compile exactly three executable prompts in beat order. The action field must contain the complete timed choreography, performance, and dialogue for the ten-second shot. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Shot 2 must begin at shot 1's end state; shot 3 must begin at shot 2's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
+      const editor = await run("shot-editor", "Compile exactly three executable prompts in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Shot 2 must begin at shot 1's end state; shot 3 must begin at shot 2's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
       if (editor.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
       for (const shot of editor.value.shots) {
         const checked = enforcePromptCompliance({ prompt: shot.prompt, negativePrompt: shot.negativePrompt, outputType: "video" })
@@ -97,16 +99,16 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.editor && (!context.productionDesign || !context.performance)) {
       const [productionDesign, performance] = await Promise.all([
         run("production-designer", "Lock the physical world for all three beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
-        run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for a ten-second shot and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
+        run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: job.brief, bible: context.story }, departmentDirectionSchema),
       ])
       const stagesWithoutStaleEditor = context.stages.filter((stage) => stage.role !== "shot-editor")
       await saveCheckpoint(client, job.id, claimUntil, "shots", "departments", { ...context, editor: undefined, productionDesign: productionDesign.value, performance: performance.value, stages: [...stagesWithoutStaleEditor, { role: "production-designer", responseId: productionDesign.responseId }, { role: "performance-director", responseId: performance.responseId }] })
       return { data: { complete: false, stage: "departments", message: "New department direction added; shot prompts will be recompiled" } }
     }
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.productionDesign && context.performance && context.editor) {
-      const review = await run("continuity-reviewer", "Audit the exact compiled provider prompts and compare each endState with the next startState. A contradiction, incomplete sentence, missing executable action/camera instruction, unapproved identity/object change, or broken handoff is blocking. The provider sees only the prompt, not the separate metadata or ledger. Missing required details must remain blocking; accept concise wording only when it preserves their meaning. Do not grade footage: none exists.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, shots: compileCrewShotsForReview(context.story, context.editor) }, crewReviewSchema)
+      const review = await run("continuity-reviewer", "Audit the exact compiled provider prompts and compare each endState with the next startState. A contradiction, incomplete sentence, missing executable action/camera instruction, unapproved identity/object change, or broken handoff is blocking. The provider sees only the prompt, not the separate metadata or ledger. Missing required details must remain blocking; accept concise wording only when it preserves their meaning. Do not grade footage: none exists.", { brief: job.brief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, shots: compileCrewShotsForReview(context.story, context.editor, context.shotSettings) }, crewReviewSchema)
       const stages = [...context.stages, { role: "continuity-reviewer", responseId: review.responseId }]
-      const plan = compileProductionPlan({ model, story: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, editor: context.editor, review: review.value, stages })
+      const plan = compileProductionPlan({ shotSettings: context.shotSettings, model, story: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, editor: context.editor, review: review.value, stages })
       const { data: saved, error } = await client.from("production_jobs").update({ status: "awaiting_approval", plan, planning_stage: "complete", planning_context: { ...context, stages }, planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", job.id).eq("planning_stage", "shots").eq("planning_claimed_until", claimUntil).select("id").maybeSingle()
       if (error) throw error
       if (!saved) throw new Error("Planning lease expired; reload the latest checkpoint.")
