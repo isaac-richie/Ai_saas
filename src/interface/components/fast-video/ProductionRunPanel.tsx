@@ -16,7 +16,61 @@ type Job = { id: string; status: string; progress: number; error_message: string
 type Shot = { id: string; name: string; model: string | null; duration_target: number | null; approved_take_id: string | null; previous_shot_id: string | null; shot_generations: Take[]; generation_jobs: Job[] }
 type Correction = { revisionId: string; revisedPrompt: string; changes: string[]; retainedAnchors: string[] }
 type ContinuityGate = { shotId: string; takeId: string; nextShotName: string | null; action: "inspect" | "approve" }
+type CapturedKeyframes = { frames: string[]; timestamps: number[] }
 const active = new Set(["queued", "preparing", "submitted", "generating", "downloading", "processing"])
+
+const CLIENT_KEYFRAME_EDGE = 768
+const CLIENT_KEYFRAME_BYTES = 700 * 1024
+
+function waitForVideoEvent(video: HTMLVideoElement, eventName: "loadeddata" | "seeked") {
+  return new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(() => finish(new Error("The video took too long to prepare a frame.")), 12_000)
+    const finish = (error?: Error) => {
+      window.clearTimeout(timeout)
+      video.removeEventListener(eventName, onSuccess)
+      video.removeEventListener("error", onError)
+      if (error) reject(error)
+      else resolve()
+    }
+    const onSuccess = () => finish()
+    const onError = () => finish(new Error("The video could not be read for continuity review."))
+    video.addEventListener(eventName, onSuccess, { once: true })
+    video.addEventListener("error", onError, { once: true })
+  })
+}
+
+async function captureTakeKeyframes(video: HTMLVideoElement): Promise<CapturedKeyframes> {
+  if (video.readyState < 2) await waitForVideoEvent(video, "loadeddata")
+  if (!Number.isFinite(video.duration) || video.duration <= 0 || !video.videoWidth || !video.videoHeight) {
+    throw new Error("The video is not ready for keyframe review yet.")
+  }
+  const originalTime = video.currentTime
+  const timestamps = [Math.min(0.15, video.duration / 10), video.duration / 2, Math.max(0, video.duration - 0.15)]
+  const scale = Math.min(1, CLIENT_KEYFRAME_EDGE / Math.max(video.videoWidth, video.videoHeight))
+  const canvas = document.createElement("canvas")
+  canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
+  canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+  const context = canvas.getContext("2d")
+  if (!context) throw new Error("Your browser cannot prepare keyframes for review.")
+  try {
+    const frames: string[] = []
+    for (const timestamp of timestamps) {
+      if (Math.abs(video.currentTime - timestamp) > 0.02) {
+        const ready = waitForVideoEvent(video, "seeked")
+        video.currentTime = timestamp
+        await ready
+      }
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.72)
+      const bytes = Math.ceil((dataUrl.length - "data:image/jpeg;base64,".length) * 3 / 4)
+      if (bytes > CLIENT_KEYFRAME_BYTES) throw new Error("This video frame is too detailed to inspect in the browser. Please retry once playback is stable.")
+      frames.push(dataUrl)
+    }
+    return { frames, timestamps }
+  } finally {
+    video.currentTime = originalTime
+  }
+}
 
 // A later shot cannot be generated until its predecessor has a reviewed ending frame.
 function findContinuityGate(shots: Shot[]): ContinuityGate | null {
@@ -126,12 +180,19 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
   async function inspectTake(takeId: string) {
     setInspectingTake(takeId)
     try {
-      const response = await fetch(`/api/takes/${takeId}/inspect`, { method: "POST" })
-      const result = await response.json()
+      const video = document.getElementById(`take-video-${takeId}`) as HTMLVideoElement | null
+      if (!video) throw new Error("Open this completed take before starting continuity review.")
+      const keyframes = await captureTakeKeyframes(video)
+      const response = await fetch(`/api/takes/${takeId}/inspect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(keyframes),
+      })
+      const result = await response.json().catch(() => ({}))
       if (!response.ok || !result.ok) { toast.error(result.error || "Keyframe inspection failed"); return }
       toast.success("Keyframe continuity review saved")
       await refresh()
-    } catch { toast.error("Could not inspect the take. Please try again.") }
+    } catch (cause) { toast.error(cause instanceof Error ? cause.message : "Could not inspect the take. Please try again.") }
     finally { setInspectingTake(null) }
   }
 
@@ -169,7 +230,7 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
         {takes.length > 0 && <label className="mt-4 block text-xs text-white/65">Review take<select className="ml-3 rounded-lg border border-white/15 bg-[#141c17] p-2 text-white" value={focusedTakes[shot.id] || takes[0].id} onChange={event => setFocusedTakes(current => ({ ...current, [shot.id]: event.target.value }))}>{takes.map(take => <option value={take.id} key={take.id}>Take {take.take_number} · {take.status}{shot.approved_take_id === take.id ? " · selected" : ""}</option>)}</select></label>}
         {takes.filter(take => take.id === (focusedTakes[shot.id] || takes[0]?.id)).map(take => <div key={take.id} className="mt-3 rounded-lg bg-white/5 p-3 sm:p-5">
           <p className="text-xs text-white/60">Take {take.take_number} / {take.status}{shot.approved_take_id === take.id ? " / approved" : ""}</p>
-          {take.output_url && <video className="mt-3 aspect-video max-h-[560px] w-full rounded-xl bg-black object-contain" src={take.output_url} controls playsInline preload="metadata" onLoadedMetadata={event => {
+          {take.output_url && <video id={`take-video-${take.id}`} className="mt-3 aspect-video max-h-[560px] w-full rounded-xl bg-black object-contain" src={`/api/media/proxy?url=${encodeURIComponent(take.output_url)}`} controls playsInline preload="metadata" onLoadedMetadata={event => {
             if (take.media_inspection) return
             const video = event.currentTarget
             const safariVideo = video as HTMLVideoElement & { webkitAudioDecodedByteCount?: number }
