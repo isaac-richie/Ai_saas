@@ -106,7 +106,7 @@ function findContinuityGate(shots: Shot[]): ContinuityGate | null {
       .sort((a, b) => b.take_number - a.take_number)[0]
 
     // This is the first unresolved shot. A later shot must never become the next action.
-    if (!take || take.review_status === "rejected") return null
+    if (!take) return null
     return {
       shotId: shot.id,
       takeId: take.id,
@@ -219,9 +219,17 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
     finally { setInspectingTake(null) }
   }
 
+  async function approveContinuityTake(shot: Shot, take: Take) {
+    const manualOverride = take.review_status === "rejected"
+    if (manualOverride && !window.confirm("The AI continuity review flagged this take. Approve it manually and continue to the next shot?")) return
+    const result = await approveTake(shot.id, take.id)
+    if (result.error) toast.error(result.error)
+    else { toast.success(manualOverride ? "Take manually approved; continuity chain unlocked" : "Continuity take selected"); await refresh() }
+  }
+
   const allApproved = shots.length > 0 && shots.every(shot => Boolean(shot.approved_take_id))
   const hasTakes = shots.some(shot => shot.shot_generations.length > 0)
-  const hasApprovedContinuityFrame = (shot: Shot | undefined) => Boolean(shot?.approved_take_id && shot.shot_generations.some(take => take.id === shot.approved_take_id && take.last_frame_url && take.review_status !== "rejected"))
+  const hasApprovedContinuityFrame = (shot: Shot | undefined) => Boolean(shot?.approved_take_id && shot.shot_generations.some(take => take.id === shot.approved_take_id && take.last_frame_url))
   const continuityReadyShots = shots.filter((shot, index) => needsProductionTake(shot) && (index === 0 || hasApprovedContinuityFrame(shots[index - 1])))
   const continuityGate = findContinuityGate(shots)
   const generationInProgress = shots.some(shot => shot.generation_jobs.some(job => active.has(job.status)))
@@ -262,7 +270,8 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
           }} />}
           {take.review_status && take.review_status !== "pending" && <p className={`mt-2 text-xs ${take.review_status === "pass" ? "text-[#d6ede7]" : "text-amber-200"}`}>Metadata review: {take.review_status}{take.review_notes ? ` / ${take.review_notes}` : ""}</p>}
           {take.status === "completed" && <button disabled={inspectingTake === take.id} onClick={() => void inspectTake(take.id)} className="mt-3 rounded-full border border-[#d6ede7]/40 bg-[#d6ede7]/10 px-3 py-1.5 text-xs font-medium text-[#d6ede7] disabled:opacity-40">{inspectingTake === take.id ? "Inspecting keyframes..." : "Inspect keyframes with crew"}</button>}
-          {take.status === "completed" && shot.approved_take_id !== take.id && take.last_frame_url && take.review_status !== "rejected" && <button className="ml-2 mt-3 rounded-full bg-[#d6ede7] px-3 py-1.5 text-xs font-medium text-black" onClick={() => void approveTake(shot.id, take.id).then(async result => { if (result.error) toast.error(result.error); else { toast.success("Continuity take selected"); await refresh() } })}>Approve continuity take</button>}
+          {take.status === "completed" && shot.approved_take_id !== take.id && take.last_frame_url && <button className={`ml-2 mt-3 rounded-full px-3 py-1.5 text-xs font-medium ${take.review_status === "rejected" ? "border border-amber-200/40 bg-amber-200/10 text-amber-100" : "bg-[#d6ede7] text-black"}`} onClick={() => void approveContinuityTake(shot, take)}>{take.review_status === "rejected" ? "Approve anyway" : "Approve continuity take"}</button>}
+          {take.status === "completed" && take.review_status === "rejected" && take.last_frame_url && <p className="mt-2 text-xs text-amber-100/80">AI review is advisory. You can manually approve this inspected take if the result is acceptable.</p>}
           {take.status === "completed" && !take.last_frame_url && <p className="mt-2 text-xs text-white/45">Inspect this take before approval so the crew can lock its ending frame.</p>}
           {take.status === "completed" && <details className="mt-3 rounded-lg border border-white/10 p-2"><summary className="cursor-pointer text-xs text-white/60">Request a corrected take</summary><textarea value={reviewNotes[take.id] || ""} onChange={event => setReviewNotes(current => ({ ...current, [take.id]: event.target.value }))} maxLength={1200} placeholder="Describe only what is visibly wrong: motion, continuity, framing, lighting..." className="mt-2 min-h-20 w-full rounded-lg border border-white/10 bg-black/30 p-2 text-xs text-white placeholder:text-white/30" /><button disabled={(reviewNotes[take.id] || "").trim().length < 3} onClick={() => void proposeCorrection(take)} className="mt-2 text-xs text-[#d6ede7] disabled:opacity-40">Ask correction supervisor</button>{corrections[take.id] && <div className="mt-3 rounded-lg bg-black/30 p-3"><p className="text-xs text-white/80">Proposed prompt</p><p className="mt-2 whitespace-pre-wrap text-xs text-white/55">{corrections[take.id].revisedPrompt}</p><p className="mt-2 text-xs text-white/40">Changes: {corrections[take.id].changes.join(" ")}</p><button onClick={() => void applyCorrection(take.id)} className="mt-3 rounded-full bg-[#d6ede7] px-3 py-1.5 text-xs font-medium text-black">Apply to next take</button></div>}</details>}
         </div>)}

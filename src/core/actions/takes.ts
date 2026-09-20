@@ -73,9 +73,9 @@ export async function approveTake(shotId: string, takeId: string) {
     && shot.generation_settings !== null
     && !Array.isArray(shot.generation_settings)
     && typeof shot.generation_settings.production_job_id === "string"
-  if (productionShot && (!take.last_frame_url || !["pass", "warning"].includes(take.review_status || ""))) {
-    return { error: take.review_status === "rejected" ? "This take failed continuity review. Correct it before approval." : "Inspect this take before approving it for the continuity chain." }
-  }
+  // AI continuity review is advisory. Manual approval may override a rejected
+  // verdict, but the ending frame is still required for the next-shot handoff.
+  if (productionShot && !take.last_frame_url) return { error: "Inspect this take before approving it for the continuity chain." }
 
   const { error } = await supabase
     .from("shots")
