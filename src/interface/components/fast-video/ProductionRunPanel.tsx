@@ -22,25 +22,52 @@ const active = new Set(["queued", "preparing", "submitted", "generating", "downl
 const CLIENT_KEYFRAME_EDGE = 768
 const CLIENT_KEYFRAME_BYTES = 700 * 1024
 
-function waitForVideoEvent(video: HTMLVideoElement, eventName: "loadeddata" | "seeked") {
+function waitForVideoReady(video: HTMLVideoElement) {
   return new Promise<void>((resolve, reject) => {
-    const timeout = window.setTimeout(() => finish(new Error("The video took too long to prepare a frame.")), 12_000)
+    const timeout = window.setTimeout(() => finish(new Error("The video took too long to prepare a frame. Refresh the take and retry.")), 30_000)
     const finish = (error?: Error) => {
       window.clearTimeout(timeout)
-      video.removeEventListener(eventName, onSuccess)
+      video.removeEventListener("loadeddata", onSuccess)
+      video.removeEventListener("canplay", onSuccess)
       video.removeEventListener("error", onError)
       if (error) reject(error)
       else resolve()
     }
     const onSuccess = () => finish()
     const onError = () => finish(new Error("The video could not be read for continuity review."))
-    video.addEventListener(eventName, onSuccess, { once: true })
+    video.addEventListener("loadeddata", onSuccess, { once: true })
+    video.addEventListener("canplay", onSuccess, { once: true })
     video.addEventListener("error", onError, { once: true })
+    if (video.readyState >= 2) finish()
+    else {
+      video.preload = "auto"
+      video.load()
+    }
+  })
+}
+
+function seekVideo(video: HTMLVideoElement, timestamp: number) {
+  return new Promise<void>((resolve, reject) => {
+    if (Math.abs(video.currentTime - timestamp) <= 0.02) { resolve(); return }
+    const timeout = window.setTimeout(() => finish(new Error("The video took too long to seek to a review frame.")), 15_000)
+    const finish = (error?: Error) => {
+      window.clearTimeout(timeout)
+      video.removeEventListener("seeked", onSeeked)
+      video.removeEventListener("error", onError)
+      if (error) reject(error)
+      else resolve()
+    }
+    const onSeeked = () => finish()
+    const onError = () => finish(new Error("The video could not seek to a continuity frame."))
+    video.addEventListener("seeked", onSeeked, { once: true })
+    video.addEventListener("error", onError, { once: true })
+    video.currentTime = timestamp
+    if (!video.seeking && Math.abs(video.currentTime - timestamp) <= 0.02) finish()
   })
 }
 
 async function captureTakeKeyframes(video: HTMLVideoElement): Promise<CapturedKeyframes> {
-  if (video.readyState < 2) await waitForVideoEvent(video, "loadeddata")
+  if (video.readyState < 2) await waitForVideoReady(video)
   if (!Number.isFinite(video.duration) || video.duration <= 0 || !video.videoWidth || !video.videoHeight) {
     throw new Error("The video is not ready for keyframe review yet.")
   }
@@ -55,11 +82,7 @@ async function captureTakeKeyframes(video: HTMLVideoElement): Promise<CapturedKe
   try {
     const frames: string[] = []
     for (const timestamp of timestamps) {
-      if (Math.abs(video.currentTime - timestamp) > 0.02) {
-        const ready = waitForVideoEvent(video, "seeked")
-        video.currentTime = timestamp
-        await ready
-      }
+      await seekVideo(video, timestamp)
       context.drawImage(video, 0, 0, canvas.width, canvas.height)
       const dataUrl = canvas.toDataURL("image/jpeg", 0.72)
       const bytes = Math.ceil((dataUrl.length - "data:image/jpeg;base64,".length) * 3 / 4)

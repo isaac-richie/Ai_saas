@@ -35,6 +35,23 @@ const CLIENT_INSPECTION_BODY_BYTES = 3 * 1024 * 1024
 
 class InvalidClientInspectionError extends Error {}
 
+function inspectionProviderFailure(cause: unknown, stage: string, timedOut: boolean) {
+  const record = typeof cause === "object" && cause !== null ? cause as Record<string, unknown> : {}
+  const message = cause instanceof Error ? cause.message : ""
+  const code = typeof record.code === "string" ? record.code : ""
+  const status = typeof record.status === "number" ? record.status : null
+  if (code === "credit_balance_exhausted" || (status === 429 && /credit|quota|billing/i.test(message))) {
+    return { status: 402, error: "The visual review account has no OpenAI credits remaining. Add credits to the OpenAI project used by this deployment, then retry; your take is unchanged." }
+  }
+  if (status === 401 || /invalid.*(api|key)|authentication/i.test(message)) {
+    return { status: 503, error: "The visual review credential was rejected. Update OPENAI_API_KEY in the deployment and retry; your take is unchanged." }
+  }
+  if (status === 404 && /model|not found/i.test(message)) {
+    return { status: 503, error: "The configured visual review model is unavailable to this OpenAI project. Check PRODUCTION_CREW_MODEL, then retry; your take is unchanged." }
+  }
+  return { status: timedOut ? 504 : 502, error: `Keyframe review failed while ${stage}. Your take is unchanged; please retry later.` }
+}
+
 async function readClientInspection(request: Request) {
   const contentType = request.headers.get("content-type") || ""
   if (!contentType.includes("application/json")) return null
@@ -61,6 +78,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "The director connection is not configured." }, { status: 503 })
 
   let tempDir: string | undefined
+  let stage = "preparing keyframes"
   const signal = AbortSignal.timeout(150_000)
   try {
     const clientInspection = await readClientInspection(request)
@@ -97,10 +115,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       inspectionMethod = "server_sampled_stills"
     }
+    stage = "checking the inspection allowance"
     // Reserve an AI review only after valid stills are available.
     const quota = await db.rpc("consume_reference_analysis")
     if (quota.error) return NextResponse.json({ error: "Apply migration 0028 to enable shared inspection limits." }, { status: 503 })
     if (quota.data !== true) return NextResponse.json({ error: "Analysis limit reached. Please retry later." }, { status: 429 })
+    stage = "saving keyframes"
     const frameUrls: string[] = []
     for (let index = 0; index < frames.length; index += 1) {
       const key = `${user.id}/inspections/${take.shot_id}/${take.id}/frame-${index}.jpg`
@@ -108,6 +128,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (error) throw error
       frameUrls.push(db.storage.from("renders").getPublicUrl(key).data.publicUrl)
     }
+    stage = "loading continuity context"
     const { data: continuity } = await db.from("shot_continuity").select("character_value,wardrobe_value,location_value,lighting_value,color_grade_value,camera_style_value,source_shot_id").eq("shot_id", take.shot_id).maybeSingle()
     const shotRelation = take.shots as unknown as { name: string; prompt_text: string | null; generation_settings: unknown; previous_shot_id: string | null }
     let previousEndingFrameUrl: string | null = null
@@ -129,6 +150,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         referenceContent.push({ type: "input_image", detail: "high", image_url: signed.data.signedUrl })
       }
     }
+    stage = "running the visual review"
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 75000, maxRetries: 0 })
     const result = await client.responses.parse({
       model: process.env.PRODUCTION_CREW_MODEL || "gpt-6-astra", reasoning: { effort: "low" }, store: false, max_output_tokens: 1800,
@@ -146,16 +168,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const review = reviewSchema.parse(result.output_parsed)
     const reviewStatus = review.overall === "pass" ? "pass" : review.overall === "reject" ? "rejected" : "warning"
     const inspection = { ...((take.media_inspection as object | null) || {}), keyframeReview: { reviewedAt: new Date().toISOString(), method: inspectionMethod, referenceIds: references.map((ref) => ref.id), limitations: ["No motion analysis", "No audio analysis", "Unsampled frames were not reviewed"], timestamps, frameUrls, ...review } }
+    stage = "saving the continuity result"
     const { error: updateError } = await db.from("shot_generations").update({ first_frame_url: frameUrls[0], thumbnail_url: frameUrls[1], last_frame_url: frameUrls[2], media_inspection: inspection, review_status: reviewStatus, review_notes: review.summary }).eq("id", take.id)
     if (updateError) throw updateError
     return NextResponse.json({ ok: true, data: { reviewStatus, frameUrls, review } })
   } catch (cause) {
-    console.error("Keyframe inspection failed", { takeId: take.id, error: cause instanceof Error ? cause.message : "unknown" })
+    console.error("Keyframe inspection failed", { takeId: take.id, stage, error: cause instanceof Error ? cause.message : "unknown" })
     if (cause instanceof InvalidClientInspectionError) return NextResponse.json({ error: cause.message }, { status: 400 })
     if (cause instanceof MediaRuntimeUnavailableError) return NextResponse.json({ error: cause.message }, { status: 503 })
-    return NextResponse.json({ error: signal.aborted
-      ? "Inspection timed out. Your take is unchanged; please retry later."
-      : "Could not inspect this take. Check that the media is still available and retry." }, { status: signal.aborted ? 504 : 502 })
+    const failure = inspectionProviderFailure(cause, stage, signal.aborted)
+    return NextResponse.json({ error: failure.error }, { status: failure.status })
   } finally {
     if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(() => console.error("Inspection temporary-file cleanup failed"))
   }
