@@ -3,6 +3,13 @@
 import { createClient } from "@/infrastructure/supabase/server"
 import { revalidatePath } from "next/cache"
 
+export const ELEMENT_TYPES = ["character", "prop", "location", "clothing", "reference_image"] as const
+type ElementType = typeof ELEMENT_TYPES[number]
+
+function isElementType(value: string): value is ElementType {
+    return (ELEMENT_TYPES as readonly string[]).includes(value)
+}
+
 async function ensureSession() {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -24,6 +31,8 @@ export async function createElement(formData: FormData) {
     if (!name || !type || !image_url) {
         return { error: "Missing required fields" }
     }
+    if (!isElementType(type)) return { error: "Choose a valid reference element type." }
+    try { new URL(image_url) } catch { return { error: "Reference image URL is invalid." } }
 
     const { data, error } = await supabase
         .from("elements")
@@ -105,8 +114,8 @@ export async function getShotElements(shotId: string) {
                 id,
                 name,
                 type,
-                reference_image_url,
-                prompt_fragment
+                image_url,
+                description
             )
         `)
         .eq("shot_id", shotId)

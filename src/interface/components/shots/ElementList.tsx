@@ -34,11 +34,11 @@ export async function ElementList({ projectId }: ElementListProps) {
                     </div>
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-white">{element.name}</p>
-                        <p className="text-xs text-white/55">{element.type}</p>
+                        <p className="text-xs text-white/55">{element.type === "reference_image" ? "Reference Image" : element.type}</p>
                         {element.description ? (
                             <p className="mt-1 line-clamp-2 text-xs text-white/45">{element.description}</p>
                         ) : null}
-                        <p className="mt-2 text-[11px] text-white/40">Use this in the Shot Builder reference tags.</p>
+                        <p className="mt-2 text-[11px] text-white/40">Attach this in Shot Builder. Reference Images condition the opening image-to-video shot.</p>
                     </div>
                     <ElementDeleteButton projectId={projectId} elementId={element.id} />
                 </div>

@@ -64,6 +64,7 @@ cp .env.local.example .env.local
 Recommended/optional:
 - `OPENAI_API_KEY` (required for Studio AD/OpenAI generation features)
 - `KIE_AI_API_KEY`
+- `TYPESAFE_API_KEY` (optional; enables Jev for server-side typed decisions)
 - `EXPORT_WORKER_SECRET` or `CRON_SECRET`
 - `SUPABASE_SERVICE_ROLE_KEY` (required for admin/server-only flows such as waitlist/admin operations)
 - `STUDIO_AD_MODEL` (optional override; default in code)
@@ -94,6 +95,39 @@ npm run start
 - `GET /api/ad/direct-shot?limit=...` - Fetch recent Studio AD directs for signed-in user.
 - `POST /api/inner-circle` - Submit Inner Circle waitlist lead.
 - `POST /api/exports/worker` - Export queue worker execution.
+
+## Jev decision layer
+
+Jev is wired as a server-only client at `src/core/services/jev.ts`. Use it for bounded
+decisions—routing, scoring, risk gates, and human escalation—not prose generation or
+direct execution. Add `TYPESAFE_API_KEY` to `.env.local`, then call `decideWithJev`
+with one shared state object and all independent questions in the same request.
+
+```ts
+import { decideWithJev, requiresHumanReview } from "@/core/services/jev"
+
+const result = await decideWithJev({ job, render }, {
+  next_action: {
+    type: "choice",
+    instructions: "Which safe next step should this production job take?",
+    criteria: {
+      continue: "All prerequisites are present and the render may proceed.",
+      repair: "The job needs a prompt or continuity revision before rendering.",
+      review: "The job has a material ambiguity that needs a human decision.",
+    },
+  },
+  continuity_risk: {
+    type: "score",
+    instructions: "Rate the risk that the supplied production plan loses visual continuity.",
+    criteria: ["Low risk", "Moderate risk", "High risk"],
+  },
+})
+
+const action = result.answers.next_action
+if (requiresHumanReview(action) || action.choice === "review") {
+  // Queue a human review. Code, not the model, controls execution.
+}
+```
 
 ## Deploy (Vercel)
 - Production branch: `main`

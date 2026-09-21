@@ -60,6 +60,20 @@ const productionRevisionSchema = z.object({
   shotSettings: productionShotSettingsSchema.optional(),
 })
 
+async function getShotReferenceImage(db: Awaited<ReturnType<typeof createClient>>, shotId: string, userId: string) {
+  const { data, error } = await db
+    .from("shot_elements")
+    .select("elements(id,type,image_url)")
+    .eq("shot_id", shotId)
+  if (error) return null
+
+  const candidates = (data || [])
+    .flatMap((item) => item.elements || [])
+    .filter((element): element is { id: string; type: string; image_url: string | null } => Boolean(element.image_url && ownsAssetUrl(element.image_url, userId)))
+    .sort((a, b) => Number(b.type === "reference_image") - Number(a.type === "reference_image"))
+  return candidates[0]?.image_url || null
+}
+
 export async function createProductionRevision(input: unknown) {
   const parsed = productionRevisionSchema.safeParse(input)
   if (!parsed.success) return { error: "Describe the direction you want revised." }
@@ -194,6 +208,9 @@ export async function queueProductionShot(input: unknown) {
     const references = productionAssetsSchema.safeParse(production.reference_assets || [])
     const openingReference = references.success ? references.data.find(asset => asset.role === "character" || asset.role === "product") : null
     if (openingReference && ownsAssetUrl(openingReference.url, user.id)) continuityReferenceUrl = openingReference.url
+    // An explicitly attached Reference Image is sent to the I2V adapter, rather
+    // than being retained only as shot metadata.
+    continuityReferenceUrl = await getShotReferenceImage(db, shot.id, user.id) || continuityReferenceUrl
   }
   if (shot.previous_shot_id) {
     const { data: previousShot } = await db.from("shots").select("approved_take_id").eq("id", shot.previous_shot_id).eq("scene_id", production.scene_id).maybeSingle()

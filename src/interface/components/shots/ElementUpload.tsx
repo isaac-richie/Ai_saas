@@ -113,6 +113,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
                             <option value="prop">Prop</option>
                             <option value="location">Location / Environment</option>
                             <option value="clothing">Clothing</option>
+                            <option value="reference_image">Reference Image</option>
                         </select>
                     </div>
                     <div>
