@@ -3,7 +3,7 @@
 import { createClient } from "@/infrastructure/supabase/server"
 import { revalidatePath } from "next/cache"
 
-export const ELEMENT_TYPES = ["character", "prop", "location", "clothing", "reference_image"] as const
+const ELEMENT_TYPES = ["character", "prop", "location", "clothing", "reference_image"] as const
 type ElementType = typeof ELEMENT_TYPES[number]
 
 function isElementType(value: string): value is ElementType {
