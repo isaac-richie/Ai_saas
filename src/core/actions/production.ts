@@ -60,6 +60,36 @@ const productionRevisionSchema = z.object({
   shotSettings: productionShotSettingsSchema.optional(),
 })
 
+const replaceProductionReferencesSchema = z.object({
+  id: z.string().uuid(),
+  assets: productionAssetsSchema,
+})
+
+/**
+ * References may change while a brief is still waiting to be developed. Once
+ * planning starts, a new revision is required so the crew and render state do
+ * not silently disagree about the visual source material.
+ */
+export async function replaceProductionReferences(input: unknown) {
+  const parsed = replaceProductionReferencesSchema.safeParse(input)
+  if (!parsed.success) return { error: "Check the reference files and try again." }
+  const db = await createClient()
+  const { data: { user } } = await db.auth.getUser()
+  if (!user) return { error: "Please sign in." }
+  if (parsed.data.assets.some(asset => !ownsAssetUrl(asset.url, user.id))) return { error: "Choose references uploaded to your account." }
+  const { data, error } = await db.from("production_jobs")
+    .update({ reference_assets: parsed.data.assets })
+    .eq("id", parsed.data.id)
+    .eq("user_id", user.id)
+    .eq("status", "brief")
+    .eq("planning_stage", "brief")
+    .select("*")
+    .maybeSingle()
+  if (error) return { error: "Could not update the references. Your saved brief is unchanged." }
+  if (!data) return { error: "References lock once the crew starts. Create a production revision to change them safely." }
+  return { data }
+}
+
 async function getShotReferenceImage(db: Awaited<ReturnType<typeof createClient>>, shotId: string, userId: string) {
   const { data, error } = await db
     .from("shot_elements")
@@ -203,6 +233,12 @@ export async function queueProductionShot(input: unknown) {
     if (error) return { error: "Could not verify existing takes. No generation was submitted." }
     if (completed || shot.approved_take_id) return { error: "This shot already has a completed take. Review it or explicitly generate another take." }
   }
+  const { data: active, error: activeError } = await db.from("generation_jobs").select("id,status,provider_task_id,take_id").eq("user_id", user.id).eq("shot_id", shot.id).in("status", activeGenerationStatuses).limit(1).maybeSingle()
+  if (activeError) return { error: "Could not verify active generations. No generation was submitted." }
+  if (active) return { data: active, existing: true }
+
+  const { data: latestTake, error: latestTakeError } = await db.from("shot_generations").select("take_number").eq("shot_id", shot.id).order("take_number", { ascending: false }).limit(1).maybeSingle()
+  if (latestTakeError) return { error: "Could not load take history. No generation was submitted." }
   let continuityReferenceUrl: string | null = null
   if (!shot.previous_shot_id) {
     const references = productionAssetsSchema.safeParse(production.reference_assets || [])
@@ -219,12 +255,6 @@ export async function queueProductionShot(input: unknown) {
     if (!previousTake?.last_frame_url) return { error: "Inspect the approved previous take first so its ending frame can guide this shot." }
     continuityReferenceUrl = previousTake.last_frame_url
   }
-  const { data: active, error: activeError } = await db.from("generation_jobs").select("id,status,provider_task_id,take_id").eq("user_id", user.id).eq("shot_id", shot.id).in("status", activeGenerationStatuses).limit(1).maybeSingle()
-  if (activeError) return { error: "Could not verify active generations. No generation was submitted." }
-  if (active) return { data: active, existing: true }
-
-  const { data: latestTake, error: latestTakeError } = await db.from("shot_generations").select("take_number").eq("shot_id", shot.id).order("take_number", { ascending: false }).limit(1).maybeSingle()
-  if (latestTakeError) return { error: "Could not load take history. No generation was submitted." }
   const family = shot.model === "seedance" ? "seedance" : "kling"
   const model = resolveKieVideoModelByFamily({ familyId: family, useImageToVideo: Boolean(continuityReferenceUrl) })
   const duration = Math.max(4, Math.min(15, shot.duration_target || 10))

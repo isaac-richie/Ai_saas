@@ -16,6 +16,8 @@
 .grid figcaption { padding: 10px; display: grid; gap: 4px; font-size: 11px; }
 .grid strong { color: #d6ede7; text-transform: capitalize; }
 .grid figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ffffff80; }
-.remove { position: absolute; right: 5px; top: 5px; width: 32px; height: 32px; display: grid; place-items: center; background: #000c; color: white; border-radius: 50%; }
+.assetActions { position: absolute; right: 6px; top: 6px; display: flex; gap: 6px; opacity: 0; transition: opacity .16s ease; }
+.grid figure:hover .assetActions, .grid figure:focus-within .assetActions { opacity: 1; }
+.replace, .remove { width: 32px; height: 32px; display: grid; place-items: center; background: #000c; color: white; border-radius: 50%; }
 .error { color: #ffd39d; font-size: 12px; margin-top: 12px; }
 @media(max-width:480px) { .controls button { width: 100%; } .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }

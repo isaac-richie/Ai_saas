@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { createProductionRevision, listProductions, materializeProduction, updateProduction } from "@/core/actions/production"
+import { createProductionRevision, listProductions, materializeProduction, replaceProductionReferences, updateProduction } from "@/core/actions/production"
 import { canApproveProduction, type ProductionPlan } from "@/core/validation/production-crew"
 import { ProductionRunPanel } from "./ProductionRunPanel"
 import { ArrowUpRight, Clapperboard, Plus, RefreshCw } from "lucide-react"
@@ -16,7 +16,7 @@ import { ProductionShotSettings, ReviseProductionSettings, emptyShotSettings, ty
 
 import { latestFilms } from "@/core/utils/production/latest-films"
 
-type Production = { planning_context?: { shotSettings?: ShotSettingDraft[] }; parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
+type Production = { planning_context?: { shotSettings?: ShotSettingDraft[] }; parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; reference_assets?: unknown; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
 type ProductionView = "brief" | "direction" | "takes"
 
 const PRODUCTION_DESK_STORAGE_KEY = "aisas.production-desk.v1"
@@ -177,7 +177,15 @@ export function ProductionDesk() {
             keep(result.data as Production)
             await developWithCrew(result.data.id)
           })} />
-          <ProductionReferences assets={productionAssetsSchema.safeParse((job as Production & { reference_assets?: unknown }).reference_assets).data || []} />
+          <ProductionReferences
+            assets={productionAssetsSchema.safeParse(job.reference_assets).data || []}
+            onChange={job.status === "brief" && job.planning_stage === "brief" ? (nextAssets) => void run(async () => {
+              const result = await replaceProductionReferences({ id: job.id, assets: nextAssets })
+              if (result.error || !result.data) throw new Error(result.error || "Could not update the references.")
+              keep(result.data as Production)
+            }) : undefined}
+            disabled={busy}
+          />
           <details className="mt-3 text-sm text-white/60"><summary className="cursor-pointer">Read original brief</summary><p className="mt-3 whitespace-pre-wrap">{job.brief}</p></details>
           {view === "direction" && job.planning_stage && job.status === "brief" && <p className={styles.checkpoint}>Saved progress: {job.planning_stage === "brief" ? "Brief ready for the crew" : job.planning_stage === "story" ? "Story bible ready" : job.planning_stage === "departments" ? "Department direction ready" : "Shot prompts ready for review"}</p>}
           {view === "direction" && job.planning_error && job.status === "brief" && <p role="status" className="mt-3 text-sm text-amber-200">Last crew attempt: {job.planning_error}</p>}
