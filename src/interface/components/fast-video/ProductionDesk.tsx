@@ -179,11 +179,11 @@ export function ProductionDesk() {
           })} />
           <ProductionReferences
             assets={productionAssetsSchema.safeParse(job.reference_assets).data || []}
-            onChange={job.status === "brief" && job.planning_stage === "brief" ? (nextAssets) => void run(async () => {
+            onChange={(nextAssets) => void run(async () => {
               const result = await replaceProductionReferences({ id: job.id, assets: nextAssets })
               if (result.error || !result.data) throw new Error(result.error || "Could not update the references.")
               keep(result.data as Production)
-            }) : undefined}
+            })}
             disabled={busy}
           />
           <details className="mt-3 text-sm text-white/60"><summary className="cursor-pointer">Read original brief</summary><p className="mt-3 whitespace-pre-wrap">{job.brief}</p></details>

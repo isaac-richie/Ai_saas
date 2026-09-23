@@ -6,7 +6,7 @@ import { productionPlanSchema, canApproveProduction } from "@/core/validation/pr
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
 import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
 import type { Json } from "@/core/types/db"
-import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
+import { productionAssetsSchema, ownsAssetUrl, type ProductionAsset } from "@/core/validation/production-assets"
 import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 
@@ -66,9 +66,9 @@ const replaceProductionReferencesSchema = z.object({
 })
 
 /**
- * References may change while a brief is still waiting to be developed. Once
- * planning starts, a new revision is required so the crew and render state do
- * not silently disagree about the visual source material.
+ * References remain editable until a paid take has been submitted. This lets
+ * creators correct a sheet discovered during planning without abandoning the
+ * film, while preserving the exact assets used by any rendered take.
  */
 export async function replaceProductionReferences(input: unknown) {
   const parsed = replaceProductionReferencesSchema.safeParse(input)
@@ -77,16 +77,33 @@ export async function replaceProductionReferences(input: unknown) {
   const { data: { user } } = await db.auth.getUser()
   if (!user) return { error: "Please sign in." }
   if (parsed.data.assets.some(asset => !ownsAssetUrl(asset.url, user.id))) return { error: "Choose references uploaded to your account." }
+  const { data: job, error: jobError } = await db.from("production_jobs")
+    .select("id,status,scene_id")
+    .eq("id", parsed.data.id)
+    .eq("user_id", user.id)
+    .in("status", ["brief", "awaiting_approval", "approved"])
+    .maybeSingle()
+  if (jobError || !job) return { error: "This production is not available for reference changes." }
+
+  if (job.scene_id) {
+    const { data: shots, error: shotsError } = await db.from("shots").select("id").eq("scene_id", job.scene_id)
+    if (shotsError) return { error: "Could not verify the production takes. Your references are unchanged." }
+    const shotIds = (shots || []).map(shot => shot.id)
+    if (shotIds.length) {
+      const { data: generated, error: generatedError } = await db.from("generation_jobs").select("id").in("shot_id", shotIds).limit(1).maybeSingle()
+      if (generatedError) return { error: "Could not verify the production takes. Your references are unchanged." }
+      if (generated) return { error: "References lock after the first video generation starts so existing takes keep their source material." }
+    }
+  }
+
   const { data, error } = await db.from("production_jobs")
     .update({ reference_assets: parsed.data.assets })
     .eq("id", parsed.data.id)
     .eq("user_id", user.id)
-    .eq("status", "brief")
-    .eq("planning_stage", "brief")
     .select("*")
     .maybeSingle()
   if (error) return { error: "Could not update the references. Your saved brief is unchanged." }
-  if (!data) return { error: "References lock once the crew starts. Create a production revision to change them safely." }
+  if (!data) return { error: "This production is not available for reference changes." }
   return { data }
 }
 
@@ -155,6 +172,20 @@ async function getShotReferenceImage(db: Awaited<ReturnType<typeof createClient>
     .filter((element): element is { id: string; type: string; image_url: string | null } => Boolean(element.image_url && ownsAssetUrl(element.image_url, userId)))
     .sort((a, b) => Number(b.type === "reference_image") - Number(a.type === "reference_image"))
   return candidates[0]?.image_url || null
+}
+
+function selectOpeningReference(assets: ProductionAsset[], shotText: string) {
+  const words = new Set(shotText.toLowerCase().match(/[a-z0-9]{3,}/g) || [])
+  return assets
+    .filter(asset => asset.mediaType === "image")
+    .filter(asset => asset.role === "character" || asset.role === "product")
+    .sort((a, b) => {
+      const score = (asset: typeof a) => {
+        const nameWords = asset.name.toLowerCase().match(/[a-z0-9]{3,}/g) || []
+        return nameWords.reduce((total, word) => total + (words.has(word) ? 10 : 0), 0) + (asset.role === "character" ? 1 : 0)
+      }
+      return score(b) - score(a)
+    })[0] || null
 }
 
 export async function createProductionRevision(input: unknown) {
@@ -295,7 +326,9 @@ export async function queueProductionShot(input: unknown) {
   let continuityReferenceUrl: string | null = null
   if (!shot.previous_shot_id) {
     const references = productionAssetsSchema.safeParse(production.reference_assets || [])
-    const openingReference = references.success ? references.data.find(asset => asset.role === "character" || asset.role === "product") : null
+    const openingReference = references.success
+      ? selectOpeningReference(references.data, shot.prompt_text || shot.description || shot.name)
+      : null
     if (openingReference && ownsAssetUrl(openingReference.url, user.id)) continuityReferenceUrl = openingReference.url
     // An explicitly attached Reference Image is sent to the I2V adapter, rather
     // than being retained only as shot metadata.

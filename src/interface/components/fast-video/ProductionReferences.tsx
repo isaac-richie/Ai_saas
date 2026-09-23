@@ -60,7 +60,7 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
       </div>}
     </figure>)}</div>}
     <p className={styles.help}>Images guide the visual world. Video references guide motion and pacing; the crew samples their frames when media processing is available. The current render adapter uses one opening image-to-video source frame; all other references guide the crew’s prompts and continuity plan.</p>
-    {!locked && <p className={styles.help}>JPG, PNG, WebP, MP4, WebM or MOV · Up to 25 MB each. You can remove or replace an individual item until the crew begins planning.</p>}
+    {!locked && <p className={styles.help}>JPG, PNG, WebP, MP4, WebM or MOV · Up to 25 MB each. You can remove or replace an individual item until the first video generation begins.</p>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
   </details>
 }
