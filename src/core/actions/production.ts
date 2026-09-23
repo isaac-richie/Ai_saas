@@ -90,6 +90,59 @@ export async function replaceProductionReferences(input: unknown) {
   return { data }
 }
 
+function repairTerminalNegativeInstruction(prompt: string) {
+  const normalized = prompt.replace(/\s+/g, " ").trim()
+  // A frequent structured-output failure is a clipped terminal exclusion such
+  // as "No music, morphing". This is a deterministic grammar repair, not a
+  // creative rewrite: it preserves the two exclusions and makes the provider
+  // instruction executable.
+  const match = normalized.match(/\bno\s+([a-z][a-z -]{1,80}),\s*([a-z][a-z -]{1,80})$/i)
+  if (!match || match.index === undefined) return null
+  const prefix = normalized.slice(0, match.index).trimEnd()
+  const separator = prefix && !/[.!?…]["')\]]*$/.test(prefix) ? "." : ""
+  return `${prefix}${separator}${prefix ? " " : ""}Do not add ${match[1].trim()} or ${match[2].trim()}.`
+}
+
+export async function applyMechanicalPlanRepair(input: unknown) {
+  const id = z.string().uuid().safeParse(input)
+  if (!id.success) return { error: "Choose a valid production." }
+  const db = await createClient()
+  const { data: { user } } = await db.auth.getUser()
+  if (!user) return { error: "Please sign in." }
+  const { data: job, error } = await db.from("production_jobs")
+    .select("id,plan")
+    .eq("id", id.data)
+    .eq("user_id", user.id)
+    .eq("status", "awaiting_approval")
+    .maybeSingle()
+  if (error || !job) return { error: "This production is not available for automatic repair." }
+  const parsed = productionPlanSchema.safeParse(job.plan)
+  if (!parsed.success) return { error: "This plan needs a crew repair because its saved structure is incomplete." }
+
+  let repaired = 0
+  const plan = {
+    ...parsed.data,
+    deliverables: parsed.data.deliverables.map(shot => {
+      const masterPrompt = repairTerminalNegativeInstruction(shot.masterPrompt)
+      if (!masterPrompt) return shot
+      repaired += 1
+      return { ...shot, masterPrompt }
+    }),
+  }
+  if (!repaired) return { error: "No safe automatic prompt repair applies to this plan. Use crew repair for a creative or continuity issue." }
+  if (!canApproveProduction(plan)) return { error: "The automatic repair was not enough to satisfy the production gate. Use crew repair for the remaining issue." }
+
+  const { data, error: updateError } = await db.from("production_jobs")
+    .update({ plan })
+    .eq("id", job.id)
+    .eq("user_id", user.id)
+    .eq("status", "awaiting_approval")
+    .select("*")
+    .maybeSingle()
+  if (updateError || !data) return { error: "Could not save the automatic repair. Your plan is unchanged." }
+  return { data, repaired }
+}
+
 async function getShotReferenceImage(db: Awaited<ReturnType<typeof createClient>>, shotId: string, userId: string) {
   const { data, error } = await db
     .from("shot_elements")
