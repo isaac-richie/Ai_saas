@@ -178,14 +178,29 @@ function selectOpeningReference(assets: ProductionAsset[], shotText: string) {
   const words = new Set(shotText.toLowerCase().match(/[a-z0-9]{3,}/g) || [])
   return assets
     .filter(asset => asset.mediaType === "image")
-    .filter(asset => asset.role === "character" || asset.role === "product")
     .sort((a, b) => {
       const score = (asset: typeof a) => {
         const nameWords = asset.name.toLowerCase().match(/[a-z0-9]{3,}/g) || []
-        return nameWords.reduce((total, word) => total + (words.has(word) ? 10 : 0), 0) + (asset.role === "character" ? 1 : 0)
+        const roleWeight = asset.role === "character" ? 2 : asset.role === "product" ? 1 : 0
+        return nameWords.reduce((total, word) => total + (words.has(word) ? 10 : 0), 0) + roleWeight
       }
       return score(b) - score(a)
     })[0] || null
+}
+
+function buildReferenceElements(assets: ProductionAsset[], userId: string) {
+  const images = assets.filter(asset => asset.mediaType === "image" && ownsAssetUrl(asset.url, userId))
+  if (images.length < 2) return []
+  const groups = images.length <= 4
+    ? [images]
+    : images.length === 5
+      ? [images.slice(0, 3), images.slice(3)]
+      : [images.slice(0, 3), images.slice(3, 6)]
+  return groups.map((group, index) => ({
+    name: `reference_set_${index + 1}`,
+    description: group.map(asset => `${asset.role}: ${asset.name}`).join("; ").slice(0, 500),
+    image_urls: group.map(asset => asset.url),
+  }))
 }
 
 export async function createProductionRevision(input: unknown) {
@@ -324,12 +339,14 @@ export async function queueProductionShot(input: unknown) {
   const { data: latestTake, error: latestTakeError } = await db.from("shot_generations").select("take_number").eq("shot_id", shot.id).order("take_number", { ascending: false }).limit(1).maybeSingle()
   if (latestTakeError) return { error: "Could not load take history. No generation was submitted." }
   let continuityReferenceUrl: string | null = null
+  let referenceElements: ReturnType<typeof buildReferenceElements> = []
   if (!shot.previous_shot_id) {
     const references = productionAssetsSchema.safeParse(production.reference_assets || [])
     const openingReference = references.success
       ? selectOpeningReference(references.data, shot.prompt_text || shot.description || shot.name)
       : null
     if (openingReference && ownsAssetUrl(openingReference.url, user.id)) continuityReferenceUrl = openingReference.url
+    if (references.success) referenceElements = buildReferenceElements(references.data, user.id)
     // An explicitly attached Reference Image is sent to the I2V adapter, rather
     // than being retained only as shot metadata.
     continuityReferenceUrl = await getShotReferenceImage(db, shot.id, user.id) || continuityReferenceUrl
@@ -361,7 +378,7 @@ export async function queueProductionShot(input: unknown) {
 
   const generated = await generateFastVideo({
     request_type: "fast_video", project_id: production.project_id, scene_id: production.scene_id, shot_id: shot.id,
-    prompt_inputs: { text_subject: shot.prompt_text || shot.description || shot.name, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, variation_setting: "strict" },
+    prompt_inputs: { text_subject: shot.prompt_text || shot.description || shot.name, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
     settings: { duration_seconds: duration, model },
   })
   if (generated.error || !generated.data) {

@@ -12,9 +12,9 @@ export const KIE_VIDEO_MODEL_FAMILIES: KieVideoModelFamily[] = [
   {
     id: "kling",
     label: "Kling",
-    description: "Balanced cinematic quality and reliable motion.",
+    description: "Balanced cinematic quality; supports multiple visual reference sets.",
     t2vModel: "kling/v2-5-turbo-text-to-video-pro",
-    i2vModel: "kling/v2-5-turbo-image-to-video-pro",
+    i2vModel: "kling-3.0/video",
   },
   {
     id: "seedance",

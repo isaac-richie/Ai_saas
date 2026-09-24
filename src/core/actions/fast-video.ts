@@ -470,6 +470,7 @@ export async function generateFastVideo(input: unknown) {
       prompt: compliance.prompt,
       negative_prompt: compliance.negativePrompt,
       image_prompt: payload.prompt_inputs.reference_image || undefined,
+      reference_elements: payload.prompt_inputs.reference_elements,
       output_type: "video",
       aspect_ratio: payload.prompt_inputs.aspect_ratio,
       duration_seconds: safeDuration,

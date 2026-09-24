@@ -13,6 +13,11 @@ export const fastVideoRequestSchema = z.object({
     motion_preset_id: z.string().optional().nullable(),
     aspect_ratio: z.enum(FAST_VIDEO_ASPECT_RATIOS),
     reference_image: z.string().url().optional().nullable(),
+    reference_elements: z.array(z.object({
+      name: z.string().regex(/^reference_set_[1-3]$/),
+      description: z.string().min(1).max(500),
+      image_urls: z.array(z.string().url()).min(2).max(4),
+    })).max(3).optional(),
     media_references: mediaReferencesSchema.optional(),
     variation_setting: z.enum(FAST_VIDEO_VARIATIONS),
   }),

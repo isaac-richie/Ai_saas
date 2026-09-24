@@ -2,6 +2,11 @@ export interface GenerationRequest {
     prompt: string;
     negative_prompt?: string;
     image_prompt?: string; // Used for image-to-video as starting frame or reference
+    reference_elements?: Array<{
+        name: string;
+        description: string;
+        image_urls: string[];
+    }>;
     output_type?: 'image' | 'video';
     width?: number;
     height?: number;

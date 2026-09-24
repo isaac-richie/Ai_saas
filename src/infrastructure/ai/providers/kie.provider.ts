@@ -84,6 +84,8 @@ export class KieProvider extends BaseProvider {
             prompt: request.prompt,
         };
 
+        const normalizedModel = model.toLowerCase();
+
         if (request.negative_prompt) input.negative_prompt = request.negative_prompt;
         if (request.aspect_ratio) input.aspect_ratio = request.aspect_ratio;
         if (request.quality) input.quality = request.quality;
@@ -92,7 +94,6 @@ export class KieProvider extends BaseProvider {
         if (typeof request.cfg_scale === "number") input.cfg_scale = request.cfg_scale;
 
         if (request.image_prompt) {
-            const normalizedModel = model.toLowerCase();
             if (normalizedModel.includes("seedance-2")) {
                 input.first_frame_url = request.image_prompt;
             } else if (normalizedModel.includes("kling-3.0")) {
@@ -105,6 +106,11 @@ export class KieProvider extends BaseProvider {
         if (model.toLowerCase().includes("kling-3.0")) {
             // Kling 3.0 expects `sound` instead of `is_generate_audio`.
             input.sound = request.is_generate_audio ?? true;
+            const elements = request.reference_elements?.filter(element => element.image_urls.length >= 2 && element.image_urls.length <= 4).slice(0, 3) || [];
+            if (elements.length) {
+                input.kling_elements = elements;
+                input.prompt = `${request.prompt} ${elements.map(element => `@${element.name}`).join(" ")}`.trim();
+            }
         }
 
         if (
