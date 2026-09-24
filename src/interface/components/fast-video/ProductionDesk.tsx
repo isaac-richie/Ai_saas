@@ -115,10 +115,7 @@ export function ProductionDesk() {
       const response = await fetch("/api/ad/production-crew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobId }) })
       const result = await response.json().catch(() => ({ ok: false, error: response.status >= 500 ? "The crew request timed out. Its completed checkpoint is safe; resume to continue." : "The crew returned an unreadable response." }))
       if (!response.ok || !result.ok) {
-        const latest = (await listProductions()).data as Production[] | undefined
-        const current = latest?.find(job => job.id === jobId)
-        const diagnostic = current?.planning_error ? ` Diagnostic: ${current.planning_error}` : ""
-        throw new Error(`${result.error || "The director could not continue the plan."}${diagnostic}`)
+        throw new Error(result.error || "The director could not continue the plan.")
       }
       setCrewStatus(result.message || "Finalizing production plan")
       await refresh()
@@ -188,7 +185,7 @@ export function ProductionDesk() {
           />
           <details className="mt-3 text-sm text-white/60"><summary className="cursor-pointer">Read original brief</summary><p className="mt-3 whitespace-pre-wrap">{job.brief}</p></details>
           {view === "direction" && job.planning_stage && job.status === "brief" && <p className={styles.checkpoint}>Saved progress: {job.planning_stage === "brief" ? "Brief ready for the crew" : job.planning_stage === "story" ? "Story bible ready" : job.planning_stage === "departments" ? "Department direction ready" : "Shot prompts ready for review"}</p>}
-          {view === "direction" && job.planning_error && job.status === "brief" && <p role="status" className="mt-3 text-sm text-amber-200">Last crew attempt: {job.planning_error}</p>}
+          {view === "direction" && job.planning_error && job.status === "brief" && <p role="status" className="mt-3 text-sm text-amber-200">The crew paused at its saved checkpoint. Resume to continue; no completed planning work was lost.</p>}
           {view === "direction" && job.plan && <div className="mt-4">
             <p className="text-sm text-white/70">{job.plan.creativeStrategy}</p>
             {job.plan.crew && <details className="mt-4 rounded-xl border border-white/10 p-4">

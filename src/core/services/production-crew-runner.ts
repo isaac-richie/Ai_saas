@@ -113,7 +113,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     const message = safeCrewError(cause)
     console.error("Production crew stage failed", { jobId: job.id, stage: job.planning_stage, error: message })
     await client.from("production_jobs").update({ planning_error: message.slice(0, 500), planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", job.id).eq("planning_claimed_until", claimUntil)
-    return { error: `The crew could not finish the ${job.planning_stage} stage. Its last completed checkpoint is safe; retry to resume. Diagnostic: ${message}` }
+    return { error: `The crew could not finish the ${job.planning_stage} stage. Its last completed checkpoint is safe; retry to resume.` }
   }
 }
 

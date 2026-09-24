@@ -43,6 +43,19 @@ test('crew diagnostics preserve plain provider errors without leaking credential
   assert.doesNotMatch(safeErrorModule.exports.safeCrewError({ message: 'sk-proj-secret failed' }), /sk-proj-secret/)
 })
 
+const normalizationNames = new Set(['clip', 'clipComplete', 'normalizeCrewStageOutput'])
+const normalizationCode = errorTree.statements
+  .filter(node => (ts.isFunctionDeclaration(node) && normalizationNames.has(node.name?.text)) || (ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => ts.isIdentifier(declaration.name) && declaration.name.text === 'CREW_FIELD_LIMITS')))
+  .map(node => node.getText(errorTree)).join('\n')
+const normalizationModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(normalizationCode, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: normalizationModule, exports: normalizationModule.exports, Object, Array, Set, Math })
+test('crew output normalizes verbose negative prompts before stage validation', () => {
+  const output = normalizationModule.exports.normalizeCrewStageOutput({ shots: [{ prompt: `${'A precise cinematic shot. '.repeat(80)}`, negativePrompt: `${'no flicker, '.repeat(80)}` }] })
+  assert.ok(output.shots[0].prompt.length <= 1000)
+  assert.match(output.shots[0].prompt, /[.!?]$/)
+  assert.ok(output.shots[0].negativePrompt.length <= 500)
+})
+
 test('review receives complete authored dialogue, camera and handoff without rewriting', () => {
   const prompt = 'Locked frontal medium. He says: "We were born to create, not destroy." End with the white megaphone at his lips.'
   const editor = { shots: [{ prompt, continuity: { startState: 'standing', endState: 'seated', carriedDetails: ['white prop'] } }, { prompt, continuity: { startState: 'different authored pose', endState: 'speaking', carriedDetails: ['white prop'] } }] }

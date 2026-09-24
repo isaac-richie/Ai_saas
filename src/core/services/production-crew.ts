@@ -24,6 +24,10 @@ const exec = promisify(execFile)
 type CrewReferenceInput = OpenAI.Responses.ResponseInputText | OpenAI.Responses.ResponseInputImage
 
 export function safeCrewError(cause: unknown) {
+  const message = cause instanceof Error ? cause.message : typeof cause === "object" && cause !== null && "message" in cause ? String((cause as { message?: unknown }).message || "") : ""
+  if (/zoderror|zod error|too_big|too small|invalid_type|outside the studio format/i.test(message)) {
+    return "The crew response exceeded a studio field limit. It can be retried safely from the saved checkpoint."
+  }
   if (cause instanceof Error && cause.message) {
     return `${cause.name || "Error"}: ${redactCrewError(cause.message)}`.slice(0, 320)
   }
@@ -118,6 +122,40 @@ function clip(value: string, limit: number) {
   const candidate = normalized.slice(0, Math.max(1, limit - 3)).trimEnd()
   const boundary = candidate.lastIndexOf(" ")
   return `${(boundary > limit * 0.6 ? candidate.slice(0, boundary) : candidate).trimEnd()}...`
+}
+
+function clipComplete(value: string, limit: number) {
+  const normalized = value.replace(/\s+/g, " ").trim()
+  if (normalized.length <= limit) return normalized
+  const candidate = normalized.slice(0, Math.max(1, limit - 1)).trimEnd()
+  const sentenceEnd = Math.max(candidate.lastIndexOf("."), candidate.lastIndexOf("!"), candidate.lastIndexOf("?"))
+  if (sentenceEnd >= Math.min(30, Math.floor(limit * 0.45))) return candidate.slice(0, sentenceEnd + 1)
+  return `${candidate.replace(/[,:;\-–—]+$/, "").trimEnd()}.`
+}
+
+const CREW_FIELD_LIMITS: Record<string, number> = {
+  title: 120, treatment: 600, audienceEmotion: 600, world: 600, approach: 600,
+  intent: 220, action: 500, prompt: 1000, negativePrompt: 500, editNote: 1200,
+  startState: 300, endState: 300, subjectIdentity: 300, wardrobe: 300,
+  location: 300, environment: 300, lighting: 300, screenDirection: 220,
+  cameraRules: 300, summary: 600, evidence: 600, correction: 600,
+}
+
+/**
+ * Structured Outputs can occasionally honor the shape yet exceed a string
+ * bound. Apply only deterministic whitespace and length normalization before
+ * schema validation so a verbose negative prompt cannot discard a paid crew
+ * checkpoint. Provider prompts keep a complete terminal sentence.
+ */
+export function normalizeCrewStageOutput(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeCrewStageOutput)
+  if (!value || typeof value !== "object") return value
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => {
+    if (typeof item !== "string") return [key, normalizeCrewStageOutput(item)]
+    const limit = CREW_FIELD_LIMITS[key]
+    if (!limit) return [key, item.replace(/\s+/g, " ").trim()]
+    return [key, key === "prompt" ? clipComplete(item, limit) : clip(item, limit)]
+  }))
 }
 
 function fallbackLedger(story: z.infer<typeof productionBibleSchema>): ContinuityLedger {
@@ -243,7 +281,7 @@ export function createCrewRunner(model: string, references: ProductionAsset[] = 
               "When revision context is supplied, apply its current direction and findings. Findings describe a previous failed draft, not instructions to reproduce its mistakes. Preserve the original brief except where the user's later direction explicitly changes it.",
               `Plan exactly ${shotCount} connected shots in 16:9. When shotSettings is supplied, its ordered model and durationSeconds selections are mandatory for each corresponding shot. Fit all action, dialogue, timing and handoffs within that shot duration. Use 10 seconds and choose Kling or Seedance only for legacy requests without shotSettings. These are provider requests, not a promise of exact footage.`,
               "Continuity is a hard production contract: preserve required identity, wardrobe, hero-object, material, location, palette, lighting, weather, geography, and camera facts using concise concrete wording. Never replace required details with vague phrases such as same as before. Do not invent extra wardrobe, props, palette entries, or choreography that make the user's brief impossible to execute within the prompt budget.",
-              "The shot prompt is the exact request sent to the video provider: maximum 1000 characters. Write complete concise sentences with the shot-specific camera, action, exact dialogue, handoff, and essential visual identity. Do not rely on other fields reaching the provider. Put editorial compositing instructions in editNote. If the budget prevents faithful execution, report that conflict instead of truncating. Keep every field concise, physically legible, executable, and complete. Never end a field mid-sentence. Respect provider content policies.",
+              "The shot prompt is the exact request sent to the video provider: maximum 1000 characters. The negativePrompt field is maximum 500 characters; use short comma-separated exclusions. Write complete concise sentences with the shot-specific camera, action, exact dialogue, handoff, and essential visual identity. Do not rely on other fields reaching the provider. Put editorial compositing instructions in editNote. If the budget prevents faithful execution, report that conflict instead of truncating. Keep every field concise, physically legible, executable, and complete. Never end a field mid-sentence. Respect provider content policies.",
               "Plan wording before filling fields: use short complete clauses, not a long paragraph cut to the field limit. Keep the bible and department directions executable within this same budget. Never replace a shot prompt with a status message such as Submission blocked. Write the best complete executable candidate and explain unresolved constraints in editNote for the reviewer; do not claim that a constraint is resolved when it is not.",
               instruction,
             ].join(" "),
@@ -258,7 +296,7 @@ export function createCrewRunner(model: string, references: ProductionAsset[] = 
       }
       if (!result) throw new Error("The director returned no response.")
       if (result.status !== "completed" || !result.output_parsed) throw new Error(responseFailureDetail(result))
-      const value = schema.parse(result.output_parsed)
+      const value = schema.parse(normalizeCrewStageOutput(result.output_parsed))
       const shaped = value as { beats?: unknown[]; shotDirections?: unknown[]; shots?: unknown[]; findings?: { shotNumber: number }[] }
       const entries = shaped.beats ?? shaped.shotDirections ?? shaped.shots
       if (entries && entries.length !== shotCount) throw new Error(`Expected ${shotCount} shots of direction, received ${entries.length}. Retry this stage.`)
