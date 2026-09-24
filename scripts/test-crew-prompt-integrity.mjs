@@ -307,7 +307,7 @@ test('Seedance duration survives action normalization and numeric provider paylo
   const elements = [{ name: 'reference_set_1', description: 'character: tai.png; character: db.png', image_urls: [reference, 'https://example.com/db.png'] }]
   const klingThree = provider.buildMarketInput({ prompt: 'Tai turns toward DB.', output_type: 'video', image_prompt: reference, reference_elements: elements, duration_seconds: 10 }, 'kling-3.0/video')
   assert.equal(JSON.stringify(klingThree.image_urls), JSON.stringify([reference]))
-  assert.equal(JSON.stringify(klingThree.kling_elements), JSON.stringify(elements))
+  assert.equal(JSON.stringify(klingThree.kling_elements), JSON.stringify([{ name: 'reference_set_1', description: 'character: tai.png; character: db.png', element_input_urls: [reference, 'https://example.com/db.png'] }]))
   assert.equal(klingThree.prompt, 'Tai turns toward DB. @reference_set_1')
   for (const duration of [4, 5, 7, 10, 12, 15]) {
     const applied = context.resolveModelAwareDuration(duration, 'bytedance/seedance-2')

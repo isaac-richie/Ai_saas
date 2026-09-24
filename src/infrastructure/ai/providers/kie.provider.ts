@@ -108,7 +108,11 @@ export class KieProvider extends BaseProvider {
             input.sound = request.is_generate_audio ?? true;
             const elements = request.reference_elements?.filter(element => element.image_urls.length >= 2 && element.image_urls.length <= 4).slice(0, 3) || [];
             if (elements.length) {
-                input.kling_elements = elements;
+                input.kling_elements = elements.map(({ name, description, image_urls }) => ({
+                    name,
+                    description,
+                    element_input_urls: image_urls,
+                }));
                 input.prompt = `${request.prompt} ${elements.map(element => `@${element.name}`).join(" ")}`.trim();
             }
         }
