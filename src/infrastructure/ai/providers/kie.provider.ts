@@ -10,8 +10,10 @@ import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
 
 export class KieProvider extends BaseProvider {
     private baseUrl = "https://api.kie.ai/api/v1";
+    private fileUploadUrl = "https://kieai.redpandaai.co/api/file-url-upload";
     private createTaskPath = "/jobs/createTask";
     private getTaskPath = "/jobs/recordInfo";
+    private preparedReferenceRequests = new WeakSet<GenerationRequest>();
 
     private clampDuration(seconds?: number): number {
         if (typeof seconds !== "number" || Number.isNaN(seconds)) return 5;
@@ -141,6 +143,50 @@ export class KieProvider extends BaseProvider {
         }
 
         return input;
+    }
+
+    /**
+     * Kling 3 element references must be hosted by Kie's temporary file
+     * service. Supplying our own storage URL can appear valid but be ignored or
+     * rejected by the renderer. This preparation does not create a video task.
+     */
+    async prepareRequest(request: GenerationRequest): Promise<GenerationRequest> {
+        if (this.preparedReferenceRequests.has(request)) return request;
+        const model = this.resolveModel(request);
+        if (!model.toLowerCase().includes("kling-3.0") || !request.reference_elements?.length) return request;
+        const sourceUrls = [...new Set(request.reference_elements.flatMap(element => element.image_urls))];
+        const uploaded = new Map<string, string>();
+
+        for (const [index, sourceUrl] of sourceUrls.entries()) {
+            const extension = /\.(jpe?g|png)(?:\?|$)/i.exec(sourceUrl)?.[1]?.toLowerCase();
+            if (!extension) throw new Error("Reference preparation failed. Kling multi-image references must be JPG or PNG files under 10 MB.");
+            let response: Response;
+            try {
+                response = await fetch(this.fileUploadUrl, {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${this.config.apiKey}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ fileUrl: sourceUrl, uploadPath: "visio-reference-cache", fileName: `visio-${Date.now()}-${index}.${extension}` }),
+                    signal: AbortSignal.timeout(35_000),
+                });
+            } catch {
+                throw new Error("Reference preparation could not reach the render provider. Your video was not submitted; retry shortly.");
+            }
+            const payload = await response.json().catch(() => null) as { success?: boolean; data?: { downloadUrl?: string; fileUrl?: string } } | null;
+            const hostedUrl = payload?.data?.downloadUrl || payload?.data?.fileUrl;
+            if (!response.ok || !payload?.success || !hostedUrl) throw new Error("Reference preparation failed. Use publicly accessible JPG or PNG images under 10 MB, then retry; no video was submitted.");
+            uploaded.set(sourceUrl, hostedUrl);
+        }
+
+        const prepared = {
+            ...request,
+            image_prompt: request.image_prompt ? uploaded.get(request.image_prompt) || request.image_prompt : undefined,
+            reference_elements: request.reference_elements.map(element => ({ ...element, image_urls: element.image_urls.map(url => uploaded.get(url) || url) })),
+        };
+        // The same in-memory request is passed to generate after quota is
+        // approved. Identity tracking avoids a second transient upload without
+        // assuming anything about Kie's download URL hostname.
+        this.preparedReferenceRequests.add(prepared);
+        return prepared;
     }
 
     private extractMediaCandidates(payload: unknown): Array<{ url: string; key: string }> {
@@ -293,9 +339,10 @@ export class KieProvider extends BaseProvider {
                 };
             }
 
+            const preparedRequest = await this.prepareRequest(request);
             const body: Record<string, unknown> = {
                 model,
-                input: this.buildMarketInput(request, model),
+                input: this.buildMarketInput(preparedRequest, model),
             };
 
             if (process.env.KIE_AI_CALLBACK_URL) {

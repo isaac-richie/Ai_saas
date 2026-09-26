@@ -330,6 +330,38 @@ test('Seedance duration survives action normalization and numeric provider paylo
   assert.equal(provider.buildMarketInput({ prompt: 'Scene', output_type: 'video', duration_seconds: 10 }, 'kling/v2-5-turbo-text-to-video-pro').duration, '10')
 })
 
+test('Kling reference preparation stages every element before a render task is created', async () => {
+  const providerSource = readFileSync(new URL('../src/infrastructure/ai/providers/kie.provider.ts', import.meta.url), 'utf8')
+  const result = { exports: {} }
+  const uploads = []
+  class BaseProvider {
+    constructor(config) { this.config = config }
+  }
+  vm.runInNewContext(ts.transpileModule(providerSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
+    module: result, exports: result.exports,
+    AbortSignal,
+    fetch: async (url, options) => {
+      uploads.push({ url, options })
+      return { ok: true, json: async () => ({ success: true, data: { downloadUrl: `https://files.redpandaai.co/visio/${uploads.length}.png` } }) }
+    },
+    require: name => name.endsWith('base.provider') ? { BaseProvider } : {},
+  })
+  const provider = new result.exports.KieProvider({ apiKey: 'test-key' })
+  const first = 'https://storage.example.com/reference-1.jpg'
+  const second = 'https://storage.example.com/reference-2.png'
+  const prepared = await provider.prepareRequest({
+    prompt: 'Use the character references.', output_type: 'video', model: 'kling-3.0/video', image_prompt: first,
+    reference_elements: [{ name: 'reference_set_1', description: 'Two views of the character.', image_urls: [first, second] }],
+  })
+  assert.equal(uploads.length, 2)
+  assert.match(uploads[0].url, /file-url-upload$/)
+  assert.match(uploads[0].options.headers.Authorization, /^Bearer /)
+  assert.equal(prepared.image_prompt, 'https://files.redpandaai.co/visio/1.png')
+  assert.deepEqual(prepared.reference_elements[0].image_urls, ['https://files.redpandaai.co/visio/1.png', 'https://files.redpandaai.co/visio/2.png'])
+  await provider.prepareRequest(prepared)
+  assert.equal(uploads.length, 2, 'provider-hosted URLs are not uploaded twice')
+})
+
 test('longer plans cannot silently lose shots during compilation', () => {
   const settings = Array.from({ length: 12 }, () => ({ model: 'seedance', durationSeconds: 15 }))
   const input = {

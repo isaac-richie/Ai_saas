@@ -8,6 +8,14 @@ export abstract class BaseProvider {
     }
 
     abstract generate(request: GenerationRequest): Promise<GenerationResult>;
+
+    /**
+     * Gives providers a chance to validate or stage non-billable inputs before
+     * the caller consumes a generation quota. Most providers need no work.
+     */
+    async prepareRequest(request: GenerationRequest): Promise<GenerationRequest> {
+        return request;
+    }
     
     /** 
      * Perform a lightweight connectivity and authentication test.

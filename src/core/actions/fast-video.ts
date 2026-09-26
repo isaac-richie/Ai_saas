@@ -429,12 +429,6 @@ export async function generateFastVideo(input: unknown) {
     return { error: error instanceof Error ? error.message : "Invalid media references" }
   }
 
-  const quota = await consumeUsageQuota(supabase, user.id, "fast_video")
-  if (!quota.allowed) {
-    debug.push("quota.denied", { feature: "fast_video", message: quota.message || null })
-    return { error: quota.message || "Fast Track limit reached for your current plan." }
-  }
-
   const kie = await resolveKieConfig(user.id)
   if (!kie.data) {
     debug.push("provider.missing_key", { message: kie.error || "Kie key missing" })
@@ -465,17 +459,27 @@ export async function generateFastVideo(input: unknown) {
 
   try {
     const provider = ProviderFactory.create("kie", { apiKey: kie.data.apiKey })
-    debug.push("provider.generate.start")
-    const result = await provider.generate({
+    const generationRequest = {
       prompt: compliance.prompt,
       negative_prompt: compliance.negativePrompt,
       image_prompt: payload.prompt_inputs.reference_image || undefined,
       reference_elements: payload.prompt_inputs.reference_elements,
-      output_type: "video",
+      output_type: "video" as const,
       aspect_ratio: payload.prompt_inputs.aspect_ratio,
       duration_seconds: safeDuration,
       model: payload.settings.model?.trim() || undefined,
-    })
+    }
+    // Stage provider-owned reference URLs before quota consumption. This is
+    // deliberately separate from task creation: a bad asset must not cost a
+    // generation or leave a remote render job behind.
+    const preparedRequest = await provider.prepareRequest(generationRequest)
+    const quota = await consumeUsageQuota(supabase, user.id, "fast_video")
+    if (!quota.allowed) {
+      debug.push("quota.denied", { feature: "fast_video", message: quota.message || null })
+      return { error: quota.message || "Fast Track limit reached for your current plan." }
+    }
+    debug.push("provider.generate.start")
+    const result = await provider.generate(preparedRequest)
     debug.push("provider.generate.done", {
       status: result.status,
       taskId: result.provider_check_id || result.id || null,
