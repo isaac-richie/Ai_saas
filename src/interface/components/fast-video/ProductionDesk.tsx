@@ -236,7 +236,7 @@ export function ProductionDesk() {
           {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <div className="mt-3 rounded-lg border border-amber-200/20 p-4 text-sm text-amber-200" role="status">
             <p>Plan needs revision before approval. Your saved work is safe.</p>
             <ul className="mt-2 list-disc space-y-2 pl-5">{job.plan?.crew?.review.findings.filter(finding => finding.severity === "blocking").map((finding, index) => <li key={index}><strong>Shot {finding.shotNumber}:</strong> {finding.evidence}<p className="mt-1 text-white/70">Required fix: {finding.correction}</p></li>)}</ul>
-            <p className="mt-3 text-white/60">Try automatic repair first for a mechanically truncated prompt. It uses no AI planning credits. Crew repair is for creative or continuity issues.</p>
+            <p className="mt-3 text-white/60">Try automatic repair first for a mechanically truncated prompt. It uses no AI planning credits. Crew repair reuses saved specialist direction when the brief, references and timing are unchanged; it then reruns shot editing and review.</p>
           </div>}
           {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <button disabled={busy} className="mt-3 rounded-full border border-[#d6ede7]/50 px-4 py-2 text-sm text-[#d6ede7] disabled:opacity-40" onClick={() => void run(async () => {
             const result = await applyMechanicalPlanRepair(job.id)

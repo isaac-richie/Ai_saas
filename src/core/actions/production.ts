@@ -2,7 +2,7 @@
 
 import { z } from "zod"
 import { createClient } from "@/infrastructure/supabase/server"
-import { productionPlanSchema, canApproveProduction } from "@/core/validation/production-crew"
+import { productionPlanSchema, canApproveProduction, productionBibleSchema, departmentDirectionSchema, crewShotsSchema } from "@/core/validation/production-crew"
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
 import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
 import type { Json } from "@/core/types/db"
@@ -226,8 +226,58 @@ export async function createProductionRevision(input: unknown) {
     : []
   const existingSettings = productionShotSettingsSchema.safeParse(isJsonObject(source.planning_context) ? source.planning_context.shotSettings : undefined)
   const shotSettings = parsed.data.shotSettings ?? (existingSettings.success ? existingSettings.data : undefined)
-  const planningContext = { ...buildRevisionContext(source.planning_context, parsed.data.direction, findings), ...(shotSettings ? { shotSettings } : {}) }
-  const { data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: source.brief, planning_context: planningContext, parent_job_id: lineageRoot, revision_number: nextRevision, ...(source.reference_assets ? { reference_assets: source.reference_assets } : {}) }).select("*").single()
+  const revisionContext = buildRevisionContext(source.planning_context, parsed.data.direction, findings)
+  const savedContext = z.object({
+    shotSettings: productionShotSettingsSchema,
+    referenceSnapshot: z.string().optional(),
+    story: productionBibleSchema,
+    camera: departmentDirectionSchema,
+    lighting: departmentDirectionSchema,
+    productionDesign: departmentDirectionSchema,
+    performance: departmentDirectionSchema,
+    editor: crewShotsSchema,
+    stages: z.array(z.object({ role: z.string(), responseId: z.string() })),
+  }).safeParse(source.planning_context)
+  const savedReferences = productionAssetsSchema.safeParse(source.reference_assets || [])
+  const referenceSnapshot = savedReferences.success ? JSON.stringify(savedReferences.data) : null
+  // Older plans lack a reference snapshot. Their final planning and row update
+  // timestamps coincide unless references or the plan were edited afterwards.
+  const legacyUnchanged = Number.isFinite(Date.parse(source.updated_at || ""))
+    && Number.isFinite(Date.parse(source.planning_updated_at || ""))
+    && Math.abs(Date.parse(source.updated_at) - Date.parse(source.planning_updated_at)) <= 5000
+  const referencesUnchanged = savedContext.success && referenceSnapshot !== null
+    && (savedContext.data.referenceSnapshot === referenceSnapshot
+      || (!savedContext.data.referenceSnapshot && legacyUnchanged))
+  const departmentRoles = ["cinematographer", "lighting-director", "production-designer", "performance-director"]
+  const departmentStages = savedContext.success
+    ? departmentRoles.map(role => savedContext.data.stages.find(stage => stage.role === role)).filter((stage): stage is { role: string; responseId: string } => Boolean(stage))
+    : []
+  // A repair can reuse paid specialist work only when the executable plan still
+  // matches its saved editor output. Broad direction or timing changes replan.
+  const reuseDepartments = Boolean(parsed.data.repair
+    && source.status === "awaiting_approval" && source.planning_stage === "complete"
+    && sourcePlan.success && sourcePlan.data.crew?.version === 2
+    && savedContext.success && shotSettings && referencesUnchanged
+    && JSON.stringify(shotSettings) === JSON.stringify(savedContext.data.shotSettings)
+    && sourcePlan.data.deliverables.length === savedContext.data.editor.shots.length
+    && sourcePlan.data.deliverables.every((shot, index) => shot.masterPrompt === savedContext.data.editor.shots[index].prompt)
+    && departmentStages.length === departmentRoles.length)
+  const planningContext = {
+    ...revisionContext,
+    ...(shotSettings ? { shotSettings } : {}),
+    ...(reuseDepartments && savedContext.success && sourcePlan.success ? {
+      model: sourcePlan.data.crew?.model,
+      referenceSnapshot: referenceSnapshot || undefined,
+      story: savedContext.data.story,
+      camera: savedContext.data.camera,
+      lighting: savedContext.data.lighting,
+      productionDesign: savedContext.data.productionDesign,
+      performance: savedContext.data.performance,
+      previousEditor: savedContext.data.editor,
+      stages: departmentStages,
+    } : {}),
+  }
+  const { data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: source.brief, planning_stage: reuseDepartments ? "departments" : "brief", planning_context: planningContext, parent_job_id: lineageRoot, revision_number: nextRevision, ...(source.reference_assets ? { reference_assets: source.reference_assets } : {}) }).select("*").single()
   if (error) {
     if (error.code === "23505" && parsed.data.repair) {
       const { data: concurrent } = await db.from("production_jobs").select("*").eq("user_id", user.id).eq("parent_job_id", lineageRoot).eq("revision_number", nextRevision).maybeSingle()

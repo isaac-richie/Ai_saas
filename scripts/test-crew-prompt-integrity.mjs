@@ -158,7 +158,8 @@ test('revision action saves a 4000-character brief unchanged with large repair n
   const actionModule = { exports: {} }
   vm.runInNewContext(ts.transpileModule(actionCode, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
     module: actionModule, exports: actionModule.exports, z, productionShotSettingsSchema, isJsonObject: value => value && typeof value === "object" && !Array.isArray(value), createClient: async () => db,
-    productionPlanSchema: { safeParse: () => ({ success: true, data: { crew: { review: { findings } } } }) },
+    productionPlanSchema: { safeParse: value => ({ success: true, data: value || { crew: { review: { findings } } } }) },
+    productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), productionAssetsSchema: z.array(z.any()),
     canApproveProduction: () => false, buildRevisionContext, revisionSaveError,
   })
   const result = await actionModule.exports.createProductionRevision({ productionId: sourceJob.id, direction: 'Repair the blocked shot.', repair: true })
@@ -169,6 +170,50 @@ test('revision action saves a 4000-character brief unchanged with large repair n
   assert.equal(inserted.parent_job_id, sourceJob.id)
   assert.equal(inserted.revision_number, 2)
   assert.equal(inserted.planning_context.revision.findings.length, 1)
+
+  const originalSettings = sourceJob.planning_context.shotSettings
+  const previousShots = Array.from({ length: 3 }, (_, index) => ({ prompt: `Complete previous shot ${index + 1}.` }))
+  sourceJob.status = 'awaiting_approval'
+  sourceJob.planning_stage = 'complete'
+  sourceJob.updated_at = '2026-09-28T12:00:01Z'
+  sourceJob.planning_updated_at = '2026-09-28T12:00:00Z'
+  sourceJob.planning_context = {
+    shotSettings: originalSettings, referenceSnapshot: '[]', story: {}, camera: {}, lighting: {}, productionDesign: {}, performance: {},
+    editor: { shots: previousShots },
+    stages: ['cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer'].map(role => ({ role, responseId: role })),
+  }
+  sourceJob.plan = { crew: { version: 2, model: 'gpt-6-astra', review: { findings } }, deliverables: previousShots.map(shot => ({ masterPrompt: shot.prompt })) }
+  reads = 0
+  await actionModule.exports.createProductionRevision({ productionId: sourceJob.id, direction: 'Repair the blocked shot.', repair: true })
+  assert.equal(inserted.planning_stage, 'departments')
+  assert.equal(inserted.planning_context.stages.length, 4)
+  assert.equal(inserted.planning_context.previousEditor.shots.length, 3)
+  assert.equal(inserted.planning_context.referenceSnapshot, '[]')
+
+  delete sourceJob.planning_context.referenceSnapshot
+  reads = 0
+  await actionModule.exports.createProductionRevision({ productionId: sourceJob.id, direction: 'Repair the blocked shot.', repair: true })
+  assert.equal(inserted.planning_stage, 'departments', 'unchanged legacy plans can reuse their paid departments')
+  sourceJob.updated_at = '2026-09-28T12:15:00Z'
+  reads = 0
+  await actionModule.exports.createProductionRevision({ productionId: sourceJob.id, direction: 'Repair the blocked shot.', repair: true })
+  assert.equal(inserted.planning_stage, 'brief', 'edited legacy plans must replan')
+  sourceJob.updated_at = '2026-09-28T12:00:01Z'
+  sourceJob.planning_context.referenceSnapshot = '[]'
+
+  sourceJob.reference_assets = [{ id: 'changed-reference' }]
+  reads = 0
+  await actionModule.exports.createProductionRevision({ productionId: sourceJob.id, direction: 'Repair the blocked shot.', repair: true })
+  assert.equal(inserted.planning_stage, 'brief', 'changed references require a full replan')
+  sourceJob.reference_assets = []
+
+  reads = 0
+  await actionModule.exports.createProductionRevision({ productionId: sourceJob.id, direction: 'Change the story setting.', repair: false })
+  assert.equal(inserted.planning_stage, 'brief', 'creative revisions require a full replan')
+
+  reads = 0
+  await actionModule.exports.createProductionRevision({ productionId: sourceJob.id, direction: 'Repair the blocked shot.', repair: true, shotSettings: [{ model: 'kling', durationSeconds: 5 }, ...originalSettings.slice(1)] })
+  assert.equal(inserted.planning_stage, 'brief', 'timing changes require a full replan')
 })
 
 for (const failedRole of [null, 'cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) test(`crew pipeline resumes without repeating successful calls after ${failedRole || 'no failure'}`, async () => {
@@ -239,6 +284,70 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
       assert.equal(JSON.stringify(call.context.shotSettings), JSON.stringify(job.planning_context.shotSettings))
     }
   }
+})
+
+test('repair checkpoint runs only shot editor and continuity reviewer', async () => {
+  const { z } = await import('zod')
+  const runnerSource = readFileSync(new URL('../src/core/services/production-crew-runner.ts', import.meta.url), 'utf8')
+  const previousShots = Array.from({ length: 3 }, (_, index) => ({ prompt: `Original shot ${index + 1}.` }))
+  const calls = []
+  let job = {
+    id: 'repair-job', user_id: 'owner', brief: 'Make three connected shots.', status: 'brief', planning_stage: 'departments',
+    reference_assets: [], planning_context: {
+      revision: { directions: ['Repair the blocked plan.'], findings: [] }, referenceSnapshot: '[]',
+      shotSettings: [{ model: 'seedance', durationSeconds: 5 }, { model: 'kling', durationSeconds: 10 }, { model: 'seedance', durationSeconds: 5 }],
+      story: {}, camera: {}, lighting: {}, productionDesign: {}, performance: {}, previousEditor: { shots: previousShots },
+      stages: ['cinematographer', 'lighting-director', 'production-designer', 'performance-director'].map(role => ({ role, responseId: role })),
+    },
+  }
+  const db = { from: () => {
+    let update
+    const filters = []
+    const query = {
+      update: value => { update = value; return query }, eq: (key, value) => { filters.push([key, value]); return query }, or: () => query, select: () => query,
+      maybeSingle: async () => {
+        if (filters.some(([key, value]) => job[key] !== value)) return { data: null, error: null }
+        job = { ...job, ...update }
+        return { data: job, error: null }
+      },
+      then: (resolve, reject) => query.maybeSingle().then(resolve, reject),
+    }
+    return query
+  } }
+  const mockRun = async (role, instruction, context) => {
+    calls.push({ role, instruction, context })
+    return { value: role === 'shot-editor' ? { shots: Array.from({ length: 3 }, () => ({ prompt: 'A complete shot.', continuity: {} })) } : {}, responseId: role }
+  }
+  const runnerModule = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(runnerSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
+    module: runnerModule, exports: runnerModule.exports, process: { env: {} }, console,
+    require: name => {
+      if (name === 'zod') return { z }
+      if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
+      if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
+      if (name.endsWith('/validation/production-crew')) return { productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
+      if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
+      if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
+      if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
+      throw new Error(`Unexpected import ${name}`)
+    },
+  })
+  assert.equal((await runnerModule.exports.advanceProductionCrew(db, 'owner', 'repair-job')).data.stage, 'shots')
+  assert.equal(job.planning_context.previousEditor, undefined)
+  assert.equal((await runnerModule.exports.advanceProductionCrew(db, 'owner', 'repair-job')).data.complete, true)
+  assert.equal(calls.map(call => call.role).join(','), 'shot-editor,continuity-reviewer')
+  assert.equal(calls[0].context.source.previousShots.length, 3)
+  assert.match(calls[0].instruction, /Preserve every unaffected shot/)
+  assert.equal(job.planning_context.stages.length, 6)
+
+  job.status = 'brief'
+  job.planning_stage = 'shots'
+  job.reference_assets = [{ id: 'replacement-reference' }]
+  const changed = await runnerModule.exports.advanceProductionCrew(db, 'owner', 'repair-job')
+  assert.equal(changed.data.stage, 'story')
+  assert.equal(job.planning_stage, 'brief')
+  assert.equal(job.planning_context.stages.length, 0)
+  assert.equal(calls.length, 2, 'reference invalidation spends no additional model call')
 })
 
 test('complete editorial repair notes survive crew and saved-plan validation without enlarging provider prompts', async () => {

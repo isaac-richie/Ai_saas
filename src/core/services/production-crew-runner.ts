@@ -20,6 +20,8 @@ const stageContextSchema = z.object({
   productionDesign: departmentDirectionSchema.optional(),
   performance: departmentDirectionSchema.optional(),
   editor: crewShotsSchema.optional(),
+  previousEditor: crewShotsSchema.optional(),
+  referenceSnapshot: z.string().optional(),
   stages: z.array(z.object({ role: z.string(), responseId: z.string() })).default([]),
 })
 
@@ -98,6 +100,16 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     const planningBrief = safeBrief.prompt || job.brief
     const references = productionAssetsSchema.parse(job.reference_assets || [])
     if (references.some(asset => !ownsAssetUrl(asset.url, userId))) throw new Error("Invalid reference ownership")
+    const referenceSnapshot = JSON.stringify(references)
+    if (context.referenceSnapshot && context.referenceSnapshot !== referenceSnapshot && job.planning_stage !== "brief") {
+      // Previously paid department outputs may describe different source images.
+      // A new reference set must not be mixed with those saved checkpoints.
+      await saveCheckpoint(client, job.id, claimUntil, job.planning_stage, "brief", {
+        model, shotSettings: context.shotSettings, revision: context.revision, referenceSnapshot, stages: [],
+      })
+      return { data: { complete: false, stage: "story", message: "References changed; restarting visual direction with the new sources" } }
+    }
+    context.referenceSnapshot = referenceSnapshot
     const runner = createCrewRunner(model, references, context.shotSettings?.length ?? 3)
     const run: typeof runner = (role, instruction, input, schema) => runner(
       role, instruction,
@@ -128,7 +140,10 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     }
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && context.productionDesign && context.performance) {
       failedStage = "shot prompts"
-      const editor = await run("shot-editor", "Compile one executable prompt per selected shot, in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the preceding shot's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
+      const repairInstruction = context.previousEditor
+        ? "Repair the previous executable shots using the revision findings. Preserve every unaffected shot's prompt, timing, model, action, and continuity exactly. Change only what is required to fix blocking defects and any adjacent handoff affected by that fix; do not reimagine the film. Return all shots in their original order with complete fields."
+        : "Compile one executable prompt per selected shot, in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the preceding shot's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible."
+      const editor = await run("shot-editor", repairInstruction, { brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, ...(context.previousEditor ? { previousShots: context.previousEditor.shots } : {}) }, crewShotsSchema)
       if (editor.value.shots.length !== (context.shotSettings?.length ?? 3)) throw new Error("The crew returned the wrong shot count. Retry this stage.")
       if (editor.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
       const sanitizedShots = editor.value.shots.map(shot => {
@@ -137,7 +152,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
         return { ...shot, prompt: checked.prompt, negativePrompt: checked.negativePrompt }
       })
       const sanitizedEditor = { ...editor.value, shots: sanitizedShots }
-      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, editor: sanitizedEditor, stages: [...context.stages, { role: "shot-editor", responseId: editor.responseId }] })
+      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, previousEditor: undefined, editor: sanitizedEditor, stages: [...context.stages, { role: "shot-editor", responseId: editor.responseId }] })
       return { data: { complete: false, stage: "shots", message: "Shot prompts compiled" } }
     }
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.productionDesign && context.performance && context.editor) {
