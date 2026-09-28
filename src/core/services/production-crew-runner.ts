@@ -30,6 +30,44 @@ export type CrewStageResult = {
   plan?: unknown
 }
 
+function boundedSentence(value: string, limit: number) {
+  const normalized = value.replace(/\s+/g, " ").trim()
+  if (normalized.length <= limit) return normalized
+  const prefix = normalized.slice(0, limit - 1).trimEnd()
+  const sentenceEnd = Math.max(prefix.lastIndexOf("."), prefix.lastIndexOf("!"), prefix.lastIndexOf("?"))
+  if (sentenceEnd >= Math.floor(limit * 0.45)) return prefix.slice(0, sentenceEnd + 1)
+  const boundary = prefix.lastIndexOf(" ")
+  return `${prefix.slice(0, boundary > 0 ? boundary : prefix.length).replace(/[,:;\-–—]+$/, "").trimEnd()}.`
+}
+
+/**
+ * The brief and references are the authoritative creative source. Seed the
+ * continuity context locally so planning starts with visual direction instead
+ * of spending a separate model call generating a story bible.
+ */
+function seedProductionBible(brief: string, references: Array<{ name: string; role: string }>, shotCount: number) {
+  const normalizedBrief = brief.replace(/\s+/g, " ").trim()
+  const firstSentence = normalizedBrief.split(/(?<=[.!?])\s+/)[0] || normalizedBrief
+  const proposedTitle = boundedSentence(firstSentence, 120).replace(/[.!?]+$/, "")
+  const referenceAnchors = references.map(reference => `Preserve ${reference.role} details shown in ${reference.name}.`)
+  const continuityAnchors = [
+    ...referenceAnchors,
+    "Preserve the subject, action, and visual details specified in the original brief.",
+    "Keep locations, wardrobe, objects, palette, and screen direction consistent unless the brief changes them.",
+    "Do not add story facts or visual elements that conflict with the brief or references.",
+  ].slice(0, 8)
+  return {
+    title: proposedTitle.length >= 3 ? proposedTitle : "Untitled production",
+    treatment: boundedSentence(normalizedBrief, 600),
+    audienceEmotion: "Follow the emotional intent expressed in the original brief.",
+    world: "Use only the setting, locations, and conditions described in the original brief and references.",
+    continuityAnchors,
+    continuityLedger: null,
+    beats: Array.from({ length: shotCount }, (_, index) => `Beat ${index + 1} advances the same scene and action described in the original brief.`),
+    assumptions: ["No story, character, location, or prop details are assumed beyond the brief and references."],
+  }
+}
+
 export async function advanceProductionCrew(client: SupabaseClient, userId: string, jobId: string): Promise<{ data?: CrewStageResult; error?: string }> {
   const claimUntil = new Date(Date.now() + 3 * 60_000).toISOString()
   const now = new Date().toISOString()
@@ -50,6 +88,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     return { error: "The crew is already working on this stage. Retry shortly." }
   }
 
+  let failedStage = job.planning_stage === "brief" ? "visual direction" : job.planning_stage
   try {
     const context = stageContextSchema.parse(job.planning_context || {})
     const model = process.env.PRODUCTION_CREW_MODEL?.trim() || context.model || "gpt-6-astra"
@@ -64,14 +103,14 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       role, instruction,
       { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: context.shotSettings ?? null }, schema,
     )
+    let workingStage = job.planning_stage
     if (job.planning_stage === "brief") {
-      const story = await run("story-director", "Write the treatment and world bible. Give each beat an emotional purpose. Build a continuityLedger with concrete reusable identity, wardrobe, hero objects, materials, location, environment, palette, lighting, screen direction, camera rules, and invariants. Mark invented creative choices as assumptions.", { brief: planningBrief }, productionBibleSchema)
-      if (!story.value.continuityLedger) throw new Error("The story crew did not produce a complete continuity ledger.")
-      await saveCheckpoint(client, job.id, claimUntil, "brief", "story", { ...context, story: story.value, stages: [...context.stages, { role: "story-director", responseId: story.responseId }] })
-      return { data: { complete: false, stage: "story", message: "Story bible locked" } }
+      context.story = productionBibleSchema.parse(seedProductionBible(planningBrief, references, context.shotSettings?.length ?? 3))
+      workingStage = "story"
+      failedStage = "visual direction"
     }
     // Save one department per request so a failed colleague never discards paid work.
-    if (["story", "departments", "shots"].includes(job.planning_stage) && context.story && (!context.camera || !context.lighting || !context.productionDesign || !context.performance)) {
+    if (["story", "departments", "shots"].includes(workingStage) && context.story && (!context.camera || !context.lighting || !context.productionDesign || !context.performance)) {
       const departments = [
         { key: "camera", role: "cinematographer", instruction: "Design coverage for all planned beats: framing, lens intent, one motivated movement, blocking, eyeline, and cut point. Preserve the shared bible." },
         { key: "lighting", role: "lighting-director", instruction: "Define motivated key, fill, practicals, palette, and exposure intent for each beat. Maintain time of day and light direction. Do not invent independent scene changes." },
@@ -79,6 +118,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
         { key: "performance", role: "performance-director", instruction: "Direct behavior for all planned beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity." },
       ] as const
       const department = departments.find(item => !context[item.key])!
+      failedStage = department.role
       const result = await run(department.role, department.instruction, { brief: planningBrief, bible: context.story }, departmentDirectionSchema)
       const nextContext = { ...context, [department.key]: result.value, editor: undefined, stages: [...context.stages.filter(stage => stage.role !== department.role && stage.role !== "shot-editor"), { role: department.role, responseId: result.responseId }] }
       const complete = departments.every(item => Boolean(nextContext[item.key]))
@@ -87,6 +127,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       return { data: { complete: false, stage: nextStage, message: department.role + " saved; completed departments will not be repeated" } }
     }
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && context.productionDesign && context.performance) {
+      failedStage = "shot prompts"
       const editor = await run("shot-editor", "Compile one executable prompt per selected shot, in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the preceding shot's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
       if (editor.value.shots.length !== (context.shotSettings?.length ?? 3)) throw new Error("The crew returned the wrong shot count. Retry this stage.")
       if (editor.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
@@ -100,6 +141,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       return { data: { complete: false, stage: "shots", message: "Shot prompts compiled" } }
     }
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.productionDesign && context.performance && context.editor) {
+      failedStage = "continuity review"
       const review = await run("continuity-reviewer", "Audit only the exact provider prompts and continuity handoffs supplied below. A finding is blocking only when a provider prompt itself is incomplete, contradictory, exceeds the stated limit, or conflicts with the adjacent start/end handoff. Do not block on bible, department, action, edit-note, or other source metadata: it is not sent to the provider. Treat uncertainty or creative suggestions as notes. Do not grade footage: none exists.", { continuityContract: context.story.continuityLedger || { anchors: context.story.continuityAnchors }, shots: compileCrewShotsForReview(context.story, context.editor, context.shotSettings) }, crewReviewSchema)
       const stages = [...context.stages, { role: "continuity-reviewer", responseId: review.responseId }]
       const plan = compileProductionPlan({ shotSettings: context.shotSettings, model, story: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, editor: context.editor, review: review.value, stages })
@@ -111,9 +153,9 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     throw new Error("The saved planning checkpoint is incomplete.")
   } catch (cause) {
     const message = safeCrewError(cause)
-    console.error("Production crew stage failed", { jobId: job.id, stage: job.planning_stage, error: message })
+    console.error("Production crew stage failed", { jobId: job.id, stage: failedStage, error: message })
     await client.from("production_jobs").update({ planning_error: message.slice(0, 500), planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", job.id).eq("planning_claimed_until", claimUntil)
-    return { error: `The crew could not finish the ${job.planning_stage} stage. Its last completed checkpoint is safe; retry to resume.` }
+    return { error: `The crew could not finish ${failedStage}. Its last completed checkpoint is safe; retry to resume.` }
   }
 }
 
