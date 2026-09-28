@@ -68,6 +68,21 @@ function seedProductionBible(brief: string, references: Array<{ name: string; ro
   }
 }
 
+function seedDepartmentDirection(area: "camera" | "lighting" | "design" | "performance", shotCount: number) {
+  const directions = {
+    camera: "Put shot-specific framing, motivated camera movement, blocking, eyeline, and cut point directly in each executable prompt.",
+    lighting: "Put motivated light source, direction, quality, palette, and exposure directly in each executable prompt.",
+    design: "Carry the brief and visual references into wardrobe, props, materials, location details, and repeatable motifs in each prompt.",
+    performance: "Put physically plausible action, gesture, eyeline, screen direction, and timing directly in each executable prompt.",
+  }
+  const direction = directions[area]
+  return {
+    approach: `The shot editor integrates ${area} direction directly into executable prompts from the original brief and references.`,
+    shotDirections: Array.from({ length: shotCount }, () => direction),
+    constraints: ["Do not conflict with the original brief, selected timing, or approved visual references."],
+  }
+}
+
 export async function advanceProductionCrew(client: SupabaseClient, userId: string, jobId: string): Promise<{ data?: CrewStageResult; error?: string }> {
   const claimUntil = new Date(Date.now() + 3 * 60_000).toISOString()
   const now = new Date().toISOString()
@@ -103,32 +118,22 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       role, instruction,
       { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: context.shotSettings ?? null }, schema,
     )
-    let workingStage = job.planning_stage
-    if (job.planning_stage === "brief") {
-      context.story = productionBibleSchema.parse(seedProductionBible(planningBrief, references, context.shotSettings?.length ?? 3))
-      workingStage = "story"
-      failedStage = "visual direction"
+    if (["brief", "story"].includes(job.planning_stage)) {
+      const shotCount = context.shotSettings?.length ?? 3
+      context.story ||= productionBibleSchema.parse(seedProductionBible(planningBrief, references, shotCount))
+      context.camera ||= departmentDirectionSchema.parse(seedDepartmentDirection("camera", shotCount))
+      context.lighting ||= departmentDirectionSchema.parse(seedDepartmentDirection("lighting", shotCount))
+      context.productionDesign ||= departmentDirectionSchema.parse(seedDepartmentDirection("design", shotCount))
+      context.performance ||= departmentDirectionSchema.parse(seedDepartmentDirection("performance", shotCount))
+      await saveCheckpoint(client, job.id, claimUntil, job.planning_stage, "departments", context)
+      return { data: { complete: false, stage: "departments", message: "Creative direction ready; compiling shot prompts" } }
     }
-    // Save one department per request so a failed colleague never discards paid work.
-    if (["story", "departments", "shots"].includes(workingStage) && context.story && (!context.camera || !context.lighting || !context.productionDesign || !context.performance)) {
-      const departments = [
-        { key: "camera", role: "cinematographer", instruction: "Design coverage for all planned beats: framing, lens intent, one motivated movement, blocking, eyeline, and cut point. Preserve the shared bible." },
-        { key: "lighting", role: "lighting-director", instruction: "Define motivated key, fill, practicals, palette, and exposure intent for each beat. Maintain time of day and light direction. Do not invent independent scene changes." },
-        { key: "productionDesign", role: "production-designer", instruction: "Lock the physical world for all planned beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose." },
-        { key: "performance", role: "performance-director", instruction: "Direct behavior for all planned beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity." },
-      ] as const
-      const department = departments.find(item => !context[item.key])!
-      failedStage = department.role
-      const result = await run(department.role, department.instruction, { brief: planningBrief, bible: context.story }, departmentDirectionSchema)
-      const nextContext = { ...context, [department.key]: result.value, editor: undefined, stages: [...context.stages.filter(stage => stage.role !== department.role && stage.role !== "shot-editor"), { role: department.role, responseId: result.responseId }] }
-      const complete = departments.every(item => Boolean(nextContext[item.key]))
-      const nextStage = complete ? "departments" : "story"
-      await saveCheckpoint(client, job.id, claimUntil, job.planning_stage, nextStage, nextContext)
-      return { data: { complete: false, stage: nextStage, message: department.role + " saved; completed departments will not be repeated" } }
-    }
+    // The shot editor now handles camera, lighting, design, and performance in
+    // one request. This removes four fragile handoffs while preserving the
+    // structured prompt and continuity review gates.
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && context.productionDesign && context.performance) {
       failedStage = "shot prompts"
-      const editor = await run("shot-editor", "Compile one executable prompt per selected shot, in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the preceding shot's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", { brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
+      const editor = await run("shot-editor", "Directly compile one complete executable prompt per selected shot in beat order from the original brief and visual references. Integrate story intent, framing, lens, motivated camera movement, blocking, eyeline, cut point, light direction and quality, palette, wardrobe, props, materials, location details, performance, timed action, and dialogue into each prompt. Fit all action and dialogue within each selected shot duration. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the preceding shot's end state. Put the timed action and camera direction first, followed by essential visual continuity. Never end a field mid-sentence. Do not add details that conflict with the bible or references.", { brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance }, crewShotsSchema)
       if (editor.value.shots.length !== (context.shotSettings?.length ?? 3)) throw new Error("The crew returned the wrong shot count. Retry this stage.")
       if (editor.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
       const sanitizedShots = editor.value.shots.map(shot => {
@@ -137,7 +142,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
         return { ...shot, prompt: checked.prompt, negativePrompt: checked.negativePrompt }
       })
       const sanitizedEditor = { ...editor.value, shots: sanitizedShots }
-      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, editor: sanitizedEditor, stages: [...context.stages, { role: "shot-editor", responseId: editor.responseId }] })
+      await saveCheckpoint(client, job.id, claimUntil, job.planning_stage, "shots", { ...context, editor: sanitizedEditor, stages: [...context.stages.filter(stage => stage.role !== "shot-editor"), { role: "shot-editor", responseId: editor.responseId }] })
       return { data: { complete: false, stage: "shots", message: "Shot prompts compiled" } }
     }
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.productionDesign && context.performance && context.editor) {
@@ -155,7 +160,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     const message = safeCrewError(cause)
     console.error("Production crew stage failed", { jobId: job.id, stage: failedStage, error: message })
     await client.from("production_jobs").update({ planning_error: message.slice(0, 500), planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", job.id).eq("planning_claimed_until", claimUntil)
-    return { error: `The crew could not finish ${failedStage}. Its last completed checkpoint is safe; retry to resume.` }
+    return { error: `The crew could not finish ${failedStage}: ${message}. Its last completed checkpoint is safe; retry to resume.` }
   }
 }
 
