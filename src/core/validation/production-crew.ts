@@ -77,8 +77,8 @@ export const crewMetadataSchema = z.object({
   review: crewReviewSchema,
   // These identify completed model calls, not generated footage.
   stages: z.array(z.object({ role: z.string(), responseId: z.string() })).refine(
-    (stages) => stages.length >= 2 && stages.length <= 7,
-    "Crew plans must contain between two and seven recorded planning calls.",
+    (stages) => stages.length === 5 || stages.length === 6 || stages.length === 7,
+    "Crew plans must contain the legacy five-role crew or the current six-role crew.",
   ),
 })
 
