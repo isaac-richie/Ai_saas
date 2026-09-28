@@ -106,6 +106,13 @@ export class KieProvider extends BaseProvider {
         }
 
         if (model.toLowerCase().includes("kling-3.0")) {
+            // Kie's Kling 3.0 schema requires a resolution mode even for a
+            // single-shot image-to-video request. Keep previews in standard
+            // mode so a missing field cannot reject the task after quota use.
+            if (normalizedModel === "kling-3.0/video") {
+                input.mode = "std";
+                input.multi_shots = false;
+            }
             // Kling 3.0 expects `sound` instead of `is_generate_audio`.
             input.sound = request.is_generate_audio ?? true;
             const elements = request.reference_elements?.filter(element => element.image_urls.length >= 2 && element.image_urls.length <= 4).slice(0, 3) || [];
