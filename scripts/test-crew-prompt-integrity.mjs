@@ -36,11 +36,14 @@ test('malformed structured output is classified as safe to retry once', () => {
 const safeErrorFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'safeCrewError').getText(errorTree)
 const redactErrorFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'redactCrewError').getText(errorTree)
 const safeErrorModule = { exports: {} }
-vm.runInNewContext(ts.transpileModule(`${redactErrorFn}\n${safeErrorFn}`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: safeErrorModule, exports: safeErrorModule.exports })
+vm.runInNewContext(ts.transpileModule(`${redactErrorFn}\n${safeErrorFn}`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: safeErrorModule, exports: safeErrorModule.exports, Error })
 test('crew diagnostics preserve plain provider errors without leaking credentials', () => {
   assert.match(safeErrorModule.exports.safeCrewError({ code: 502, message: 'upstream failed' }), /502: upstream failed/)
   assert.match(safeErrorModule.exports.safeCrewError({ error: { message: 'Bearer secret failed' } }), /Bearer \[redacted\]/)
   assert.doesNotMatch(safeErrorModule.exports.safeCrewError({ message: 'sk-proj-secret failed' }), /sk-proj-secret/)
+  const billing = safeErrorModule.exports.safeCrewError(new Error('429 You have no credits remaining. Add credits to continue using the API.'))
+  assert.match(billing, /AI planning credits are exhausted/)
+  assert.equal(safeErrorModule.exports.safeCrewError(new Error(`cinematographer:${billing}`)), billing)
 })
 
 const normalizationNames = new Set(['clip', 'clipComplete', 'normalizeCrewStageOutput'])
@@ -168,7 +171,7 @@ test('revision action saves a 4000-character brief unchanged with large repair n
   assert.equal(inserted.planning_context.revision.findings.length, 1)
 })
 
-for (const failedRole of [null, 'story-director', 'cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) test(`crew pipeline resumes without repeating successful calls after ${failedRole || 'no failure'}`, async () => {
+for (const failedRole of [null, 'cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) test(`crew pipeline resumes without repeating successful calls after ${failedRole || 'no failure'}`, async () => {
   const { z } = await import('zod')
   const runnerSource = readFileSync(new URL('../src/core/services/production-crew-runner.ts', import.meta.url), 'utf8')
   const revision = { directions: ['Preserve the exact dialogue.'], findings: [{ shotNumber: 2, severity: 'blocking', evidence: 'Dialogue cut short.', correction: 'Restore complete dialogue.' }] }
@@ -192,7 +195,7 @@ for (const failedRole of [null, 'story-director', 'cinematographer', 'lighting-d
   const mockRun = async (role, instruction, context) => {
     received.push({ role, context })
     if (role === failedRole && !injected) { injected = true; throw new Error('Simulated provider failure') }
-    return { value: role === 'story-director' ? { continuityLedger: {} } : role === 'shot-editor' ? { shots: Array.from({ length: 3 }, () => ({ prompt: 'A complete shot.', continuity: {} })) } : {}, responseId: role }
+    return { value: role === 'shot-editor' ? { shots: Array.from({ length: 3 }, () => ({ prompt: 'A complete shot.', continuity: {} })) } : {}, responseId: role }
   }
   const runnerModule = { exports: {} }
   vm.runInNewContext(ts.transpileModule(runnerSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
@@ -220,12 +223,14 @@ for (const failedRole of [null, 'story-director', 'cinematographer', 'lighting-d
     if (result.data.complete) { completed = true; break }
   }
   assert.equal(completed, true)
-  assert.equal(received.length, failedRole ? 8 : 7)
-  for (const role of ['story-director', 'cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) {
+  assert.equal(received.length, failedRole ? 7 : 6)
+  assert.equal(received.some(call => call.role === 'story-director'), false)
+  for (const role of ['cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) {
     assert.equal(received.filter(call => call.role === role).length, role === failedRole ? 2 : 1)
   }
   for (const call of received) {
     assert.equal(JSON.stringify(call.context.revision), JSON.stringify(revision), call.role)
+    if (call.role !== 'continuity-reviewer') assert.ok(call.context.source.bible, `${call.role} receives continuity context`)
     if (call.role === 'continuity-reviewer') {
       assert.ok(call.context.source.continuityContract)
       assert.ok(Array.isArray(call.context.source.shots))

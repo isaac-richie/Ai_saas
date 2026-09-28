@@ -155,6 +155,9 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     const message = safeCrewError(cause)
     console.error("Production crew stage failed", { jobId: job.id, stage: failedStage, error: message })
     await client.from("production_jobs").update({ planning_error: message.slice(0, 500), planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", job.id).eq("planning_claimed_until", claimUntil)
+    if (message.startsWith("AI planning credits are exhausted")) {
+      return { error: `${message} Your production is saved; select Resume crew after the balance is restored.` }
+    }
     return { error: `The crew could not finish ${failedStage}. Its last completed checkpoint is safe; retry to resume.` }
   }
 }

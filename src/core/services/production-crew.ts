@@ -25,6 +25,11 @@ type CrewReferenceInput = OpenAI.Responses.ResponseInputText | OpenAI.Responses.
 
 export function safeCrewError(cause: unknown) {
   const message = cause instanceof Error ? cause.message : typeof cause === "object" && cause !== null && "message" in cause ? String((cause as { message?: unknown }).message || "") : ""
+  // OpenAI SDK failures are Error instances. Classify quota failures before
+  // the generic Error branch, including errors wrapped by a crew role.
+  if (/no credits remaining|credit_balance_exhausted|insufficient_quota|exceeded your current quota|billing_hard_limit_reached|ai planning credits are exhausted/i.test(message)) {
+    return "AI planning credits are exhausted. Add credits to the configured OpenAI API account."
+  }
   if (/zoderror|zod error|too_big|too small|invalid_type|outside the studio format/i.test(message)) {
     return "The crew response exceeded a studio field limit. It can be retried safely from the saved checkpoint."
   }
@@ -37,7 +42,7 @@ export function safeCrewError(cause: unknown) {
   const detail = error.message || error.error?.message || error.details || error.hint
   const billingText = `${String(code)} ${String(detail || "")}`.toLowerCase()
   if (billingText.includes("credit_balance_exhausted") || billingText.includes("no credits remaining") || billingText.includes("insufficient_quota")) {
-    return "openai_api_credits_exhausted: add credits in the OpenAI API billing portal"
+    return "AI planning credits are exhausted. Add credits to the configured OpenAI API account."
   }
   if (detail) return `${String(code).slice(0, 80)}: ${redactCrewError(String(detail))}`.slice(0, 320)
   try {
