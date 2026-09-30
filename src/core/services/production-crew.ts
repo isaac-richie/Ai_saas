@@ -14,10 +14,11 @@ import {
 } from "../validation/production-crew"
 
 import type { ProductionShotSettings } from "../validation/production-settings"
+import { resolveProductionModel } from "../config/production-model-routing"
 
-export type CrewRunner = <T>(role: string, instruction: string, context: unknown, schema: z.ZodType<T>) => Promise<{ value: T; responseId: string }>
+export type CrewRunner = <T>(role: string, instruction: string, context: unknown, schema: z.ZodType<T>) => Promise<{ value: T; responseId: string; model?: string }>
 
-type CrewStage = { role: string; responseId: string }
+type CrewStage = { role: string; responseId: string; model?: string }
 type ContinuityLedger = z.infer<typeof continuityLedgerSchema>
 const exec = promisify(execFile)
 
@@ -255,12 +256,14 @@ export function compileProductionPlan(input: {
   })
 }
 
-export function createCrewRunner(model: string, references: ProductionAsset[] = [], shotCount = 3): CrewRunner {
+export function createCrewRunner(_legacyModel: string, references: ProductionAsset[] = [], shotCount = 3): CrewRunner {
   if (!process.env.OPENAI_API_KEY) throw new Error("The director connection is not configured.")
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 150_000, maxRetries: 0 })
   const referenceInput = buildReferenceInput(references)
   return async <T>(role: string, instruction: string, context: unknown, schema: z.ZodType<T>) => {
     try {
+      const { model, tier } = resolveProductionModel(role)
+      const startedAt = Date.now()
       // Put exact cardinality in the provider contract, not only a post-call check.
       const outputSchema = Object.is(schema, productionBibleSchema)
         ? productionBibleSchema.extend({ beats: productionBibleSchema.shape.beats.length(shotCount) })
@@ -306,7 +309,12 @@ export function createCrewRunner(model: string, references: ProductionAsset[] = 
       const entries = shaped.beats ?? shaped.shotDirections ?? shaped.shots
       if (entries && entries.length !== shotCount) throw new Error(`Expected ${shotCount} shots of direction, received ${entries.length}. Retry this stage.`)
       if (shaped.findings?.some(finding => finding.shotNumber > shotCount)) throw new Error("Review refers to a shot outside this production. Retry this stage.")
-      return { value, responseId: result.id }
+      console.info("Production crew model call", {
+        role, tier, model, responseId: result.id, latencyMs: Date.now() - startedAt,
+        inputTokens: result.usage?.input_tokens ?? null,
+        outputTokens: result.usage?.output_tokens ?? null,
+      })
+      return { value, responseId: result.id, model }
     } catch (cause) {
       throw new Error(`${role}:${safeCrewError(cause)}`, { cause })
     }
@@ -348,13 +356,13 @@ export async function developProductionCrew(brief: string, model: string, run: C
   return compileProductionPlan({
     model, story: story.value, camera: camera.value, lighting: lighting.value, productionDesign: productionDesign.value, performance: performance.value, editor: editor.value, review: review.value,
     stages: [
-      { role: "story-director", responseId: story.responseId },
-      { role: "cinematographer", responseId: camera.responseId },
-      { role: "lighting-director", responseId: lighting.responseId },
-      { role: "production-designer", responseId: productionDesign.responseId },
-      { role: "performance-director", responseId: performance.responseId },
-      { role: "shot-editor", responseId: editor.responseId },
-      { role: "continuity-reviewer", responseId: review.responseId },
+      { role: "story-director", responseId: story.responseId, model: story.model },
+      { role: "cinematographer", responseId: camera.responseId, model: camera.model },
+      { role: "lighting-director", responseId: lighting.responseId, model: lighting.model },
+      { role: "production-designer", responseId: productionDesign.responseId, model: productionDesign.model },
+      { role: "performance-director", responseId: performance.responseId, model: performance.model },
+      { role: "shot-editor", responseId: editor.responseId, model: editor.model },
+      { role: "continuity-reviewer", responseId: review.responseId, model: review.model },
     ],
   })
 }

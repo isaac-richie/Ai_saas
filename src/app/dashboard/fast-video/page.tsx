@@ -8,7 +8,8 @@ import { ProductionDesk } from '@/interface/components/fast-video/ProductionDesk
 
 export const metadata = { title: 'Fast Track' };
 
-export default async function FastVideoPage() {
+export default async function FastVideoPage({ searchParams }: { searchParams?: Promise<{ mode?: string }> }) {
+  const params = await searchParams;
   const projectsResult = await getProjects();
   const projectsWithScenes = await Promise.all(
     (projectsResult.data || []).map(async (project) => {
@@ -41,7 +42,7 @@ export default async function FastVideoPage() {
         </span>
       </div>
       <ProductionDesk />
-      <details className="mb-8 rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:p-6">
+      <details open={params?.mode === 'single-shot'} className="mb-8 rounded-2xl border border-white/10 bg-white/[0.02] p-4 sm:p-6">
         <summary className="cursor-pointer text-base text-white">Single-shot studio <span className="ml-2 text-xs text-white/50">Create one video directly</span></summary>
         <div className="mt-6"><FastVideoStudio projects={projectsWithScenes} /></div>
       </details>

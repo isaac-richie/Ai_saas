@@ -5,6 +5,7 @@ type Project = Database["public"]["Tables"]["projects"]["Row"];
 type ProjectWithStats = Project & {
     scene_count: number;
     shot_count: number;
+    has_generated_asset: boolean;
     thumbnail_url?: string | null;
 };
 type NewProject = Database["public"]["Tables"]["projects"]["Insert"];
@@ -70,6 +71,7 @@ export const getProjects = async (userId: string): Promise<ProjectWithStats[]> =
             ...rest,
             scene_count,
             shot_count,
+            has_generated_asset: thumbnailByProject.has(project.id),
             thumbnail_url: thumbnailByProject.get(project.id) ?? null,
         };
     });

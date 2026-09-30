@@ -10,6 +10,7 @@ import { canCreateProject } from "@/core/services/billing";
 export type Project = Database["public"]["Tables"]["projects"]["Row"] & {
     scene_count?: number;
     shot_count?: number;
+    has_generated_asset?: boolean;
     thumbnail_url?: string | null;
 };
 

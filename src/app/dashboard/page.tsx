@@ -17,7 +17,7 @@ export default async function DashboardPage() {
   const projects = result.data || [];
   const activeCount = projects.filter((project) => project.status === 'active').length;
   const totalScenes = projects.reduce((sum, project) => sum + (project.scene_count ?? 0), 0);
-  const hasGeneratedAsset = projects.some((project) => (project.shot_count ?? 0) > 0);
+  const hasGeneratedAsset = projects.some((project) => project.has_generated_asset === true);
 
   return (
     <div className="workspace-page">
@@ -91,7 +91,6 @@ export default async function DashboardPage() {
       {!result.error && (
         <NewUserChecklist
           projectCount={projects.length}
-          sceneCount={totalScenes}
           hasGeneratedAsset={hasGeneratedAsset}
         />
       )}

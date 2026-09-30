@@ -6,6 +6,7 @@ import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 import { compactRevisionContext } from "@/core/utils/production/revision-context"
+import { resolveProductionModel } from "@/core/config/production-model-routing"
 
 const stageContextSchema = z.object({
   shotSettings: productionShotSettingsSchema.optional(),
@@ -22,7 +23,7 @@ const stageContextSchema = z.object({
   editor: crewShotsSchema.optional(),
   previousEditor: crewShotsSchema.optional(),
   referenceSnapshot: z.string().optional(),
-  stages: z.array(z.object({ role: z.string(), responseId: z.string() })).default([]),
+  stages: z.array(z.object({ role: z.string(), responseId: z.string(), model: z.string().optional() })).default([]),
 })
 
 export type CrewStageResult = {
@@ -93,7 +94,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
   let failedStage = job.planning_stage === "brief" ? "visual direction" : job.planning_stage
   try {
     const context = stageContextSchema.parse(job.planning_context || {})
-    const model = process.env.PRODUCTION_CREW_MODEL?.trim() || context.model || "gpt-6-astra"
+    const model = resolveProductionModel("shot-editor").model
     context.model = model
     const safeBrief = enforcePromptCompliance({ prompt: job.brief, outputType: "video" })
     if (safeBrief.blocked) throw new Error(`The brief is blocked by safety policy: ${safeBrief.reason || "rewrite the brief and retry."}`)
@@ -132,7 +133,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       const department = departments.find(item => !context[item.key])!
       failedStage = department.role
       const result = await run(department.role, department.instruction, { brief: planningBrief, bible: context.story }, departmentDirectionSchema)
-      const nextContext = { ...context, [department.key]: result.value, editor: undefined, stages: [...context.stages.filter(stage => stage.role !== department.role && stage.role !== "shot-editor"), { role: department.role, responseId: result.responseId }] }
+      const nextContext = { ...context, [department.key]: result.value, editor: undefined, stages: [...context.stages.filter(stage => stage.role !== department.role && stage.role !== "shot-editor"), { role: department.role, responseId: result.responseId, model: result.model }] }
       const complete = departments.every(item => Boolean(nextContext[item.key]))
       const nextStage = complete ? "departments" : "story"
       await saveCheckpoint(client, job.id, claimUntil, job.planning_stage, nextStage, nextContext)
@@ -152,13 +153,13 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
         return { ...shot, prompt: checked.prompt, negativePrompt: checked.negativePrompt }
       })
       const sanitizedEditor = { ...editor.value, shots: sanitizedShots }
-      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, previousEditor: undefined, editor: sanitizedEditor, stages: [...context.stages, { role: "shot-editor", responseId: editor.responseId }] })
+      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, previousEditor: undefined, editor: sanitizedEditor, stages: [...context.stages, { role: "shot-editor", responseId: editor.responseId, model: editor.model }] })
       return { data: { complete: false, stage: "shots", message: "Shot prompts compiled" } }
     }
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.productionDesign && context.performance && context.editor) {
       failedStage = "continuity review"
       const review = await run("continuity-reviewer", "Audit only the exact provider prompts and continuity handoffs supplied below. A finding is blocking only when a provider prompt itself is incomplete, contradictory, exceeds the stated limit, or conflicts with the adjacent start/end handoff. Do not block on bible, department, action, edit-note, or other source metadata: it is not sent to the provider. Treat uncertainty or creative suggestions as notes. Do not grade footage: none exists.", { continuityContract: context.story.continuityLedger || { anchors: context.story.continuityAnchors }, shots: compileCrewShotsForReview(context.story, context.editor, context.shotSettings) }, crewReviewSchema)
-      const stages = [...context.stages, { role: "continuity-reviewer", responseId: review.responseId }]
+      const stages = [...context.stages, { role: "continuity-reviewer", responseId: review.responseId, model: review.model }]
       const plan = compileProductionPlan({ shotSettings: context.shotSettings, model, story: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, editor: context.editor, review: review.value, stages })
       const { data: saved, error } = await client.from("production_jobs").update({ status: "awaiting_approval", plan, planning_stage: "complete", planning_context: { ...context, stages }, planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", job.id).eq("planning_stage", "shots").eq("planning_claimed_until", claimUntil).select("id").maybeSingle()
       if (error) throw error

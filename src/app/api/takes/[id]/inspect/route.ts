@@ -10,6 +10,7 @@ import { createClient } from "@/infrastructure/supabase/server"
 import { REFERENCE_BUCKET, validateOwnedReferences } from "@/core/validation/media-reference"
 import { readBoundedBody, readBoundedBytes } from "@/core/utils/security/bounded-body"
 import { MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
+import { resolveProductionModel } from "@/core/config/production-model-routing"
 
 const execFileAsync = promisify(execFile)
 export const runtime = "nodejs"
@@ -47,7 +48,7 @@ function inspectionProviderFailure(cause: unknown, stage: string, timedOut: bool
     return { status: 503, error: "The visual review credential was rejected. Update OPENAI_API_KEY in the deployment and retry; your take is unchanged." }
   }
   if (status === 404 && /model|not found/i.test(message)) {
-    return { status: 503, error: "The configured visual review model is unavailable to this OpenAI project. Check PRODUCTION_CREW_MODEL, then retry; your take is unchanged." }
+    return { status: 503, error: "The configured visual review model is unavailable to this OpenAI project. Check PRODUCTION_CREW_ECONOMY_MODEL, then retry; your take is unchanged." }
   }
   return { status: timedOut ? 504 : 502, error: `Keyframe review failed while ${stage}. Your take is unchanged; please retry later.` }
 }
@@ -153,7 +154,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     stage = "running the visual review"
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 75000, maxRetries: 0 })
     const result = await client.responses.parse({
-      model: process.env.PRODUCTION_CREW_MODEL || "gpt-6-astra", reasoning: { effort: "low" }, store: false, max_output_tokens: 1800,
+      model: resolveProductionModel("keyframe-inspection").model, reasoning: { effort: "low" }, store: false, max_output_tokens: 1800,
       instructions: "You are a film continuity and image-QC supervisor. Treat the continuity contract as binding. Review only visible evidence in the supplied frames. Compare identity, face/hair, wardrobe, object identity/count/placement, materials, location, palette, light direction/quality, weather, blocking, eyelines, and screen geography. When a previous ending frame is supplied, compare it directly with the current opening frame and the declared state handoff. Any unexplained change is blocking. Never claim to assess motion, audio, events between sampled frames, or identity certainty the frames cannot prove. Cite concrete evidence and provide one targeted correction per issue.",
       input: [{ role: "user", content: [
         { type: "input_text", text: JSON.stringify({ shot: shotRelation.name, prompt: shotRelation.prompt_text || take.compiled_prompt || take.prompt, continuity, continuityContract: shotRelation.generation_settings, sampledAtSeconds: timestamps, frameOrder: previousEndingFrameUrl ? ["previous_approved_end", "current_start", "current_middle", "current_end"] : ["current_start", "current_middle", "current_end"] }) },

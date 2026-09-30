@@ -253,6 +253,7 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
       if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
+      if (name.endsWith('/config/production-model-routing')) return { resolveProductionModel: () => ({ model: 'mock-balanced', tier: 'balanced' }) }
       throw new Error(`Unexpected import ${name}`)
     },
   })
@@ -329,6 +330,7 @@ test('repair checkpoint runs only shot editor and continuity reviewer', async ()
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
       if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
+      if (name.endsWith('/config/production-model-routing')) return { resolveProductionModel: () => ({ model: 'mock-balanced', tier: 'balanced' }) }
       throw new Error(`Unexpected import ${name}`)
     },
   })
@@ -588,6 +590,7 @@ test('provider structured output contract requires exact shot count for 2 throug
   vm.runInNewContext(ts.transpileModule(fn, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
     module, exports: module.exports, ...schemas, zodTextFormat,
     process: { env: { OPENAI_API_KEY: 'mock-no-network' } }, buildReferenceInput: () => [],
+    resolveProductionModel: () => ({ model: 'mock', tier: 'balanced' }),
     OpenAI: class { responses = { parse: async input => { request = input; return { status: 'incomplete' } } } },
     responseFailureDetail: () => 'simulated stop before paid output', safeCrewError: error => error.message,
   })

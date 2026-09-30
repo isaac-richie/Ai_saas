@@ -6,6 +6,22 @@ import { join } from "node:path"
 import vm from "node:vm"
 import ts from "typescript"
 
+test("routine production work routes below Astra without inheriting the legacy override", () => {
+  const { resolveProductionModel, resolvePremiumProductionModel } = loadFunctions(
+    "../src/core/config/production-model-routing.ts",
+    ["ECONOMY_ROLES", "BALANCED_ROLES", "productionModelTier", "resolveProductionModel", "resolvePremiumProductionModel"],
+  )
+  const env = { PRODUCTION_CREW_MODEL: "gpt-6-astra" }
+  for (const role of ["cinematographer", "lighting-director", "production-designer", "performance-director", "reference-analysis", "keyframe-inspection"]) {
+    assert.equal(resolveProductionModel(role, env).model, "gpt-6-luna")
+  }
+  for (const role of ["shot-editor", "continuity-reviewer", "take-correction", "story-director"]) {
+    assert.equal(resolveProductionModel(role, env).model, "gpt-6-sol")
+  }
+  assert.equal(resolvePremiumProductionModel(env), "gpt-6-astra")
+  assert.throws(() => resolveProductionModel("unclassified-task", env), /No production model route/)
+})
+
 function loadFunctions(path, names, globals = {}) {
   const source = readFileSync(new URL(path, import.meta.url), "utf8")
   const tree = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true)

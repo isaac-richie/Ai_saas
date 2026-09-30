@@ -76,7 +76,7 @@ export const crewMetadataSchema = z.object({
   performance: departmentDirectionSchema.optional(),
   review: crewReviewSchema,
   // These identify completed model calls, not generated footage.
-  stages: z.array(z.object({ role: z.string(), responseId: z.string() })).refine(
+  stages: z.array(z.object({ role: z.string(), responseId: z.string(), model: z.string().optional() })).refine(
     (stages) => stages.length === 5 || stages.length === 6 || stages.length === 7,
     "Crew plans must contain the legacy five-role crew or the current six-role crew.",
   ),

@@ -236,7 +236,7 @@ export async function createProductionRevision(input: unknown) {
     productionDesign: departmentDirectionSchema,
     performance: departmentDirectionSchema,
     editor: crewShotsSchema,
-    stages: z.array(z.object({ role: z.string(), responseId: z.string() })),
+    stages: z.array(z.object({ role: z.string(), responseId: z.string(), model: z.string().optional() })),
   }).safeParse(source.planning_context)
   const savedReferences = productionAssetsSchema.safeParse(source.reference_assets || [])
   const referenceSnapshot = savedReferences.success ? JSON.stringify(savedReferences.data) : null
@@ -250,7 +250,7 @@ export async function createProductionRevision(input: unknown) {
       || (!savedContext.data.referenceSnapshot && legacyUnchanged))
   const departmentRoles = ["cinematographer", "lighting-director", "production-designer", "performance-director"]
   const departmentStages = savedContext.success
-    ? departmentRoles.map(role => savedContext.data.stages.find(stage => stage.role === role)).filter((stage): stage is { role: string; responseId: string } => Boolean(stage))
+    ? departmentRoles.map(role => savedContext.data.stages.find(stage => stage.role === role)).filter((stage): stage is { role: string; responseId: string; model?: string } => Boolean(stage))
     : []
   // A repair can reuse paid specialist work only when the executable plan still
   // matches its saved editor output. Broad direction or timing changes replan.

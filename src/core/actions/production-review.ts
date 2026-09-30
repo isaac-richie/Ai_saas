@@ -6,6 +6,7 @@ import { zodTextFormat } from "openai/helpers/zod"
 import { createClient } from "@/infrastructure/supabase/server"
 import type { Json } from "@/core/types/db"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
+import { resolveProductionModel } from "@/core/config/production-model-routing"
 
 const inspectionSchema = z.object({
   takeId: z.string().uuid(), duration: z.number().positive().max(300), width: z.number().int().positive().max(16384),
@@ -89,7 +90,7 @@ export async function proposeTakeCorrection(input: unknown) {
   const previousPrompt = shotRelation.prompt_text || take.compiled_prompt || take.prompt
   if (!previousPrompt) return { error: "This shot has no source prompt to revise." }
   if (!process.env.OPENAI_API_KEY) return { error: "The director connection is not configured." }
-  const model = process.env.PRODUCTION_CREW_MODEL || "gpt-6-astra"
+  const model = resolveProductionModel("take-correction").model
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 150_000, maxRetries: 0 })
   try {
     const response = await client.responses.parse({
