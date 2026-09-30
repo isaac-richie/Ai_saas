@@ -15,7 +15,7 @@ import {
 } from "@/core/config/fast-video-presets"
 import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
-import { consumeUsageQuota } from "@/core/services/billing"
+import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { REFERENCE_BUCKET, referenceCompatibility, referenceIsInContext, referencePrompt, referencePromptFits, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
 import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
@@ -350,7 +350,7 @@ const persistRemoteMedia = async (
 
   try {
     const response = await fetch(input.url)
-    if (!response.ok) return input.url
+    if (!response.ok) return null
 
     const contentTypeHeader = response.headers.get("content-type") || ""
     const contentType = contentTypeHeader || (input.kind === "video" ? "video/mp4" : "image/png")
@@ -367,15 +367,15 @@ const persistRemoteMedia = async (
     const buffer = Buffer.from(await response.arrayBuffer())
 
     const { error } = await supabase.storage.from("renders").upload(key, buffer, { contentType, upsert: false })
-    if (error) return input.url
+    if (error) return null
 
     const {
       data: { publicUrl },
     } = supabase.storage.from("renders").getPublicUrl(key)
 
-    return publicUrl || input.url
+    return publicUrl || null
   } catch {
-    return input.url
+    return null
   }
 }
 
@@ -457,6 +457,8 @@ export async function generateFastVideo(input: unknown) {
     negativePromptLength: compliance.negativePrompt.length,
   })
 
+  let reservationIdForAttempt: string | undefined
+  let providerSubmissionStarted = false
   try {
     const provider = ProviderFactory.create("kie", { apiKey: kie.data.apiKey })
     const generationRequest = {
@@ -473,12 +475,14 @@ export async function generateFastVideo(input: unknown) {
     // deliberately separate from task creation: a bad asset must not cost a
     // generation or leave a remote render job behind.
     const preparedRequest = await provider.prepareRequest(generationRequest)
-    const quota = await consumeUsageQuota(supabase, user.id, "fast_video")
+    const quota = await reserveUsageQuota(supabase, user.id, "fast_video")
     if (!quota.allowed) {
       debug.push("quota.denied", { feature: "fast_video", message: quota.message || null })
       return { error: quota.message || "Fast Track limit reached for your current plan." }
     }
+    reservationIdForAttempt = quota.reservationId
     debug.push("provider.generate.start")
+    providerSubmissionStarted = true
     const result = await provider.generate(preparedRequest)
     debug.push("provider.generate.done", {
       status: result.status,
@@ -488,9 +492,18 @@ export async function generateFastVideo(input: unknown) {
     })
 
     if (result.status === "failed") {
+      if (quota.reservationId) {
+        const released = await settleUsageQuota(user.id, quota.reservationId, false)
+        debug.push("quota.rejected_job_released", { released })
+      }
       const normalizedError = normalizeGenerationError(result.error, "Fast video generation failed")
       debug.push("provider.generate.failed", { error: normalizedError, rawError: result.error || null })
       return { error: normalizedError }
+    }
+
+    if (quota.reservationId) {
+      const committed = await settleUsageQuota(user.id, quota.reservationId, true)
+      debug.push("quota.accepted_job_committed", { committed })
     }
 
     const stableUrl = await persistRemoteMedia(supabase, {
@@ -504,11 +517,16 @@ export async function generateFastVideo(input: unknown) {
       persistedUrl: stableUrl || null,
     })
 
+    // A provider-completed job is not a durable completed take until our copy
+    // succeeds. Keep its task ID so polling can retry persistence without
+    // submitting (and charging for) another generation.
+    const waitingForStorage = result.status === "completed" && Boolean(result.url) && !stableUrl
+
     return {
       data: {
         taskId: result.provider_check_id || result.id || null,
-        status: result.status,
-        url: stableUrl || result.url || null,
+        status: waitingForStorage ? "processing" : result.status,
+        url: stableUrl || null,
         prompt: compliance.prompt,
         negativePrompt: compliance.negativePrompt,
         stylePresetName: composed.style?.name || null,
@@ -523,12 +541,17 @@ export async function generateFastVideo(input: unknown) {
       },
     }
   } catch (error: unknown) {
+    if (reservationIdForAttempt && !providerSubmissionStarted) {
+      await settleUsageQuota(user.id, reservationIdForAttempt, false)
+    }
     const message = normalizeGenerationError(
       error instanceof Error ? error.message : undefined,
       "Fast video generation failed"
     )
     debug.push("provider.generate.exception", { message })
-    return { error: message }
+    return { error: providerSubmissionStarted
+      ? `The provider response was interrupted, so this job may have started. Do not submit it again yet. Request ${reservationIdForAttempt || debug.traceId}. ${message}`
+      : message }
   }
 }
 
@@ -538,7 +561,7 @@ export async function pollFastVideoStatus(taskId: string, traceId?: string) {
   if (!taskId?.trim()) return { error: "Missing task id" }
   debug.push("poll.received", { taskId, traceId: activeTraceId })
 
-  const { user } = await ensureSession()
+  const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
   debug.push("poll.session.resolved", { userId: user.id })
 
@@ -582,19 +605,38 @@ export async function pollFastVideoStatus(taskId: string, traceId?: string) {
       }
     }
 
-    // Return provider URL immediately for responsive playback.
-    // Persisting large remote videos here can block for many seconds and cause overlapping poll calls.
-    const stableUrl = result.url || null
+    // A provider URL is temporary. Do not tell either Fast Video or the crew
+    // that a clip is complete until its durable copy is available.
+    const stableUrl = result.status === "completed" && result.url
+      ? await persistRemoteMedia(supabase, {
+          url: result.url,
+          userId: user.id,
+          shotId: taskId,
+          kind: "video",
+        })
+      : null
+    if (result.status === "completed" && !stableUrl) {
+      debug.push("poll.media.persist.pending", { taskId })
+      return {
+        data: {
+          status: "processing",
+          url: null,
+          message: "The render finished. Saving its file now; check again shortly without regenerating.",
+          waitingForUrl: true,
+          debug: { traceId: activeTraceId, events: debug.events },
+        },
+      }
+    }
     debug.push("poll.media.persist.complete", {
       providerUrl: result.url || null,
       stableUrl,
-      persisted: false,
+      persisted: Boolean(stableUrl),
     })
 
     return {
       data: {
         status: result.status,
-        url: stableUrl || result.url || null,
+        url: stableUrl,
         debug: { traceId: activeTraceId, events: debug.events },
       },
     }
@@ -608,8 +650,8 @@ export async function pollFastVideoStatus(taskId: string, traceId?: string) {
 /**
  * Copies a still-ephemeral provider video URL into durable storage. Called
  * from the client in the background right after a clip completes, so the local
- * scratch list keeps working after the provider URL expires. Best-effort: on
- * any failure the original URL is returned unchanged.
+ * scratch list keeps working after the provider URL expires. A failed copy is
+ * reported, rather than returning a temporary URL as though it were durable.
  */
 export async function persistFastVideoMedia(url: string) {
   if (!url?.trim()) return { error: "Missing url" }
@@ -625,7 +667,8 @@ export async function persistFastVideoMedia(url: string) {
     kind: "video",
   })
 
-  return { data: { url: durable || url } }
+  if (!durable) return { error: "The video finished, but its file could not be saved yet. Retry without generating again." }
+  return { data: { url: durable } }
 }
 
 export async function promoteFastVideoToScene(input: {
@@ -696,13 +739,13 @@ export async function routeFastVideoToScene(input: {
     // Poll-resolved fast videos carry an ephemeral provider URL that expires.
     // Persist to durable storage now (at promote/save time) so the gallery and
     // scene keep working after the provider URL is gone.
-    const durableUrl =
-      (await persistRemoteMedia(supabase, {
+    const durableUrl = await persistRemoteMedia(supabase, {
         url: input.outputUrl,
         userId: user.id,
         shotId,
         kind: "video",
-      })) || input.outputUrl
+      })
+    if (!durableUrl) return { error: "The video finished, but its file could not be saved to the project. Retry saving the same clip." }
 
     const { error: generationError } = await supabase.from("shot_generations").insert({
       shot_id: shotId,
@@ -895,6 +938,14 @@ export async function saveFastVideoClipToGallery(input: {
   try { mediaReferences = validateOwnedReferences(input.mediaReferences, user.id) }
   catch { return { error: "Invalid media references." } }
 
+  const durableUrl = await persistRemoteMedia(supabase, {
+    url: input.url,
+    userId: user.id,
+    shotId: `gallery/${crypto.randomUUID()}`,
+    kind: "video",
+  })
+  if (!durableUrl) return { error: "The clip could not be stored yet. Retry saving this clip without regenerating it." }
+
   // If no project, create a default "My Videos" project
   let projectId = input.projectId
   if (!projectId) {
@@ -980,7 +1031,7 @@ export async function saveFastVideoClipToGallery(input: {
     .insert({
       shot_id: shot.id,
       prompt: input.prompt,
-      output_url: input.url,
+      output_url: durableUrl,
       status: "completed",
       parameters: {
         output_type: "video",

@@ -44,7 +44,8 @@ export async function listApiKeys() {
     const { data: providers, error: providersError } = await supabase
         .from("providers")
         .select("*")
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .in("slug", ["openai", "kie", "runway"]);
 
     if (providersError) return { error: providersError.message };
 
@@ -61,7 +62,8 @@ export async function listApiKeys() {
         const key = keys.find(k => k.provider_id === provider.id);
         return {
             ...provider,
-            isConnected: !!key,
+            hasKey: !!key,
+            isConnected: key?.last_test_status === "valid",
             lastUpdated: key?.created_at || null,
             testStatus: key?.last_test_status || "untested",
             lastTestedAt: key?.last_tested_at || null,
@@ -71,25 +73,35 @@ export async function listApiKeys() {
     return { data: result };
 }
 
-async function validateProviderKey(slug: string, apiKey: string): Promise<{ ok: boolean; message: string }> {
+type ProviderKeyTest = { ok: boolean; status: "valid" | "invalid" | "unavailable" | "rate_limited" | "error"; message: string };
+
+async function validateProviderKey(slug: string, apiKey: string): Promise<ProviderKeyTest> {
     const normalized = slug.toLowerCase();
 
     if (normalized === "openai" || normalized === "dall-e-3") {
         const res = await fetch("https://api.openai.com/v1/models", {
             headers: { Authorization: `Bearer ${apiKey}` },
         });
-        if (res.ok) return { ok: true, message: "OpenAI key validated" };
-        if (res.status === 401 || res.status === 403) return { ok: false, message: "OpenAI key unauthorized" };
-        return { ok: false, message: `OpenAI validation failed (${res.status})` };
+        if (res.ok) return { ok: true, status: "valid", message: "OpenAI key verified. Generation readiness still needs a real job test." };
+        if (res.status === 401 || res.status === 403) return { ok: false, status: "invalid", message: "OpenAI key unauthorized" };
+        if (res.status === 429) return { ok: false, status: "rate_limited", message: "OpenAI rate limited this connection test" };
+        return { ok: false, status: "unavailable", message: `OpenAI connection test failed (${res.status})` };
     }
 
     if (normalized === "kie" || normalized === "kie-runway") {
-        const res = await fetch("https://api.kie.ai/api/v1/jobs/recordInfo?taskId=health-check", {
+        const res = await fetch("https://api.kie.ai/api/v1/chat/credit", {
             headers: { Authorization: `Bearer ${apiKey}` },
         });
-        if (res.status === 401 || res.status === 403) return { ok: false, message: "Kie key unauthorized" };
-        if (res.ok || res.status === 400 || res.status === 404) return { ok: true, message: "Kie key accepted" };
-        return { ok: false, message: `Kie validation failed (${res.status})` };
+        if (res.status === 401 || res.status === 403) return { ok: false, status: "invalid", message: "Kie key unauthorized" };
+        if (res.status === 429) return { ok: false, status: "rate_limited", message: "Kie rate limited this connection test" };
+        if (!res.ok) return { ok: false, status: "unavailable", message: `Kie connection test failed (${res.status})` };
+        const body: unknown = await res.json().catch(() => null);
+        const payload = body && typeof body === "object" ? body as { code?: unknown; data?: unknown } : null;
+        if (payload?.code !== 200 || typeof payload.data !== "number" || !Number.isFinite(payload.data)) {
+            return { ok: false, status: "error", message: "Kie returned an unexpected balance response" };
+        }
+        if (payload.data <= 0) return { ok: false, status: "unavailable", message: "Kie key is valid, but the account has no credits" };
+        return { ok: true, status: "valid", message: "Kie key and positive balance verified. Generation readiness still needs a real job test." };
     }
 
     if (normalized === "runway" || normalized === "gen-3") {
@@ -99,12 +111,13 @@ async function validateProviderKey(slug: string, apiKey: string): Promise<{ ok: 
                 "X-Runway-Version": "2024-11-06",
             },
         });
-        if (res.status === 401 || res.status === 403) return { ok: false, message: "Runway key unauthorized" };
-        if (res.ok || (res.status >= 400 && res.status < 500)) return { ok: true, message: "Runway key accepted" };
-        return { ok: false, message: `Runway validation failed (${res.status})` };
+        if (res.ok) return { ok: true, status: "valid", message: "Runway key verified. Generation readiness still needs a real job test." };
+        if (res.status === 401 || res.status === 403) return { ok: false, status: "invalid", message: "Runway key unauthorized" };
+        if (res.status === 429) return { ok: false, status: "rate_limited", message: "Runway rate limited this connection test" };
+        return { ok: false, status: "unavailable", message: `Runway connection test failed (${res.status})` };
     }
 
-    return { ok: true, message: "Provider connected (manual validation pending)" };
+    return { ok: false, status: "error", message: "This provider is not supported by Visiowave yet" };
 }
 
 export async function testApiKeyConnection(providerId: string) {
@@ -142,18 +155,18 @@ export async function testApiKeyConnection(providerId: string) {
         return { error: "Failed to decrypt API key" };
     }
 
-    let validation: { ok: boolean; message: string };
+    let validation: ProviderKeyTest;
     try {
         validation = await validateProviderKey(provider.slug, rawApiKey);
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Connection test failed";
-        validation = { ok: false, message };
+        validation = { ok: false, status: "error", message };
     }
 
     await supabase
         .from("user_api_keys")
         .update({
-            last_test_status: validation.ok ? "valid" : "invalid",
+            last_test_status: validation.status,
             last_tested_at: new Date().toISOString(),
         })
         .eq("provider_id", providerId)

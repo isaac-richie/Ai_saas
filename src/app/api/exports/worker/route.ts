@@ -106,8 +106,16 @@ async function processJob(supabase: SupabaseClient, userId: string, job: WorkerJ
 
             const contentType = response.headers.get("content-type")
             const fallbackExt = extensionFromUrl(item.source_url)
-            const ext = extensionFromContentType(contentType) || fallbackExt
+            const contentExt = extensionFromContentType(contentType)
+            const ext = contentExt === "bin" ? fallbackExt : contentExt
             const fileBuffer = Buffer.from(await response.arrayBuffer())
+            if (!fileBuffer.length) {
+                await supabase
+                    .from("export_job_items")
+                    .update({ status: "failed", error_message: "Source asset is empty", updated_at: new Date().toISOString() })
+                    .eq("id", item.id)
+                continue
+            }
             const storagePath = `${userId}/exports/${job.project_id}/${job.id}/item-${item.order_index + 1}.${ext}`
 
             const { error: uploadError } = await supabase.storage
@@ -149,18 +157,23 @@ async function processJob(supabase: SupabaseClient, userId: string, job: WorkerJ
                 .eq("user_id", userId)
         }
 
-        if (processed === 0) {
+        if (processed !== items.length) {
+            const message = processed === 0
+                ? "No assets could be exported"
+                : `${items.length - processed} of ${items.length} source assets could not be exported`
             await supabase
                 .from("export_jobs")
-                .update({ status: "failed", error_message: "No assets could be exported", updated_at: new Date().toISOString() })
+                .update({ status: "failed", output_url: null, error_message: message, updated_at: new Date().toISOString() })
                 .eq("id", job.id)
                 .eq("user_id", userId)
-            return { ok: false, error: "No assets could be exported" }
+            return { ok: false, error: message }
         }
 
-        let jobOutputUrl: string | null = uploadedItemUrls[0] || null
+        // A sequence must never silently become a download of its first item.
+        let jobOutputUrl: string | null = items.length === 1 ? uploadedItemUrls[0] : null
+        let sequenceError: string | null = null
 
-        if (uploadedItemUrls.length > 1 && localVideoPaths.length === uploadedItemUrls.length) {
+        if (items.length > 1 && localVideoPaths.length === items.length) {
             const ffmpegAvailable = await hasFfmpeg()
             if (ffmpegAvailable) {
                 try {
@@ -190,46 +203,28 @@ async function processJob(supabase: SupabaseClient, userId: string, job: WorkerJ
                     if (!finalUploadError) {
                         const { data: finalPublicData } = supabase.storage.from("renders").getPublicUrl(outputKey)
                         jobOutputUrl = finalPublicData.publicUrl
+                    } else {
+                        sequenceError = `Could not store the merged video: ${finalUploadError.message}`
                     }
                 } catch (concatError) {
                     const message = concatError instanceof Error ? concatError.message : "ffmpeg concat failed"
-                    await supabase
-                        .from("export_jobs")
-                        .update({ error_message: `Video merge skipped: ${message.slice(0, 200)}`, updated_at: new Date().toISOString() })
-                        .eq("id", job.id)
-                        .eq("user_id", userId)
+                    sequenceError = `Video merge failed: ${message.slice(0, 200)}`
                 }
             } else {
-                await supabase
-                    .from("export_jobs")
-                    .update({ error_message: "ffmpeg not available — individual clips exported, merge skipped", updated_at: new Date().toISOString() })
-                    .eq("id", job.id)
-                    .eq("user_id", userId)
+                sequenceError = "Video merge is unavailable on this worker. Retry when the export service is ready."
             }
+        } else if (items.length > 1) {
+            sequenceError = "This sequence contains non-video assets and cannot be merged into one playable file."
         }
 
-        if (!jobOutputUrl && uploadedItemUrls.length > 1) {
-            const manifest = {
-                jobId: job.id,
-                profile: job.profile,
-                generatedAt: new Date().toISOString(),
-                assets: uploadedItemUrls,
-            }
-
-            const manifestKey = `${userId}/exports/${job.project_id}/${job.id}/manifest.json`
-            const { error: manifestUploadError } = await supabase.storage.from("renders").upload(
-                manifestKey,
-                Buffer.from(JSON.stringify(manifest, null, 2), "utf-8"),
-                {
-                    contentType: "application/json",
-                    upsert: true,
-                }
-            )
-
-            if (!manifestUploadError) {
-                const { data: manifestPublicData } = supabase.storage.from("renders").getPublicUrl(manifestKey)
-                jobOutputUrl = manifestPublicData.publicUrl
-            }
+        if (!jobOutputUrl) {
+            const message = sequenceError || "The export did not produce a downloadable file."
+            await supabase
+                .from("export_jobs")
+                .update({ status: "failed", output_url: null, error_message: message, updated_at: new Date().toISOString() })
+                .eq("id", job.id)
+                .eq("user_id", userId)
+            return { ok: false, error: message }
         }
 
         await supabase
@@ -245,6 +240,13 @@ async function processJob(supabase: SupabaseClient, userId: string, job: WorkerJ
             .eq("user_id", userId)
 
         return { ok: true, outputUrl: jobOutputUrl, processed }
+    } catch {
+        await supabase
+            .from("export_jobs")
+            .update({ status: "failed", output_url: null, error_message: "Export interrupted while reading or storing media", updated_at: new Date().toISOString() })
+            .eq("id", job.id)
+            .eq("user_id", userId)
+        return { ok: false, error: "Export interrupted. Retry after checking the source files." }
     } finally {
         await cleanupTmpDir(tmpDir)
     }

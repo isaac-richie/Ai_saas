@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { createAdminClient, hasSupabaseAdminEnv } from "@/infrastructure/supabase/admin"
 
 type SupabaseLike = SupabaseClient
 
@@ -9,6 +10,7 @@ export type UsageQuotaResult = {
   usedCount: number
   maxCount: number | null
   remaining: number | null
+  reservationId?: string
   message?: string
 }
 
@@ -23,15 +25,10 @@ export type BillingSnapshot = {
   fastVideoGenerationsUsed: number
 }
 
-const LIMIT_MESSAGE: Record<BillingFeature, string> = {
-  studio:
-    "Studio free limit reached (50/50). Upgrade to Studio Pro for unlimited Studio generations.",
-  fast_video:
-    "Fast Track free limit reached (50/50). Upgrade to Studio Pro for unlimited Fast Track generations.",
+const FEATURE_NAME: Record<BillingFeature, string> = {
+  studio: "Studio",
+  fast_video: "Fast Track",
 }
-
-// Testing phase override: keep billing/tier system in place, but allow more usage.
-const TESTING_PHASE_FREE_LIMIT = 50
 
 export async function ensureUserBillingState(supabase: SupabaseLike, userId: string) {
   await supabase.rpc("ensure_user_billing_state", { p_user_id: userId })
@@ -60,11 +57,11 @@ export async function consumeUsageQuota(
   const row = Array.isArray(data) ? data[0] : data
   const usedCount = Number(row?.used_count ?? 0)
   const rawMax = row?.max_count == null ? null : Number(row.max_count)
-  const maxCount = rawMax == null ? null : Math.max(rawMax, TESTING_PHASE_FREE_LIMIT)
+  const maxCount = rawMax
   const remaining = row?.remaining == null ? null : Number(row.remaining)
-
-  // CRITICAL: Override DB allowed status if we are within our TESTING_PHASE_FREE_LIMIT
-  const allowed = Boolean(row?.allowed) || usedCount < TESTING_PHASE_FREE_LIMIT
+  // The RPC performs the increment and limit check in the database. Never
+  // reinterpret a denial here: doing so lets a job run without a recorded use.
+  const allowed = row?.allowed === true
 
   if (!allowed) {
     return {
@@ -72,7 +69,9 @@ export async function consumeUsageQuota(
       usedCount,
       maxCount,
       remaining,
-      message: LIMIT_MESSAGE[feature],
+      message: maxCount == null
+        ? `Unable to verify the ${FEATURE_NAME[feature]} allowance right now. Please try again.`
+        : `${FEATURE_NAME[feature]} limit reached (${usedCount}/${maxCount}).`,
     }
   }
 
@@ -81,6 +80,58 @@ export async function consumeUsageQuota(
     usedCount,
     maxCount,
     remaining,
+  }
+}
+
+/** Reserve one application allowance unit. This is not a Kie credit charge. */
+export async function reserveUsageQuota(
+  supabase: SupabaseLike,
+  userId: string,
+  feature: BillingFeature,
+  reservationId = crypto.randomUUID()
+): Promise<UsageQuotaResult> {
+  if (!hasSupabaseAdminEnv()) return {
+    allowed: false, usedCount: 0, maxCount: null, remaining: null,
+    message: "Generation allowance settlement is not configured. Please contact the studio owner.",
+  }
+  const { data, error } = await supabase.rpc("reserve_usage_quota", {
+    p_user_id: userId,
+    p_feature: feature,
+    p_reservation_id: reservationId,
+  })
+  if (error) return {
+    allowed: false, usedCount: 0, maxCount: null, remaining: null,
+    message: "Unable to reserve your generation allowance right now. Please try again.",
+  }
+  const row = Array.isArray(data) ? data[0] : data
+  const usedCount = Number(row?.used_count ?? 0)
+  const maxCount = row?.max_count == null ? null : Number(row.max_count)
+  const remaining = row?.remaining == null ? null : Number(row.remaining)
+  if (row?.allowed !== true || !row?.reservation_id) return {
+    allowed: false, usedCount, maxCount, remaining,
+    message: maxCount == null
+      ? `Unable to reserve the ${FEATURE_NAME[feature]} allowance right now. Please try again.`
+      : `${FEATURE_NAME[feature]} limit reached (${usedCount}/${maxCount}).`,
+  }
+  return { allowed: true, usedCount, maxCount, remaining, reservationId: String(row.reservation_id) }
+}
+
+/** Commit accepted jobs, or release a reservation after a definite rejection. */
+export async function settleUsageQuota(
+  userId: string,
+  reservationId: string,
+  commit: boolean
+): Promise<boolean> {
+  if (!hasSupabaseAdminEnv()) return false
+  try {
+    const { data, error } = await createAdminClient().rpc("settle_usage_quota", {
+      p_user_id: userId,
+      p_reservation_id: reservationId,
+      p_commit: commit,
+    })
+    return !error && data === true
+  } catch {
+    return false
   }
 }
 

@@ -1,9 +1,10 @@
 "use server"
 
+import { createHash } from "node:crypto"
 import { createClient } from "@/infrastructure/supabase/server"
 
 export type ExportProfile = "master_16_9" | "social_9_16" | "square_1_1"
-export type ExportStatus = "queued" | "processing" | "completed" | "failed"
+export type ExportStatus = "preparing" | "queued" | "processing" | "completed" | "failed"
 
 export type ExportJobRow = {
   id: string
@@ -64,10 +65,11 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
 
   const { data: options, error: optionError } = await supabase
     .from("shot_generations")
-    .select("id, shot_id, output_url")
+    .select("id, shot_id, output_url, status")
     .in("id", ids)
 
   if (optionError || !options?.length) return { error: optionError?.message || "No exportable assets found" }
+  if (options.length !== ids.length) return { error: "One or more selected assets no longer exist. Refresh your selection." }
 
   const shotIds = Array.from(new Set(options.map((opt) => opt.shot_id).filter(Boolean)))
   const { data: shots, error: shotError } = await supabase
@@ -99,13 +101,15 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
   const shotToScene = new Map(shots.map((shot) => [shot.id, shot.scene_id]))
 
   const validOptions = options.filter((option) => {
-    if (!option.output_url) return false
+    if (option.status !== "completed" || !option.output_url) return false
     const sceneId = shotToScene.get(option.shot_id)
     const projectId = sceneId ? sceneToProject.get(sceneId) : null
     return Boolean(projectId && ownedSet.has(projectId))
   })
 
-  if (validOptions.length === 0) return { error: "No valid assets to export" }
+  if (validOptions.length !== ids.length) return { error: "Every selected asset must be complete, available, and in one of your projects." }
+  const orderById = new Map(ids.map((id, index) => [id, index]))
+  validOptions.sort((a, b) => (orderById.get(a.id) ?? 0) - (orderById.get(b.id) ?? 0))
 
   const groupedByProject = new Map<string, typeof validOptions>()
   validOptions.forEach((option) => {
@@ -118,8 +122,12 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
 
   let createdJobs = 0
   let queuedItems = 0
+  let reusedJobs = 0
 
   for (const [projectId, projectOptions] of groupedByProject.entries()) {
+    const requestHash = createHash("sha256")
+      .update(JSON.stringify([profile, projectId, projectOptions.map((option) => option.id)]))
+      .digest("hex")
     const { data: insertJob, error: insertJobError } = await db
       .from("export_jobs")
       .insert({
@@ -127,14 +135,29 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
         project_id: projectId,
         profile,
         target_format: PROFILE_TO_FORMAT[profile],
-        status: "queued",
+        request_hash: requestHash,
+        status: "preparing",
       })
       .select("id")
       .single()
 
-    if (insertJobError || !insertJob?.id) continue
-
-    createdJobs += 1
+    if (insertJobError?.code === "23505") {
+      const { data: existing } = await db.from("export_jobs")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("project_id", projectId)
+        .eq("request_hash", requestHash)
+        .in("status", ["preparing", "queued", "processing"])
+        .maybeSingle()
+      if (existing?.id) {
+        reusedJobs += 1
+        queuedItems += projectOptions.length
+        continue
+      }
+    }
+    if (insertJobError || !insertJob?.id) {
+      return { error: insertJobError?.message || "Could not queue the export." }
+    }
 
     const itemsPayload = projectOptions.map((option, index) => ({
       job_id: insertJob.id,
@@ -148,10 +171,23 @@ export async function queueGalleryExport(optionIds: string[], profileRaw: string
       .from("export_job_items")
       .insert(itemsPayload)
 
-    if (!itemInsert.error) queuedItems += projectOptions.length
+    if (itemInsert.error) {
+      await db.from("export_jobs")
+        .update({ status: "failed", error_message: "Could not queue all selected assets." })
+        .eq("id", insertJob.id)
+        .eq("user_id", user.id)
+      return { error: "Could not queue all selected assets. Please retry." }
+    }
+    const { error: readyError } = await db.from("export_jobs")
+      .update({ status: "queued", updated_at: new Date().toISOString() })
+      .eq("id", insertJob.id)
+      .eq("user_id", user.id)
+    if (readyError) return { error: "The export assets were saved, but the job could not start. Please retry." }
+    createdJobs += 1
+    queuedItems += projectOptions.length
   }
 
-  return { data: { jobCount: createdJobs, itemCount: queuedItems, profile } }
+  return { data: { jobCount: createdJobs, reusedJobs, itemCount: queuedItems, profile } }
 }
 
 export async function listExportJobs(projectId?: string) {

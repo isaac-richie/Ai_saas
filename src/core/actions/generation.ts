@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import * as ShotRepo from "@/infrastructure/repositories/shot.repository";
 import { Database } from "@/core/types/db";
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
-import { consumeUsageQuota } from "@/core/services/billing";
+import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing";
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance";
 import type { GenerationResult } from "@/infrastructure/ai/types";
 
@@ -255,11 +255,6 @@ export async function generateShot(shotId: string) {
         return { error: "Unauthorized" };
     }
 
-    const quota = await consumeUsageQuota(supabase, user.id, "studio");
-    if (!quota.allowed) {
-        return { error: quota.message || "Studio limit reached for your current plan." };
-    }
-
     // 1. Fetch Shot details + Joined Scene/Project for context if needed
     // For prompt builder, we need shot attributes.
     const shot = await ShotRepo.getShotById(shotId);
@@ -301,6 +296,14 @@ export async function generateShot(shotId: string) {
         return { error: compliance.reason || "Prompt blocked by safety guardrails. Revise and retry." };
     }
 
+    const quota = await reserveUsageQuota(supabase, user.id, "studio");
+    if (!quota.allowed) {
+        return { error: quota.message || "Studio limit reached for your current plan." };
+    }
+    let quotaSettled = false;
+    let providerAccepted = false;
+    let submissionUncertain = false;
+
     // 6. Call Provider with Fallback Logic
     try {
         const variations = Math.max(1, Math.min(Number(settings.variations ?? 1), 6));
@@ -334,7 +337,11 @@ export async function generateShot(shotId: string) {
 
                     if (result.status === 'completed' || result.status === 'processing') {
                         // Successful start or completion
+                        providerAccepted = true;
                         successfulProviderId = providerInfo.providerId || null;
+                        if (quota.reservationId && !quotaSettled) {
+                            quotaSettled = await settleUsageQuota(user.id, quota.reservationId, true);
+                        }
                         break;
                     }
 
@@ -353,14 +360,20 @@ export async function generateShot(shotId: string) {
                         continue;
                     }
                 } catch (e: unknown) {
+                    submissionUncertain = true;
                     lastError = e instanceof Error ? e.message : "Provider request failed";
                     continue;
                 }
             }
 
             if (!result || result.status === 'failed') {
+                if (quota.reservationId && !providerAccepted && !submissionUncertain) {
+                    await settleUsageQuota(user.id, quota.reservationId, false);
+                }
                 return {
-                    error: normalizeGenerationError(
+                    error: submissionUncertain && !providerAccepted
+                        ? `The provider response was interrupted; this job may have started. Do not submit it again yet. Request ${quota.reservationId}.`
+                        : normalizeGenerationError(
                         result?.error || lastError || undefined,
                         "Generation failed after all provider attempts."
                     ),
@@ -409,6 +422,9 @@ export async function generateShot(shotId: string) {
         return { success: true, url: lastUrl };
 
     } catch (err: unknown) {
+        if (quota.reservationId && !providerAccepted && !submissionUncertain) {
+            await settleUsageQuota(user.id, quota.reservationId, false);
+        }
         const message = normalizeGenerationError(err instanceof Error ? err.message : undefined, "Generation failed");
         return { error: message };
     }
@@ -423,11 +439,6 @@ export async function generateVideoShot(
 
     if (!user) {
         return { error: "Unauthorized" };
-    }
-
-    const quota = await consumeUsageQuota(supabase, user.id, "studio");
-    if (!quota.allowed) {
-        return { error: quota.message || "Studio limit reached for your current plan." };
     }
 
     // 1. Fetch the underlying shot_option to get the image URL and original Prompt
@@ -501,10 +512,17 @@ export async function generateVideoShot(
         || (typeof optionParameters?.model === "string" ? optionParameters.model : undefined)
         || undefined;
 
+    const quota = await reserveUsageQuota(supabase, user.id, "studio");
+    if (!quota.allowed) {
+        return { error: quota.message || "Studio limit reached for your current plan." };
+    }
+
+    let submissionStarted = false;
     try {
         const provider = ProviderFactory.create("kie", { apiKey: apiKey });
 
         // Use the output_url of the previous option as the input image prompt.
+        submissionStarted = true;
         const result = await provider.generate({
             prompt: promptText,
             negative_prompt: compliance.negativePrompt,
@@ -516,8 +534,11 @@ export async function generateVideoShot(
         });
 
         if (result.status === 'failed') {
+            if (quota.reservationId) await settleUsageQuota(user.id, quota.reservationId, false);
             return { error: normalizeGenerationError(result.error, "Generation failed") };
         }
+
+        if (quota.reservationId) await settleUsageQuota(user.id, quota.reservationId, true);
 
         if (process.env.NODE_ENV !== "production") {
             console.log(`\n\n=== KIE.AI VIDEO TASK STARTED ===\nTASK ID: ${result.provider_check_id}\n=================================\n\n`);
@@ -564,8 +585,13 @@ export async function generateVideoShot(
         return { success: true, status: result.status };
 
     } catch (err: unknown) {
+        if (quota.reservationId && !submissionStarted) {
+            await settleUsageQuota(user.id, quota.reservationId, false);
+        }
         const message = normalizeGenerationError(err instanceof Error ? err.message : undefined, "Video generation failed");
-        return { error: message };
+        return { error: submissionStarted
+            ? `The provider response was interrupted; this job may have started. Do not submit it again yet. Request ${quota.reservationId}. ${message}`
+            : message };
     }
 }
 

@@ -472,7 +472,14 @@ export async function pollProductionGeneration(generationJobId: string) {
     return { data: { ...job, status: "generating", progress: Math.min(90, Math.max(25, job.progress + 10)) } }
   }
   const persisted = await persistFastVideoMedia(result.data.url)
-  const url = persisted.data?.url || result.data.url
+  if (!persisted.data?.url) {
+    const message = persisted.error || "The render finished, but its file could not be saved yet. Retry this status check."
+    await db.from("generation_jobs")
+      .update({ status: "generating", progress: 95, error_message: message, updated_at: new Date().toISOString() })
+      .eq("id", job.id)
+    return { error: message, data: { ...job, status: "generating", progress: 95 } }
+  }
+  const url = persisted.data.url
   await Promise.all([
     db.from("generation_jobs").update({ status: "completed", progress: 100, updated_at: new Date().toISOString() }).eq("id", job.id),
     job.take_id ? db.from("shot_generations").update({ status: "completed", output_url: url }).eq("id", job.take_id) : Promise.resolve(),

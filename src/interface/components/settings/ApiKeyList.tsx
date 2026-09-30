@@ -18,6 +18,7 @@ import { Database } from "@/core/types/db"
 import { toast } from "sonner"
 
 type Provider = Database["public"]["Tables"]["providers"]["Row"] & {
+    hasKey: boolean
     isConnected: boolean
     lastUpdated: string | null
     testStatus?: string
@@ -112,11 +113,11 @@ export function ApiKeyList() {
                 </Badge>
             )
         }
-        if (status === "invalid") {
+        if (status === "invalid" || status === "unavailable" || status === "rate_limited" || status === "error") {
             return (
                 <Badge className="border border-red-400/35 bg-red-500/15 text-red-100">
                     <AlertCircle className="mr-1 h-3 w-3" />
-                    Invalid
+                    {status === "invalid" ? "Invalid" : status === "rate_limited" ? "Rate limited" : status === "unavailable" ? "Unavailable" : "Test error"}
                 </Badge>
             )
         }
@@ -150,9 +151,9 @@ export function ApiKeyList() {
                                 <TableCell className="font-medium">{provider.name}</TableCell>
                                 <TableCell>
                                     {provider.isConnected ? (
-                                        <Badge className="border border-emerald-400/35 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25">Connected</Badge>
+                                        <Badge className="border border-emerald-400/35 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25">Key verified</Badge>
                                     ) : (
-                                        <Badge className="border border-white/10 bg-white/5 text-white/90">Not Connected</Badge>
+                                        <Badge className="border border-white/10 bg-white/5 text-white/90">{provider.hasKey ? "Needs attention" : "No key"}</Badge>
                                     )}
                                 </TableCell>
                                 <TableCell className="text-white/55">
@@ -167,7 +168,7 @@ export function ApiKeyList() {
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    {provider.isConnected ? (
+                                    {provider.hasKey ? (
                                         <div className="flex justify-end gap-1">
                                             <Button
                                                 variant="ghost"
