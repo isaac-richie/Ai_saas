@@ -68,8 +68,9 @@ test("never silently passes unsupported media to video provider", () => {
   assert.equal(referenceCompatibility([{ ...base, target: "provider" }]).length, 0)
   assert.ok(referenceCompatibility([{ ...base, target: "provider" }, { ...base, target: "provider" }]).length)
 })
-test("requires director analysis; unapplied references do not affect generation", () => {
+test("requires approved analysis or explicit manual guidance; unapplied references do not affect generation", () => {
   assert.ok(referenceCompatibility([{ ...base, analysis: undefined }]).length)
+  assert.equal(referenceCompatibility([{ ...base, analysis: undefined, manualGuidance: "Use the voiceover for a calm narration mood." }]).length, 0)
   assert.equal(referenceCompatibility([{ ...base, applied: false, analysis: undefined }]).length, 0)
   assert.equal(referencePrompt([{ ...base, applied: false }]), "")
 })
@@ -83,6 +84,15 @@ test("guidance is ordered, role-specific and does not mutate snapshots", () => {
   assert.ok(referencePrompt(refs).startsWith("wardrobe ONLY"))
   assert.equal(JSON.stringify(refs), before)
   assert.equal(referencePrompt([{ ...base, target: "provider" }]), "")
+})
+test("manual fallback guidance reaches the generation prompt and is marked as unanalysed", () => {
+  const manual = { ...base, mediaType: "audio", role: "voiceover", duration: 9, trimStart: 0, trimEnd: 9, analysis: undefined, analysisUnavailable: true, manualGuidance: "Use a calm, reassuring narration; do not sync lips." }
+  assert.equal(mediaReferenceSchema.safeParse(manual).success, true)
+  assert.equal(referenceCompatibility([manual]).length, 0)
+  const prompt = referencePrompt([manual])
+  assert.match(prompt, /manual direction, analysis unavailable/)
+  assert.match(prompt, /Use a calm, reassuring narration/)
+  assert.equal(referencePrompt([{ ...manual, applied: false }]), "")
 })
 test("rejects prompt overflow rather than silently dropping reference or duration instructions", () => {
   assert.equal(referencePromptFits("A slow tracking shot", [base]), true)

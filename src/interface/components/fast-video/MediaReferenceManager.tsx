@@ -113,10 +113,13 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [analysisErrors, setAnalysisErrors] = useState<Record<string, string>>({})
+  const setAnalysisError = (id: string, message: string) => setAnalysisErrors((current) => ({ ...current, [id]: message }))
   useEffect(() => { onBusy(Boolean(busy)); return () => onBusy(false) }, [busy, onBusy])
   const update = (id: string, change: Partial<MediaReference>, invalidateAnalysis = false) => {
     setError("")
-    onChange((current) => current.map((item) => item.id === id ? { ...item, ...change, applied: false, ...(invalidateAnalysis ? { analysis: undefined } : {}) } : item))
+    onChange((current) => current.map((item) => item.id === id ? { ...item, ...change, applied: false, ...(invalidateAnalysis ? { analysis: undefined, analysisUnavailable: false } : {}) } : item))
+    if (invalidateAnalysis) setAnalysisErrors((current) => { const next = { ...current }; delete next[id]; return next })
   }
   function pick(type: MediaReference["mediaType"], replaceId?: string) {
     selection.current = { type, replaceId }
@@ -154,6 +157,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
           trimStart: 0, trimEnd: duration ? Math.min(duration, 10) : undefined, volume: previous?.volume ?? 1,
         }
         onChange((current) => previous ? current.map((item) => item.id === previous.id ? ref : item) : [...current, ref])
+        setAnalysisErrors((current) => { const next = { ...current }; delete next[ref.id]; return next })
         setExpandedId(ref.id)
       }
     } catch (err) { setError(err instanceof Error ? err.message : "Upload failed") }
@@ -164,12 +168,19 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
     if (!validated.success) { setError(validated.error.issues[0]?.message || "Check reference settings"); return }
     setBusy(ref.id)
     setError("")
+    onChange((current) => current.map((item) => item.id === ref.id ? { ...item, analysisUnavailable: false } : item))
     try {
       const result = await fetch("/api/media/references/analyse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: { ...ref, analysis: undefined }, peers: references.filter((item) => item.id !== ref.id && item.applied && item.analysis).map((item) => ({ role: item.role, guidance: item.analysis!.guidance })) }), signal: AbortSignal.timeout(175000) })
       const body = await result.json()
       if (!result.ok) throw new Error(body.error || "Analysis failed")
-      update(ref.id, { analysis: referenceAnalysisSchema.parse(body.analysis) })
-    } catch (err) { setError(err instanceof Error ? err.message : "Analysis failed") }
+      update(ref.id, { analysis: referenceAnalysisSchema.parse(body.analysis), analysisUnavailable: false })
+      setAnalysisErrors((current) => { const next = { ...current }; delete next[ref.id]; return next })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Analysis failed"
+      onChange((current) => current.map((item) => item.id === ref.id ? { ...item, analysisUnavailable: true } : item))
+      setError("")
+      setAnalysisError(ref.id, message)
+    }
     finally { setBusy(null) }
   }
   function apply(ref: MediaReference) {
@@ -195,10 +206,17 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
     {error && <p className={styles.warning} role="alert">{error}</p>}
     {warnings.map((warning) => <p key={warning} className={styles.warning}>{warning}</p>)}
     {!references.length && <div className={styles.empty}>Identity. Movement. Sound.<br /><span className={styles.hint}>Up to 6 references, 25 MB each. Only applied references are used.</span></div>}
-    {references.map((ref) => <details className={styles.card} key={ref.id} open={expandedId === ref.id}>
-      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><span>{ref.mediaType === "image" ? <ImagePlus size={16} /> : ref.mediaType === "video" ? <Film size={16} /> : <AudioLines size={16} />}</span><div className={styles.title}><strong>{ref.name}</strong><span>{ref.role} / {ref.scope}{ref.locked ? " / locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : ref.analysis ? "Ready to apply" : "Needs analysis"}</span><ChevronDown size={12} /></summary>
+    {references.map((ref) => {
+      const analysisError = analysisErrors[ref.id]
+      const hasManualGuidance = Boolean(ref.manualGuidance?.trim())
+      const canUseImageDirectly = ref.mediaType === "image" && ref.target === "provider"
+      const canApply = Boolean(ref.analysis || hasManualGuidance || canUseImageDirectly)
+      const applyLabel = ref.applied ? "Applied" : ref.analysis ? "Apply Reference" : canUseImageDirectly ? "Use image directly" : ref.analysisUnavailable ? "Continue without analysis" : "Apply manual direction"
+      return <details className={styles.card} key={ref.id} open={expandedId === ref.id}>
+      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><span>{ref.mediaType === "image" ? <ImagePlus size={16} /> : ref.mediaType === "video" ? <Film size={16} /> : <AudioLines size={16} />}</span><div className={styles.title}><strong>{ref.name}</strong><span>{ref.role} / {ref.scope}{ref.locked ? " / locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : ref.analysis ? "Ready to apply" : ref.analysisUnavailable || analysisError ? "Analysis unavailable" : "Needs analysis"}</span><ChevronDown size={12} /></summary>
       <div className={styles.body}>
         <ReferencePreview reference={ref} />
+        {(ref.analysisUnavailable || analysisError) && <p className={styles.warning} role="status">Analysis unavailable — your file is still attached and can still be used. {analysisError || "Retry analysis or add manual direction to continue."}</p>}
         <div className={styles.grid}>
           <label className={styles.field}>Role<select disabled={disabled || !!busy || ref.locked} value={ref.role} onChange={(e) => update(ref.id, { role: e.target.value }, true)}>{REFERENCE_ROLES[ref.mediaType].map((role) => <option key={role}>{role}</option>)}</select></label>
           <label className={styles.field}>Use for<select disabled={disabled || !!busy || ref.locked} value={ref.target} onChange={(e) => update(ref.id, { target: e.target.value as MediaReference["target"] })}><option value="director">Director guidance</option><option value="provider" disabled={ref.mediaType !== "image"}>Direct image-to-video</option></select></label>
@@ -221,15 +239,19 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
           <p className={styles.hint}>{ref.analysis.limitations}</p>
           {ref.analysis.transcript && <details><summary>Speech transcript</summary><p>{ref.analysis.transcript}</p></details>}
         </div>}
+        {!ref.analysis && <div className={styles.analysis}>
+          <label className={styles.field}>Manual direction (used without analysis)<textarea rows={3} maxLength={500} disabled={disabled || !!busy || ref.locked} value={ref.manualGuidance || ""} placeholder={ref.mediaType === "audio" ? "Describe the intended voice, dialogue, mood, or timing. The audio itself will not be mixed or synced." : ref.mediaType === "video" ? "Describe the movement, framing, or pacing you want the crew to use." : "Describe what the image should guide."} onChange={(e) => update(ref.id, { manualGuidance: e.target.value })} /></label>
+          <p className={styles.hint}>{ref.mediaType === "audio" ? "Audio stays attached as a reference; add the spoken words or sound cues here if they matter to the shot." : ref.mediaType === "video" ? "The video stays attached, but this adapter uses written motion direction unless analysis is available." : "You can also use an image directly as the starting frame by choosing Direct image-to-video above."}</p>
+        </div>}
         <div className={styles.actions}>
-          <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => void analyse(ref)}>{busy === ref.id && <Loader2 size={12} className="animate-spin" />}{ref.analysis ? "Re-analyse" : "Analyse"}</button>
-          <button type="button" className={styles.apply} disabled={disabled || !!busy || ref.applied || !ref.analysis} onClick={() => apply(ref)}>{ref.applied ? "Applied" : ref.analysis ? "Apply Reference" : "Analyse first"}</button>
+          <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => void analyse(ref)}>{busy === ref.id && <Loader2 size={12} className="animate-spin" />}{ref.analysis ? "Re-analyse" : ref.analysisUnavailable || analysisError ? "Retry analysis" : "Analyse"}</button>
+          <button type="button" className={styles.apply} disabled={disabled || !!busy || ref.applied || !canApply} onClick={() => apply(ref)}>{applyLabel}</button>
           <button type="button" disabled={disabled || !!busy} aria-pressed={ref.locked} onClick={() => update(ref.id, { locked: !ref.locked })}><LockKeyhole size={12} />{ref.locked ? "Unlock" : "Lock"}</button>
           <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => pick(ref.mediaType, ref.id)}>Replace</button>
           <button type="button" className={styles.remove} disabled={disabled || !!busy || ref.locked} onClick={() => onChange((current) => current.filter((item) => item.id !== ref.id))}>Remove</button>
         </div>
       </div>
-    </details>)}
+    </details>})}
     {references.some((ref) => ref.scope === "shot") && <div className={styles.actions}><button type="button" disabled={disabled || !!busy} onClick={() => {
       if (window.confirm("Start a new reference setup? Shot-only references will detach, including shot locks. Scene and project references stay. Stored assets and saved takes are unchanged.")) onChange((current) => current.filter((ref) => ref.scope !== "shot"))
     }}>Start next shot setup</button></div>}

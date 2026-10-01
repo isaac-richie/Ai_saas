@@ -37,6 +37,8 @@ export const mediaReferenceSchema = z.object({
   trimStart: z.number().min(0).max(600).default(0),
   trimEnd: z.number().positive().max(600).optional(),
   volume: z.number().min(0).max(1).default(1),
+  manualGuidance: z.string().max(500).optional(),
+  analysisUnavailable: z.boolean().optional(),
   analysis: referenceAnalysisSchema.optional(),
 }).superRefine((ref, ctx) => {
   if (!(REFERENCE_ROLES[ref.mediaType] as readonly string[]).includes(ref.role)) {
@@ -70,7 +72,7 @@ export function referenceCompatibility(refs: MediaReference[]): string[] {
   if (active.filter((ref) => ref.target === "provider").length > 1) issues.push("The current video adapter accepts only one direct image. Use Director guidance for the other references.")
   for (const ref of active) {
     if (ref.target === "provider" && ref.mediaType !== "image") issues.push(`${ref.name}: direct video/audio conditioning is not wired into this adapter. Choose Director guidance.`)
-    if (ref.target === "director" && !ref.analysis) issues.push(`${ref.name}: analyse and approve the guidance before applying.`)
+    if (ref.target === "director" && !ref.analysis && !ref.manualGuidance?.trim()) issues.push(`${ref.name}: add manual direction or analyse it before applying.`)
   }
   return issues
 }
@@ -87,9 +89,13 @@ export function referenceConflicts(refs: MediaReference[]) {
 
 export function referencePrompt(refs: MediaReference[]) {
   const rank = { primary: 0, secondary: 1, supporting: 2 }
-  return refs.filter((ref) => ref.applied && ref.target === "director" && ref.analysis)
+  return refs.filter((ref) => ref.applied && ref.target === "director" && (ref.analysis || ref.manualGuidance?.trim()))
     .sort((a, b) => rank[a.priority] - rank[b.priority])
-    .map((ref) => `${ref.role} ONLY (${ref.priority}, ${ref.influence}${ref.locked ? ", preserve" : ""}): ${ref.analysis!.guidance}`).join("; ")
+    .map((ref) => {
+      const manual = !ref.analysis
+      const direction = ref.analysis?.guidance || ref.manualGuidance!.trim()
+      return `${ref.role} ONLY (${ref.priority}, ${ref.influence}${ref.locked ? ", preserve" : ""}${manual ? "; manual direction, analysis unavailable" : ""}): ${direction}`
+    }).join("; ")
 }
 
 export function referencePromptFits(subject: string, refs: MediaReference[]) {
