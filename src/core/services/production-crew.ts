@@ -165,13 +165,15 @@ export function normalizeCrewStageOutput(value: unknown): unknown {
 }
 
 function fallbackLedger(story: z.infer<typeof productionBibleSchema>): ContinuityLedger {
-  const anchors = story.continuityAnchors
+  // Bible anchors allow 240 characters and world 600; the ledger is stricter.
+  // Fit each field so a long reference name cannot fail the final plan parse.
+  const anchors = story.continuityAnchors.map(anchor => clip(anchor, 180))
   return {
     subjectIdentity: anchors[0] || "Preserve the same approved subject identity",
     wardrobe: anchors[1] || "Preserve the same wardrobe and styling",
-    heroObjects: anchors.slice(2, 5),
-    location: story.world,
-    environment: story.world,
+    heroObjects: anchors.slice(2, 5).map(anchor => clip(anchor, 160)),
+    location: clip(story.world, 300),
+    environment: clip(story.world, 300),
     palette: ["Preserve the established production palette"],
     lighting: "Preserve motivated light direction, quality, and exposure",
     screenDirection: "Preserve established eyelines, blocking, and screen direction",
@@ -242,7 +244,7 @@ export function compileProductionPlan(input: {
       id: `shot-${index + 1}`, title: shot.title, conceptType: "Narrative coverage", hook: shot.intent,
       creatorDirection: shot.action, masterPrompt: compileContinuityPrompt(shot), negativePrompt: compileContinuityNegativePrompt(shot.negativePrompt),
       durationSeconds: input.shotSettings?.[index].durationSeconds ?? 10, aspectRatio: "16:9", modelFamilyId: input.shotSettings?.[index].model ?? shot.model,
-      continuityAnchors: [...input.story.continuityAnchors, ...ledger.invariants].slice(0, 12), productionNotes: [shot.editNote],
+      continuityAnchors: [...new Set([...input.story.continuityAnchors, ...ledger.invariants])].slice(0, 12), productionNotes: [shot.editNote],
       continuityStartState: shot.continuity?.startState,
       continuityEndState: shot.continuity?.endState,
       intentionalChanges: shot.continuity?.intentionalChanges || [],
@@ -258,7 +260,14 @@ export function compileProductionPlan(input: {
 
 export function createCrewRunner(_legacyModel: string, references: ProductionAsset[] = [], shotCount = 3): CrewRunner {
   if (!process.env.OPENAI_API_KEY) throw new Error("The director connection is not configured.")
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 150_000, maxRetries: 0 })
+  const CREW_CALL_TIMEOUT_MS = 150_000
+  const CREW_STAGE_BUDGET_MS = 165_000
+  const CREW_MIN_ATTEMPT_MS = 45_000
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: CREW_CALL_TIMEOUT_MS, maxRetries: 0 })
+  // Reference sampling and every attempt share one budget that ends before the
+  // 3-minute planning lease and the 180s route limit, so a paid call is never
+  // killed mid-flight or duplicated by a second claimant.
+  const deadline = Date.now() + CREW_STAGE_BUDGET_MS
   const referenceInput = buildReferenceInput(references)
   return async <T>(role: string, instruction: string, context: unknown, schema: z.ZodType<T>) => {
     try {
@@ -274,6 +283,8 @@ export function createCrewRunner(_legacyModel: string, references: ProductionAss
             : schema
       let result
       for (let attempt = 0; attempt < 2; attempt += 1) {
+        const remaining = deadline - Date.now()
+        if (remaining < CREW_MIN_ATTEMPT_MS) throw new Error("The crew stage ran out of time before the director replied. Retry to resume from the saved checkpoint.")
         try {
           result = await client.responses.parse({
             model,
@@ -295,7 +306,7 @@ export function createCrewRunner(_legacyModel: string, references: ProductionAss
             ].join(" "),
             input: references.length ? [{ role: "user", content: [{ type: "input_text", text: JSON.stringify({ context }) }, ...(await referenceInput)] }] : JSON.stringify(context),
             text: { format: zodTextFormat(outputSchema, role.replaceAll("-", "_")) },
-          })
+          }, { timeout: Math.min(CREW_CALL_TIMEOUT_MS, remaining) })
           break
         } catch (cause) {
           if (attempt === 0 && isRecoverableStructuredOutputError(cause)) continue

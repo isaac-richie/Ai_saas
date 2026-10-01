@@ -2,7 +2,7 @@
 
 import { z } from "zod"
 import { createClient } from "@/infrastructure/supabase/server"
-import { productionPlanSchema, canApproveProduction, productionBibleSchema, departmentDirectionSchema, crewShotsSchema } from "@/core/validation/production-crew"
+import { productionPlanSchema, canApproveProduction, productionBibleSchema, departmentDirectionSchema, crewShotsSchema, blockingFindings, findingsRepairUsed } from "@/core/validation/production-crew"
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
 import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
 import type { Json } from "@/core/types/db"
@@ -13,7 +13,7 @@ import { productionShotSettingsSchema } from "@/core/validation/production-setti
 const updateSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(4000), assets: productionAssetsSchema.default([]), shotSettings: productionShotSettingsSchema }),
   z.object({ action: z.literal("plan"), id: z.string().uuid(), plan: productionPlanSchema }),
-  z.object({ action: z.literal("approve"), id: z.string().uuid() }),
+  z.object({ action: z.literal("approve"), id: z.string().uuid(), acknowledgeFindings: z.boolean().optional() }),
 ])
 
 export async function listProductions() {
@@ -41,6 +41,8 @@ export async function updateProduction(input: unknown) {
   if (payload.action === "approve") {
     const { data: job, error } = await db.from("production_jobs").select("plan").eq("id", payload.id).eq("user_id", user.id).maybeSingle()
     if (error || !job || !canApproveProduction(job.plan)) return { error: "The executable prompts need a repair before approval. Check each shot's prompt, model, duration, and continuity handoff." }
+    // Crew findings are advisory, but approving past them must be a deliberate choice.
+    if (blockingFindings(job.plan).length > 0 && !payload.acknowledgeFindings) return { error: "The crew flagged continuity notes on this plan. Review them, then choose Approve anyway or Repair with crew." }
   }
   const query = payload.action === "create"
     ? db.from("production_jobs").insert({ user_id: user.id, brief: payload.brief, planning_context: { shotSettings: payload.shotSettings }, ...(payload.assets.length ? { reference_assets: payload.assets } : {}) })
@@ -217,8 +219,15 @@ export async function createProductionRevision(input: unknown) {
   if (parsed.data.repair) {
     if (latestRevision && latestRevision.id !== source.id && latestRevision.revision_number > source.revision_number) return { data: latestRevision }
     if (source.status === "brief") return { data: source }
-    if (source.status !== "awaiting_approval" || canApproveProduction(source.plan)) return { error: "This film does not need a repair. Refresh to see its current direction." }
+    if (source.status !== "awaiting_approval") return { error: "This film does not need a repair. Refresh to see its current direction." }
+    if (canApproveProduction(source.plan)) {
+      // An approvable plan may be repaired only for flagged findings, once per lineage.
+      if (blockingFindings(source.plan).length === 0) return { error: "This film does not need a repair. Refresh to see its current direction." }
+      if (findingsRepairUsed(source.planning_context)) return { error: "The crew already repaired this film once. Review the remaining notes and approve anyway, or adjust the direction." }
+    }
   }
+  const advisoryRepair = Boolean(parsed.data.repair && canApproveProduction(source.plan))
+  const repairUsed = findingsRepairUsed(source.planning_context) || advisoryRepair
   const nextRevision = Math.max(source.revision_number || 1, latestRevision?.revision_number || 1) + 1
   const sourcePlan = productionPlanSchema.safeParse(source.plan)
   const findings = parsed.data.repair && sourcePlan.success
@@ -262,8 +271,10 @@ export async function createProductionRevision(input: unknown) {
     && sourcePlan.data.deliverables.length === savedContext.data.editor.shots.length
     && sourcePlan.data.deliverables.every((shot, index) => shot.masterPrompt === savedContext.data.editor.shots[index].prompt)
     && departmentStages.length === departmentRoles.length)
+  const extractorStage = savedContext.success ? savedContext.data.stages.find(stage => stage.role === "continuity-extractor") : undefined
   const planningContext = {
     ...revisionContext,
+    ...(repairUsed ? { findingsRepairUsed: true } : {}),
     ...(shotSettings ? { shotSettings } : {}),
     ...(reuseDepartments && savedContext.success && sourcePlan.success ? {
       model: sourcePlan.data.crew?.model,
@@ -274,7 +285,7 @@ export async function createProductionRevision(input: unknown) {
       productionDesign: savedContext.data.productionDesign,
       performance: savedContext.data.performance,
       previousEditor: savedContext.data.editor,
-      stages: departmentStages,
+      stages: [...(extractorStage ? [extractorStage] : []), ...departmentStages],
     } : {}),
   }
   const { data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: source.brief, planning_stage: reuseDepartments ? "departments" : "brief", planning_context: planningContext, parent_job_id: lineageRoot, revision_number: nextRevision, ...(source.reference_assets ? { reference_assets: source.reference_assets } : {}) }).select("*").single()

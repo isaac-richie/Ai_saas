@@ -12,7 +12,7 @@ test("routine production work routes below Astra without inheriting the legacy o
     ["ECONOMY_ROLES", "BALANCED_ROLES", "productionModelTier", "resolveProductionModel", "resolvePremiumProductionModel"],
   )
   const env = { PRODUCTION_CREW_MODEL: "gpt-6-astra" }
-  for (const role of ["cinematographer", "lighting-director", "production-designer", "performance-director", "reference-analysis", "keyframe-inspection"]) {
+  for (const role of ["cinematographer", "lighting-director", "production-designer", "performance-director", "reference-analysis", "keyframe-inspection", "continuity-extractor"]) {
     assert.equal(resolveProductionModel(role, env).model, "gpt-6-luna")
   }
   for (const role of ["shot-editor", "continuity-reviewer", "take-correction", "story-director"]) {

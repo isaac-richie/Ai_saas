@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { applyMechanicalPlanRepair, createProductionRevision, listProductions, materializeProduction, replaceProductionReferences, updateProduction } from "@/core/actions/production"
-import { canApproveProduction, type ProductionPlan } from "@/core/validation/production-crew"
+import { blockingFindings, canApproveProduction, findingsRepairUsed, type ProductionPlan } from "@/core/validation/production-crew"
 import { ProductionRunPanel } from "./ProductionRunPanel"
 import { ArrowUpRight, Clapperboard, Plus, RefreshCw } from "lucide-react"
 import styles from "./ProductionDesk.module.css"
@@ -16,7 +16,7 @@ import { ProductionShotSettings, ReviseProductionSettings, emptyShotSettings, ty
 
 import { latestFilms } from "@/core/utils/production/latest-films"
 
-type Production = { planning_context?: { shotSettings?: ShotSettingDraft[] }; parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; reference_assets?: unknown; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
+type Production = { planning_context?: { shotSettings?: ShotSettingDraft[]; findingsRepairUsed?: boolean }; parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; reference_assets?: unknown; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
 type ProductionView = "brief" | "direction" | "takes"
 
 const PRODUCTION_DESK_STORAGE_KEY = "aisas.production-desk.v1"
@@ -32,6 +32,7 @@ export function ProductionDesk() {
   const [ready, setReady] = useState(false)
   const [crewStatus, setCrewStatus] = useState("")
   const [revisionNotes, setRevisionNotes] = useState<Record<string, string>>({})
+  const [confirmingApproval, setConfirmingApproval] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<ProductionView>("brief")
   const [sessionRestored, setSessionRestored] = useState(false)
@@ -111,7 +112,7 @@ export function ProductionDesk() {
 
   async function developWithCrew(jobId: string) {
     // Older checkpoints can need an extra department repair pass before shots are compiled.
-    for (let step = 0; step < 8; step += 1) {
+    for (let step = 0; step < 10; step += 1) {
       const response = await fetch("/api/ad/production-crew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobId }) })
       const result = await response.json().catch(() => ({ ok: false, error: response.status >= 500 ? "The crew request timed out. Its completed checkpoint is safe; resume to continue." : "The crew returned an unreadable response." }))
       if (!response.ok || !result.ok) {
@@ -134,7 +135,7 @@ export function ProductionDesk() {
     <section className={styles.desk} aria-label="Production Desk">
       <header className={styles.header}>
         <div><p className={styles.eyebrow}><Clapperboard size={15} /> THE PRODUCTION DESK</p><h2>Your vision.<br /><em>A crew to bring it to life.</em></h2><p className={styles.intro}>Shape the story. Direct the details. Make something worth watching.</p></div>
-        <div className={styles.slate}><span>CREW / 07</span><strong>One shared vision.</strong><p>Story · Camera · Light<br />Design · Performance · Edit · Continuity</p></div>
+        <div className={styles.slate}><span>CREW / 07</span><strong>One shared vision.</strong><p>Continuity · Camera · Light<br />Design · Performance · Edit · Review</p></div>
       </header>
       <div className={styles.toolbar}>
         <label className={styles.projectPicker}>PRODUCTION<select aria-label="Choose production" value={selected?.id || ""} disabled={busy} onChange={event => { const job = jobs.find(item => item.id === event.target.value); setSelectedId(job?.id || null); setView(job ? (job.project_id ? "takes" : "direction") : "brief") }}><option value="">Start a new film</option>{films.map(job => <option key={job.id} value={job.id}>{job.plan?.crew?.bible.title || job.brief.slice(0, 64)}</option>)}</select></label>
@@ -156,10 +157,10 @@ export function ProductionDesk() {
         keep(result.data as Production); setBrief(""); setAssets([])
       }) }}>
         <label htmlFor="production-brief" className="text-sm text-white/80">What should the audience feel?</label>
-        <textarea id="production-brief" required minLength={8} maxLength={4000} value={brief} onChange={event => setBrief(event.target.value)} placeholder="A quiet fashion film at dawn. One protagonist, an ivory coat, and a city coming to life..." className="mt-2 min-h-28 w-full rounded-xl border border-white/15 bg-black/30 p-4 text-white placeholder:text-white/30" />
+        <textarea id="production-brief" required minLength={8} maxLength={4000} value={brief} onChange={event => setBrief(event.target.value)} placeholder="A quiet fashion film at dawn. One protagonist, an ivory coat, and a city coming to life..." className="mt-2 min-h-28 w-full rounded-xl border border-gold-400/20 bg-black/30 p-4 text-white placeholder:text-white/30" />
         <ProductionShotSettings value={shotSettings} onChange={setShotSettings} disabled={busy} />
         <ProductionReferences assets={assets} onChange={setAssets} disabled={busy} onBusy={setUploading} />
-        <button disabled={busy || !ready || uploading} className="mt-3 rounded-full bg-[#d6ede7] px-5 py-2 text-sm font-medium text-black disabled:opacity-40">{busy ? "Working..." : "Save film brief"}</button>
+        <button disabled={busy || !ready || uploading} className="mt-3 rounded-full bg-gold-300 px-5 py-2 text-sm font-medium text-black disabled:opacity-40">{busy ? "Working..." : "Save film brief"}</button>
       </form></div>}
       {error && <p role="alert" className="mt-4 text-sm text-amber-200">{error}</p>}
       {busy && <div role="status" className={styles.progress}><span />{crewStatus || "Working on your production..."}<small>Completed stages are saved.</small></div>}
@@ -188,14 +189,14 @@ export function ProductionDesk() {
           {view === "direction" && job.planning_error && job.status === "brief" && <p role="status" className="mt-3 text-sm text-amber-200">{/no credits remaining|credit_balance_exhausted|insufficient_quota|ai planning credits are exhausted/i.test(job.planning_error) ? "AI planning is paused because the studio's OpenAI API credits are exhausted. The studio owner needs to add credits, then select Resume crew. Your saved work is safe." : "The crew paused at its saved checkpoint. Resume to continue; no completed planning work was lost."}</p>}
           {view === "direction" && job.plan && <div className="mt-4">
             <p className="text-sm text-white/70">{job.plan.creativeStrategy}</p>
-            {job.plan.crew && <details className="mt-4 rounded-xl border border-white/10 p-4">
-              <summary className="cursor-pointer text-sm text-[#d6ede7]">Production bible and crew review</summary>
+            {job.plan.crew && <details className="mt-4 rounded-xl border border-gold-400/[0.12] p-4">
+              <summary className="cursor-pointer text-sm text-gold-300">Production bible and crew review</summary>
               <h4 className="mt-4 text-lg text-white">{job.plan.crew.bible.title}</h4>
               <p className="mt-2 text-sm text-white/70">{job.plan.crew.bible.audienceEmotion}</p>
               <p className="mt-2 text-sm text-white/70">{job.plan.crew.bible.world}</p>
               <ul className="mt-3 list-inside list-disc text-sm text-white/60">{job.plan.crew.bible.continuityAnchors.map((anchor, i) => <li key={i}>{anchor}</li>)}</ul>
-              {job.plan.crew.bible.continuityLedger && <div className="mt-4 rounded-xl border border-[#d6ede7]/15 bg-[#d6ede7]/[0.04] p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-[#d6ede7]">Locked continuity contract</p>
+              {job.plan.crew.bible.continuityLedger && <div className="mt-4 rounded-xl border border-gold-300/15 bg-gold-300/[0.04] p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-gold-300">Locked continuity contract</p>
                 <div className="mt-3 grid gap-2 text-xs text-white/65 sm:grid-cols-2">
                   <p><strong className="text-white/85">Identity</strong><br />{job.plan.crew.bible.continuityLedger.subjectIdentity}</p>
                   <p><strong className="text-white/85">Wardrobe</strong><br />{job.plan.crew.bible.continuityLedger.wardrobe}</p>
@@ -213,14 +214,14 @@ export function ProductionDesk() {
               ].filter(department => department.direction).map(department => <details key={department.name}><summary>{department.name}</summary><p>{department.direction?.approach}</p>{department.direction?.shotDirections.map((direction, index) => <p key={index}><strong>Shot {index + 1}</strong> {direction}</p>)}</details>)}</div>
               {job.plan.crew.bible.assumptions.length > 0 && <p className="mt-3 text-sm text-white/60">Creative assumptions: {job.plan.crew.bible.assumptions.join(" ")}</p>}
               <p className="mt-4 text-sm text-white/80">Crew review: {job.plan.crew.review.summary}</p>
-              {job.plan.crew.review.findings.map((finding, i) => <p key={i} className="mt-2 text-sm text-amber-200">Shot {finding.shotNumber} / {finding.severity === "blocking" ? "review note" : finding.severity}: {finding.evidence} {finding.correction}</p>)}
-              <p className="mt-3 text-xs text-white/50">The release gate validates executable prompts and handoffs. Crew notes are advisory; review generated footage in Takes & review.</p>
+              {job.plan.crew.review.findings.map((finding, i) => <p key={i} className="mt-2 text-sm text-amber-200">Shot {finding.shotNumber} / {finding.severity === "blocking" ? "flagged" : finding.severity}: {finding.evidence} {finding.correction}</p>)}
+              <p className="mt-3 text-xs text-white/50">The release gate validates executable prompts and handoffs. Flagged crew notes are advisory: you can repair once with the crew or approve anyway.</p>
             </details>}
             <div className="mt-4 grid gap-3 lg:grid-cols-3">{job.plan.deliverables.map((shot, index) => <section key={`${shot.id}-${index}`} className="min-w-0 rounded-lg bg-white/5 p-4">
               <h4 className="text-sm font-medium text-white">{index + 1}. {shot.title}</h4>
               <p className="mt-2 text-xs text-white/50">{shot.modelFamilyId} / {shot.durationSeconds}s requested / {shot.aspectRatio}</p>
               <p className="mt-3 text-sm text-white/70">{shot.creatorDirection}</p>
-              {shot.continuityStartState && <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
+              {shot.continuityStartState && <div className="mt-3 rounded-lg border border-gold-400/[0.12] bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
               <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2 whitespace-pre-wrap">{shot.masterPrompt}</p></details>
               {!!shot.productionNotes?.length && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
             </section>)}</div>
@@ -228,41 +229,66 @@ export function ProductionDesk() {
           {job.status === "brief" && <button disabled={busy} className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => void run(async () => {
             await developWithCrew(job.id)
           })}>{job.planning_stage && job.planning_stage !== "brief" ? "Resume crew" : "Develop with crew"}</button>}
-          {job.status === "awaiting_approval" && <button disabled={busy || !canApproveProduction(job.plan)} className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => void run(async () => {
+          {job.status === "awaiting_approval" && blockingFindings(job.plan).length === 0 && <button disabled={busy || !canApproveProduction(job.plan)} className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => void run(async () => {
             const result = await updateProduction({ action: "approve", id: job.id })
             if (result.error) throw new Error(result.error)
             keep(result.data as Production)
           })}>Approve direction</button>}
+          {job.status === "awaiting_approval" && canApproveProduction(job.plan) && blockingFindings(job.plan).length > 0 && <div className="mt-4 rounded-xl border border-gold-300/25 bg-gold-300/[0.04] p-4 text-sm" role="status" aria-label="Crew notes">
+            <p className="text-gold-200">The crew flagged {blockingFindings(job.plan).length === 1 ? "1 continuity note" : `${blockingFindings(job.plan).length} continuity notes`}. They are advisory — your call.</p>
+            <ul className="mt-2 list-disc space-y-2 pl-5 text-white/75">{blockingFindings(job.plan).map((finding, index) => <li key={index}><strong>Shot {finding.shotNumber}:</strong> {finding.evidence}<p className="mt-1 text-white/55">Suggested fix: {finding.correction}</p></li>)}</ul>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {!findingsRepairUsed(job.planning_context) && <button disabled={busy} className="rounded-full bg-gold-300 px-4 py-2 text-sm font-medium text-black disabled:opacity-40" onClick={() => void run(async () => {
+                const result = await createProductionRevision({ productionId: job.id, direction: "Repair the plan using the crew's flagged continuity notes.", repair: true })
+                if (result.error || !result.data) throw new Error(result.error || "Could not create a repair revision.")
+                const repaired = result.data as Production
+                keep(repaired)
+                await developWithCrew(repaired.id)
+              })}>Repair with crew</button>}
+              {confirmingApproval === job.id
+                ? <>
+                  <button disabled={busy} className="rounded-full border border-gold-300/60 px-4 py-2 text-sm text-gold-100 disabled:opacity-40" onClick={() => void run(async () => {
+                    const result = await updateProduction({ action: "approve", id: job.id, acknowledgeFindings: true })
+                    if (result.error) throw new Error(result.error)
+                    setConfirmingApproval(null)
+                    keep(result.data as Production)
+                  })}>Confirm approval with open notes</button>
+                  <button disabled={busy} className="text-xs text-white/55 underline-offset-4 hover:underline" onClick={() => setConfirmingApproval(null)}>Cancel</button>
+                </>
+                : <button disabled={busy} className="rounded-full border border-white/20 px-4 py-2 text-sm text-white disabled:opacity-40" onClick={() => setConfirmingApproval(job.id)}>Approve anyway</button>}
+            </div>
+            {findingsRepairUsed(job.planning_context) && <p className="mt-3 text-xs text-white/50">The crew has already repaired this film once. Approve anyway, or use Adjust production direction for a new pass.</p>}
+          </div>}
           {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <div className="mt-3 rounded-lg border border-amber-200/20 p-4 text-sm text-amber-200" role="status">
             <p>Plan needs revision before approval. Your saved work is safe.</p>
             <ul className="mt-2 list-disc space-y-2 pl-5">{job.plan?.crew?.review.findings.filter(finding => finding.severity === "blocking").map((finding, index) => <li key={index}><strong>Shot {finding.shotNumber}:</strong> {finding.evidence}<p className="mt-1 text-white/70">Required fix: {finding.correction}</p></li>)}</ul>
             <p className="mt-3 text-white/60">Try automatic repair first for a mechanically truncated prompt. It uses no AI planning credits. Crew repair reuses saved specialist direction when the brief, references and timing are unchanged; it then reruns shot editing and review.</p>
           </div>}
-          {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <button disabled={busy} className="mt-3 rounded-full border border-[#d6ede7]/50 px-4 py-2 text-sm text-[#d6ede7] disabled:opacity-40" onClick={() => void run(async () => {
+          {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <button disabled={busy} className="mt-3 rounded-full border border-gold-300/50 px-4 py-2 text-sm text-gold-300 disabled:opacity-40" onClick={() => void run(async () => {
             const result = await applyMechanicalPlanRepair(job.id)
             if (result.error || !result.data) throw new Error(result.error || "Could not apply the automatic repair.")
             keep(result.data as Production)
           })}>Apply automatic prompt repair</button>}
-          {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <button disabled={busy} className="mt-3 rounded-full bg-[#d6ede7] px-4 py-2 text-sm font-medium text-black disabled:opacity-40" onClick={() => void run(async () => {
+          {job.status === "awaiting_approval" && !canApproveProduction(job.plan) && <button disabled={busy} className="mt-3 rounded-full bg-gold-300 px-4 py-2 text-sm font-medium text-black disabled:opacity-40" onClick={() => void run(async () => {
             const result = await createProductionRevision({ productionId: job.id, direction: "Repair the blocked plan using all saved reviewer findings.", repair: true })
             if (result.error || !result.data) throw new Error(result.error || "Could not create a repair revision.")
             const repaired = result.data as Production
             keep(repaired)
             await developWithCrew(repaired.id)
           })}>Repair plan with crew</button>}
-          {view === "direction" && job.status === "approved" && <p className="mt-4 text-sm text-[#d6ede7]">Direction approved. {job.project_id ? "Continue to Takes & review to direct your production." : "Create the workspace to begin generating your shots."}</p>}
-          {view === "direction" && job.project_id && <button className="mt-4 rounded-full bg-[#d6ede7] px-5 py-2.5 text-sm font-medium text-black" onClick={() => setView("takes")}>Continue to takes</button>}
-          {job.status === "approved" && !job.project_id && <button disabled={busy} className="mt-4 rounded-full bg-[#d6ede7] px-4 py-2 text-sm font-medium text-black disabled:opacity-40" onClick={() => void run(async () => {
+          {view === "direction" && job.status === "approved" && <p className="mt-4 text-sm text-gold-300">Direction approved. {job.project_id ? "Continue to Takes & review to direct your production." : "Create the workspace to begin generating your shots."}</p>}
+          {view === "direction" && job.project_id && <button className="mt-4 rounded-full bg-gold-300 px-5 py-2.5 text-sm font-medium text-black" onClick={() => setView("takes")}>Continue to takes</button>}
+          {job.status === "approved" && !job.project_id && <button disabled={busy} className="mt-4 rounded-full bg-gold-300 px-4 py-2 text-sm font-medium text-black disabled:opacity-40" onClick={() => void run(async () => {
             const result = await materializeProduction(job.id)
             if (result.error || !result.data) throw new Error(result.error || "Could not create workspace.")
             keep({ ...job, project_id: result.data.projectId, scene_id: result.data.sceneId, sequence_id: result.data.sequenceId })
           })}>Create production workspace</button>}
           {job.project_id && job.scene_id && <div className="mt-4 flex flex-wrap gap-3">
-            <Link className="rounded-full bg-[#d6ede7] px-4 py-2 text-sm font-medium text-black" href={`/dashboard/projects/${job.project_id}/scenes/${job.scene_id}`}>Open shot workspace</Link>
+            <Link className="rounded-full bg-gold-300 px-4 py-2 text-sm font-medium text-black" href={`/dashboard/projects/${job.project_id}/scenes/${job.scene_id}`}>Open shot workspace</Link>
             {job.sequence_id && <Link className="rounded-full border border-white/20 px-4 py-2 text-sm text-white" href={`/dashboard/sequences/${job.sequence_id}`}>Open first cut</Link>}
           </div>}
           {view === "takes" && job.project_id && job.scene_id && <ProductionRunPanel productionId={job.id} projectId={job.project_id} sceneId={job.scene_id} sequenceId={job.sequence_id} />}
-          {job.status !== "brief" && <details className="mt-4 rounded-xl border border-white/10 p-3"><summary className="cursor-pointer text-xs text-white/55">Adjust production direction</summary><textarea value={revisionNotes[job.id] || ""} onChange={event => setRevisionNotes(current => ({ ...current, [job.id]: event.target.value }))} maxLength={2000} placeholder="Keep the approved history and describe only what should change..." className="mt-3 min-h-20 w-full rounded-lg border border-white/10 bg-black/30 p-3 text-sm text-white placeholder:text-white/30" /><button disabled={busy || (revisionNotes[job.id] || "").trim().length < 8} className="mt-3 rounded-full border border-white/15 px-4 py-2 text-xs text-white disabled:opacity-40" onClick={() => void run(async () => { const result = await createProductionRevision({ productionId: job.id, direction: revisionNotes[job.id] || "" }); if (result.error || !result.data) throw new Error(result.error || "Could not create revision."); keep(result.data as Production); setRevisionNotes(current => ({ ...current, [job.id]: "" })) })}>Update direction</button></details>}
+          {job.status !== "brief" && <details className="mt-4 rounded-xl border border-gold-400/[0.12] p-3"><summary className="cursor-pointer text-xs text-white/55">Adjust production direction</summary><textarea value={revisionNotes[job.id] || ""} onChange={event => setRevisionNotes(current => ({ ...current, [job.id]: event.target.value }))} maxLength={2000} placeholder="Keep the approved history and describe only what should change..." className="mt-3 min-h-20 w-full rounded-lg border border-gold-400/[0.12] bg-black/30 p-3 text-sm text-white placeholder:text-white/30" /><button disabled={busy || (revisionNotes[job.id] || "").trim().length < 8} className="mt-3 rounded-full border border-gold-400/20 px-4 py-2 text-xs text-white disabled:opacity-40" onClick={() => void run(async () => { const result = await createProductionRevision({ productionId: job.id, direction: revisionNotes[job.id] || "" }); if (result.error || !result.data) throw new Error(result.error || "Could not create revision."); keep(result.data as Production); setRevisionNotes(current => ({ ...current, [job.id]: "" })) })}>Update direction</button></details>}
         </article>)}
       </div>
       </div>

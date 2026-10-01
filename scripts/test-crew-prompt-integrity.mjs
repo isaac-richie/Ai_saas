@@ -161,6 +161,8 @@ test('revision action saves a 4000-character brief unchanged with large repair n
     productionPlanSchema: { safeParse: value => ({ success: true, data: value || { crew: { review: { findings } } } }) },
     productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), productionAssetsSchema: z.array(z.any()),
     canApproveProduction: () => false, buildRevisionContext, revisionSaveError,
+    blockingFindings: plan => (plan?.crew?.review?.findings || []).filter(finding => finding.severity === 'blocking'),
+    findingsRepairUsed: context => context?.findingsRepairUsed === true,
   })
   const result = await actionModule.exports.createProductionRevision({ productionId: sourceJob.id, direction: 'Repair the blocked shot.', repair: true })
   assert.equal(result.data.id, 'saved')
@@ -249,7 +251,7 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
-      if (name.endsWith('/validation/production-crew')) return { productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
+      if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
       if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
@@ -269,9 +271,10 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
     if (result.data.complete) { completed = true; break }
   }
   assert.equal(completed, true)
-  assert.equal(received.length, failedRole ? 7 : 6)
+  assert.equal(received.length, failedRole ? 8 : 7)
+  assert.equal(received[0].role, 'continuity-extractor', 'continuity is extracted before any department')
   assert.equal(received.some(call => call.role === 'story-director'), false)
-  for (const role of ['cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) {
+  for (const role of ['continuity-extractor', 'cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) {
     assert.equal(received.filter(call => call.role === role).length, role === failedRole ? 2 : 1)
   }
   for (const call of received) {
@@ -326,7 +329,7 @@ test('repair checkpoint runs only shot editor and continuity reviewer', async ()
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
-      if (name.endsWith('/validation/production-crew')) return { productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
+      if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
       if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
@@ -632,4 +635,70 @@ for (const scenario of ['completed', 'lookup-error', 'active', 'active-error', '
   if (scenario === 'active') assert.equal(result.data.id, 'existing')
   else assert.ok(result.error)
   assert.equal(calls, 0)
+})
+
+// Real schemas, not pass-through mocks: the final plan parse is where the
+// fallback-ledger limits failed after every paid crew call.
+function loadCrewWithRealSchemas() {
+  const load = (path, requireMap) => {
+    const loaded = { exports: {} }
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports, require: name => requireMap[name] })
+    return loaded.exports
+  }
+  const studioAd = load('../src/core/validation/studio-ad.ts', { zod: { z: settingsZod } })
+  const schemas = load('../src/core/validation/production-crew.ts', { zod: { z: settingsZod }, './studio-ad': studioAd })
+  const fnNames = new Set(['fallbackLedger', 'clip', 'compileContinuityPrompt', 'compileContinuityNegativePrompt', 'normalizeCrewShots', 'compileProductionPlan'])
+  const body = tree.statements.filter(node => ts.isFunctionDeclaration(node) && fnNames.has(node.name?.text)).map(node => node.getText(tree)).join('\n')
+  const crew = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(`${body}\nmodule.exports = { compileProductionPlan }`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: crew, exports: crew.exports, productionPlanSchema: schemas.productionPlanSchema, Set })
+  return { schemas, compileProductionPlan: crew.exports.compileProductionPlan }
+}
+
+function seededPlanInput(referenceNames) {
+  const anchors = [
+    ...referenceNames.map(name => `Preserve character details shown in ${name}.`),
+    'Preserve the subject, action, and visual details specified in the original brief.',
+    'Keep locations, wardrobe, objects, palette, and screen direction consistent unless the brief changes them.',
+    'Do not add story facts or visual elements that conflict with the brief or references.',
+  ].slice(0, 8)
+  const direction = { approach: 'Approach text here.', shotDirections: ['One.', 'Two.', 'Three.'], constraints: ['Keep it.'] }
+  const shot = index => ({ title: `Shot ${index}`, intent: 'Reveal the hero.', action: 'The hero walks forward slowly.', prompt: 'A cinematic wide shot of the hero walking forward slowly at dusk in warm light.', negativePrompt: 'blurry, warped', model: 'kling', editNote: 'Cut on action.', continuity: { startState: 'Hero at door.', endState: 'Hero at table.', carriedDetails: ['red coat', 'brass lamp', 'wet street'], intentionalChanges: [] } })
+  return {
+    shotSettings: [1, 2, 3].map(() => ({ model: 'kling', durationSeconds: 10 })), model: 'test',
+    story: { title: 'Courier', treatment: 'A courier crosses the city.', audienceEmotion: 'Hope.', world: 'Use only the setting described in the brief.', continuityAnchors: anchors, continuityLedger: null, beats: ['One.', 'Two.', 'Three.'], assumptions: [] },
+    camera: direction, lighting: direction, productionDesign: direction, performance: direction,
+    editor: { shots: [1, 2, 3].map(shot) }, review: { summary: 'All good here.', findings: [] },
+    stages: Array.from({ length: 6 }, (_, index) => ({ role: `role-${index}`, responseId: `id-${index}` })),
+  }
+}
+
+test('seeded bibles with long reference names still compile a valid plan', () => {
+  const { compileProductionPlan } = loadCrewWithRealSchemas()
+  for (const names of [['a'.repeat(160)], ['b'.repeat(130), 'c'.repeat(130), 'd'.repeat(130)]]) {
+    const plan = compileProductionPlan(seededPlanInput(names))
+    assert.equal(plan.deliverables.length, 3)
+    assert.ok(plan.crew.bible.continuityLedger.invariants.every(item => item.length <= 180))
+    assert.ok(plan.crew.bible.continuityLedger.heroObjects.every(item => item.length <= 160))
+  }
+})
+
+test('deliverable continuity anchors are not duplicated by the fallback ledger', () => {
+  const { compileProductionPlan } = loadCrewWithRealSchemas()
+  const plan = compileProductionPlan(seededPlanInput(['hero.png']))
+  for (const deliverable of plan.deliverables) {
+    assert.equal(new Set(deliverable.continuityAnchors).size, deliverable.continuityAnchors.length)
+  }
+})
+
+test('crew model calls stay inside the planning lease and route duration', () => {
+  const read = (pattern, text) => Number(text.match(pattern)?.[1].replaceAll('_', ''))
+  const route = readFileSync(new URL('../src/app/api/ad/production-crew/route.ts', import.meta.url), 'utf8')
+  const runner = readFileSync(new URL('../src/core/services/production-crew-runner.ts', import.meta.url), 'utf8')
+  const budget = read(/CREW_STAGE_BUDGET_MS = ([\d_]+)/, source)
+  const minimumAttempt = read(/CREW_MIN_ATTEMPT_MS = ([\d_]+)/, source)
+  const routeLimitMs = read(/maxDuration = (\d+)/, route) * 1000
+  const leaseMs = read(/Date\.now\(\) \+ (\d+) \* 60_000/, runner) * 60_000
+  assert.ok(budget < routeLimitMs && budget < leaseMs, 'stage budget must end before the route limit and lease')
+  assert.ok(minimumAttempt > 0 && minimumAttempt < budget)
+  assert.match(source, /responses\.parse\(\{[\s\S]*?\}, \{ timeout: Math\.min\(CREW_CALL_TIMEOUT_MS, remaining\) \}\)/)
 })
