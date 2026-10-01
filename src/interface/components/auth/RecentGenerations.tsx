@@ -47,7 +47,7 @@ export function RecentGenerations() {
     <div className="relative mt-2 w-full">
       <div className="mb-3 flex items-center gap-3">
         <div className="h-px flex-1 bg-white/10" />
-        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-400/60">
+        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-400/60">
           Live Preview: Recent Generations
         </span>
         <div className="h-px flex-1 bg-white/10" />
@@ -73,7 +73,7 @@ export function RecentGenerations() {
       </div>
       
       {/* Background Glow */}
-      <div className="pointer-events-none absolute -inset-20 -z-10 bg-cyan-500/5 blur-[90px]" />
+      <div className="pointer-events-none absolute -inset-20 -z-10 bg-gold-500/5 blur-[90px]" />
     </div>
   )
 }
@@ -112,8 +112,8 @@ function PreviewCard({ item }: { item: typeof PREVIEWS[0] }) {
           <p className="text-[11px] font-bold text-white tracking-widest uppercase truncate">{item.title}</p>
           <div className="flex items-center gap-2 mt-1">
              <span className="text-[8px] font-bold text-white/50 tracking-widest uppercase">Generated</span>
-             <span className="h-1 w-1 rounded-full bg-cyan-500/50" />
-             <span className="text-[8px] font-mono text-cyan-400/80 uppercase">{item.metadata}</span>
+             <span className="h-1 w-1 rounded-full bg-gold-500/50" />
+             <span className="text-[8px] font-mono text-gold-400/80 uppercase">{item.metadata}</span>
           </div>
         </div>
       </div>

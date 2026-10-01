@@ -133,12 +133,12 @@ export function GuidedTour() {
       <div className="absolute inset-0 bg-black/70" />
       {targetRect ? (
         <div
-          className="absolute hidden rounded-2xl border border-cyan-300/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] transition-all duration-300 md:block"
+          className="absolute hidden rounded-2xl border border-gold-300/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] transition-all duration-300 md:block"
           style={spotlightStyle}
         />
       ) : null}
 
-      <div className="pointer-events-auto absolute inset-x-3 bottom-3 max-h-[68vh] overflow-y-auto rounded-2xl border border-white/15 bg-[#0b0c10] p-3 text-white shadow-2xl md:bottom-6 md:left-auto md:right-6 md:max-h-none md:w-[min(28rem,calc(100%-2rem))] md:overflow-visible md:p-4">
+      <div className="pointer-events-auto absolute inset-x-3 bottom-3 max-h-[68vh] overflow-y-auto rounded-2xl border border-gold-400/20 bg-obsidian-950 p-3 text-white shadow-2xl md:bottom-6 md:left-auto md:right-6 md:max-h-none md:w-[min(28rem,calc(100%-2rem))] md:overflow-visible md:p-4">
         <div className="text-[10px] uppercase tracking-[0.2em] text-white/45 md:text-xs">Product Tour</div>
         <h3 className="mt-1 text-sm font-semibold md:text-base">{step.title}</h3>
         <p className="mt-1 text-xs text-white/65 md:text-sm">{step.description}</p>
@@ -161,7 +161,7 @@ export function GuidedTour() {
           <Button
             type="button"
             variant="ghost"
-            className="rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+            className="rounded-lg border border-gold-400/[0.12] bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
             disabled={stepIndex === 0}
             onClick={() => setStepIndex((prev) => Math.max(0, prev - 1))}
           >
@@ -169,7 +169,7 @@ export function GuidedTour() {
           </Button>
           <Button
             type="button"
-            className="rounded-lg border border-white/10 bg-white/10 text-white hover:bg-white/15"
+            className="rounded-lg border border-gold-400/[0.12] bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50"
             onClick={() => {
               if (stepIndex >= STEPS.length - 1) {
                 window.localStorage.setItem(STORAGE_KEY, "1")

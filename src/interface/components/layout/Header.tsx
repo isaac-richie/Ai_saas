@@ -3,8 +3,8 @@
 import { useMemo } from "react"
 import { usePathname } from "next/navigation"
 import { Button } from "@/interface/components/ui/button"
-import { Badge } from "@/interface/components/ui/badge"
 import { Menu, Sparkles, HelpCircle, Gauge } from "lucide-react"
+import { AnimatePresence, motion } from "framer-motion"
 import { CommandPalette } from "./CommandPalette"
 
 interface HeaderProps {
@@ -28,13 +28,25 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
     }, [pathname])
 
     return (
-        <header className="workspace-topbar sticky top-0 z-30 flex h-16 w-full items-center border-b border-white/10 bg-[#050505]/90 px-3 backdrop-blur-xl sm:px-4 md:px-8">
+        <header className="workspace-topbar sticky top-0 z-30 flex h-16 w-full items-center border-b px-3 sm:px-4 md:px-8">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                <Button aria-label="Toggle sidebar" variant="ghost" size="icon" onClick={toggleSidebar} className="rounded-xl text-white/90 hover:bg-white/10 hover:text-white">
+                <Button aria-label="Toggle sidebar" variant="ghost" size="icon" onClick={toggleSidebar} className="rounded-xl border border-transparent text-[#c9c5b8] hover:border-gold-400/20">
                     <Menu className="size-4" />
                 </Button>
-                <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-white md:text-base">{title}</p>
+                <div className="relative min-w-0 overflow-hidden">
+                    <p className="workspace-topbar-crumb hidden whitespace-nowrap xl:block">VISIOWAVE · STUDIO</p>
+                    <AnimatePresence mode="wait" initial={false}>
+                        <motion.p
+                            key={title}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                            className="workspace-topbar-title truncate whitespace-nowrap text-[#f3eee2]"
+                        >
+                            {title}
+                        </motion.p>
+                    </AnimatePresence>
                 </div>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
@@ -43,7 +55,7 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="rounded-lg border border-white/10 bg-white/5 px-2 text-white/70 hover:bg-white/10 sm:px-3"
+                    className="workspace-topbar-pill px-2 sm:px-3"
                     onClick={() => window.dispatchEvent(new CustomEvent("aisas:start-tour"))}
                     title="Start tour"
                     aria-label="Start product tour"
@@ -55,7 +67,7 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="rounded-lg border border-white/10 bg-white/5 px-2 text-white/70 hover:bg-white/10 sm:px-3"
+                    className="workspace-topbar-pill px-2 sm:px-3"
                     onClick={onToggleMotion}
                     title={motionReduced ? "Enable motion effects" : "Reduce motion effects"}
                     aria-label={motionReduced ? "Enable motion effects" : "Reduce motion effects"}
@@ -64,10 +76,10 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
                     <Gauge className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">{motionReduced ? "Motion: Off" : "Motion: On"}</span>
                 </Button>
-                <Badge className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-normal text-white hover:bg-white/10 sm:inline-flex">
-                    <Sparkles className="mr-1 h-3 w-3" />
+                <span className="lux-hairline hidden h-8 items-center gap-1.5 rounded-full bg-gold-400/[0.06] px-3 text-[11px] text-gold-200 xl:inline-flex">
+                    <Sparkles className="h-3 w-3 text-gold-400" />
                     Creative Mode
-                </Badge>
+                </span>
             </div>
         </header>
     )

@@ -8,7 +8,7 @@ export function AnimatedBrandMark({ className = "h-9 w-9" }: { className?: strin
   return (
     <motion.span
       className={cn(
-        "relative inline-flex shrink-0 overflow-hidden rounded-xl border border-cyan-300/15 bg-black shadow-[0_0_28px_-12px_rgba(34,211,238,0.9)] ring-1 ring-white/10",
+        "relative inline-flex shrink-0 overflow-hidden rounded-xl border border-gold-300/25 bg-black shadow-[0_0_30px_-10px_rgba(217,192,138,0.75)] ring-1 ring-white/5",
         className
       )}
       initial={{ opacity: 0, scale: 0.92 }}

@@ -54,8 +54,8 @@ export function ReferenceLibrarySync({ references, onLoad, disabled, onBusy }: {
       setMessage(error instanceof Error ? error.message : "Cloud sync failed. Local setup is unchanged.")
     } finally { setBusy(false); onBusy(false) }
   }
-  const buttonClass = "inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 text-xs text-white/80 disabled:opacity-40"
-  return <div className="space-y-2 rounded-xl border border-white/10 p-3">
+  const buttonClass = "inline-flex min-h-10 items-center gap-2 rounded-lg border border-gold-400/[0.12] bg-white/5 px-3 text-xs text-white/80 disabled:opacity-40"
+  return <div className="space-y-2 rounded-xl border border-gold-400/[0.12] p-3">
     <div className="flex flex-wrap gap-2">
       <button type="button" className={buttonClass} disabled={busy || disabled} onClick={() => void sync("save")}><CloudUpload size={14} />Save setup</button>
       <button type="button" className={buttonClass} disabled={busy || disabled} onClick={() => void sync("load")}><CloudDownload size={14} />Load setup</button>

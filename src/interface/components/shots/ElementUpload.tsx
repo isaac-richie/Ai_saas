@@ -84,7 +84,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-white/10 bg-[#0b0b0d] p-5">
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-gold-400/[0.12] bg-obsidian-950 p-5">
             <div>
                 <h3 className="text-sm font-semibold text-white">Upload Reference Element</h3>
                 <p className="mt-1 text-xs text-white/50">Save reusable characters, props, or environments for quick shot assembly.</p>
@@ -99,7 +99,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
                             onChange={(e) => setName(e.target.value)}
                             placeholder="e.g. Cyberpunk Detective Outfit"
                             required
-                            className="mt-1 border-white/10 bg-white/5 text-white"
+                            className="mt-1 border-gold-400/[0.12] bg-white/5 text-white"
                         />
                     </div>
                     <div>
@@ -107,7 +107,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
                         <select
                             value={type}
                             onChange={(e) => setType(e.target.value)}
-                            className="w-full mt-1 rounded-md border border-white/10 bg-white/5 p-2 text-sm text-white focus:outline-none"
+                            className="w-full mt-1 rounded-md border border-gold-400/[0.12] bg-white/5 p-2 text-sm text-white focus:outline-none"
                         >
                             <option value="character">Character</option>
                             <option value="prop">Prop</option>
@@ -122,14 +122,14 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="e.g. wearing a glowing neon trenchcoat"
-                            className="mt-1 resize-none border-white/10 bg-white/5 text-white"
+                            className="mt-1 resize-none border-gold-400/[0.12] bg-white/5 text-white"
                         />
                     </div>
                 </div>
 
                 <div>
                     <label className="text-xs text-white/70">Reference Image</label>
-                    <div className="mt-1 relative flex h-[180px] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/15 bg-white/5 hover:bg-white/10 transition cursor-pointer overflow-hidden">
+                    <div className="mt-1 relative flex h-[180px] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-gold-400/20 bg-white/5 hover:bg-gold-400/[0.08] transition cursor-pointer overflow-hidden">
                         <input
                             type="file"
                             ref={fileInputRef}
@@ -161,7 +161,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
             <Button
                 type="submit"
                 disabled={isUploading || !file || !name}
-                className="w-full bg-cyan-600 hover:bg-cyan-700 text-white"
+                className="w-full bg-gold-600 hover:bg-gold-700 text-white"
             >
                 {isUploading ? (
                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...</>

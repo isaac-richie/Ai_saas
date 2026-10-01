@@ -17,10 +17,10 @@ export function ScrollScrubVideo() {
 
 function ScrubFallback() {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0a0a0c]">
+    <div className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-obsidian-950">
       <div className="relative aspect-[16/9] w-full overflow-hidden lg:aspect-[21/9]">
         <video src="/landing.mp4" className="h-full w-full object-cover" autoPlay muted loop playsInline preload="metadata" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-transparent to-transparent opacity-60" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-obsidian-950 via-transparent to-transparent opacity-60" />
       </div>
     </div>
   )
@@ -86,7 +86,7 @@ function ScrubInner() {
   return (
     <div ref={wrapperRef} className="relative h-[240vh]">
       <div className="sticky top-0 flex h-screen items-center">
-        <motion.div className="group relative w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0a0a0c] shadow-[0_40px_120px_-40px_rgba(0,0,0,0.9)]">
+        <motion.div className="group relative w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-obsidian-950 shadow-[0_40px_120px_-40px_rgba(0,0,0,0.9)]">
           <div className="relative aspect-[16/9] w-full overflow-hidden lg:aspect-[21/9]">
             <motion.video
               ref={videoRef}
@@ -102,23 +102,23 @@ function ScrubInner() {
             {/* Film-grade overlays */}
             <motion.div
               style={{ opacity: overlayOpacity }}
-              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-transparent to-transparent"
+              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-obsidian-950 via-transparent to-transparent"
             />
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_40%,rgba(20,241,230,0.12),transparent_50%),radial-gradient(circle_at_75%_55%,rgba(255,138,31,0.14),transparent_50%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_40%,rgba(243,229,192,0.12),transparent_50%),radial-gradient(circle_at_75%_55%,rgba(255,138,31,0.14),transparent_50%)]" />
 
             {/* Viewfinder HUD */}
             <div className="pointer-events-none absolute left-4 top-4 hidden items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/70 backdrop-blur-sm md:inline-flex">
               <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
               REC · SCRUB
             </div>
-            <div className="pointer-events-none absolute right-4 top-4 hidden rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-cyan-200 backdrop-blur-sm md:inline-flex">
+            <div className="pointer-events-none absolute right-4 top-4 hidden rounded-full border border-gold-300/25 bg-gold-300/10 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-gold-200 backdrop-blur-sm md:inline-flex">
               {String(percent).padStart(2, "0")}%
             </div>
 
             {/* Scrub progress line */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-0.5 bg-white/10">
               <div
-                className="h-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 transition-[width] duration-75"
+                className="h-full bg-gradient-to-r from-gold-400 to-fuchsia-500 transition-[width] duration-75"
                 style={{ width: `${percent}%` }}
               />
             </div>
@@ -128,7 +128,7 @@ function ScrubInner() {
           <div className="flex flex-col gap-3 border-t border-white/[0.06] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div className="flex items-center gap-4 text-[11px] text-white/40">
               <span className="flex items-center gap-1.5">
-                <Film className="h-3.5 w-3.5 text-cyan-300/70" />
+                <Film className="h-3.5 w-3.5 text-gold-300/70" />
                 Scroll to scrub the timeline
               </span>
             </div>

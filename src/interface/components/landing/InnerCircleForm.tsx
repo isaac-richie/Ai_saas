@@ -105,7 +105,7 @@ export function InnerCircleForm({ referredByCode }: { referredByCode: string | n
       </div>
 
       {referredByCode ? (
-        <p className="text-xs uppercase tracking-[0.18em] text-cyan-300/80">
+        <p className="text-xs uppercase tracking-[0.18em] text-gold-300/80">
           Referred by code: {referredByCode}
         </p>
       ) : null}
@@ -115,7 +115,7 @@ export function InnerCircleForm({ referredByCode }: { referredByCode: string | n
       <button
         type="submit"
         disabled={!canSubmit || submitting}
-        className="beam-button inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-6 py-3 text-sm font-semibold text-black transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40"
+        className="beam-button inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-[#f3e5c0] via-[#d9c08a] to-[#b08d52] px-6 py-3 text-sm font-semibold text-black transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {submitting ? 'SUBMITTING...' : 'GET EXCLUSIVE ACCESS'}
       </button>
@@ -150,7 +150,7 @@ function Field({
         autoCapitalize="none"
         spellCheck={false}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-white/12 bg-white/[0.03] px-4 py-3 text-white placeholder:text-white/30 outline-none transition focus:border-cyan-300/70"
+        className="w-full rounded-xl border border-white/12 bg-white/[0.03] px-4 py-3 text-white placeholder:text-white/30 outline-none transition focus:border-gold-300/70"
       />
     </label>
   );

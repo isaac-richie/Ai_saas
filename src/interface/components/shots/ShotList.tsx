@@ -113,7 +113,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
         if (status === "approved") return "border-emerald-400/35 bg-emerald-500/15 text-emerald-200"
         if (status === "processing" || status === "pending") return "border-amber-400/35 bg-amber-500/15 text-amber-200"
         if (status === "failed") return "border-red-400/35 bg-red-500/15 text-red-200"
-        return "border-white/10 bg-white/5 text-white/70"
+        return "border-gold-400/[0.12] bg-white/5 text-white/70"
     }
 
     const getVideoProxyUrl = (url?: string | null) => {
@@ -391,20 +391,20 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
     if (shots.length === 0) {
         return (
-            <div className="rounded-2xl border border-dashed border-white/15 bg-[#0f1012] p-4">
+            <div className="rounded-2xl border border-dashed border-gold-400/20 bg-obsidian-900 p-4">
                 <div className="mb-3 text-xs uppercase tracking-[0.16em] text-white/45">Shot Board</div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <div className="h-3 w-24 animate-pulse rounded bg-white/15" />
-                        <div className="mt-3 aspect-video animate-pulse rounded-lg bg-white/10" />
+                    <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
+                        <div className="h-3 w-24 lux-shimmer rounded" />
+                        <div className="mt-3 aspect-video lux-shimmer rounded-lg" />
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <div className="h-3 w-20 animate-pulse rounded bg-white/15" />
-                        <div className="mt-3 aspect-video animate-pulse rounded-lg bg-white/10" />
+                    <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
+                        <div className="h-3 w-20 lux-shimmer rounded" />
+                        <div className="mt-3 aspect-video lux-shimmer rounded-lg" />
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <div className="h-3 w-28 animate-pulse rounded bg-white/15" />
-                        <div className="mt-3 aspect-video animate-pulse rounded-lg bg-white/10" />
+                    <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
+                        <div className="h-3 w-28 lux-shimmer rounded" />
+                        <div className="mt-3 aspect-video lux-shimmer rounded-lg" />
                     </div>
                 </div>
                 <p className="mt-4 text-sm text-white/55">
@@ -424,7 +424,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
     return (
         <div ref={listRef} className="grid gap-4">
             {selectedShot && (
-                <Card className="rounded-2xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                <Card className="rounded-2xl border border-gold-400/[0.12] bg-obsidian-950 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
                     <CardContent className="space-y-4 p-4">
                         <div className="flex items-start justify-between gap-3">
                             <div>
@@ -437,7 +437,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                             <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 rounded-full border border-white/10 text-white/60 hover:bg-white/10 hover:text-white"
+                                className="h-8 w-8 rounded-full border border-gold-400/[0.12] text-white/60 hover:bg-gold-400/[0.08] hover:text-white"
                                 onClick={() => setSelectedShotId(null)}
                             >
                                 <X className="h-4 w-4" />
@@ -455,27 +455,27 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                             const lightingLabel = selections.lighting?.label || "—"
                             return (
                         <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                            <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Shot Type</div>
                                 <div className="mt-1 font-medium text-white/90">{shotLabel}</div>
                             </div>
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                            <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Movement</div>
                                 <div className="mt-1 font-medium text-white/90">{movementLabel}</div>
                             </div>
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                            <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Camera</div>
                                 <div className="mt-1 font-medium text-white/90">{cameraLabel}</div>
                             </div>
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                            <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Lens</div>
                                 <div className="mt-1 font-medium text-white/90">{lensLabel}</div>
                             </div>
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                            <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Angle</div>
                                 <div className="mt-1 font-medium text-white/90">{angleLabel}</div>
                             </div>
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                            <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-sm text-white/70">
                                 <div className="text-xs uppercase tracking-[0.12em] text-white/45">Lighting</div>
                                 <div className="mt-1 font-medium text-white/90">{lightingLabel}</div>
                             </div>
@@ -489,26 +489,26 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 .sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0]
                             if (!latestOption) return null
                             return (
-                            <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/60">
+                            <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-xs text-white/60">
                                 <div className="text-[11px] uppercase tracking-[0.2em] text-white/45">Latest Output Settings</div>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {latestOption.model_version && (
-                                        <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1">
+                                        <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2.5 py-1">
                                             Model {latestOption.model_version}
                                         </span>
                                     )}
                                     {latestOption.seed !== null && latestOption.seed !== undefined && (
-                                        <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1">
+                                        <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2.5 py-1">
                                             Seed {latestOption.seed}
                                         </span>
                                     )}
                                     {latestOption.cfg_scale !== null && latestOption.cfg_scale !== undefined && (
-                                        <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1">
+                                        <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2.5 py-1">
                                             CFG {latestOption.cfg_scale}
                                         </span>
                                     )}
                                     {latestOption.steps !== null && latestOption.steps !== undefined && (
-                                        <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1">
+                                        <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2.5 py-1">
                                             Steps {latestOption.steps}
                                         </span>
                                     )}
@@ -518,26 +518,26 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                         })()}
 
                         <div className="flex flex-wrap gap-3 text-xs text-white/55">
-                            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                            <div className="rounded-full border border-gold-400/[0.12] bg-white/5 px-3 py-1">
                                 Options: {selectedShot.options?.length || 0}
                             </div>
                             {selectedAspectRatio && (
-                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                <div className="rounded-full border border-gold-400/[0.12] bg-white/5 px-3 py-1">
                                     Ratio: {selectedAspectRatio}
                                 </div>
                             )}
                             {selectedDuration !== null && (
-                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                <div className="rounded-full border border-gold-400/[0.12] bg-white/5 px-3 py-1">
                                     Duration: {selectedDuration}s
                                 </div>
                             )}
                             {selectedModel && (
-                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                <div className="rounded-full border border-gold-400/[0.12] bg-white/5 px-3 py-1">
                                     Model: {selectedModel}
                                 </div>
                             )}
                             {selectedVariations !== null && (
-                                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                                <div className="rounded-full border border-gold-400/[0.12] bg-white/5 px-3 py-1">
                                     Variations: {selectedVariations}
                                 </div>
                             )}
@@ -547,12 +547,12 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
             )}
 
             {sequences && sequences.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-[#0b0b0d] px-4 py-3 text-xs text-white/60">
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gold-400/[0.12] bg-obsidian-950 px-4 py-3 text-xs text-white/60">
                     <span className="text-[11px] uppercase tracking-[0.2em] text-white/45">Sequence Target</span>
                     <select
                         value={selectedSequenceId ?? ""}
                         onChange={(event) => setSelectedSequenceId(event.target.value)}
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80"
+                        className="rounded-full border border-gold-400/[0.12] bg-white/5 px-3 py-1 text-xs text-white/80"
                     >
                         {sequences.map((sequence) => (
                             <option key={sequence.id} value={sequence.id}>
@@ -562,7 +562,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                     </select>
                     <Button
                         size="sm"
-                        className="rounded-full border border-white/10 bg-white/10 text-xs text-white/80 hover:bg-white/20"
+                        className="rounded-full border border-gold-400/[0.12] bg-white/10 text-xs text-white/80 hover:bg-white/20"
                         onClick={() => {
                             const name = window.prompt("Sequence name", "New Sequence")
                             if (!name || !name.trim()) return
@@ -617,23 +617,23 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2 text-sm text-white/55">
                                         {shotLabel && (
-                                            <Badge variant="outline" className="flex items-center gap-1 border-white/10 bg-white/5 text-white/75">
+                                            <Badge variant="outline" className="flex items-center gap-1 border-gold-400/[0.12] bg-white/5 text-white/75">
                                                 {shotLabel}
                                             </Badge>
                                         )}
                                         {movementLabel && (
-                                            <Badge variant="outline" className="flex items-center gap-1 border-white/10 bg-white/5 text-white/75">
+                                            <Badge variant="outline" className="flex items-center gap-1 border-gold-400/[0.12] bg-white/5 text-white/75">
                                                 {movementLabel}
                                             </Badge>
                                         )}
                                         {cameraLabel && (
-                                            <Badge variant="outline" className="flex items-center gap-1 border-white/10 bg-white/5 text-white/75">
+                                            <Badge variant="outline" className="flex items-center gap-1 border-gold-400/[0.12] bg-white/5 text-white/75">
                                                 <Camera className="h-3 w-3" />
                                                 {cameraLabel}
                                             </Badge>
                                         )}
                                         {lensLabel && (
-                                            <Badge variant="outline" className="flex items-center gap-1 border-white/10 bg-white/5 text-white/75">
+                                            <Badge variant="outline" className="flex items-center gap-1 border-gold-400/[0.12] bg-white/5 text-white/75">
                                                 <Aperture className="h-3 w-3" />
                                                 {lensLabel}
                                             </Badge>
@@ -697,7 +697,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
                         {/* Rendering Expanded Options */}
                         {(shot.options && shot.options.length > 0) ? (
-                            <div className="border-t border-white/10 bg-white/[0.02] p-3">
+                            <div className="border-t border-gold-400/[0.12] bg-white/[0.02] p-3">
                                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                     {shot.options.map((opt) => {
                                         const outputType = getOutputType(opt);
@@ -729,8 +729,8 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                     )
                                                 ) : (
                                                     <div className="absolute inset-0 overflow-hidden">
-                                                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-white/5 to-orange-400/10 animate-pulse" />
-                                                        <div className="absolute -inset-[45%] bg-[conic-gradient(from_180deg,rgba(34,211,238,0.12),rgba(251,146,60,0.12),rgba(255,255,255,0),rgba(34,211,238,0.12))] animate-[spin_9s_linear_infinite]" />
+                                                        <div className="absolute inset-0 lux-shimmer" />
+                                                        <div className="absolute -inset-[45%] bg-[conic-gradient(from_180deg,rgba(217,192,138,0.12),rgba(251,146,60,0.12),rgba(255,255,255,0),rgba(217,192,138,0.12))] animate-[spin_9s_linear_infinite]" />
                                                         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-white/70">
                                                             {opt.status === 'processing' ? (
                                                                 <>
@@ -774,7 +774,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                     </div>
                                                 )}
                                             </div>
-                                            <div className="space-y-2 border-t border-white/10 bg-[#111114]/80 p-3 text-xs text-white/55">
+                                            <div className="space-y-2 border-t border-gold-400/[0.12] bg-obsidian-800/80 p-3 text-xs text-white/55">
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span>{isMounted ? new Date(opt.created_at).toLocaleTimeString() : ""}</span>
                                                     <span className="studio-chip rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/70">
@@ -811,7 +811,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                             onClick={() => handleCompare(opt)}
                                                             className={`rounded-full border px-2.5 py-1 transition ${
                                                                 compareTargets.find((item) => item.id === opt.id)
-                                                                    ? "border-cyan-400 bg-cyan-400/20 text-cyan-100"
+                                                                    ? "border-gold-400 bg-gold-400/20 text-gold-100"
                                                                     : "studio-chip"
                                                             }`}
                                                         >
@@ -877,13 +877,13 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 )}
                             </div>
                         ) : (
-                            <div className="border-t border-white/10 bg-white/[0.02] p-3">
+                            <div className="border-t border-gold-400/[0.12] bg-white/[0.02] p-3">
                                 <div className="studio-subcard rounded-2xl border-dashed p-4">
                                     <div className="mb-2 text-xs uppercase tracking-[0.16em] text-white/45">Awaiting First Render</div>
                                     {isGeneratingShot ? (
-                                        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/40 p-5 text-center">
-                                            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-white/5 to-orange-400/10 animate-pulse" />
-                                            <div className="absolute -inset-[45%] bg-[conic-gradient(from_180deg,rgba(34,211,238,0.15),rgba(251,146,60,0.14),rgba(255,255,255,0),rgba(34,211,238,0.15))] animate-[spin_10s_linear_infinite]" />
+                                        <div className="relative overflow-hidden rounded-xl border border-gold-400/[0.12] bg-black/40 p-5 text-center">
+                                            <div className="absolute inset-0 lux-shimmer" />
+                                            <div className="absolute -inset-[45%] bg-[conic-gradient(from_180deg,rgba(217,192,138,0.15),rgba(251,146,60,0.14),rgba(255,255,255,0),rgba(217,192,138,0.15))] animate-[spin_10s_linear_infinite]" />
                                             <div className="relative z-10">
                                                 <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-white/80" />
                                                 <p className="text-xs uppercase tracking-[0.2em] text-white/65">Generating frame...</p>
@@ -892,7 +892,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                     <div className="generation-track" />
                                                     <div className="mt-2 grid grid-cols-3 text-[10px] uppercase tracking-[0.14em] text-white/45">
                                                         <span>Queue</span>
-                                                        <span className="text-cyan-200">Render</span>
+                                                        <span className="text-gold-200">Render</span>
                                                         <span>Save</span>
                                                     </div>
                                                 </div>
@@ -914,7 +914,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
             })}
             {selectedShots.length > 0 && (
                 <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center gap-3">
-                    <Button onClick={handleBatchGenerate} disabled={batchLoading} className="rounded-xl border border-white/10 bg-[#0b0b0d] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] hover:bg-[#121216]">
+                    <Button onClick={handleBatchGenerate} disabled={batchLoading} className="rounded-xl border border-gold-400/[0.12] bg-obsidian-950 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] hover:bg-obsidian-800">
                         {batchLoading ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
@@ -924,7 +924,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                     </Button>
                     <Button
                         onClick={handleCreateSequence}
-                        className="rounded-xl border border-white/10 bg-white/10 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] hover:bg-white/20"
+                        className="rounded-xl border border-gold-400/[0.12] bg-white/10 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] hover:bg-white/20"
                     >
                         Create Sequence
                     </Button>
@@ -933,13 +933,13 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
             {compareTargets.length === 2 && (
                 <Dialog open onOpenChange={() => setCompareTargets([])}>
-                    <DialogContent className="max-w-6xl border-white/10 bg-black/95 p-0 text-white">
+                    <DialogContent className="max-w-6xl border-gold-400/[0.12] bg-black/95 p-0 text-white">
                         <VisuallyHidden.Root>
                             <DialogTitle>Compare Outputs</DialogTitle>
                         </VisuallyHidden.Root>
                         <div className="grid min-h-[60vh] grid-cols-1 lg:grid-cols-2">
                             {compareTargets.map((target) => (
-                                <div key={target.id} className="relative flex items-center justify-center border-r border-white/10 bg-black p-4 last:border-r-0">
+                                <div key={target.id} className="relative flex items-center justify-center border-r border-gold-400/[0.12] bg-black p-4 last:border-r-0">
                                     {target.output_url?.endsWith(".mp4") ? (
                                         <video src={getVideoProxyUrl(target.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay loop playsInline preload="metadata" />
                                     ) : (
@@ -954,7 +954,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
             {compareSet.length > 0 && (
                 <Dialog open onOpenChange={() => setCompareSet([])}>
-                    <DialogContent className="max-w-6xl border-white/10 bg-black/95 p-0 text-white">
+                    <DialogContent className="max-w-6xl border-gold-400/[0.12] bg-black/95 p-0 text-white">
                         <VisuallyHidden.Root>
                             <DialogTitle>Compare Set</DialogTitle>
                         </VisuallyHidden.Root>
@@ -963,7 +963,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 const option = shots.flatMap((shot) => shot.options || []).find((opt) => opt.id === id)
                                 if (!option) return null
                                 return (
-                                    <div key={id} className="relative flex items-center justify-center border-r border-white/10 bg-black p-4 last:border-r-0">
+                                    <div key={id} className="relative flex items-center justify-center border-r border-gold-400/[0.12] bg-black p-4 last:border-r-0">
                                         {option.output_url?.endsWith(".mp4") ? (
                                             <video src={getVideoProxyUrl(option.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay loop playsInline preload="metadata" />
                                         ) : (
@@ -984,7 +984,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                     setDeleteDialog((prev) => ({ ...prev, open }))
                 }}
             >
-                <DialogContent className="max-w-md border-white/10 bg-[#111114] text-white">
+                <DialogContent className="max-w-md border-gold-400/[0.12] bg-obsidian-800 text-white">
                     <DialogTitle className="text-base font-semibold">Delete Shot?</DialogTitle>
                     <p className="mt-2 text-sm text-white/70">
                         This will permanently remove <span className="font-medium text-white">{deleteDialog.shotName || "this shot"}</span> and all generated outputs attached to it.
@@ -993,7 +993,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                         <Button
                             type="button"
                             variant="ghost"
-                            className="rounded-xl border border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                            className="rounded-xl border border-gold-400/[0.12] bg-white/5 text-white/80 hover:bg-gold-400/[0.08]"
                             disabled={Boolean(deletingId)}
                             onClick={() => setDeleteDialog({ open: false, shotId: null, shotName: "" })}
                         >
@@ -1022,7 +1022,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                 open={videoPromptDialog.open}
                 onOpenChange={(open) => setVideoPromptDialog((prev) => ({ ...prev, open }))}
             >
-                <DialogContent className="max-w-xl border-white/10 bg-[#111114] text-white">
+                <DialogContent className="max-w-xl border-gold-400/[0.12] bg-obsidian-800 text-white">
                     <VisuallyHidden.Root>
                         <DialogTitle>Video Generation Prompt</DialogTitle>
                     </VisuallyHidden.Root>
@@ -1033,7 +1033,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 Tune motion, timing, and framing before video render.
                             </p>
                         </div>
-                        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                        <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-3">
                             <Label htmlFor="video-prompt" className="text-white/85">Video Prompt</Label>
                             <Textarea
                                 id="video-prompt"
@@ -1042,7 +1042,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                     setVideoPromptDialog((prev) => ({ ...prev, prompt: event.target.value }))
                                 }
                                 rows={5}
-                                className="border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                className="border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                                 placeholder="Describe camera motion, pacing, and visual style..."
                             />
                             <div className="text-[11px] text-white/45">
@@ -1050,7 +1050,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                             </div>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                            <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-3">
                                 <Label className="text-white/85">Duration</Label>
                                 <div className="flex flex-wrap gap-2">
                                     {[5, 10, 15].map((duration) => (
@@ -1062,8 +1062,8 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                             }
                                             className={`rounded-full border px-3 py-1 text-xs ${
                                                 videoPromptDialog.durationSeconds === duration
-                                                    ? "border-cyan-400 bg-cyan-400/15 text-cyan-100"
-                                                    : "border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
+                                                    ? "border-gold-400 bg-gold-400/15 text-gold-100"
+                                                    : "border-gold-400/20 bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
                                             }`}
                                         >
                                             {duration}s
@@ -1071,7 +1071,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                     ))}
                                 </div>
                             </div>
-                            <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/75">
+                            <label className="flex items-center gap-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-3 text-sm text-white/75">
                                 <Checkbox
                                     checked={videoPromptDialog.useSourceImage}
                                     onCheckedChange={(checked) =>
@@ -1081,7 +1081,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 Use selected image as start frame
                             </label>
                         </div>
-                        <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                        <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-3">
                             <Label className="text-white/85">Video Model</Label>
                             <div className="grid gap-2 sm:grid-cols-3">
                                 {KIE_VIDEO_MODEL_FAMILIES.map((family) => (
@@ -1091,8 +1091,8 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                         onClick={() => setVideoPromptDialog((prev) => ({ ...prev, modelFamily: family.id }))}
                                         className={`rounded-xl border px-3 py-2 text-left transition ${
                                             videoPromptDialog.modelFamily === family.id
-                                                ? "border-cyan-400 bg-cyan-400/15 text-cyan-100"
-                                                : "border-white/15 bg-white/5 text-white/70 hover:bg-white/10"
+                                                ? "border-gold-400 bg-gold-400/15 text-gold-100"
+                                                : "border-gold-400/20 bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
                                         }`}
                                     >
                                         <div className="text-xs font-semibold">{family.label}</div>
@@ -1113,13 +1113,13 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                         <div className="flex justify-end gap-2">
                             <Button
                                 variant="ghost"
-                                className="rounded-xl border border-white/10 bg-white/5 text-white/80 hover:bg-white/10"
+                                className="rounded-xl border border-gold-400/[0.12] bg-white/5 text-white/80 hover:bg-gold-400/[0.08]"
                                 onClick={() => setVideoPromptDialog((prev) => ({ ...prev, open: false }))}
                             >
                                 Cancel
                             </Button>
                             <Button
-                                className="rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/20"
+                                className="rounded-xl border border-gold-400/[0.12] bg-white/10 text-white hover:bg-white/20"
                                 disabled={generatingId === videoPromptDialog.optionId || !videoPromptDialog.prompt.trim()}
                                 onClick={handleGenerateVideo}
                             >

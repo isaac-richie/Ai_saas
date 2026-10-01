@@ -117,6 +117,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
     }, [motionReduced, pathname])
 
+    useEffect(() => {
+        // One listener drives every .lux-spotlight surface instead of a handler per card.
+        let frame = 0
+        const onMove = (event: PointerEvent) => {
+            if (frame) return
+            frame = window.requestAnimationFrame(() => {
+                frame = 0
+                const target = (event.target as Element | null)?.closest?.(".lux-spotlight") as HTMLElement | null
+                if (!target) return
+                const rect = target.getBoundingClientRect()
+                target.style.setProperty("--mx", `${event.clientX - rect.left}px`)
+                target.style.setProperty("--my", `${event.clientY - rect.top}px`)
+            })
+        }
+        window.addEventListener("pointermove", onMove, { passive: true })
+        return () => {
+            window.removeEventListener("pointermove", onMove)
+            if (frame) window.cancelAnimationFrame(frame)
+        }
+    }, [])
+
     const isAuthRoute =
         pathname.startsWith("/login") ||
         pathname.startsWith("/signup") ||
@@ -129,7 +150,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     if (isAuthRoute || isPublicRoute) {
         return (
-            <div ref={shellRef} className="relative min-h-screen bg-[#050505] text-white">
+            <div ref={shellRef} className="relative min-h-screen bg-obsidian-950 text-white">
                 <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
                     {!isAuthRoute && (
                         <>
@@ -146,10 +167,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.div
                             key={pathname}
-                            initial={motionReduced ? false : { opacity: 0, y: 10, filter: "blur(6px)" }}
-                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
+                            initial={motionReduced ? false : { opacity: 0, y: 14, filter: "blur(8px)" }}
+                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
                             exit={motionReduced ? { opacity: 1 } : { opacity: 0, y: -8, filter: "blur(5px)" }}
-                            transition={{ duration: motionReduced ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }}
+                            transition={{ duration: motionReduced ? 0 : 0.45, ease: [0.22, 1, 0.36, 1] }}
                         >
                             {children}
                         </motion.div>
@@ -160,25 +181,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <div ref={shellRef} className="studio-workspace relative min-h-screen bg-[#050505] text-white">
+        <div ref={shellRef} className="studio-workspace relative min-h-screen text-white">
             <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-lg focus:bg-black focus:px-3 focus:py-2 focus:text-white">
                 Skip to main content
             </a>
-            <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-                <div
-                    className="absolute inset-0 opacity-[0.08]"
-                    style={{
-                        backgroundImage:
-                            "linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px)",
-                        backgroundSize: "40px 40px",
-                    }}
-                />
+            <div className="ws-ambient" aria-hidden="true">
+                <div className="ws-ambient-orb is-gold" />
+                <div className="ws-ambient-orb is-sage" />
+                <div className="ws-ambient-grid" />
+                <div className="ws-ambient-grain" />
             </div>
 
             {isSidebarOpen && (
                 <button
                     aria-label="Close sidebar"
-                    className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm md:hidden"
+                    className="fixed inset-0 z-30 bg-black/60 backdrop-blur-md md:hidden"
                     onClick={() => setIsSidebarOpen(false)}
                 />
             )}
@@ -200,22 +217,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.div
                             key={pathname}
-                            initial={motionReduced ? false : { opacity: 0, y: 10, filter: "blur(6px)" }}
-                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
+                            initial={motionReduced ? false : { opacity: 0, y: 14, filter: "blur(8px)" }}
+                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
                             exit={motionReduced ? { opacity: 1 } : { opacity: 0, y: -8, filter: "blur(5px)" }}
-                            transition={{ duration: motionReduced ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }}
+                            transition={{ duration: motionReduced ? 0 : 0.45, ease: [0.22, 1, 0.36, 1] }}
                         >
                             {children}
                         </motion.div>
                     </AnimatePresence>
                 </main>
-                <footer className="border-t border-white/10 px-4 py-3 text-xs text-white/45 md:px-8 lg:px-10">
+                <footer className="workspace-footer px-4 py-4 text-[11px] md:px-8 lg:px-10">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span>Visiowave Studio Control</span>
+                        <span className="tracking-[0.18em] uppercase">Visiowave <span className="lux-serif normal-case tracking-normal text-gold-400/80">Studios</span></span>
                         <div className="flex items-center gap-3">
-                            <a href="#main-content" className="hover:text-white">Back to top</a>
-                            <a href="/dashboard/settings" className="hover:text-white">Help Center</a>
-                            <a href="/dashboard/exports" className="hover:text-white">Export Docs</a>
+                            <a href="#main-content">Back to top</a>
+                            <a href="/dashboard/settings">Help Center</a>
+                            <a href="/dashboard/exports">Export Docs</a>
                         </div>
                     </div>
                 </footer>

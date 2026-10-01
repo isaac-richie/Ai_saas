@@ -38,7 +38,7 @@ export function ContinuityPanel({
   onChangeValue,
 }: ContinuityPanelProps) {
   return (
-    <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+    <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2.5">
       <div className="flex items-center justify-between gap-2">
         <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Continuity Locks</p>
         <button
@@ -46,8 +46,8 @@ export function ContinuityPanel({
           onClick={onToggleEnabled}
           className={`h-7 rounded-full border px-2.5 text-[10px] font-medium transition ${
             enabled
-              ? "border-cyan-300/40 bg-cyan-500/15 text-cyan-100"
-              : "border-white/12 bg-white/5 text-white/70 hover:bg-white/10"
+              ? "border-gold-300/40 bg-gold-500/15 text-gold-100"
+              : "border-white/12 bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
           }`}
         >
           {enabled ? "Enabled" : "Disabled"}
@@ -62,8 +62,8 @@ export function ContinuityPanel({
                 onClick={() => onToggleLock(item.key)}
                 className={`h-8 rounded-lg border px-2.5 text-[11px] transition ${
                   locks[item.key]
-                    ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
-                    : "border-white/12 bg-white/5 text-white/70 hover:bg-white/10"
+                    ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
+                    : "border-white/12 bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
                 }`}
               >
                 {item.label}

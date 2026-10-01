@@ -57,14 +57,14 @@ export function SequenceTimeline({ sequenceId, items }: SequenceTimelineProps) {
     }
 
     return (
-        <div className="rounded-3xl border border-white/10 bg-[#0b0b0d] p-4 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+        <div className="rounded-3xl lux-glass lux-hairline p-4 text-white">
             <div className="mb-3 flex items-center justify-between">
                 <div>
                     <div className="text-xs uppercase tracking-[0.2em] text-white/45">Timeline Strip</div>
                     <p className="mt-1 text-sm text-white/70">Drag to reorder or remove shots.</p>
                 </div>
             </div>
-            <div className="mb-4 rounded-2xl border border-white/10 bg-black/30 p-3">
+            <div className="mb-4 rounded-2xl border border-gold-400/[0.12] bg-black/30 p-3">
                 <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.14em] text-white/45">
                     <span>Playhead</span>
                     <span>
@@ -78,7 +78,7 @@ export function SequenceTimeline({ sequenceId, items }: SequenceTimelineProps) {
                     step={1}
                     value={Math.min(playheadIndex, Math.max(ordered.length - 1, 0))}
                     onChange={(event) => setPlayheadIndex(Number(event.target.value))}
-                    className="w-full accent-cyan-300"
+                    className="w-full accent-gold-300"
                 />
             </div>
             <div className="flex gap-3 overflow-x-auto pb-3">
@@ -97,10 +97,10 @@ export function SequenceTimeline({ sequenceId, items }: SequenceTimelineProps) {
                         }}
                         className={`group relative w-[160px] shrink-0 rounded-2xl border bg-black/40 ${
                             draggingId === item.id
-                                ? "border-cyan-300/50 ring-2 ring-cyan-400/60"
+                                ? "border-gold-300/50 ring-2 ring-gold-400/60"
                                 : playheadIndex === index
-                                    ? "border-cyan-300/35 shadow-[0_0_0_1px_rgba(34,211,238,0.25)]"
-                                    : "border-white/10"
+                                    ? "border-gold-300/35 shadow-[0_0_0_1px_rgba(217,192,138,0.25)]"
+                                    : "border-gold-400/[0.12]"
                         }`}
                     >
                         <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-1 [background-image:repeating-linear-gradient(90deg,rgba(255,255,255,0.22),rgba(255,255,255,0.22)_8px,transparent_8px,transparent_12px)]" />
@@ -128,7 +128,7 @@ export function SequenceTimeline({ sequenceId, items }: SequenceTimelineProps) {
                             <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-7 w-7 rounded-full border border-white/10 bg-black/60 text-white/70 hover:bg-red-500/10 hover:text-red-200"
+                                className="h-7 w-7 rounded-full border border-gold-400/[0.12] bg-black/60 text-white/70 hover:bg-red-500/10 hover:text-red-200"
                                 onClick={() => handleRemove(item.id)}
                             >
                                 <Trash2 className="h-3.5 w-3.5" />

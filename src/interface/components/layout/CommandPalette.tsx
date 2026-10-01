@@ -1,5 +1,7 @@
 "use client"
 
+import type * as React from "react"
+
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogTitle } from "@/interface/components/ui/dialog"
@@ -83,30 +85,35 @@ export function CommandPalette() {
         variant="ghost"
         size="sm"
         onClick={() => setOpen(true)}
-        className="hidden rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 lg:flex"
+        className="workspace-topbar-pill hidden w-56 justify-start lg:flex"
       >
-        <Command className="h-3.5 w-3.5" />
-        Command
-        <span className="rounded border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] text-white/45">⌘K</span>
+        <Command className="h-3.5 w-3.5 text-gold-400" />
+        <span className="text-[#8f9086]">Search the studio…</span>
+        <span className="lux-kbd ml-auto">⌘K</span>
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl border-white/10 bg-[#0c0c0f] text-white" showCloseButton={false}>
+        <DialogContent className="max-w-xl gap-0 overflow-hidden p-0 text-white" showCloseButton={false}>
           <DialogTitle className="sr-only">Command Palette</DialogTitle>
-          <div className="space-y-3">
-            <Input
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Jump to pages, actions, and tools..."
-              className="h-10 rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
-            />
-            <div className="max-h-80 space-y-2 overflow-y-auto">
-              {filtered.map((item) => (
+          <div>
+            <div className="flex items-center gap-3 border-b border-gold-400/10 px-5">
+              <Command className="h-4 w-4 shrink-0 text-gold-400" />
+              <Input
+                autoFocus
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Jump to pages, actions, and tools..."
+                className="h-14 border-0 bg-transparent px-0 text-[15px] text-white shadow-none placeholder:text-[#77796f] focus-visible:ring-0 dark:bg-transparent"
+              />
+              <span className="lux-kbd">esc</span>
+            </div>
+            <div className="lux-stagger max-h-80 space-y-1 overflow-y-auto p-2">
+              {filtered.map((item, index) => (
                 <button
                   key={item.id}
                   type="button"
-                  className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-white/80 transition hover:bg-white/10"
+                  style={{ "--i": index } as React.CSSProperties}
+                  className="group flex w-full items-center justify-between rounded-xl border border-transparent px-3 py-2.5 text-left text-sm text-[#d4cfc0] transition-all duration-300 hover:border-gold-400/20 hover:bg-gold-400/[0.07] hover:pl-4 hover:text-gold-100 focus-visible:border-gold-400/30 focus-visible:bg-gold-400/[0.07] focus-visible:outline-none"
                   onClick={() => {
                     item.run()
                     setOpen(false)
@@ -114,22 +121,25 @@ export function CommandPalette() {
                   }}
                 >
                   <span>{item.label}</span>
-                  {item.hint ? <span className="text-xs text-white/45">{item.hint}</span> : null}
+                  <span className="flex items-center gap-2">
+                    {item.hint ? <span className="text-xs text-[#8f9086]">{item.hint}</span> : null}
+                    <span className="text-gold-400 opacity-0 transition-opacity group-hover:opacity-100">↵</span>
+                  </span>
                 </button>
               ))}
               {filtered.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-white/15 bg-white/[0.02] px-3 py-6 text-center text-xs text-white/50">
+                <div className="rounded-xl border border-dashed border-gold-400/15 bg-white/[0.02] px-3 py-8 text-center text-xs text-[#8f9086]">
                   No matches. Try &quot;studio&quot;, &quot;gallery&quot;, or &quot;tour&quot;.
                 </div>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/45">
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><FolderKanban className="h-3 w-3" /> Projects</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><Film className="h-3 w-3" /> Studio</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><GalleryHorizontalEnd className="h-3 w-3" /> Gallery</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><Video className="h-3 w-3" /> Fast Video</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><Wand2 className="h-3 w-3" /> Generate</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-1"><Sparkles className="h-3 w-3" /> Tour</span>
+            <div className="flex flex-wrap items-center gap-2 border-t border-gold-400/10 bg-black/20 px-4 py-3 text-[11px] text-[#8f9086]">
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><FolderKanban className="h-3 w-3" /> Projects</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Film className="h-3 w-3" /> Studio</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><GalleryHorizontalEnd className="h-3 w-3" /> Gallery</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Video className="h-3 w-3" /> Fast Video</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Wand2 className="h-3 w-3" /> Generate</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Sparkles className="h-3 w-3" /> Tour</span>
             </div>
           </div>
         </DialogContent>

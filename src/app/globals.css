@@ -47,6 +47,27 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Champagne gold — the studio's luxury accent scale. */
+  --color-gold-50: #fbf8f1;
+  --color-gold-100: #f6eedc;
+  --color-gold-200: #ede0bf;
+  --color-gold-300: #e3cf9f;
+  --color-gold-400: #d9c08a;
+  --color-gold-500: #c8a76a;
+  --color-gold-600: #ad8b51;
+  --color-gold-700: #8a6c3e;
+  --color-gold-800: #67512f;
+  --color-gold-900: #463823;
+  --color-gold-950: #261f14;
+
+  --color-obsidian-700: #1c1f1c;
+  --color-obsidian-800: #141614;
+  --color-obsidian-900: #0e100e;
+  --color-obsidian-950: #0a0b0a;
+
+  --ease-lux: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 :root {
@@ -89,38 +110,39 @@
   --sidebar-ring: oklch(0.64 0.16 39.2 / 45%);
 }
 
+/* Obsidian & champagne */
 .dark {
-  --background: oklch(0.18 0.02 252.8);
-  --foreground: oklch(0.95 0.01 93.2);
-  --card: oklch(0.24 0.02 252.7 / 74%);
-  --card-foreground: oklch(0.95 0.01 93.2);
-  --popover: oklch(0.22 0.02 252.9 / 92%);
-  --popover-foreground: oklch(0.95 0.01 93.2);
-  --primary: oklch(0.68 0.16 42.8);
-  --primary-foreground: oklch(0.15 0.015 257.6);
-  --secondary: oklch(0.31 0.02 249.6);
-  --secondary-foreground: oklch(0.95 0.01 93.2);
-  --muted: oklch(0.27 0.018 250.1);
-  --muted-foreground: oklch(0.74 0.03 91.5);
-  --accent: oklch(0.74 0.1 186.9);
-  --accent-foreground: oklch(0.18 0.02 252.8);
-  --destructive: oklch(0.68 0.18 27.6);
-  --border: oklch(0.38 0.03 250.8 / 48%);
-  --input: oklch(0.36 0.03 250.4 / 45%);
-  --ring: oklch(0.68 0.16 42.8 / 60%);
-  --chart-1: oklch(0.71 0.17 38.6);
-  --chart-2: oklch(0.75 0.11 192.7);
-  --chart-3: oklch(0.68 0.11 258.4);
-  --chart-4: oklch(0.8 0.14 84.9);
-  --chart-5: oklch(0.7 0.1 162.2);
-  --sidebar: oklch(0.2 0.02 253.1 / 82%);
-  --sidebar-foreground: oklch(0.95 0.01 93.2);
-  --sidebar-primary: oklch(0.68 0.16 42.8);
-  --sidebar-primary-foreground: oklch(0.15 0.015 257.6);
-  --sidebar-accent: oklch(0.34 0.03 248.5);
-  --sidebar-accent-foreground: oklch(0.95 0.01 93.2);
-  --sidebar-border: oklch(0.42 0.03 250.5 / 40%);
-  --sidebar-ring: oklch(0.68 0.16 42.8 / 45%);
+  --background: #0b0c0b;
+  --foreground: #eeeae1;
+  --card: #141614;
+  --card-foreground: #eeeae1;
+  --popover: #121412f5;
+  --popover-foreground: #eeeae1;
+  --primary: #d9c08a;
+  --primary-foreground: #1a160e;
+  --secondary: #1c1f1c;
+  --secondary-foreground: #eeeae1;
+  --muted: #181a18;
+  --muted-foreground: #a7a99f;
+  --accent: #b6ddd3;
+  --accent-foreground: #0f1714;
+  --destructive: #e07a6a;
+  --border: #d9c08a1c;
+  --input: #d9c08a26;
+  --ring: #d9c08a8c;
+  --chart-1: #d9c08a;
+  --chart-2: #b6ddd3;
+  --chart-3: #9fb4d6;
+  --chart-4: #e3a77a;
+  --chart-5: #a9c79a;
+  --sidebar: #0a0b0aeb;
+  --sidebar-foreground: #eeeae1;
+  --sidebar-primary: #d9c08a;
+  --sidebar-primary-foreground: #1a160e;
+  --sidebar-accent: #d9c08a14;
+  --sidebar-accent-foreground: #f2e6c8;
+  --sidebar-border: #d9c08a17;
+  --sidebar-ring: #d9c08a73;
 }
 
 @layer base {
@@ -131,8 +153,8 @@
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(circle at 5% 2%, color-mix(in oklab, var(--primary) 17%, transparent), transparent 42%),
-      radial-gradient(circle at 92% 14%, color-mix(in oklab, var(--accent) 19%, transparent), transparent 38%),
+      radial-gradient(circle at 5% 2%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 42%),
+      radial-gradient(circle at 92% 14%, color-mix(in oklab, var(--accent) 6%, transparent), transparent 38%),
       linear-gradient(180deg, color-mix(in oklab, var(--background) 72%, black), var(--background));
     min-height: 100vh;
   }
@@ -146,7 +168,7 @@
   }
 
   :focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--accent) 70%, white);
+    outline: 2px solid color-mix(in oklab, var(--primary) 80%, white);
     outline-offset: 2px;
   }
 
@@ -219,12 +241,12 @@
   }
 
   .studio-field:hover {
-    border-color: rgba(103, 232, 249, 0.28);
+    border-color: rgba(217, 192, 138, 0.28);
   }
 
   .studio-field:focus-visible {
-    border-color: rgba(103, 232, 249, 0.52);
-    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    border-color: rgba(217, 192, 138, 0.52);
+    box-shadow: 0 0 0 3px rgba(217, 192, 138, 0.2);
   }
 
   .studio-chip {
@@ -236,8 +258,8 @@
 
   .studio-chip:hover {
     transform: translateY(-1px);
-    border-color: rgba(103, 232, 249, 0.34);
-    background: linear-gradient(180deg, rgba(34, 211, 238, 0.13), rgba(14, 165, 233, 0.06));
+    border-color: rgba(217, 192, 138, 0.34);
+    background: linear-gradient(180deg, rgba(217, 192, 138, 0.13), rgba(173, 139, 81, 0.06));
     color: rgba(255, 255, 255, 0.96);
   }
 
@@ -273,7 +295,7 @@
     inset: -1px;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(120deg, rgba(255, 255, 255, 0.1), rgba(20, 241, 230, 0.6), rgba(53, 166, 255, 0.55), rgba(255, 122, 89, 0.5), rgba(255, 255, 255, 0.1));
+    background: linear-gradient(120deg, rgba(255, 255, 255, 0.1), rgba(243, 229, 192, 0.6), rgba(200, 167, 106, 0.55), rgba(182, 221, 211, 0.5), rgba(255, 255, 255, 0.1));
     background-size: 240% 240%;
     opacity: 0;
     transition: opacity 0.35s ease;
@@ -349,15 +371,15 @@
   .liquid-metal-cyan {
     position: relative;
     overflow: hidden;
-    border: 1px solid rgba(34, 211, 238, 0.25);
+    border: 1px solid rgba(217, 192, 138, 0.25);
     background:
-      linear-gradient(135deg, rgba(34,211,238,0.08) 0%, rgba(56,189,248,0.04) 50%, rgba(34,211,238,0.06) 100%),
+      linear-gradient(135deg, rgba(217, 192, 138, 0.08) 0%, rgba(217, 192, 138, 0.04) 50%, rgba(217, 192, 138, 0.06) 100%),
       linear-gradient(180deg, rgba(16,20,26,0.97), rgba(10,14,20,0.99));
     box-shadow:
-      inset 0 1px 0 rgba(34,211,238,0.2),
+      inset 0 1px 0 rgba(217, 192, 138, 0.2),
       inset 0 -1px 0 rgba(0,0,0,0.4),
-      0 6px 24px -8px rgba(34,211,238,0.2),
-      0 0 0 0.5px rgba(34,211,238,0.1);
+      0 6px 24px -8px rgba(217, 192, 138, 0.2),
+      0 0 0 0.5px rgba(217, 192, 138, 0.1);
     transition: transform 200ms ease, box-shadow 280ms ease, border-color 280ms ease;
   }
 
@@ -369,8 +391,8 @@
     background: linear-gradient(
       115deg,
       transparent 20%,
-      rgba(34,211,238,0.18) 40%,
-      rgba(56,189,248,0.06) 60%,
+      rgba(217, 192, 138, 0.18) 40%,
+      rgba(217, 192, 138, 0.06) 60%,
       transparent 80%
     );
     background-size: 250% 100%;
@@ -381,12 +403,12 @@
 
   .liquid-metal-cyan:hover {
     transform: translateY(-1px);
-    border-color: rgba(34, 211, 238, 0.4);
+    border-color: rgba(217, 192, 138, 0.4);
     box-shadow:
-      inset 0 1px 0 rgba(34,211,238,0.28),
+      inset 0 1px 0 rgba(217, 192, 138, 0.28),
       inset 0 -1px 0 rgba(0,0,0,0.5),
-      0 12px 35px -10px rgba(34,211,238,0.3),
-      0 0 0 0.5px rgba(34,211,238,0.15);
+      0 12px 35px -10px rgba(217, 192, 138, 0.3),
+      0 0 0 0.5px rgba(217, 192, 138, 0.15);
   }
 
   .liquid-metal-cyan:hover::before {
@@ -397,7 +419,7 @@
     transform: translateY(0.5px);
     box-shadow:
       inset 0 2px 4px rgba(0,0,0,0.3),
-      0 4px 12px -6px rgba(34,211,238,0.25);
+      0 4px 12px -6px rgba(217, 192, 138, 0.25);
   }
 
   /* Liquid metal primary (gradient fill) */
@@ -406,11 +428,11 @@
     overflow: hidden;
     border: none;
     background:
-      linear-gradient(135deg, #00E5FF 0%, #35A6FF 45%, #FF7A59 100%);
+      linear-gradient(135deg, #f3e5c0 0%, #d9c08a 48%, #b08d52 100%);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.35),
       inset 0 -2px 0 rgba(0,0,0,0.15),
-      0 8px 28px -8px rgba(53,166,255,0.45),
+      0 8px 28px -8px rgba(200, 167, 106, 0.45),
       0 2px 6px -2px rgba(0,0,0,0.2);
     transition: transform 200ms ease, box-shadow 280ms ease, filter 280ms ease;
   }
@@ -437,8 +459,8 @@
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.4),
       inset 0 -2px 0 rgba(0,0,0,0.2),
-      0 14px 40px -10px rgba(53,166,255,0.55),
-      0 4px 12px -4px rgba(255,122,89,0.2);
+      0 14px 40px -10px rgba(200, 167, 106, 0.55),
+      0 4px 12px -4px rgba(182, 221, 211, 0.2);
     filter: brightness(1.05);
   }
 
@@ -451,7 +473,7 @@
     filter: brightness(0.95);
     box-shadow:
       inset 0 2px 6px rgba(0,0,0,0.25),
-      0 4px 12px -6px rgba(53,166,255,0.3);
+      0 4px 12px -6px rgba(200, 167, 106, 0.3);
   }
 
   .film-grain {
@@ -580,7 +602,7 @@
 
 @layer utilities {
   .neon-aurora {
-    background: radial-gradient(circle at 20% 30%, rgba(20, 241, 230, 0.45), transparent 55%),
+    background: radial-gradient(circle at 20% 30%, rgba(243, 229, 192, 0.45), transparent 55%),
       radial-gradient(circle at 75% 25%, rgba(47, 166, 255, 0.4), transparent 50%),
       radial-gradient(circle at 50% 80%, rgba(255, 138, 31, 0.42), transparent 55%);
     filter: blur(56px);
@@ -657,7 +679,7 @@
   inset: 0;
   width: 40%;
   border-radius: inherit;
-  background: linear-gradient(90deg, rgba(20, 241, 230, 0.9), rgba(53, 166, 255, 0.9), rgba(255, 122, 89, 0.9));
+  background: linear-gradient(90deg, rgba(243, 229, 192, 0.9), rgba(200, 167, 106, 0.9), rgba(182, 221, 211, 0.9));
   animation: generationSweep 1.25s ease-in-out infinite;
 }
 
@@ -676,14 +698,329 @@
 }
 
 .toaster [data-sonner-toast] {
-  background: linear-gradient(180deg, rgba(12, 14, 18, 0.96), rgba(10, 11, 14, 0.92)) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  color: rgba(255, 255, 255, 0.92) !important;
-  box-shadow: 0 18px 45px -28px rgba(0, 0, 0, 0.9) !important;
-  backdrop-filter: blur(10px);
+  background:
+    linear-gradient(180deg, rgba(217, 192, 138, 0.06), transparent 60%),
+    rgba(14, 16, 14, 0.94) !important;
+  border: 1px solid rgba(217, 192, 138, 0.18) !important;
+  color: rgba(238, 234, 225, 0.94) !important;
+  border-radius: 14px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 50px -28px rgba(0, 0, 0, 0.95) !important;
+  backdrop-filter: blur(16px) saturate(140%);
 }
 
 .toaster [data-sonner-toast][data-type="success"] {
-  border-color: rgba(34, 211, 238, 0.35) !important;
-  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.18), 0 18px 45px -28px rgba(0, 0, 0, 0.9) !important;
+  border-color: rgba(182, 221, 211, 0.34) !important;
+  box-shadow: 0 0 0 1px rgba(182, 221, 211, 0.12), 0 24px 50px -28px rgba(0, 0, 0, 0.95) !important;
+}
+
+.toaster [data-sonner-toast][data-type="error"] {
+  border-color: rgba(224, 122, 106, 0.4) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LUXURY LAYER — obsidian & champagne effects shared by the studio
+═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  /* Frosted obsidian glass */
+  .lux-glass {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008) 40%),
+      rgba(16, 18, 16, 0.72);
+    border: 1px solid rgba(217, 192, 138, 0.12);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 30px 60px -40px rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(18px) saturate(130%);
+  }
+
+  /* Gradient gold hairline drawn on a pseudo element so the fill stays free */
+  .lux-hairline {
+    isolation: isolate;
+  }
+  .lux-hairline::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      140deg,
+      rgba(243, 229, 192, 0.42),
+      rgba(217, 192, 138, 0.08) 32%,
+      rgba(217, 192, 138, 0.02) 60%,
+      rgba(182, 221, 211, 0.22)
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  /* Diagonal sheen that sweeps across on hover */
+  .lux-sheen {
+    overflow: hidden;
+  }
+  .lux-sheen::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      rgba(255, 246, 222, 0.16) 48%,
+      rgba(255, 246, 222, 0.04) 54%,
+      transparent 64%
+    );
+    transform: translateX(-120%);
+    transition: transform 0.9s var(--ease-lux);
+  }
+  .lux-sheen:hover::before,
+  .lux-sheen:focus-visible::before {
+    transform: translateX(120%);
+  }
+
+  /* Cursor-following spotlight; AppShell feeds --mx / --my */
+  .lux-spotlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    background: radial-gradient(
+      420px circle at var(--mx, 50%) var(--my, 50%),
+      rgba(217, 192, 138, 0.09),
+      transparent 42%
+    );
+  }
+  .lux-spotlight:hover::before {
+    opacity: 1;
+  }
+
+  /* Gentle elevation with a champagne halo */
+  .lux-lift {
+    transition:
+      transform 0.45s var(--ease-lux),
+      box-shadow 0.45s var(--ease-lux),
+      border-color 0.35s ease;
+  }
+  .lux-lift:hover {
+    transform: translate3d(0, -4px, 0);
+    border-color: rgba(217, 192, 138, 0.32);
+    box-shadow:
+      0 28px 60px -34px rgba(0, 0, 0, 0.95),
+      0 0 0 1px rgba(217, 192, 138, 0.08),
+      0 18px 50px -30px rgba(217, 192, 138, 0.28);
+  }
+
+  .lux-text-gold {
+    background: linear-gradient(100deg, #f6ebcf 0%, #d9c08a 38%, #f3e5c0 58%, #b08d52 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: luxGoldDrift 9s ease-in-out infinite;
+  }
+
+  .lux-serif {
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+  }
+
+  .lux-divider {
+    height: 1px;
+    border: 0;
+    background: linear-gradient(90deg, transparent, rgba(217, 192, 138, 0.32), transparent);
+  }
+
+  .lux-kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 5px;
+    border: 1px solid rgba(217, 192, 138, 0.2);
+    background: rgba(217, 192, 138, 0.06);
+    font: 500 10px/1 var(--font-mono);
+    color: rgba(243, 229, 192, 0.8);
+  }
+
+  /* Breathing "live" dot for running jobs */
+  .lux-live-dot {
+    position: relative;
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: #d9c08a;
+    box-shadow: 0 0 10px rgba(217, 192, 138, 0.8);
+  }
+  .lux-live-dot::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: inherit;
+    border: 1px solid rgba(217, 192, 138, 0.6);
+    animation: luxPing 1.8s var(--ease-lux) infinite;
+  }
+
+  /* Shimmer used by skeletons and pending media */
+  .lux-shimmer {
+    overflow: hidden;
+    background: #121412;
+  }
+  .lux-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(217, 192, 138, 0.07) 42%,
+      rgba(255, 246, 222, 0.1) 50%,
+      rgba(217, 192, 138, 0.07) 58%,
+      transparent 80%
+    );
+    transform: translateX(-100%);
+    animation: luxShimmer 1.9s ease-in-out infinite;
+  }
+
+  /* Staggered entrance for lists: set --i on each child */
+  .lux-stagger > * {
+    animation: luxRise 0.7s var(--ease-lux) both;
+    animation-delay: calc(var(--i, 0) * 60ms + 60ms);
+  }
+
+  .lux-rise {
+    animation: luxRise 0.75s var(--ease-lux) both;
+  }
+
+  .lux-fade {
+    animation: luxFade 0.6s ease both;
+  }
+
+  /* Animated champagne border for the primary call to action */
+  .lux-ring-glow::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    pointer-events: none;
+    background: conic-gradient(
+      from var(--lux-angle, 0deg),
+      transparent 0deg,
+      rgba(243, 229, 192, 0.9) 60deg,
+      transparent 120deg,
+      transparent 360deg
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: luxSpin 4s linear infinite;
+    opacity: 0.85;
+  }
+}
+
+/* Base-layer positioning so Tailwind's absolute/fixed utilities always win. */
+@layer base {
+  .lux-hairline,
+  .lux-sheen,
+  .lux-spotlight,
+  .lux-shimmer,
+  .lux-ring-glow {
+    position: relative;
+  }
+}
+
+@property --lux-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes luxSpin {
+  to {
+    --lux-angle: 360deg;
+  }
+}
+
+@keyframes luxRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes luxFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes luxShimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes luxPing {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@keyframes luxGoldDrift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes luxFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(3%, -4%, 0) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lux-stagger > *,
+  .lux-rise,
+  .lux-fade,
+  .lux-text-gold,
+  .lux-shimmer::after,
+  .lux-live-dot::after,
+  .lux-ring-glow::after {
+    animation: none !important;
+  }
 }

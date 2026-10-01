@@ -42,16 +42,16 @@ export default async function ScenePage(props: ScenePageProps) {
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-6 py-2 md:py-3">
-            <section data-reveal="hero" className="rounded-3xl border border-white/10 bg-[#0b0b0d] p-5 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] md:p-6">
+            <section data-reveal="hero" className="rounded-3xl lux-glass lux-hairline p-5 text-white md:p-6">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
-                        <Badge className="mb-3 rounded-full border border-white/10 bg-white/10 text-white/90">Scene Builder</Badge>
-                        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Compose your shot sequence</h1>
+                        <Badge className="mb-3 rounded-full border border-gold-400/25 bg-gold-400/[0.07] px-3 text-[10px] font-medium uppercase tracking-[0.22em] text-gold-200">Scene Builder</Badge>
+                        <h1 className="text-3xl font-light tracking-[-0.04em] text-[#f6f1e4] md:text-[42px] md:leading-[1.08]">Compose your shot sequence</h1>
                         <p className="mt-2 max-w-2xl text-sm text-white/50 md:text-base">
                             Define camera language, generate visuals, and iterate quickly with cinematic consistency.
                         </p>
                     </div>
-                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50">
+                    <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 py-2 text-xs text-white/50">
                         <div>Project: {params.id}</div>
                         <div>Scene: {params.sceneId}</div>
                     </div>
@@ -63,7 +63,7 @@ export default async function ScenePage(props: ScenePageProps) {
                         <div className="mb-3 flex items-center justify-between gap-2">
                             <h2 className="text-lg font-semibold">New Shot</h2>
                             <Badge
-                                className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] text-white/90"
+                                className="rounded-full border border-gold-400/[0.12] bg-white/10 px-3 py-1 text-[11px] text-white/90"
                             >
                                 Active Provider: {providerLabel} ({providerSourceLabel})
                             </Badge>
@@ -78,23 +78,23 @@ export default async function ScenePage(props: ScenePageProps) {
                 </section>
 
                 <aside data-reveal="card" className="space-y-4">
-                    <div className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-4 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                    <div className="rounded-2xl lux-glass lux-hairline p-4 text-white">
                         <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Workflow</h3>
                         <ol className="mt-3 space-y-2 text-sm text-white/55">
                             <li className="flex items-start gap-2">
-                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[11px] text-white/70">1</span>
+                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-gold-400/[0.12] bg-white/5 text-[11px] text-white/70">1</span>
                                 Project → Scene → Shot
                             </li>
                             <li className="flex items-start gap-2">
-                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[11px] text-white/70">2</span>
+                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-gold-400/[0.12] bg-white/5 text-[11px] text-white/70">2</span>
                                 Add references + confirm prompt
                             </li>
                             <li className="flex items-start gap-2">
-                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[11px] text-white/70">3</span>
+                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-gold-400/[0.12] bg-white/5 text-[11px] text-white/70">3</span>
                                 Generate → Approve → Animate
                             </li>
                             <li className="flex items-start gap-2">
-                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[11px] text-white/70">4</span>
+                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-gold-400/[0.12] bg-white/5 text-[11px] text-white/70">4</span>
                                 Add to sequence → Export
                             </li>
                         </ol>
@@ -102,7 +102,7 @@ export default async function ScenePage(props: ScenePageProps) {
 
                     <ElementUpload projectId={params.id} />
 
-                    <div className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-4 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                    <div className="rounded-2xl lux-glass lux-hairline p-4 text-white">
                         <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Sequences</h3>
                         <div className="mt-3">
                             <SequenceList sequences={sequences} />

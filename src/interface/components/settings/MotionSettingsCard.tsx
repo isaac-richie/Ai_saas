@@ -31,7 +31,7 @@ export function MotionSettingsCard() {
   }
 
   return (
-    <Card data-reveal="card" className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
+    <Card data-reveal="card" className="rounded-2xl border border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
       <CardContent className="flex flex-col gap-3 p-5 md:flex-row md:items-center md:justify-between">
         <div className="flex items-start gap-3 text-sm text-white/60">
           <Gauge className="mt-0.5 h-5 w-5 text-white/55" />
@@ -43,7 +43,7 @@ export function MotionSettingsCard() {
         <Button
           type="button"
           variant="ghost"
-          className="rounded-xl border border-white/10 bg-white/5 text-white/80 hover:bg-white/12"
+          className="rounded-xl border border-gold-400/[0.12] bg-white/5 text-white/80 hover:bg-white/12"
           onClick={toggle}
         >
           {motionReduced ? "Enable Motion" : "Reduce Motion"}

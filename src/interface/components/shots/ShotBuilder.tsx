@@ -487,8 +487,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     if (!isMounted) {
         return (
             <div className="flex flex-col gap-5 min-w-0">
-                <div className="min-h-[400px] rounded-2xl border border-white/10 bg-[#0b0b0d] animate-pulse" />
-                <div className="min-h-[150px] rounded-2xl border border-white/10 bg-[#0b0b0d] animate-pulse" />
+                <div className="min-h-[400px] rounded-2xl border border-gold-400/[0.12] lux-shimmer" />
+                <div className="min-h-[150px] rounded-2xl border border-gold-400/[0.12] lux-shimmer" />
             </div>
         )
     }
@@ -560,7 +560,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                             </div>
 
                             {loadingOptions ? (
-                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/50">
+                                <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-xs text-white/50">
                                     Loading presets...
                                 </div>
                             ) : (
@@ -582,7 +582,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                                                 <SelectValue placeholder={`Select ${CATEGORY_LABELS[category].toLowerCase()}`} />
                                                             </SelectTrigger>
                                                         </FormControl>
-                                                        <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                        <SelectContent className="border-gold-400/[0.12] bg-obsidian-800 text-white">
                                                             <SelectItem value="__none__">Clear</SelectItem>
                                                             {(presetOptions?.[category] || []).map((option) => (
                                                                 <SelectItem key={option.id} value={option.key}>
@@ -599,7 +599,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                             )}
 
                             {availableElements.length > 0 && (
-                                <div className="space-y-2 pt-2 border-t border-white/10">
+                                <div className="space-y-2 pt-2 border-t border-gold-400/[0.12]">
                                     <label className="text-sm font-medium text-white/80 flex items-center">
                                         <Layers className="h-4 w-4 mr-2" /> Reference Elements
                                     </label>
@@ -610,8 +610,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                                 type="button"
                                                 onClick={() => toggleElement(el.id)}
                                                 className={`px-3 py-1.5 text-xs rounded-full border transition ${selectedElementIds.has(el.id)
-                                                    ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300'
-                                                    : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
+                                                    ? 'bg-gold-500/20 border-gold-500 text-gold-300'
+                                                    : 'bg-white/5 border-gold-400/[0.12] text-white/60 hover:bg-gold-400/[0.08]'
                                                     }`}
                                             >
                                                 {el.name}
@@ -638,7 +638,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                     </div>
                                 </summary>
 
-                                <div className="space-y-3 border-t border-white/10 px-3 pb-3 pt-3">
+                                <div className="space-y-3 border-t border-gold-400/[0.12] px-3 pb-3 pt-3">
                                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:items-end">
                                         <FormField
                                             control={form.control}
@@ -655,7 +655,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                                                 <SelectValue placeholder="Auto" />
                                                             </SelectTrigger>
                                                         </FormControl>
-                                                        <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                        <SelectContent className="border-gold-400/[0.12] bg-obsidian-800 text-white">
                                                             <SelectItem value="auto">Auto</SelectItem>
                                                             <SelectItem value="openai">OpenAI</SelectItem>
                                                             <SelectItem value="kie">Kie.ai</SelectItem>
@@ -679,7 +679,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                                                 <SelectValue placeholder="standard" />
                                                             </SelectTrigger>
                                                         </FormControl>
-                                                        <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                        <SelectContent className="border-gold-400/[0.12] bg-obsidian-800 text-white">
                                                             <SelectItem value="standard">Standard</SelectItem>
                                                             <SelectItem value="hd">HD</SelectItem>
                                                             <SelectItem value="high">High</SelectItem>
@@ -879,7 +879,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                             size="xs"
                             variant="studioGhost"
                             onClick={() => copyToClipboard(promptPreview, "Full prompt")}
-                            className="h-7 gap-1.5 rounded-lg border border-white/5 bg-white/5 px-2.5 text-[11px] text-white/60 hover:bg-white/10 hover:text-white"
+                            className="h-7 gap-1.5 rounded-lg border border-white/5 bg-white/5 px-2.5 text-[11px] text-white/60 hover:bg-gold-400/[0.08] hover:text-white"
                         >
                             <Copy className="h-3.5 w-3.5" />
                             Copy Full Prompt
@@ -912,7 +912,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                             </span>
                         </div>
                     </summary>
-                    <div className="space-y-3 border-t border-white/10 px-6 pb-5 pt-4">
+                    <div className="space-y-3 border-t border-gold-400/[0.12] px-6 pb-5 pt-4">
                         <div className="grid gap-2">
                             <Input
                                 value={newPresetName}

@@ -61,11 +61,11 @@ export function FeatureGrid() {
       {features.map((feature, index) => {
         const Icon = feature.icon
         const accentColor =
-          feature.accent === "orange" ? "text-orange-300" : "text-cyan-300"
+          feature.accent === "orange" ? "text-orange-300" : "text-gold-300"
         const glowColor =
           feature.accent === "orange"
             ? "group-hover:border-orange-400/25 group-hover:shadow-[0_0_30px_-12px_rgba(255,138,31,0.15)]"
-            : "group-hover:border-cyan-400/25 group-hover:shadow-[0_0_30px_-12px_rgba(34,211,238,0.15)]"
+            : "group-hover:border-gold-400/25 group-hover:shadow-[0_0_30px_-12px_rgba(217,192,138,0.15)]"
 
         return (
           <motion.article

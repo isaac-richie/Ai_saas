@@ -188,15 +188,15 @@ export function ShotPreviewTimeline({
       {/* Scrub track */}
       <div
         ref={trackRef}
-        className="group relative h-8 cursor-pointer rounded-lg border border-white/[0.08] bg-white/[0.03]"
+        className="group relative h-8 cursor-pointer rounded-lg border border-gold-400/10 bg-white/[0.03]"
         onMouseDown={handleMouseDown}
       >
         <div
-          className="absolute inset-y-0 left-0 rounded-l-lg bg-gradient-to-r from-cyan-500/20 to-cyan-400/10"
+          className="absolute inset-y-0 left-0 rounded-l-lg bg-gradient-to-r from-gold-500/20 to-gold-400/10"
           style={{ width: `${progress}%` }}
         />
         <div
-          className="absolute top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.4)]"
+          className="absolute top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-gold-300 shadow-[0_0_8px_rgba(217,192,138,0.4)]"
           style={{ left: `calc(${progress}% - 2px)` }}
         />
       </div>

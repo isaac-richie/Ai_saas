@@ -9,7 +9,7 @@ function ModelsFallback() {
   return (
     <div>
       <p className="mb-4 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/40">
-        <span className="h-px w-6 bg-gradient-to-r from-cyan-400/50 to-transparent" />
+        <span className="h-px w-6 bg-gradient-to-r from-gold-400/50 to-transparent" />
         AI Models
       </p>
       <h2 className="mb-3 text-2xl font-medium tracking-tight sm:text-3xl">Pick your engine.</h2>
@@ -52,7 +52,7 @@ function PinnedModels() {
           {/* Intro panel */}
           <div className="flex w-[42vw] shrink-0 flex-col justify-center pr-6">
             <p className="mb-4 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/40">
-              <span className="h-px w-6 bg-gradient-to-r from-cyan-400/50 to-transparent" />
+              <span className="h-px w-6 bg-gradient-to-r from-gold-400/50 to-transparent" />
               AI Models
             </p>
             <h2 className="text-4xl font-medium tracking-tight lg:text-5xl">Pick your engine.</h2>

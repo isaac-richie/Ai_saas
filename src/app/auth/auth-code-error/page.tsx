@@ -3,7 +3,7 @@ import Link from "next/link"
 export default function AuthCodeErrorPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-xl items-center justify-center px-4">
-      <div className="w-full rounded-2xl border border-white/10 bg-[#0f1012] p-6 text-white shadow-[0_24px_50px_-38px_rgba(0,0,0,0.95)]">
+      <div className="w-full rounded-2xl border border-white/10 bg-obsidian-900 p-6 text-white shadow-[0_24px_50px_-38px_rgba(0,0,0,0.95)]">
         <h1 className="text-2xl font-semibold">Authentication failed</h1>
         <p className="mt-2 text-sm text-white/65">
           We could not complete sign-in from the callback link. Please try again.

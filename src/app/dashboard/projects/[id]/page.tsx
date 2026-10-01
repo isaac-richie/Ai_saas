@@ -26,13 +26,13 @@ export default async function ProjectPage(props: ProjectPageProps) {
     if (projectRes.error || !projectRes.data) {
         return (
             <div className="mx-auto w-full max-w-3xl py-10">
-                <section className="rounded-3xl border border-white/10 bg-[#0b0b0d] p-6 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                <section className="rounded-3xl lux-glass lux-hairline p-6 text-white">
                     <h1 className="text-xl font-semibold">Project unavailable</h1>
                     <p className="mt-2 text-sm text-white/55">
                         This can happen when the session is still initializing in build mode. Try again from the projects list.
                     </p>
                     <div className="mt-4">
-                        <Link href="/dashboard/projects" className="inline-flex rounded-xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15">
+                        <Link href="/dashboard/projects" className="inline-flex rounded-xl border border-gold-400/[0.12] bg-white/10 px-4 py-2 text-sm text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
                             Back to Projects
                         </Link>
                     </div>
@@ -54,27 +54,27 @@ export default async function ProjectPage(props: ProjectPageProps) {
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-6 py-2 md:py-3">
-            <section data-reveal="hero" className="rounded-3xl border border-white/10 bg-[#0b0b0d] p-5 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)] md:p-6">
+            <section data-reveal="hero" className="rounded-3xl lux-glass lux-hairline p-5 text-white md:p-6">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
-                        <Badge className="mb-3 rounded-full border border-white/10 bg-white/10 text-white/90">Project Workspace</Badge>
-                        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{project.name}</h1>
+                        <Badge className="mb-3 rounded-full border border-gold-400/25 bg-gold-400/[0.07] px-3 text-[10px] font-medium uppercase tracking-[0.22em] text-gold-200">Project Workspace</Badge>
+                        <h1 className="text-3xl font-light tracking-[-0.04em] text-[#f6f1e4] md:text-[42px] md:leading-[1.08]">{project.name}</h1>
                         <p className="mt-2 text-sm text-white/50 md:text-base">
                             {project.description || "Project workspace for scenes, prompts, and generated outputs."}
                         </p>
                         <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/55">
-                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Scenes {sceneCount}</span>
-                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Shots {shotCount}</span>
-                            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                            <span className="rounded-full border border-gold-400/[0.15] bg-gold-400/[0.04] px-3 py-1 text-gold-100/80">Scenes {sceneCount}</span>
+                            <span className="rounded-full border border-gold-400/[0.15] bg-gold-400/[0.04] px-3 py-1 text-gold-100/80">Shots {shotCount}</span>
+                            <span className="rounded-full border border-gold-400/[0.15] bg-gold-400/[0.04] px-3 py-1 text-gold-100/80">
                                 Updated {new Date(project.updated_at || project.created_at).toLocaleDateString()}
                             </span>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Link href={scenes[0] ? `/dashboard/projects/${project.id}/scenes/${scenes[0].id}` : `/dashboard/projects/${project.id}`} className="rounded-xl border border-white/10 bg-white/10 px-3.5 py-2 text-xs text-white hover:bg-white/15">
+                        <Link href={scenes[0] ? `/dashboard/projects/${project.id}/scenes/${scenes[0].id}` : `/dashboard/projects/${project.id}`} className="rounded-xl border border-gold-400/[0.12] bg-white/10 px-3.5 py-2 text-xs text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
                             Open Studio
                         </Link>
-                        <Link href={`/dashboard/gallery?projectId=${project.id}`} className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs text-white/90 hover:bg-white/10">
+                        <Link href={`/dashboard/gallery?projectId=${project.id}`} className="rounded-xl border border-gold-400/[0.12] bg-white/5 px-3.5 py-2 text-xs text-white/90 hover:bg-gold-400/[0.08]">
                             Open Gallery
                         </Link>
                         <CreateSceneDialog projectId={project.id} />
@@ -82,14 +82,14 @@ export default async function ProjectPage(props: ProjectPageProps) {
                 </div>
 
                 <Tabs defaultValue="scenes" className="mt-8 w-full" data-reveal="card">
-                <TabsList className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-1">
-                    <TabsTrigger value="scenes" className="rounded-xl text-white data-[state=active]:bg-white/10 data-[state=active]:text-white">Scenes</TabsTrigger>
-                    <TabsTrigger value="assets" className="rounded-xl text-white data-[state=active]:bg-white/10 data-[state=active]:text-white">Asset Library</TabsTrigger>
+                <TabsList className="lux-glass h-11 rounded-2xl p-1">
+                    <TabsTrigger value="scenes" className="rounded-xl px-4 text-[#a3a59a] transition-all duration-300 data-[state=active]:border-gold-400/30 data-[state=active]:bg-gold-400/[0.1] data-[state=active]:text-gold-100 data-[state=active]:shadow-[0_0_24px_-10px_rgba(217,192,138,0.6)]">Scenes</TabsTrigger>
+                    <TabsTrigger value="assets" className="rounded-xl px-4 text-[#a3a59a] transition-all duration-300 data-[state=active]:border-gold-400/30 data-[state=active]:bg-gold-400/[0.1] data-[state=active]:text-gold-100 data-[state=active]:shadow-[0_0_24px_-10px_rgba(217,192,138,0.6)]">Asset Library</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="scenes" className="mt-4 space-y-5">
                     {scenes.length === 0 ? (
-                        <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center text-white">
+                        <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-gold-400/20 bg-obsidian-950 text-center text-white">
                             <p className="mb-2 text-sm text-white/50">No scenes yet.</p>
                             <p className="text-xs text-white/50">Add your first scene to start composing shots.</p>
                         </div>

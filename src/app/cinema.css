@@ -4,13 +4,13 @@
   --cinema-ink: #111512;
   --cinema-muted: #a9aaa3;
   --cinema-line: #ffffff20;
-  --cinema-accent: #b6ddd3;
-  background: #101311;
+  --cinema-accent: #d9c08a;
+  background: #0b0c0b;
   color: var(--cinema-paper);
   font-family: 'Avenir Next', Avenir, 'Trebuchet MS', sans-serif;
   font-size: 15px;
   overflow: clip;
-  background-image: radial-gradient(ellipse at 70% 0, #74908210, transparent 32%);
+  background-image: radial-gradient(ellipse at 70% 0, #d9c08a10, transparent 32%);
 }
 .cinema-site *,
 .cinema-site *::before,
@@ -42,7 +42,7 @@
   outline-offset: 5px;
 }
 .cinema-site ::selection {
-  background: #b6ddd3;
+  background: #d9c08a;
   color: #111512;
 }
 .cinema-wrap {
@@ -134,7 +134,7 @@
   height: 5px;
   background: var(--cinema-accent);
   border-radius: 50%;
-  box-shadow: 0 0 14px #b6ddd34d;
+  box-shadow: 0 0 14px #d9c08a4d;
 }
 .cinema-hero {
   padding-top: 65px;
@@ -197,14 +197,28 @@
   transition: transform 0.25s;
 }
 .cinema-primary {
-  background: var(--cinema-paper);
-  color: var(--cinema-ink);
-  border: 1px solid transparent;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f3e5c0 0%, #d9c08a 52%, #c3a265 100%);
+  color: #1a160e;
+  border: 1px solid #f3e5c0;
+  box-shadow: inset 0 1px 0 #ffffffa0, 0 12px 30px -14px #d9c08a99;
+}
+.cinema-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, #ffffff8c 48%, transparent 60%);
+  transform: translateX(-120%);
+  transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.cinema-primary:hover::after {
+  transform: translateX(120%);
 }
 .cinema-primary:hover {
-  background: var(--cinema-accent);
-  color: var(--cinema-ink);
-  box-shadow: 0 10px 35px #0002;
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 #ffffffb0, 0 18px 40px -14px #d9c08ab3;
 }
 .cinema-button:hover svg {
   transform: translate(2px, -2px);
@@ -674,9 +688,9 @@
   color: #929a8b;
 }
 .cinema-input-wrap input:focus-visible {
-  border-color: #b6ddd3;
+  border-color: #d9c08a;
   outline: none;
-  box-shadow: 0 0 0 3px #b6ddd318;
+  box-shadow: 0 0 0 3px #d9c08a18;
 }
 .cinema-input-wrap input:-webkit-autofill {
   -webkit-text-fill-color: #eeeae1;

@@ -37,7 +37,7 @@ export function InteractiveComparisonCard() {
             <div className="grid grid-cols-[1fr_0.9fr_1.2fr] border-b border-white/10 text-xs">
                 <div className="border-r border-white/10 px-3 py-2 text-white/40" />
                 <div className="border-r border-white/10 px-3 py-2 text-white/55">Old way</div>
-                <div className="px-3 py-2 font-medium text-cyan-300">Visiowave</div>
+                <div className="px-3 py-2 font-medium text-gold-300">Visiowave</div>
             </div>
             <ComparisonRow label="Credits" oldWay="Expire" newWay="One-time keys" />
             <ComparisonRow label="Model access" oldWay="Limited" newWay="Multi-provider" />
@@ -55,10 +55,10 @@ const votes = [
 
 export function InteractiveCommunityCard() {
     return (
-        <article className="rounded-3xl border border-cyan-400/25 bg-gradient-to-b from-cyan-500/10 via-cyan-500/5 to-transparent p-4 shadow-[0_0_0_1px_rgba(103,232,249,0.07)] backdrop-blur-xl">
+        <article className="rounded-3xl border border-gold-400/25 bg-gradient-to-b from-gold-500/10 via-gold-500/5 to-transparent p-4 shadow-[0_0_0_1px_rgba(217,192,138,0.07)] backdrop-blur-xl">
             <p className="text-sm font-semibold text-white">
-                <Users className="mr-2 inline h-4 w-4 text-cyan-300" />
-                Community Collabs — <span className="text-cyan-300">Coming Soon</span>
+                <Users className="mr-2 inline h-4 w-4 text-gold-300" />
+                Community Collabs — <span className="text-gold-300">Coming Soon</span>
             </p>
             <ul className="mt-3 space-y-2 text-sm text-white/75">
                 {votes.map((vote) => (
@@ -73,7 +73,7 @@ export function InteractiveCommunityCard() {
                                 whileInView={{ width: `${vote.value}%` }}
                                 viewport={{ once: true, amount: 0.6 }}
                                 transition={{ duration: 0.9, ease: "easeOut" }}
-                                className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-cyan-200 to-orange-200 shadow-[0_0_14px_rgba(34,211,238,0.5)]"
+                                className="h-full rounded-full bg-gradient-to-r from-gold-300 via-gold-200 to-orange-200 shadow-[0_0_14px_rgba(217,192,138,0.5)]"
                             />
                         </div>
                     </li>

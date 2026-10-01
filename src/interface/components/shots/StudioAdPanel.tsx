@@ -221,10 +221,10 @@ export function StudioAdPanel({
   const readinessState =
     readiness >= 90 ? 'excellent' : readiness >= 80 ? 'good' : readiness >= 65 ? 'fair' : 'weak';
   const rootClassName = embedded
-    ? 'space-y-3 rounded-xl border border-white/10 bg-black/20 p-3'
+    ? 'space-y-3 rounded-xl border border-gold-400/[0.12] bg-black/20 p-3'
     : 'studio-card rounded-2xl p-5 text-white';
   const blockClassName = embedded
-    ? 'rounded-lg border border-white/10 bg-black/20 p-3'
+    ? 'rounded-lg border border-gold-400/[0.12] bg-black/20 p-3'
     : 'studio-subcard rounded-xl p-3';
 
   return (
@@ -251,11 +251,11 @@ export function StudioAdPanel({
             )}
           </div>
         </div>
-        <span className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/75">Studio AD</span>
+        <span className="text-[10px] uppercase tracking-[0.16em] text-gold-300/75">Studio AD</span>
       </div>
 
       {engineModel ? (
-        <div className="mb-3 rounded-xl border border-cyan-300/15 bg-cyan-500/5 px-3 py-2 text-[11px] text-cyan-100/85">
+        <div className="mb-3 rounded-xl border border-gold-300/15 bg-gold-500/5 px-3 py-2 text-[11px] text-gold-100/85">
           Prompt engine: {engineModel}
         </div>
       ) : null}
@@ -267,12 +267,12 @@ export function StudioAdPanel({
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
               <SelectValue placeholder="Mode" />
             </SelectTrigger>
-            <SelectContent className="border-white/10 bg-[#0b0f14] text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
+            <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
               {MODES.map((item) => (
                 <SelectItem
                   key={item.value}
                   value={item.value}
-                  className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100"
+                  className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100"
                 >
                   {item.label}
                 </SelectItem>
@@ -290,12 +290,12 @@ export function StudioAdPanel({
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
               <SelectValue placeholder="Provider" />
             </SelectTrigger>
-            <SelectContent className="border-white/10 bg-[#0b0f14] text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
+            <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
               {PROVIDERS.map((item) => (
                 <SelectItem
                   key={item.value}
                   value={item.value}
-                  className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100"
+                  className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100"
                 >
                   {item.label}
                 </SelectItem>
@@ -310,11 +310,11 @@ export function StudioAdPanel({
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
               <SelectValue placeholder="Output" />
             </SelectTrigger>
-            <SelectContent className="border-white/10 bg-[#0b0f14] text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
-              <SelectItem value="image" className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100">
+            <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
+              <SelectItem value="image" className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
                 Image
               </SelectItem>
-              <SelectItem value="video" className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100">
+              <SelectItem value="video" className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
                 Video
               </SelectItem>
             </SelectContent>
@@ -365,7 +365,7 @@ export function StudioAdPanel({
       ) : null}
 
       {!error && promptPreview?.trim() ? (
-        <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-500/5 p-3 text-[11px] text-cyan-100/85">
+        <div className="mt-3 rounded-xl border border-gold-300/15 bg-gold-500/5 p-3 text-[11px] text-gold-100/85">
           Assistant Director is using your current on-screen prompt as reference context to improve continuity and prompt precision.
         </div>
       ) : null}
@@ -376,16 +376,16 @@ export function StudioAdPanel({
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Production Readiness</p>
-                <p className="mt-1 text-2xl font-semibold text-cyan-300">{packet.score.productionReadiness}%</p>
+                <p className="mt-1 text-2xl font-semibold text-gold-300">{packet.score.productionReadiness}%</p>
                 <p className="mt-1 text-xs text-white/60">Strategy: {packet.strategy}</p>
               </div>
               <ReadinessGauge value={packet.score.productionReadiness} />
             </div>
             <div className={embedded ? "mt-3 grid grid-cols-1 gap-2 text-xs text-white/70" : "mt-3 grid grid-cols-2 gap-2 text-xs text-white/70"}>
-              <div className="rounded-lg border border-white/10 bg-black/25 p-2">
+              <div className="rounded-lg border border-gold-400/[0.12] bg-black/25 p-2">
                 Continuity: {packet.score.continuityConfidence}%
               </div>
-              <div className="rounded-lg border border-white/10 bg-black/25 p-2">
+              <div className="rounded-lg border border-gold-400/[0.12] bg-black/25 p-2">
                 Technical: {packet.score.technicalClarity}%
               </div>
             </div>
@@ -461,7 +461,7 @@ export function StudioAdPanel({
             <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Variants</p>
             <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto pr-1 text-xs text-white/75">
               {packet.variants.map((variant, index) => (
-                <li key={`${index}-${variant.slice(0, 20)}`} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <li key={`${index}-${variant.slice(0, 20)}`} className="rounded-lg border border-gold-400/[0.12] bg-black/20 p-2">
                   <div className="flex items-start justify-between gap-3">
                     <p className="flex-1">{variant}</p>
                     <Button
@@ -510,7 +510,7 @@ export function StudioAdPanel({
       ) : null}
 
       {showHistory ? (
-        <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+        <div className="mt-4 rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Recent Directs</p>
             {historyLoading ? <span className="text-[10px] text-white/45">Loading...</span> : null}
@@ -522,11 +522,11 @@ export function StudioAdPanel({
               {history.map((item) => (
                 <li
                   key={item.id}
-                  className="rounded-lg border border-white/10 bg-black/25 px-2.5 py-2 text-xs text-white/75"
+                  className="rounded-lg border border-gold-400/[0.12] bg-black/25 px-2.5 py-2 text-xs text-white/75"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate pr-2">{item.user_intent}</span>
-                    <span className="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[10px] text-cyan-200">
+                    <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2 py-0.5 text-[10px] text-gold-200">
                       {item.production_readiness}%
                     </span>
                   </div>
@@ -582,13 +582,13 @@ function ReadinessGauge({ value }: { value: number }) {
           cx="24"
           cy="24"
           r="18"
-          stroke="rgba(103,232,249,0.95)"
+          stroke="rgba(217,192,138,0.95)"
           strokeWidth="4"
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circumference - dash}`}
         />
       </svg>
-      <span className="absolute inset-0 grid place-items-center text-[10px] font-semibold text-cyan-200">
+      <span className="absolute inset-0 grid place-items-center text-[10px] font-semibold text-gold-200">
         {clamped}%
       </span>
     </div>

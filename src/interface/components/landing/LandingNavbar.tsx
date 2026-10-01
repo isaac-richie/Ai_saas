@@ -32,7 +32,7 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
                     backdropFilter: compact ? "blur(22px)" : "blur(14px)",
                 }}
                 transition={{ type: "spring", stiffness: 240, damping: 26 }}
-                className="relative flex items-center justify-between rounded-2xl border border-white/[0.08] bg-[#070708]/85 px-3 py-2.5 shadow-[0_26px_40px_-32px_rgba(0,0,0,0.98),0_8px_20px_-16px_rgba(0,0,0,0.9)]"
+                className="relative flex items-center justify-between rounded-2xl border border-white/[0.08] bg-obsidian-950/85 px-3 py-2.5 shadow-[0_26px_40px_-32px_rgba(0,0,0,0.98),0_8px_20px_-16px_rgba(0,0,0,0.9)]"
             >
                 <Link href="/" className="inline-flex items-center gap-2">
                     <AnimatedBrandMark className="h-8 w-8 shrink-0" />
@@ -68,7 +68,7 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
                     {isAuthenticated ? (
                         <Link
                             href="/dashboard/studio"
-                            className="beam-button inline-flex items-center rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
+                            className="beam-button inline-flex items-center rounded-full bg-gradient-to-r from-[#f3e5c0] via-[#d9c08a] to-[#b08d52] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
                         >
                             Launch Studio
                         </Link>
@@ -79,7 +79,7 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
                             </Link>
                             <Link
                                 href="/signup"
-                                className="beam-button inline-flex items-center rounded-full bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
+                                className="beam-button inline-flex items-center rounded-full bg-gradient-to-r from-[#f3e5c0] via-[#d9c08a] to-[#b08d52] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
                             >
                                 Get Started
                             </Link>
@@ -93,7 +93,7 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
                 <motion.div
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-2 rounded-xl border border-white/[0.08] bg-[#0a0a0c]/95 p-4 backdrop-blur-xl md:hidden"
+                    className="mt-2 rounded-xl border border-white/[0.08] bg-obsidian-950/95 p-4 backdrop-blur-xl md:hidden"
                 >
                     <div className="flex flex-col gap-3">
                         {navLinks.map((item) => (

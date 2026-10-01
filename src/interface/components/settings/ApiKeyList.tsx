@@ -121,14 +121,14 @@ export function ApiKeyList() {
                 </Badge>
             )
         }
-        return <Badge className="border border-white/10 bg-white/5 text-white/80">Untested</Badge>
+        return <Badge className="border border-gold-400/[0.12] bg-white/5 text-white/80">Untested</Badge>
     }
 
     return (
-        <div ref={tableRef} className="workspace-provider-list overflow-hidden rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+        <div ref={tableRef} className="workspace-provider-list overflow-hidden rounded-2xl border border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
             <Table>
                 <TableHeader>
-                    <TableRow className="border-white/10">
+                    <TableRow className="border-gold-400/[0.12]">
                         <TableHead className="text-white/50">Provider</TableHead>
                         <TableHead className="text-white/50">Status</TableHead>
                         <TableHead className="text-white/50">Last Updated</TableHead>
@@ -147,13 +147,13 @@ export function ApiKeyList() {
                         </TableRow>
                     ) : (
                         providers.map((provider) => (
-                            <TableRow key={provider.id} className="provider-row border-white/10">
+                            <TableRow key={provider.id} className="provider-row border-gold-400/[0.12]">
                                 <TableCell className="font-medium">{provider.name}</TableCell>
                                 <TableCell>
                                     {provider.isConnected ? (
                                         <Badge className="border border-emerald-400/35 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25">Key verified</Badge>
                                     ) : (
-                                        <Badge className="border border-white/10 bg-white/5 text-white/90">{provider.hasKey ? "Needs attention" : "No key"}</Badge>
+                                        <Badge className="border border-gold-400/[0.12] bg-white/5 text-white/90">{provider.hasKey ? "Needs attention" : "No key"}</Badge>
                                     )}
                                 </TableCell>
                                 <TableCell className="text-white/55">
@@ -175,7 +175,7 @@ export function ApiKeyList() {
                                                 size="sm"
                                                 onClick={() => handleTest(provider.id)}
                                                 disabled={testingId === provider.id}
-                                                className="rounded-lg border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                                                className="rounded-lg border border-gold-400/[0.12] bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
                                             >
                                                 {testingId === provider.id ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
                                                 Test

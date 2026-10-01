@@ -84,8 +84,8 @@ export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanel
               onClick={() => setSelectedProfile(p.id)}
               className={`h-8 rounded-lg border px-2.5 text-[11px] transition ${
                 selectedProfile === p.id
-                  ? "border-cyan-300/40 bg-cyan-500/15 text-cyan-100"
-                  : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
+                  ? "border-gold-300/40 bg-gold-500/15 text-gold-100"
+                  : "border-gold-400/[0.12] bg-white/5 text-white/60 hover:bg-gold-400/[0.08]"
               }`}
             >
               {p.label}

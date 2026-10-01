@@ -1,5 +1,7 @@
 "use client"
 
+import type * as React from "react"
+
 import { useEffect, useMemo, useState } from "react"
 import { Badge } from "@/interface/components/ui/badge"
 import { Button } from "@/interface/components/ui/button"
@@ -25,10 +27,10 @@ const profileLabels: Record<string, string> = {
 }
 
 function statusClass(status: string) {
-    if (status === "completed") return "border-emerald-400/35 bg-emerald-500/15 text-emerald-200"
-    if (status === "processing") return "border-amber-400/35 bg-amber-500/15 text-amber-200"
-    if (status === "failed") return "border-red-400/35 bg-red-500/15 text-red-200"
-    return "border-cyan-400/35 bg-cyan-500/15 text-cyan-200"
+    if (status === "completed") return "border-[#b6ddd3]/35 bg-[#b6ddd3]/10 text-[#d6efe8]"
+    if (status === "processing") return "border-gold-400/40 bg-gold-400/12 text-gold-100"
+    if (status === "failed") return "border-red-400/35 bg-red-500/12 text-red-200"
+    return "border-gold-400/15 bg-white/[0.04] text-[#c8c3b3]"
 }
 
 export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
@@ -143,7 +145,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
 
     if (jobs.length === 0) {
         return (
-            <section className="rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] p-6 text-sm text-white/60">
+            <section className="rounded-2xl border border-dashed border-gold-400/20 bg-obsidian-950 p-6 text-sm text-white/60">
                 No export jobs yet. Queue exports from Gallery by selecting assets and clicking `Batch Export`.
             </section>
         )
@@ -151,7 +153,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
 
     return (
         <div className="space-y-4">
-            <section className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#0f1012] px-3 py-2">
+            <section className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gold-400/[0.12] bg-obsidian-900 px-3 py-2">
                 <p className="text-xs text-white/60">
                     Run queue to process pending exports now.
                 </p>
@@ -159,7 +161,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="rounded-lg border border-white/10 text-white/75 hover:bg-white/10"
+                        className="rounded-lg border border-gold-400/[0.12] text-white/75 hover:bg-gold-400/[0.08]"
                         onClick={() => window.location.reload()}
                     >
                         <RefreshCcw className="h-4 w-4" />
@@ -168,7 +170,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                        className="rounded-lg border border-gold-400/30 bg-gold-500/10 text-gold-100 hover:bg-gold-500/20"
                         onClick={() => handleProcessQueue()}
                         disabled={processingQueue}
                     >
@@ -177,16 +179,30 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                 </div>
             </section>
 
-            <section className="grid gap-3 md:grid-cols-5">
-                <div className="rounded-xl border border-white/10 bg-[#0f1012] p-3 text-sm text-white/70">Total: {stats.total}</div>
-                <div className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-3 text-sm text-cyan-100">Queued: {stats.queued}</div>
-                <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 p-3 text-sm text-amber-100">Processing: {stats.processing}</div>
-                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-sm text-emerald-100">Completed: {stats.completed}</div>
-                <div className="rounded-xl border border-red-400/25 bg-red-500/10 p-3 text-sm text-red-100">Failed: {stats.failed}</div>
+            <section className="lux-stagger grid grid-cols-2 gap-3 md:grid-cols-5">
+                {[
+                    { label: "Total", value: stats.total, tone: "text-[#f3eee2]", dot: "bg-[#8f9086]" },
+                    { label: "Queued", value: stats.queued, tone: "text-gold-100", dot: "bg-gold-200/60" },
+                    { label: "Processing", value: stats.processing, tone: "text-gold-200", dot: "bg-gold-400 shadow-[0_0_8px_rgba(217,192,138,0.9)]" },
+                    { label: "Completed", value: stats.completed, tone: "text-[#d6efe8]", dot: "bg-[#b6ddd3]" },
+                    { label: "Failed", value: stats.failed, tone: "text-red-200", dot: "bg-red-400" },
+                ].map((stat, index) => (
+                    <div
+                        key={stat.label}
+                        style={{ "--i": index } as React.CSSProperties}
+                        className="lux-lift lux-spotlight rounded-2xl border border-gold-400/[0.12] bg-obsidian-900 p-4"
+                    >
+                        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-[#8f9086]">
+                            <span className={`size-1.5 rounded-full ${stat.dot}`} />
+                            {stat.label}
+                        </div>
+                        <div className={`mt-2 text-3xl font-light tracking-[-0.04em] tabular-nums ${stat.tone}`}>{stat.value}</div>
+                    </div>
+                ))}
             </section>
 
-            <section className="space-y-3">
-                {jobs.map((job) => {
+            <section className="lux-stagger space-y-3">
+                {jobs.map((job, jobIndex) => {
                     const items = itemsByJob[job.id] || []
                     const isExpanded = expandedJobId === job.id
                     const isBusy = actioningJobId === job.id
@@ -194,25 +210,29 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                     return (
                         <article
                             key={job.id}
-                            className="rounded-2xl border border-white/10 bg-[#0b0b0d] p-4 text-white shadow-[0_16px_30px_-24px_rgba(0,0,0,0.88)]"
+                            style={{ "--i": Math.min(jobIndex, 10) } as React.CSSProperties}
+                            className="lux-spotlight rounded-2xl border border-gold-400/[0.12] bg-obsidian-900 p-5 text-white transition-[border-color,box-shadow] duration-300 hover:border-gold-400/30 hover:shadow-[0_20px_40px_-28px_rgba(217,192,138,0.35)]"
                         >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="space-y-2">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <Badge className={`capitalize ${statusClass(job.status)}`}>{job.status}</Badge>
-                                        <Badge className="border border-white/10 bg-white/5 text-white/80">
+                                        <Badge className={`gap-1.5 capitalize ${statusClass(job.status)}`}>
+                                            {job.status === "processing" ? <span className="lux-live-dot !size-1.5" /> : null}
+                                            {job.status}
+                                        </Badge>
+                                        <Badge className="border border-gold-400/[0.12] bg-white/5 text-white/80">
                                             {profileLabels[job.profile] || job.profile}
                                         </Badge>
                                         {projectName ? (
-                                            <Badge className="border border-white/10 bg-white/5 text-white/80">{projectName}</Badge>
+                                            <Badge className="border border-gold-400/[0.12] bg-white/5 text-white/80">{projectName}</Badge>
                                         ) : null}
                                     </div>
                                     <div className="text-xs text-white/50">
                                         Created {new Date(job.created_at).toLocaleString()} · Updated {new Date(job.updated_at).toLocaleString()}
                                     </div>
-                                    <div className="h-2 w-full max-w-xs overflow-hidden rounded-full border border-white/10 bg-white/5">
+                                    <div className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-white/[0.06]">
                                         <div
-                                            className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-orange-300 transition-all"
+                                            className="h-full rounded-full bg-gradient-to-r from-gold-600 via-gold-300 to-gold-100 shadow-[0_0_12px_rgba(217,192,138,0.7)] transition-[width] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
                                             style={{ width: `${Math.max(0, Math.min(100, job.progress || 0))}%` }}
                                         />
                                     </div>
@@ -222,7 +242,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        className="rounded-lg border border-white/10 text-white/75 hover:bg-white/10"
+                                        className="rounded-lg border border-gold-400/[0.12] text-white/75 hover:bg-gold-400/[0.08]"
                                         onClick={() => handleToggleItems(job.id)}
                                     >
                                         {isExpanded ? "Hide Items" : "View Items"}
@@ -231,7 +251,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                         <Button
                                             size="sm"
                                             variant="ghost"
-                                            className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                                            className="rounded-lg border border-gold-400/30 bg-gold-500/10 text-gold-100 hover:bg-gold-500/20"
                                             onClick={() => handleProcessQueue(job.id)}
                                             disabled={processingQueue}
                                         >
@@ -268,7 +288,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                     <a
                                         href={`/api/media/proxy?url=${encodeURIComponent(job.output_url)}&filename=${encodeURIComponent(`visiowave-export-${(profileLabels[job.profile] || job.profile).replace(/[^a-zA-Z0-9]/g, "-")}.${job.output_url.endsWith(".json") ? "json" : "mp4"}`)}`}
                                         download
-                                        className="inline-flex items-center rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-100 hover:bg-cyan-500/20"
+                                        className="inline-flex items-center rounded-lg border border-gold-400/30 bg-gold-500/10 px-3 py-1.5 text-xs text-gold-100 hover:bg-gold-500/20"
                                     >
                                         <Download className="mr-1.5 h-3.5 w-3.5" />
                                         Download
@@ -277,7 +297,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                         href={job.output_url}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="inline-flex rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+                                        className="inline-flex rounded-lg border border-gold-400/20 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-gold-400/[0.08]"
                                     >
                                         Open in New Tab
                                     </a>
@@ -285,7 +305,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                             )}
 
                             {isExpanded && (
-                                <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3">
+                                <div className="mt-4 rounded-xl border border-gold-400/[0.12] bg-black/30 p-3">
                                     {loadingItemsFor === job.id ? (
                                         <div className="flex items-center gap-2 text-xs text-white/60">
                                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -298,7 +318,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                             {items.map((item, index) => (
                                                 <div
                                                     key={item.id}
-                                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs"
+                                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gold-400/[0.12] bg-white/5 px-3 py-2 text-xs"
                                                 >
                                                     <div className="text-white/75">
                                                         Item {index + 1} · {item.source_url ? "Source attached" : "Missing source"}
@@ -310,7 +330,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                                                 href={item.output_url}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className="rounded-full border border-white/20 px-2 py-0.5 text-white/80 hover:bg-white/10"
+                                                                className="rounded-full border border-white/20 px-2 py-0.5 text-white/80 hover:bg-gold-400/[0.08]"
                                                             >
                                                                 Open
                                                             </a>

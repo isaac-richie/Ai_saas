@@ -327,8 +327,8 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
     if (items.length === 0) {
         if (pendingIds.length > 0) {
             return (
-                <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-cyan-300/70" />
+                <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-gold-400/20 bg-obsidian-950 text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-gold-300/70" />
                     <h3 className="mt-4 text-sm font-medium text-white">
                         {pendingIds.length} shot{pendingIds.length > 1 ? "s" : ""} generating…
                     </h3>
@@ -337,7 +337,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
             )
         }
         return (
-            <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
+            <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-gold-400/20 bg-obsidian-950 text-center">
                 <ImageIcon className="h-8 w-8 text-white/35" />
                 <h3 className="mt-4 text-sm font-medium text-white">No media generated yet</h3>
                 <p className="text-xs text-white/50">Generate shots to see them here.</p>
@@ -347,7 +347,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
 
     return (
         <div className="workspace-media space-y-4">
-            <div className="workspace-gallery-toolbar flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 px-4 py-3">
+            <div className="workspace-gallery-toolbar flex flex-wrap items-center gap-3 rounded-2xl border border-gold-400/[0.12] px-4 py-3">
                 <div className="flex min-w-0 basis-64 flex-1">
                     <Input
                         ref={searchInputRef}
@@ -355,7 +355,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search by prompt, shot, scene, or project... (/)"
-                        className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                        className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                     />
                 </div>
                 <div className="flex items-center gap-2 text-xs">
@@ -367,7 +367,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                             className={`rounded-full border px-3 py-1 uppercase tracking-[0.2em] ${
                                 filter === type
                                     ? "border-white/30 bg-white/15 text-white"
-                                    : "border-white/10 bg-white/5 text-white/55 hover:bg-white/10"
+                                    : "border-gold-400/[0.12] bg-white/5 text-white/55 hover:bg-gold-400/[0.08]"
                             }`}
                         >
                             {type}
@@ -376,25 +376,25 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                 </div>
                 <div className="ml-auto flex flex-wrap gap-2 text-xs text-white/50">
                     {pendingIds.length > 0 && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-1 text-cyan-100">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-gold-400/25 bg-gold-500/10 px-3 py-1 text-gold-100">
                             <Loader2 className="h-3 w-3 animate-spin" />
                             {pendingIds.length} generating
                         </span>
                     )}
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Total: {counts.total}</span>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Images: {counts.images}</span>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">Videos: {counts.videos}</span>
+                    <span className="rounded-full border border-gold-400/[0.12] bg-white/5 px-3 py-1">Total: {counts.total}</span>
+                    <span className="rounded-full border border-gold-400/[0.12] bg-white/5 px-3 py-1">Images: {counts.images}</span>
+                    <span className="rounded-full border border-gold-400/[0.12] bg-white/5 px-3 py-1">Videos: {counts.videos}</span>
                 </div>
             </div>
 
             {selectedIds.size > 0 && (
-                <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#0f1012] px-4 py-3 text-sm text-white/70 shadow-[0_18px_30px_-24px_rgba(0,0,0,0.85)]">
+                <div className="flex items-center justify-between rounded-2xl border border-gold-400/[0.12] bg-obsidian-900 px-4 py-3 text-sm text-white/70 shadow-[0_18px_30px_-24px_rgba(0,0,0,0.85)]">
                     <span>{selectedIds.size} selected</span>
                     <div className="flex gap-2">
                         <Button
                             size="sm"
                             variant="ghost"
-                            className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                            className="rounded-lg border border-gold-400/[0.12] text-white/70 hover:bg-gold-400/[0.08]"
                             onClick={() => setSelectedIds(new Set())}
                         >
                             Clear
@@ -402,7 +402,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                         <Button
                             size="sm"
                             variant="ghost"
-                            className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                            className="rounded-lg border border-gold-400/[0.12] text-white/70 hover:bg-gold-400/[0.08]"
                             onClick={selectAllFiltered}
                         >
                             Select All
@@ -420,7 +420,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                 <select
                                     value={moveProjectId}
                                     onChange={(event) => setMoveProjectId(event.target.value)}
-                                    className="h-8 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs text-white/80"
+                                    className="h-8 rounded-lg border border-gold-400/[0.12] bg-white/5 px-2.5 text-xs text-white/80"
                                 >
                                     {projectOptions.map((project) => (
                                         <option key={project.id} value={project.id}>
@@ -431,7 +431,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                 <Button
                                     size="sm"
                                     variant="ghost"
-                                    className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                                    className="rounded-lg border border-gold-400/[0.12] text-white/70 hover:bg-gold-400/[0.08]"
                                     onClick={handleMoveSelected}
                                     disabled={isMoving || selectedIds.size === 0}
                                 >
@@ -442,7 +442,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                         <select
                             value={exportProfile}
                             onChange={(event) => setExportProfile(event.target.value as typeof exportProfile)}
-                            className="h-8 rounded-lg border border-white/10 bg-white/5 px-2.5 text-xs text-white/80"
+                            className="h-8 rounded-lg border border-gold-400/[0.12] bg-white/5 px-2.5 text-xs text-white/80"
                         >
                             <option value="master_16_9">Export 16:9 Master</option>
                             <option value="social_9_16">Export TikTok 9:16</option>
@@ -451,7 +451,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                         <Button
                             size="sm"
                             variant="ghost"
-                            className="rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                            className="rounded-lg border border-gold-400/[0.12] text-white/70 hover:bg-gold-400/[0.08]"
                             onClick={handleQueueExport}
                             disabled={isExporting || selectedIds.size === 0}
                         >
@@ -462,7 +462,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
             )}
 
             {filteredAssets.length === 0 ? (
-                <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0b0b0d] text-center">
+                <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-gold-400/20 bg-obsidian-950 text-center">
                     <ImageIcon className="h-8 w-8 text-white/35" />
                     <h3 className="mt-4 text-sm font-medium text-white">No matches</h3>
                     <p className="text-xs text-white/50">Try adjusting filters or search terms.</p>
@@ -475,7 +475,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                         return (
                             <Dialog key={asset.id}>
                                 <DialogTrigger asChild>
-                                    <Card className="workspace-media-card group relative mb-4 min-w-0 break-inside-avoid cursor-pointer overflow-hidden border border-white/10 bg-[#0f1012] transition-all hover:border-white/25 hover:shadow-[0_20px_35px_-30px_rgba(0,0,0,0.9)]">
+                                    <Card className="workspace-media-card lux-spotlight group relative mb-4 min-w-0 break-inside-avoid cursor-pointer overflow-hidden border border-gold-400/[0.12] bg-obsidian-900 duration-500">
                                         <button
                                             type="button"
                                             aria-label={`Select ${asset.shotName}`}
@@ -485,16 +485,16 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                                 toggleSelect(asset.id)
                                             }}
                                             onMouseDown={(event) => event.stopPropagation()}
-                                            className={`absolute top-2 right-2 z-10 h-7 w-7 rounded-full border text-xs ${
+                                            className={`absolute top-2 right-2 z-10 h-7 w-7 rounded-full border text-xs backdrop-blur-md transition-all duration-300 hover:scale-110 ${
                                                 selectedIds.has(asset.id)
-                                                    ? "border-cyan-400 bg-cyan-400/20 text-cyan-100"
-                                                    : "border-white/20 bg-black/40 text-white/60 hover:bg-white/10"
+                                                    ? "border-gold-300 bg-gold-400/30 text-gold-50 shadow-[0_0_16px_rgba(217,192,138,0.6)]"
+                                                    : "border-white/20 bg-black/40 text-white/60 hover:bg-gold-400/[0.08]"
                                             }`}
                                             title={selectedIds.has(asset.id) ? "Deselect" : "Select"}
                                         >
                                             {selectedIds.has(asset.id) ? "✓" : "○"}
                                         </button>
-                                        <div className="absolute top-2 left-2 z-10 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-white/80 backdrop-blur">
+                                        <div className="absolute top-2 left-2 z-10 rounded-full border border-gold-400/20 bg-black/50 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-gold-100/85 backdrop-blur-md">
                                             {asset.type}
                                         </div>
                                         <div className={asset.type === "video" ? "relative aspect-video w-full bg-black" : "relative aspect-[4/5] w-full"}>
@@ -509,12 +509,12 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                                     ) : null}
                                                     <div className="mt-1 flex flex-wrap gap-1">
                                                         {asset.shotType ? (
-                                                            <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
+                                                            <span className="rounded-full border border-gold-400/20 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
                                                                 {asset.shotType}
                                                             </span>
                                                         ) : null}
                                                         {asset.lensName ? (
-                                                            <span className="rounded-full border border-white/15 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
+                                                            <span className="rounded-full border border-gold-400/20 bg-black/40 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-white/70">
                                                                 {asset.lensName}
                                                             </span>
                                                         ) : null}
@@ -524,7 +524,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                         </div>
                                     </Card>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-[min(1280px,96vw)] overflow-hidden border-white/10 bg-[#060607]/95 p-0 text-white">
+                                <DialogContent className="max-w-[min(1280px,96vw)] overflow-hidden border-gold-400/[0.12] bg-obsidian-950/95 p-0 text-white">
                                     <VisuallyHidden.Root>
                                         <DialogTitle>Media Preview</DialogTitle>
                                     </VisuallyHidden.Root>
@@ -537,27 +537,27 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                         <div className="relative flex items-center justify-center overflow-hidden bg-black">
                                             <AssetMedia key={previewUrl} asset={asset} previewUrl={previewUrl} variant="full" />
                                             <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4">
-                                                <div className="inline-flex items-center rounded-full border border-white/15 bg-black/55 px-2.5 py-1 text-[11px] text-white/75 backdrop-blur">
+                                                <div className="inline-flex items-center rounded-full border border-gold-400/20 bg-black/55 px-2.5 py-1 text-[11px] text-white/75 backdrop-blur">
                                                     {asset.type.toUpperCase()} {asset.shotType ? `• ${asset.shotType}` : ""}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="flex min-h-0 flex-col border-t border-white/10 bg-[#0f1012] lg:border-l lg:border-t-0">
-                                            <div className="border-b border-white/10 p-5">
+                                        <div className="flex min-h-0 flex-col border-t border-gold-400/[0.12] bg-obsidian-900 lg:border-l lg:border-t-0">
+                                            <div className="border-b border-gold-400/[0.12] p-5">
                                                 <div className="text-xs uppercase tracking-[0.2em] text-white/45">Shot</div>
                                                 <div className="mt-1 truncate text-xl font-semibold">{asset.shotName}</div>
                                                 <div className="mt-3 flex flex-wrap gap-1.5">
-                                                    <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/70">
+                                                    <span className="rounded-full border border-gold-400/20 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/70">
                                                         {asset.type}
                                                     </span>
                                                     {asset.shotType ? (
-                                                        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/70">
+                                                        <span className="rounded-full border border-gold-400/20 bg-white/5 px-2 py-0.5 text-[10px] text-white/70">
                                                             {asset.shotType}
                                                         </span>
                                                     ) : null}
                                                     {asset.projectName ? (
-                                                        <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-white/70">
+                                                        <span className="rounded-full border border-gold-400/20 bg-white/5 px-2 py-0.5 text-[10px] text-white/70">
                                                             {asset.projectName}
                                                         </span>
                                                     ) : null}
@@ -575,14 +575,14 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
 
                                                 <div>
                                                     <div className="text-xs uppercase tracking-[0.2em] text-white/45">Prompt</div>
-                                                    <div className={`mt-2 rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-relaxed text-white/70 whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${expandedPrompts[asset.id] ? "max-h-72 overflow-y-auto" : "line-clamp-3"}`}>
+                                                    <div className={`mt-2 rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-sm leading-relaxed text-white/70 whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${expandedPrompts[asset.id] ? "max-h-72 overflow-y-auto" : "line-clamp-3"}`}>
                                                         {asset.prompt}
                                                     </div>
                                                     <div className="mt-2 flex items-center gap-3 text-xs">
                                                         <button
                                                             type="button"
                                                             onClick={() => setExpandedPrompts((prev) => ({ ...prev, [asset.id]: !prev[asset.id] }))}
-                                                            className="text-cyan-300 hover:text-cyan-200"
+                                                            className="text-gold-300 hover:text-gold-200"
                                                         >
                                                             {expandedPrompts[asset.id] ? "Collapse" : "Expand"}
                                                         </button>
@@ -602,7 +602,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                                         <div className="flex flex-wrap items-center gap-2 text-xs">
                                                             <button
                                                                 type="button"
-                                                                className="h-8 rounded-lg border border-white/10 bg-white/10 px-2.5 text-white/75 hover:bg-white/20"
+                                                                className="h-8 rounded-lg border border-gold-400/[0.12] bg-white/10 px-2.5 text-white/75 hover:bg-white/20"
                                                                 onClick={() => loadSequences(asset.projectId!)}
                                                                 disabled={Boolean(sequenceLoadingByProject[asset.projectId!])}
                                                             >
@@ -613,7 +613,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                                                 onChange={(event) =>
                                                                     setSequenceTargets((prev) => ({ ...prev, [asset.id]: event.target.value }))
                                                                 }
-                                                                className="h-8 min-w-[140px] rounded-lg border border-white/10 bg-white/5 px-2.5 text-white/80"
+                                                                className="h-8 min-w-[140px] rounded-lg border border-gold-400/[0.12] bg-white/5 px-2.5 text-white/80"
                                                             >
                                                                 <option value="">Select sequence</option>
                                                                 {(sequences[asset.projectId] || []).map((sequence) => (
@@ -624,7 +624,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                                             </select>
                                                             <Button
                                                                 size="sm"
-                                                                className="h-8 rounded-lg border border-cyan-400/35 bg-cyan-500/15 text-xs text-cyan-100 hover:bg-cyan-500/25"
+                                                                className="h-8 rounded-lg border border-gold-400/35 bg-gold-500/15 text-xs text-gold-100 hover:bg-gold-500/25"
                                                                 onClick={() => handleAddToSequence(asset)}
                                                                 disabled={Boolean(sequenceLoadingByAsset[asset.id])}
                                                             >
@@ -642,7 +642,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                                 )}
                                             </div>
 
-                                            <div className="space-y-3 border-t border-white/10 p-5">
+                                            <div className="space-y-3 border-t border-gold-400/[0.12] p-5">
                                                 <div className="flex min-w-[220px] items-center gap-2">
                                                     <div className="flex-1">
                                                         <Input
@@ -650,14 +650,14 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                                             onChange={(event) =>
                                                                 setDownloadNames((prev) => ({ ...prev, [asset.id]: event.target.value }))
                                                             }
-                                                            className="h-8 rounded-lg border-white/10 bg-white/5 text-xs text-white placeholder:text-white/35"
+                                                            className="h-8 rounded-lg border-gold-400/[0.12] bg-white/5 text-xs text-white placeholder:text-white/35"
                                                             placeholder="File name"
                                                         />
                                                     </div>
                                                     <a
                                                         href={`/api/media/proxy?url=${encodeURIComponent(asset.url)}&filename=${encodeURIComponent(downloadNames[asset.id] ?? getDefaultDownloadName(asset))}`}
                                                         download={downloadNames[asset.id] ?? getDefaultDownloadName(asset)}
-                                                        className="inline-flex h-8 items-center rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-3 text-xs text-cyan-100 hover:bg-cyan-500/25"
+                                                        className="inline-flex h-8 items-center rounded-lg border border-gold-400/35 bg-gold-500/15 px-3 text-xs text-gold-100 hover:bg-gold-500/25"
                                                     >
                                                         <Download className="mr-1.5 h-3.5 w-3.5" />
                                                         Download
@@ -668,7 +668,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        className="h-8 rounded-lg border border-white/10 text-white/70 hover:bg-white/10"
+                                                        className="h-8 rounded-lg border border-gold-400/[0.12] text-white/70 hover:bg-gold-400/[0.08]"
                                                         onClick={() => copyUrl(asset.url)}
                                                     >
                                                         <Copy className="mr-1.5 h-3.5 w-3.5" />
@@ -749,7 +749,7 @@ function AssetMedia({
 
     return (
         <>
-            {!loaded && <div className="absolute inset-0 animate-pulse bg-white/[0.04]" />}
+            {!loaded && <div className="lux-shimmer absolute inset-0" />}
             {asset.type === "image" ? (
                 <img
                     src={previewUrl}

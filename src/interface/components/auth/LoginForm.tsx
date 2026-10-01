@@ -151,18 +151,18 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                 transition={{ type: "spring", stiffness: 300, damping: 30 }}
             >
                 {/* Visual HUD Artillery */}
-                <div className="absolute top-0 left-0 h-4 w-4 border-t border-l border-cyan-500/40" />
-                <div className="absolute top-0 right-0 h-4 w-4 border-t border-r border-cyan-500/40" />
-                <div className="absolute bottom-0 left-0 h-4 w-4 border-b border-l border-cyan-500/40" />
-                <div className="absolute bottom-0 right-0 h-4 w-4 border-b border-r border-cyan-500/40" />
+                <div className="absolute top-0 left-0 h-4 w-4 border-t border-l border-gold-500/40" />
+                <div className="absolute top-0 right-0 h-4 w-4 border-t border-r border-gold-500/40" />
+                <div className="absolute bottom-0 left-0 h-4 w-4 border-b border-l border-gold-500/40" />
+                <div className="absolute bottom-0 right-0 h-4 w-4 border-b border-r border-gold-500/40" />
 
                 {/* Scanning Light Beam */}
                 <motion.div 
                     className="absolute inset-0 z-10 pointer-events-none"
                     animate={{
                         background: [
-                            "linear-gradient(rgba(34,211,238,0) 0%, rgba(34,211,238,0.05) 50%, rgba(34,211,238,0) 100%) translateY(-100%)",
-                            "linear-gradient(rgba(34,211,238,0) 0%, rgba(34,211,238,0.05) 50%, rgba(34,211,238,0) 100%) translateY(200%)"
+                            "linear-gradient(rgba(217,192,138,0) 0%, rgba(217,192,138,0.05) 50%, rgba(217,192,138,0) 100%) translateY(-100%)",
+                            "linear-gradient(rgba(217,192,138,0) 0%, rgba(217,192,138,0.05) 50%, rgba(217,192,138,0) 100%) translateY(200%)"
                         ]
                     }}
                     transition={{
@@ -174,13 +174,13 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                 />
 
                 <div className="relative z-20 space-y-6">
-                    <motion.div variants={itemVariants} className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.5em] text-cyan-500/60">
-                        <div className="h-px w-12 bg-cyan-500/20" />
+                    <motion.div variants={itemVariants} className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.5em] text-gold-500/60">
+                        <div className="h-px w-12 bg-gold-500/20" />
                         DIRECTOR ACCESS
                     </motion.div>
                     
                     <motion.div variants={itemVariants} className="space-y-2">
-                        <h2 className="text-3xl sm:text-4xl font-black tracking-tighter text-white font-display">Welcome Back</h2>
+                        <h2 className="text-3xl sm:text-4xl font-light tracking-[-0.045em] text-[#f6f1e4] font-display">Welcome <span className="lux-serif text-gold-300">back</span></h2>
                         <p className="text-xs sm:text-sm text-white/40 tracking-wide font-light font-sans">
                             Sign in to continue building cinematic projects.
                         </p>
@@ -201,7 +201,7 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                                         damping: 30
                                     }
                                 }}
-                                className="border-l-2 border-cyan-500/50 bg-cyan-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 shadow-xl"
+                                className="border-l-2 border-gold-500/50 bg-gold-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-gold-200 shadow-xl"
                             >
                                 {error}
                             </motion.div>
@@ -218,9 +218,9 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                                         damping: 30
                                     }
                                 }}
-                                className="border-l-2 border-cyan-500/50 bg-cyan-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200 shadow-xl"
+                                className="border-l-2 border-gold-500/50 bg-gold-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-gold-200 shadow-xl"
                             >
-                                <span className="text-cyan-500 mr-2">[ SYNC ]</span>
+                                <span className="text-gold-500 mr-2">[ SYNC ]</span>
                                 {otpInfo}
                             </motion.div>
                         )}
@@ -237,10 +237,10 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                                                 <div className="relative group">
                                                     <Input 
                                                         placeholder="operator@visiowave.studio" 
-                                                        className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 text-sm text-white/80 placeholder:text-white/10 focus:border-cyan-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-cyan-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
+                                                        className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 text-sm text-white/80 placeholder:text-white/10 focus:border-gold-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-gold-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
                                                         {...field} 
                                                     />
-                                                    <div className="absolute bottom-0 left-0 h-px w-0 bg-cyan-500 transition-all duration-700 group-focus-within:w-full" />
+                                                    <div className="absolute bottom-0 left-0 h-px w-0 bg-gold-500 transition-all duration-700 group-focus-within:w-full" />
                                                 </div>
                                             </FormControl>
                                             <FormMessage className="text-[10px] uppercase tracking-widest text-white/30" />
@@ -257,7 +257,7 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                                         <FormItem className="space-y-3">
                                             <div className="flex items-center justify-between">
                                                 <FormLabel className="text-[10px] font-mono font-bold uppercase tracking-[0.4em] text-white/20">Password</FormLabel>
-                                                <Link href="/forgot-password" className="text-[9px] font-mono font-bold uppercase tracking-widest text-white/20 hover:text-cyan-500 transition-colors">
+                                                <Link href="/forgot-password" className="text-[9px] font-mono font-bold uppercase tracking-widest text-white/20 hover:text-gold-500 transition-colors">
                                                     Lost Key?
                                                 </Link>
                                             </div>
@@ -266,13 +266,13 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                                                     <Input 
                                                         type={showPassword ? "text" : "password"} 
                                                         placeholder="••••••••••••" 
-                                                        className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 pr-10 text-sm text-white/80 placeholder:text-white/10 focus:border-cyan-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-cyan-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
+                                                        className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 pr-10 text-sm text-white/80 placeholder:text-white/10 focus:border-gold-500/80 focus-visible:ring-0 transition-all duration-500 font-mono tracking-widest selection:bg-gold-500/30 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white"
                                                         {...field} 
                                                     />
                                                     <button
                                                         type="button"
                                                         onClick={() => setShowPassword(!showPassword)}
-                                                        className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-white/20 hover:text-cyan-500 transition-colors"
+                                                        className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-white/20 hover:text-gold-500 transition-colors"
                                                     >
                                                         {showPassword ? (
                                                             <EyeOff className="h-4 w-4" />
@@ -280,7 +280,7 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                                                             <Eye className="h-4 w-4" />
                                                         )}
                                                     </button>
-                                                    <div className="absolute bottom-0 left-0 h-px w-0 bg-cyan-500 transition-all duration-700 group-focus-within:w-full" />
+                                                    <div className="absolute bottom-0 left-0 h-px w-0 bg-gold-500 transition-all duration-700 group-focus-within:w-full" />
                                                 </div>
                                             </FormControl>
                                             <FormMessage className="text-[10px] uppercase tracking-widest text-white/30" />
@@ -299,13 +299,13 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                                         exit={{ opacity: 0, height: 0 }}
                                         className="absolute -top-12 left-0 w-full space-y-2 pointer-events-none"
                                     >
-                                        <div className="flex justify-between text-[8px] font-mono font-bold tracking-[0.2em] text-cyan-500/60 uppercase">
+                                        <div className="flex justify-between text-[8px] font-mono font-bold tracking-[0.2em] text-gold-500/60 uppercase">
                                             <span>Syncing Operator Identity</span>
                                             <span>INITIALIZING...</span>
                                         </div>
                                         <div className="h-[2px] w-full bg-white/5 overflow-hidden">
                                             <motion.div 
-                                                className="h-full bg-cyan-500"
+                                                className="h-full bg-gold-500"
                                                 initial={{ width: "0%" }}
                                                 animate={{ width: "100%" }}
                                                 transition={{ duration: 2, ease: "easeInOut", repeat: Infinity }}
@@ -318,7 +318,7 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                             <MagneticButton className="w-full">
                                 <Button 
                                     type="submit" 
-                                    className="h-14 w-full rounded-none border border-white/10 bg-white text-black text-[11px] font-black uppercase tracking-[0.6em] hover:bg-cyan-400 hover:border-cyan-400 focus-visible:ring-cyan-500/20 transition-all active:scale-[0.98] shadow-2xl shadow-cyan-500/10" 
+                                    className="h-14 w-full lux-sheen rounded-xl border border-gold-100 bg-gradient-to-br from-gold-100 via-gold-400 to-gold-500 text-[#1a160e] text-[11px] font-bold uppercase tracking-[0.5em] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_14px_34px_-14px_rgba(217,192,138,0.7)] hover:-translate-y-0.5 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_20px_40px_-14px_rgba(217,192,138,0.85)] focus-visible:ring-gold-500/30 transition-all duration-300 active:scale-[0.98]" 
                                     disabled={isPending}
                                 >
                                     {isPending ? "INITIALIZING..." : "Login"}
@@ -335,7 +335,7 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                                 onClick={onSendOtpSignIn}
                                 disabled={otpPending || isPending || oauthPending}
                             >
-                                <Zap className="mr-3 h-4 w-4 text-cyan-400 group-hover/node:text-black transition-colors" />
+                                <Zap className="mr-3 h-4 w-4 text-gold-400 group-hover/node:text-black transition-colors" />
                                 {otpPending ? "SENDING OTP..." : "Sign in with Email OTP"}
                             </Button>
                              <Button
@@ -355,7 +355,7 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                 <motion.div variants={itemVariants} className="pt-12 text-center">
                     <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/20">
                         Don&apos;t have an account?{" "}
-                        <Link href="/signup" className="text-cyan-500 hover:text-cyan-400 transition-colors ml-2 underline underline-offset-4">
+                        <Link href="/signup" className="text-gold-500 hover:text-gold-400 transition-colors ml-2 underline underline-offset-4">
                             Sign up
                         </Link>
                     </p>

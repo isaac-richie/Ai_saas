@@ -90,7 +90,7 @@ export function VerifyOtpForm({ email, nextPath, mode }: VerifyOtpFormProps) {
   }
 
   return (
-    <Card className="w-full rounded-3xl border border-white/12 bg-[#0f1012]/95 text-white shadow-[0_30px_50px_-35px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+    <Card className="w-full rounded-3xl border border-white/12 bg-obsidian-900/95 text-white shadow-[0_30px_50px_-35px_rgba(0,0,0,0.95)] backdrop-blur-xl">
       <CardHeader className="space-y-4">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-white/60">
           <ShieldCheck className="h-3.5 w-3.5" />
@@ -124,13 +124,13 @@ export function VerifyOtpForm({ email, nextPath, mode }: VerifyOtpFormProps) {
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="123456"
-              className="h-12 rounded-xl border-white/14 bg-[#13161b] text-center text-2xl tracking-[0.4em] text-white placeholder:text-white/25 focus:border-cyan-400/60 focus-visible:ring-cyan-400/20"
+              className="h-12 rounded-xl border-white/14 bg-obsidian-800 text-center text-2xl tracking-[0.4em] text-white placeholder:text-white/25 focus:border-gold-400/60 focus-visible:ring-gold-400/20"
             />
           </div>
 
           <Button
             type="submit"
-            className="w-full rounded-xl bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] text-black hover:opacity-90"
+            className="w-full rounded-xl bg-gradient-to-r from-[#f3e5c0] via-[#d9c08a] to-[#b08d52] text-black hover:opacity-90"
             disabled={pending}
           >
             {pending ? "Verifying..." : "Verify and Continue"}
@@ -150,7 +150,7 @@ export function VerifyOtpForm({ email, nextPath, mode }: VerifyOtpFormProps) {
       <CardFooter className="justify-center">
         <p className="text-sm text-white/55">
           Wrong email?{" "}
-          <Link href={mode === "signup" ? "/signup" : "/login"} className="font-medium text-cyan-300 hover:underline">
+          <Link href={mode === "signup" ? "/signup" : "/login"} className="font-medium text-gold-300 hover:underline">
             Go back
           </Link>
         </p>

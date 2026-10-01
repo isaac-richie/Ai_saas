@@ -90,33 +90,33 @@ export function ForgotPasswordForm() {
         }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
-        <div className="absolute left-0 top-0 h-4 w-4 border-l border-t border-cyan-500/40" />
-        <div className="absolute right-0 top-0 h-4 w-4 border-r border-t border-cyan-500/40" />
-        <div className="absolute bottom-0 left-0 h-4 w-4 border-b border-l border-cyan-500/40" />
-        <div className="absolute bottom-0 right-0 h-4 w-4 border-b border-r border-cyan-500/40" />
+        <div className="absolute left-0 top-0 h-4 w-4 border-l border-t border-gold-500/40" />
+        <div className="absolute right-0 top-0 h-4 w-4 border-r border-t border-gold-500/40" />
+        <div className="absolute bottom-0 left-0 h-4 w-4 border-b border-l border-gold-500/40" />
+        <div className="absolute bottom-0 right-0 h-4 w-4 border-b border-r border-gold-500/40" />
 
         <motion.div
           className="pointer-events-none absolute inset-0 z-10"
           animate={{
             background: [
-              "linear-gradient(rgba(34,211,238,0) 0%, rgba(34,211,238,0.05) 50%, rgba(34,211,238,0) 100%) translateY(-100%)",
-              "linear-gradient(rgba(34,211,238,0) 0%, rgba(34,211,238,0.05) 50%, rgba(34,211,238,0) 100%) translateY(200%)",
+              "linear-gradient(rgba(217,192,138,0) 0%, rgba(217,192,138,0.05) 50%, rgba(217,192,138,0) 100%) translateY(-100%)",
+              "linear-gradient(rgba(217,192,138,0) 0%, rgba(217,192,138,0.05) 50%, rgba(217,192,138,0) 100%) translateY(200%)",
             ],
           }}
           transition={{ duration: 4, repeat: Infinity, ease: "linear", delay: 2 }}
         />
 
         <div className="relative z-20 space-y-6">
-          <motion.div variants={itemVariants} className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.5em] text-cyan-500/60">
-            <div className="h-px w-12 bg-cyan-500/20" />
+          <motion.div variants={itemVariants} className="flex items-center gap-4 text-[10px] font-black uppercase tracking-[0.5em] text-gold-500/60">
+            <div className="h-px w-12 bg-gold-500/20" />
             RECOVERY BEACON
           </motion.div>
 
           <motion.div variants={itemVariants} className="space-y-3">
-            <div className="flex h-12 w-12 items-center justify-center border border-cyan-400/20 bg-cyan-400/10 text-cyan-200">
+            <div className="flex h-12 w-12 items-center justify-center border border-gold-400/20 bg-gold-400/10 text-gold-200">
               <RadioTower className="h-5 w-5" />
             </div>
-            <h2 className="font-display text-3xl font-black tracking-tighter text-white sm:text-4xl">Reset Access</h2>
+            <h2 className="font-display text-3xl font-light tracking-[-0.045em] text-[#f6f1e4] sm:text-4xl">Reset Access</h2>
             <p className="text-xs leading-relaxed tracking-wide text-white/45 sm:text-sm">
               Enter your account email and we&apos;ll send a secure reset link to restore access.
             </p>
@@ -139,9 +139,9 @@ export function ForgotPasswordForm() {
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="border-l-2 border-cyan-500/50 bg-cyan-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-100 shadow-xl"
+                className="border-l-2 border-gold-500/50 bg-gold-500/5 p-4 text-[10px] font-bold uppercase tracking-[0.2em] text-gold-100 shadow-xl"
               >
-                <span className="mr-2 text-cyan-400">[ SENT ]</span>
+                <span className="mr-2 text-gold-400">[ SENT ]</span>
                 {success}
               </motion.div>
             )}
@@ -158,11 +158,11 @@ export function ForgotPasswordForm() {
                         <Input
                           type="email"
                           placeholder="operator@visiowave.studio"
-                          className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 pr-10 font-mono text-sm tracking-widest text-white/80 transition-all duration-500 placeholder:text-white/10 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white focus:border-cyan-500/80 focus-visible:ring-0"
+                          className="h-12 rounded-none border-0 border-b border-white/5 bg-transparent px-0 pr-10 font-mono text-sm tracking-widest text-white/80 transition-all duration-500 placeholder:text-white/10 autofill:shadow-[inset_0_0_0px_1000px_#050505] autofill:text-white focus:border-gold-500/80 focus-visible:ring-0"
                           {...field}
                         />
-                        <Mail className="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-white/20 transition-colors group-focus-within/input:text-cyan-400" />
-                        <div className="absolute bottom-0 left-0 h-px w-0 bg-cyan-500 transition-all duration-700 group-focus-within/input:w-full" />
+                        <Mail className="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-white/20 transition-colors group-focus-within/input:text-gold-400" />
+                        <div className="absolute bottom-0 left-0 h-px w-0 bg-gold-500 transition-all duration-700 group-focus-within/input:w-full" />
                       </div>
                     </FormControl>
                     <FormMessage className="text-[10px] uppercase tracking-widest text-white/30" />
@@ -175,7 +175,7 @@ export function ForgotPasswordForm() {
               <MagneticButton className="w-full">
                 <Button
                   type="submit"
-                  className="h-14 w-full rounded-none border border-white/10 bg-white text-[11px] font-black uppercase tracking-[0.45em] text-black shadow-2xl shadow-cyan-500/10 transition-all hover:border-cyan-400 hover:bg-cyan-400 focus-visible:ring-cyan-500/20 active:scale-[0.98]"
+                  className="h-14 w-full lux-sheen rounded-xl border border-gold-100 bg-gradient-to-br from-gold-100 via-gold-400 to-gold-500 text-[11px] font-bold uppercase tracking-[0.45em] text-[#1a160e] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_14px_34px_-14px_rgba(217,192,138,0.7)] transition-all duration-300 hover:-translate-y-0.5 focus-visible:ring-gold-500/30 active:scale-[0.98]"
                   disabled={isPending}
                 >
                   {isPending ? "SENDING LINK..." : "Send Reset Link"}
@@ -186,7 +186,7 @@ export function ForgotPasswordForm() {
         </Form>
 
         <motion.div variants={itemVariants} className="relative z-20 text-center">
-          <Link href="/login" className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.35em] text-white/25 transition-colors hover:text-cyan-400">
+          <Link href="/login" className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.35em] text-white/25 transition-colors hover:text-gold-400">
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to Login
           </Link>
