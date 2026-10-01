@@ -9,7 +9,7 @@ import { zodTextFormat } from "openai/helpers/zod"
 import { createClient } from "@/infrastructure/supabase/server"
 import { REFERENCE_BUCKET, validateOwnedReferences } from "@/core/validation/media-reference"
 import { readBoundedBody, readBoundedBytes } from "@/core/utils/security/bounded-body"
-import { getFFmpegPath, MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
+import { MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
 import { resolveProductionModel } from "@/core/config/production-model-routing"
 
 const execFileAsync = promisify(execFile)
@@ -95,7 +95,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       try { target = new URL(take.output_url) } catch { return NextResponse.json({ error: "Invalid media URL." }, { status: 400 }) }
       const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname : ""
       if (target.protocol !== "https:" || !new Set(["tempfile.aiquickdraw.com", "oaidalleapiprodscus.blob.core.windows.net", supabaseHost]).has(target.hostname)) return NextResponse.json({ error: "Media host is not approved for inspection." }, { status: 403 })
-      await requireMediaRuntime(true, signal)
+      const ffmpegPath = await requireMediaRuntime(true, signal)
       const response = await fetch(target, { redirect: "error", signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) })
       if (!response.ok) throw new Error(`Media download failed (${response.status})`)
       const declaredSize = Number(response.headers.get("content-length") || 0)
@@ -111,7 +111,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       frames = []
       for (let index = 0; index < timestamps.length; index += 1) {
         const framePath = join(tempDir, `frame-${index}.jpg`)
-        await execFileAsync(getFFmpegPath(), ["-nostdin", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", "mov", "-y", "-ss", String(timestamps[index]), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", framePath], { timeout: 12000, maxBuffer: 1024 * 1024, signal })
+        await execFileAsync(ffmpegPath, ["-nostdin", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", "mov", "-y", "-ss", String(timestamps[index]), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", framePath], { timeout: 12000, maxBuffer: 1024 * 1024, signal })
         frames.push(await readFile(framePath))
       }
       inspectionMethod = "server_sampled_stills"

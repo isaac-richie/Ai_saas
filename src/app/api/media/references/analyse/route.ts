@@ -11,7 +11,7 @@ import { promisify } from "node:util"
 import { createClient } from "@/infrastructure/supabase/server"
 import { checkRateLimit } from "@/core/utils/security/rate-limit"
 import { readBoundedBody } from "@/core/utils/security/bounded-body"
-import { getFFmpegPath, MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
+import { MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
 import { MAX_REFERENCE_BYTES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, referenceAnalysisSchema, validateOwnedReferences } from "@/core/validation/media-reference"
 
 export const runtime = "nodejs"
@@ -28,6 +28,7 @@ export async function POST(request: Request) {
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "The director connection is not configured." }, { status: 503 })
 
   let directory: string | undefined
+  let ffmpegPath: string | undefined
   const signal = AbortSignal.timeout(150_000)
   try {
     // Metadata only: media uploads go directly to private storage, not this route.
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
     if (ref.mediaType !== "image" && ref.trimEnd! - ref.trimStart > 30) {
       return NextResponse.json({ error: "Choose a section of 30 seconds or less for analysis." }, { status: 400 })
     }
-    if (ref.mediaType !== "image") await requireMediaRuntime(false, signal)
+    if (ref.mediaType !== "image") ffmpegPath = await requireMediaRuntime(false, signal)
     const quota = await db.rpc("consume_reference_analysis")
     if (quota.error) return NextResponse.json({ error: "Analysis limits are not configured. Apply migration 0028 before analysing references." }, { status: 503 })
     if (quota.data !== true) return NextResponse.json({ error: "Reference analysis limit reached (6 per minute, 60 per UTC day). Please retry later." }, { status: 429 })
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
       // Force a known demuxer: uploaded playlists must never open local or network resources.
       const format = mime.includes("webm") ? "matroska" : mime.includes("wav") ? "wav" : mime.includes("mpeg") || mime === "audio/mp3" ? "mp3" : "mov"
       const base = ["-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", format]
-      const ffmpeg = getFFmpegPath()
+      const ffmpeg = ffmpegPath!
       if (ref.mediaType === "video") {
         const span = ref.trimEnd! - ref.trimStart
         for (let i = 0; i < 4; i++) {
