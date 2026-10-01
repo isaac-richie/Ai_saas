@@ -15,6 +15,7 @@ import {
 
 import type { ProductionShotSettings } from "../validation/production-settings"
 import { resolveProductionModel } from "../config/production-model-routing"
+import { getFFmpegPath } from "../utils/security/media-runtime"
 
 export type CrewRunner = <T>(role: string, instruction: string, context: unknown, schema: z.ZodType<T>) => Promise<{ value: T; responseId: string; model?: string }>
 
@@ -99,7 +100,7 @@ async function sampleVideoReference(asset: ProductionAsset): Promise<CrewReferen
     const input = join(directory, "source")
     await writeFile(input, Buffer.concat(chunks))
     const output = join(directory, "frame-%02d.jpg")
-    await exec(process.env.FFMPEG_PATH || "ffmpeg", ["-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "file,pipe", "-i", input, "-vf", "fps=1/2,scale=768:768:force_original_aspect_ratio=decrease", "-frames:v", "3", "-q:v", "4", output], { timeout: 20_000, maxBuffer: 1024 * 1024 })
+    await exec(getFFmpegPath(), ["-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "file,pipe", "-i", input, "-vf", "fps=1/2,scale=768:768:force_original_aspect_ratio=decrease", "-frames:v", "3", "-q:v", "4", output], { timeout: 20_000, maxBuffer: 1024 * 1024 })
     const frames = (await readdir(directory)).filter(name => name.startsWith("frame-") && name.endsWith(".jpg")).sort()
     if (!frames.length) throw new Error("video_frames_missing")
     return [

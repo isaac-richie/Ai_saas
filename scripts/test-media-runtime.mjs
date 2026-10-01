@@ -6,7 +6,7 @@ import vm from "node:vm"
 import ts from "typescript"
 
 const source = readFileSync(new URL("../src/core/utils/security/media-runtime.ts", import.meta.url), "utf8")
-const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
+const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText
 
 function runtime(fail = false) {
   const calls = []
@@ -34,6 +34,19 @@ test("reference preflight checks configured FFmpeg with bounded runtime", async 
   assert.equal(r.calls[0].args[0], "-version")
   assert.equal(r.calls[0].options.timeout, 3000)
   assert.equal(r.calls[0].options.signal, signal)
+})
+
+test("FFmpeg resolves to the bundled binary when no deployment override is set", async () => {
+  const module = { exports: {} }
+  const require = createRequire(import.meta.url)
+  vm.runInNewContext(compiled, {
+    module, exports: module.exports, process: { env: {} },
+    require(name) {
+      if (name === "node:child_process") return { execFile(_binary, _args, _options, callback) { callback(null, "version", "") } }
+      return require(name)
+    },
+  })
+  assert.match(module.exports.getFFmpegPath(), /ffmpeg-static.*ffmpeg$/)
 })
 
 test("take inspection also requires FFprobe", async () => {

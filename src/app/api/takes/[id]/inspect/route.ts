@@ -9,7 +9,7 @@ import { zodTextFormat } from "openai/helpers/zod"
 import { createClient } from "@/infrastructure/supabase/server"
 import { REFERENCE_BUCKET, validateOwnedReferences } from "@/core/validation/media-reference"
 import { readBoundedBody, readBoundedBytes } from "@/core/utils/security/bounded-body"
-import { MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
+import { getFFmpegPath, MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
 import { resolveProductionModel } from "@/core/config/production-model-routing"
 
 const execFileAsync = promisify(execFile)
@@ -111,7 +111,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       frames = []
       for (let index = 0; index < timestamps.length; index += 1) {
         const framePath = join(tempDir, `frame-${index}.jpg`)
-        await execFileAsync(process.env.FFMPEG_PATH || "ffmpeg", ["-nostdin", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", "mov", "-y", "-ss", String(timestamps[index]), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", framePath], { timeout: 12000, maxBuffer: 1024 * 1024, signal })
+        await execFileAsync(getFFmpegPath(), ["-nostdin", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", "mov", "-y", "-ss", String(timestamps[index]), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", framePath], { timeout: 12000, maxBuffer: 1024 * 1024, signal })
         frames.push(await readFile(framePath))
       }
       inspectionMethod = "server_sampled_stills"

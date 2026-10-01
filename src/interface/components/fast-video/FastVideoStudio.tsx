@@ -301,8 +301,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   const [subject, setSubject] = useState("")
   const [templateId, setTemplateId] = useState<string>(PROMPT_TEMPLATES[0]?.id || "")
-  const [stylePresetId, setStylePresetId] = useState<string>(STYLE_PRESETS[0]?.id || "")
-  const [motionPresetId, setMotionPresetId] = useState<string>(MOTION_PRESETS[1]?.id || "")
+  const [stylePresetId, setStylePresetId] = useState<string>("")
+  const [motionPresetId, setMotionPresetId] = useState<string>("")
   const [modelFamilyId, setModelFamilyId] = useState<KieVideoModelFamilyId>(DEFAULT_KIE_VIDEO_MODEL_FAMILY)
   const [aspectRatio, setAspectRatio] = useState<FastVideoAspectRatio>("16:9")
   const [variation, setVariation] = useState<FastVideoVariation>("balanced")
@@ -492,12 +492,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   const applyStylePreset = (id: string) => {
     setStylePresetId(id)
-    setRecentStyleIds((prev) => [id, ...prev.filter((entry) => entry !== id)].slice(0, 20))
+    if (id) setRecentStyleIds((prev) => [id, ...prev.filter((entry) => entry !== id)].slice(0, 20))
   }
 
   const applyMotionPreset = (id: string) => {
     setMotionPresetId(id)
-    setRecentMotionIds((prev) => [id, ...prev.filter((entry) => entry !== id)].slice(0, 20))
+    if (id) setRecentMotionIds((prev) => [id, ...prev.filter((entry) => entry !== id)].slice(0, 20))
   }
 
   const toggleFavoriteStyle = (id: string) => {
@@ -2402,6 +2402,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 className="h-8 rounded-lg border-gold-400/[0.12] bg-white/5 text-[11px] text-white placeholder:text-white/35"
               />
               <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => applyStylePreset("")}
+                  aria-pressed={!stylePresetId}
+                  className={`h-7 rounded-full border px-2.5 text-[10px] transition ${
+                    !stylePresetId
+                      ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
+                      : "border-white/12 bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
+                  }`}
+                >
+                  No style
+                </button>
                 {styleChipList.map((preset) => (
                   <div key={preset.id} className="flex items-center gap-1.5 rounded-full border border-gold-400/[0.12] bg-white/[0.02] px-1 py-1">
                     <button
@@ -2458,6 +2470,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 className="h-8 rounded-lg border-gold-400/[0.12] bg-white/5 text-[11px] text-white placeholder:text-white/35"
               />
               <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => applyMotionPreset("")}
+                  aria-pressed={!motionPresetId}
+                  className={`h-7 rounded-full border px-2.5 text-[10px] transition ${
+                    !motionPresetId
+                      ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
+                      : "border-white/12 bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
+                  }`}
+                >
+                  No motion
+                </button>
                 {motionChipList.map((preset) => (
                   <div key={preset.id} className="flex items-center gap-1.5 rounded-full border border-gold-400/[0.12] bg-white/[0.02] px-1 py-1">
                     <button
@@ -2497,11 +2521,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </div>
             </div>
             <div className="space-y-2">
-              <Select value={stylePresetId} onValueChange={applyStylePreset}>
+              <Select value={stylePresetId || "none"} onValueChange={(value) => applyStylePreset(value === "none" ? "" : value)}>
                 <SelectTrigger className="studio-field rounded-xl text-white">
-                  <SelectValue placeholder="Visual style" />
+                  <SelectValue placeholder="No style" />
                 </SelectTrigger>
                 <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white">
+                  <SelectItem value="none" className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">None</SelectItem>
                   {STYLE_PRESETS.map((preset) => (
                     <SelectItem key={preset.id} value={preset.id} className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
                       {preset.name}
@@ -2509,11 +2534,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={motionPresetId} onValueChange={applyMotionPreset}>
+              <Select value={motionPresetId || "none"} onValueChange={(value) => applyMotionPreset(value === "none" ? "" : value)}>
                 <SelectTrigger className="studio-field rounded-xl text-white">
-                  <SelectValue placeholder="Camera movement" />
+                  <SelectValue placeholder="No motion" />
                 </SelectTrigger>
                 <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white">
+                  <SelectItem value="none" className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">None</SelectItem>
                   {MOTION_PRESETS.map((preset) => (
                     <SelectItem key={preset.id} value={preset.id} className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
                       {preset.name}
@@ -3193,10 +3219,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-lg border border-gold-400/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Style</span> {activeStyle?.name || "Custom"}
+              <span className="text-white/40">Style</span> {activeStyle?.name || (stylePresetId ? "Custom" : "None")}
             </span>
             <span className="rounded-lg border border-gold-400/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Motion</span> {activeMotion?.name || "Custom"}
+              <span className="text-white/40">Motion</span> {activeMotion?.name || (motionPresetId ? "Custom" : "None")}
             </span>
             <span className="rounded-lg border border-gold-400/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
               <span className="text-white/40">Model</span> {activeModelFamily.label}

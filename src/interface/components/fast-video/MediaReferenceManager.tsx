@@ -196,7 +196,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
     {warnings.map((warning) => <p key={warning} className={styles.warning}>{warning}</p>)}
     {!references.length && <div className={styles.empty}>Identity. Movement. Sound.<br /><span className={styles.hint}>Up to 6 references, 25 MB each. Only applied references are used.</span></div>}
     {references.map((ref) => <details className={styles.card} key={ref.id} open={expandedId === ref.id}>
-      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><span>{ref.mediaType === "image" ? <ImagePlus size={16} /> : ref.mediaType === "video" ? <Film size={16} /> : <AudioLines size={16} />}</span><div className={styles.title}><strong>{ref.name}</strong><span>{ref.role} / {ref.scope}{ref.locked ? " / locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : "Review"}</span><ChevronDown size={12} /></summary>
+      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><span>{ref.mediaType === "image" ? <ImagePlus size={16} /> : ref.mediaType === "video" ? <Film size={16} /> : <AudioLines size={16} />}</span><div className={styles.title}><strong>{ref.name}</strong><span>{ref.role} / {ref.scope}{ref.locked ? " / locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : ref.analysis ? "Ready to apply" : "Needs analysis"}</span><ChevronDown size={12} /></summary>
       <div className={styles.body}>
         <ReferencePreview reference={ref} />
         <div className={styles.grid}>
@@ -223,7 +223,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
         </div>}
         <div className={styles.actions}>
           <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => void analyse(ref)}>{busy === ref.id && <Loader2 size={12} className="animate-spin" />}{ref.analysis ? "Re-analyse" : "Analyse"}</button>
-          <button type="button" className={styles.apply} disabled={disabled || !!busy || ref.applied} onClick={() => apply(ref)}>{ref.applied ? "Applied" : "Apply Reference"}</button>
+          <button type="button" className={styles.apply} disabled={disabled || !!busy || ref.applied || !ref.analysis} onClick={() => apply(ref)}>{ref.applied ? "Applied" : ref.analysis ? "Apply Reference" : "Analyse first"}</button>
           <button type="button" disabled={disabled || !!busy} aria-pressed={ref.locked} onClick={() => update(ref.id, { locked: !ref.locked })}><LockKeyhole size={12} />{ref.locked ? "Unlock" : "Lock"}</button>
           <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => pick(ref.mediaType, ref.id)}>Replace</button>
           <button type="button" className={styles.remove} disabled={disabled || !!busy || ref.locked} onClick={() => onChange((current) => current.filter((item) => item.id !== ref.id))}>Remove</button>
