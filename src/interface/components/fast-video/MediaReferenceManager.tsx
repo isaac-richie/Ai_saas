@@ -209,9 +209,10 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
     {references.map((ref) => {
       const analysisError = analysisErrors[ref.id]
       const hasManualGuidance = Boolean(ref.manualGuidance?.trim())
+      const canContinueWithoutAnalysis = ref.mediaType !== "image"
       const canUseImageDirectly = ref.mediaType === "image" && ref.target === "provider"
-      const canApply = Boolean(ref.analysis || hasManualGuidance || canUseImageDirectly)
-      const applyLabel = ref.applied ? "Applied" : ref.analysis ? "Apply Reference" : canUseImageDirectly ? "Use image directly" : ref.analysisUnavailable ? "Continue without analysis" : "Apply manual direction"
+      const canApply = Boolean(ref.analysis || hasManualGuidance || canContinueWithoutAnalysis || canUseImageDirectly)
+      const applyLabel = ref.applied ? "Applied" : ref.analysis ? "Apply Reference" : canContinueWithoutAnalysis ? "Continue without analysis" : canUseImageDirectly ? "Use image directly" : "Apply manual direction"
       return <details className={styles.card} key={ref.id} open={expandedId === ref.id}>
       <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><span>{ref.mediaType === "image" ? <ImagePlus size={16} /> : ref.mediaType === "video" ? <Film size={16} /> : <AudioLines size={16} />}</span><div className={styles.title}><strong>{ref.name}</strong><span>{ref.role} / {ref.scope}{ref.locked ? " / locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : ref.analysis ? "Ready to apply" : ref.analysisUnavailable || analysisError ? "Analysis unavailable" : "Needs analysis"}</span><ChevronDown size={12} /></summary>
       <div className={styles.body}>

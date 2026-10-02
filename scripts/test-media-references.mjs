@@ -10,7 +10,7 @@ const source = readFileSync(new URL("../src/core/validation/media-reference.ts",
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
 const module = { exports: {} }
 vm.runInNewContext(compiled, { module, exports: module.exports, require: createRequire(import.meta.url) })
-const { mediaReferenceSchema, mediaReferencesSchema, referenceLibrarySchema, referenceCompatibility, referenceConflicts, referenceIsInContext, referencePrompt, referencePromptFits, validateOwnedReferences } = module.exports
+const { mediaReferenceSchema, mediaReferencesSchema, referenceLibrarySchema, referenceCompatibility, referenceConflicts, referenceIsInContext, referencePrompt, referencePromptBudget, referencePromptFits, validateOwnedReferences } = module.exports
 const user = "123e4567-e89b-42d3-a456-426614174000"
 const project = "123e4567-e89b-42d3-a456-426614174001"
 const scene = "123e4567-e89b-42d3-a456-426614174002"
@@ -68,7 +68,7 @@ test("never silently passes unsupported media to video provider", () => {
   assert.equal(referenceCompatibility([{ ...base, target: "provider" }]).length, 0)
   assert.ok(referenceCompatibility([{ ...base, target: "provider" }, { ...base, target: "provider" }]).length)
 })
-test("requires approved analysis or explicit manual guidance; unapplied references do not affect generation", () => {
+test("image references require analysis, manual guidance or direct-image mode; unapplied references do not affect generation", () => {
   assert.ok(referenceCompatibility([{ ...base, analysis: undefined }]).length)
   assert.equal(referenceCompatibility([{ ...base, analysis: undefined, manualGuidance: "Use the voiceover for a calm narration mood." }]).length, 0)
   assert.equal(referenceCompatibility([{ ...base, applied: false, analysis: undefined }]).length, 0)
@@ -81,20 +81,31 @@ test("warns about competing primary roles", () => {
 test("guidance is ordered, role-specific and does not mutate snapshots", () => {
   const refs = [{ ...base, priority: "supporting", role: "lighting" }, base]
   const before = JSON.stringify(refs)
-  assert.ok(referencePrompt(refs).startsWith("wardrobe ONLY"))
+  assert.ok(referencePrompt(refs).startsWith("wardrobe/primary/high:"))
   assert.equal(JSON.stringify(refs), before)
   assert.equal(referencePrompt([{ ...base, target: "provider" }]), "")
 })
-test("manual fallback guidance reaches the generation prompt and is marked as unanalysed", () => {
+test("manual fallback guidance reaches the generation prompt and is identified as manual", () => {
   const manual = { ...base, mediaType: "audio", role: "voiceover", duration: 9, trimStart: 0, trimEnd: 9, analysis: undefined, analysisUnavailable: true, manualGuidance: "Use a calm, reassuring narration; do not sync lips." }
   assert.equal(mediaReferenceSchema.safeParse(manual).success, true)
   assert.equal(referenceCompatibility([manual]).length, 0)
   const prompt = referencePrompt([manual])
-  assert.match(prompt, /manual direction, analysis unavailable/)
+  assert.match(prompt, /\(manual\)/)
   assert.match(prompt, /Use a calm, reassuring narration/)
   assert.equal(referencePrompt([{ ...manual, applied: false }]), "")
+})
+test("continue-without-analysis accepts audio and video with conservative role-specific prompt fallbacks", () => {
+  const audio = { ...base, mediaType: "audio", role: "voiceover", duration: 9, trimStart: 0, trimEnd: 9, analysis: undefined, manualGuidance: undefined }
+  const video = { ...base, mediaType: "video", role: "camera movement", duration: 9, trimStart: 0, trimEnd: 9, analysis: undefined, manualGuidance: undefined }
+  assert.equal(referenceCompatibility([audio]).length, 0)
+  assert.equal(referenceCompatibility([video]).length, 0)
+  assert.match(referencePrompt([audio]), /no transcript or voice identity inferred/)
+  assert.match(referencePrompt([video]), /follow only written shot direction/)
 })
 test("rejects prompt overflow rather than silently dropping reference or duration instructions", () => {
   assert.equal(referencePromptFits("A slow tracking shot", [base]), true)
   assert.equal(referencePromptFits("x".repeat(1100), [base]), false)
+  const budget = referencePromptBudget("A slow tracking shot", [base])
+  assert.equal(budget.limit, 1100)
+  assert.equal(budget.overflow, 0)
 })

@@ -72,7 +72,7 @@ export function referenceCompatibility(refs: MediaReference[]): string[] {
   if (active.filter((ref) => ref.target === "provider").length > 1) issues.push("The current video adapter accepts only one direct image. Use Director guidance for the other references.")
   for (const ref of active) {
     if (ref.target === "provider" && ref.mediaType !== "image") issues.push(`${ref.name}: direct video/audio conditioning is not wired into this adapter. Choose Director guidance.`)
-    if (ref.target === "director" && !ref.analysis && !ref.manualGuidance?.trim()) issues.push(`${ref.name}: add manual direction or analyse it before applying.`)
+    if (ref.target === "director" && ref.mediaType === "image" && !ref.analysis && !ref.manualGuidance?.trim()) issues.push(`${ref.name}: add manual direction or use the original image directly before applying.`)
   }
   return issues
 }
@@ -90,18 +90,34 @@ export function referenceConflicts(refs: MediaReference[]) {
 export function referencePrompt(refs: MediaReference[]) {
   const rank = { primary: 0, secondary: 1, supporting: 2 }
   return refs.filter((ref) => ref.applied && ref.target === "director" && (ref.analysis || ref.manualGuidance?.trim()))
+    .concat(refs.filter((ref) => ref.applied && ref.target === "director" && !ref.analysis && !ref.manualGuidance?.trim() && ref.mediaType !== "image"))
     .sort((a, b) => rank[a.priority] - rank[b.priority])
     .map((ref) => {
-      const manual = !ref.analysis
-      const direction = ref.analysis?.guidance || ref.manualGuidance!.trim()
-      return `${ref.role} ONLY (${ref.priority}, ${ref.influence}${ref.locked ? ", preserve" : ""}${manual ? "; manual direction, analysis unavailable" : ""}): ${direction}`
+      const source = ref.analysis ? "" : ref.manualGuidance?.trim() ? " (manual)" : " (unanalysed)"
+      const fallback = ref.mediaType === "video"
+        ? "follow only written shot direction; do not infer the source video's content"
+        : ref.role === "voiceover" ? "no transcript or voice identity inferred; no audio mix or lip-sync"
+          : ref.role === "dialogue" ? "no dialogue inferred; use written lines only; no lip-sync"
+            : ref.role === "music" ? "mood only; no beat mapping or audio mix"
+              : ref.role === "effects" ? "optional sound-event context; add effects in editing"
+                : ref.role === "ambience" ? "optional atmosphere only; no audio mix"
+                  : ref.role === "timing" ? "use written timing only; no audio events inferred"
+                    : "no lip-sync inferred; use a dedicated lip-sync workflow"
+      const direction = ref.analysis?.guidance || ref.manualGuidance?.trim() || fallback
+      return `${ref.role}/${ref.priority}/${ref.influence}${source}: ${direction}`
     }).join("; ")
 }
 
-export function referencePromptFits(subject: string, refs: MediaReference[]) {
+export function referencePromptBudget(subject: string, refs: MediaReference[]) {
+  const limit = 1100
   const guidance = referencePrompt(refs)
-  // Reserve space for the required duration instruction and clause separators.
-  return subject.replace(/\s+/g, " ").trim().length + (guidance ? guidance.length + 24 : 0) + 80 <= 1100
+  // Reserve room for the reference label, duration directive and separators.
+  const used = subject.replace(/\s+/g, " ").trim().length + guidance.length + (guidance ? 20 : 0) + 80
+  return { limit, used, overflow: Math.max(0, used - limit) }
+}
+
+export function referencePromptFits(subject: string, refs: MediaReference[]) {
+  return referencePromptBudget(subject, refs).overflow === 0
 }
 
 export function validateOwnedReferences(input: unknown, userId: string) {

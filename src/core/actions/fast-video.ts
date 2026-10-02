@@ -17,7 +17,7 @@ import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
-import { REFERENCE_BUCKET, referenceCompatibility, referenceIsInContext, referencePrompt, referencePromptFits, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
+import { REFERENCE_BUCKET, referenceCompatibility, referenceIsInContext, referencePrompt, referencePromptBudget, referencePromptFits, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
 import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
 
@@ -424,7 +424,10 @@ export async function generateFastVideo(input: unknown) {
       if (error || !data) return { error: "Direct reference unavailable. Check the file and storage configuration." }
       payload.prompt_inputs.reference_image = data.signedUrl
     }
-    if (!referencePromptFits(payload.prompt_inputs.text_subject, refs)) return { error: "The prompt and reference directions exceed this adapter's prompt budget. Shorten the subject or approved directions before generating." }
+    if (!referencePromptFits(payload.prompt_inputs.text_subject, refs)) {
+      const budget = referencePromptBudget(payload.prompt_inputs.text_subject, refs)
+      return { error: `The prompt and applied reference directions exceed this adapter's ${budget.limit}-character budget by ${budget.overflow} characters. Shorten the subject or an approved direction; nothing was dropped.` }
+    }
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Invalid media references" }
   }
