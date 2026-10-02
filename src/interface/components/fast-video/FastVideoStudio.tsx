@@ -1,5 +1,7 @@
 "use client"
 
+import type * as React from "react"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -78,6 +80,8 @@ import { ShotPreviewTimeline } from "./ShotPreviewTimeline"
 import { GenerationJobsPanel } from "./GenerationJobsPanel"
 import { StoryboardExportPanel } from "./StoryboardExportPanel"
 import { MediaReferenceManager } from "./MediaReferenceManager"
+import { AspectGlyph, PresetPicker, SegmentedPreset } from "./PresetPicker"
+import { orderPresets } from "./preset-order"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
 import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, referencePromptBudget, referencePromptFits, type MediaReference } from "@/core/validation/media-reference"
 
@@ -450,21 +454,15 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     return MOTION_PRESETS.filter((preset) => preset.name.toLowerCase().includes(q))
   }, [motionSearch])
 
-  const styleChipList = useMemo(() => {
-    const recent = filteredStyles.filter((preset) => recentStyleIds.includes(preset.id))
-    const favorites = filteredStyles.filter((preset) => favoriteStyleIds.includes(preset.id) && !recentStyleIds.includes(preset.id))
-    const rest = filteredStyles.filter((preset) => !recentStyleIds.includes(preset.id) && !favoriteStyleIds.includes(preset.id))
-    const merged = [...recent, ...favorites, ...rest]
-    return showAllStyleChips ? merged : merged.slice(0, 5)
-  }, [favoriteStyleIds, filteredStyles, recentStyleIds, showAllStyleChips])
+  const styleChipList = useMemo(() => orderPresets(filteredStyles, {
+    pinnedIds: favoriteStyleIds, recentIds: recentStyleIds, selectedId: stylePresetId,
+    expanded: showAllStyleChips, searching: Boolean(styleSearch.trim()),
+  }), [favoriteStyleIds, filteredStyles, recentStyleIds, showAllStyleChips, styleSearch, stylePresetId])
 
-  const motionChipList = useMemo(() => {
-    const recent = filteredMotions.filter((preset) => recentMotionIds.includes(preset.id))
-    const favorites = filteredMotions.filter((preset) => favoriteMotionIds.includes(preset.id) && !recentMotionIds.includes(preset.id))
-    const rest = filteredMotions.filter((preset) => !recentMotionIds.includes(preset.id) && !favoriteMotionIds.includes(preset.id))
-    const merged = [...recent, ...favorites, ...rest]
-    return showAllMotionChips ? merged : merged.slice(0, 5)
-  }, [favoriteMotionIds, filteredMotions, recentMotionIds, showAllMotionChips])
+  const motionChipList = useMemo(() => orderPresets(filteredMotions, {
+    pinnedIds: favoriteMotionIds, recentIds: recentMotionIds, selectedId: motionPresetId,
+    expanded: showAllMotionChips, searching: Boolean(motionSearch.trim()),
+  }), [favoriteMotionIds, filteredMotions, recentMotionIds, showAllMotionChips, motionSearch, motionPresetId])
 
 
   const handleLoadClip = (clip: SavedFastClip) => {
@@ -2369,192 +2367,68 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
           <div className={sectionClass}>
             <label className="text-[11px] uppercase tracking-[0.12em] text-white/50 font-medium">Shot Look</label>
-            <div className="flex flex-wrap gap-2">
-              {QUICK_LOOKS.map((look) => {
+            <div role="radiogroup" aria-label="Shot look" className="lux-stagger grid grid-cols-2 gap-2">
+              {QUICK_LOOKS.map((look, index) => {
                 const active = stylePresetId === look.stylePresetId && motionPresetId === look.motionPresetId
+                const style = STYLE_PRESETS.find((preset) => preset.id === look.stylePresetId)
+                const motion = MOTION_PRESETS.find((preset) => preset.id === look.motionPresetId)
                 return (
                   <button
                     key={look.id}
                     type="button"
+                    role="radio"
+                    aria-checked={active}
+                    style={{ "--i": index } as React.CSSProperties}
+                    title={active ? "Click again to clear this look" : undefined}
                     onClick={() => {
-                      applyStylePreset(look.stylePresetId)
-                      applyMotionPreset(look.motionPresetId)
+                      // Looks are a shortcut, never a requirement: clicking the active look clears it.
+                      applyStylePreset(active ? "" : look.stylePresetId)
+                      applyMotionPreset(active ? "" : look.motionPresetId)
                     }}
-                    className={`h-8 rounded-full border px-3 text-[11px] font-medium transition ${
+                    className={`lux-sheen rounded-xl border px-3 py-2.5 text-left transition-all duration-300 ${
                       active
-                        ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
-                        : "border-white/12 bg-white/5 text-white/75 hover:border-gold-400/40 hover:bg-gold-400/[0.08] hover:text-white"
+                        ? "border-gold-300/60 bg-[linear-gradient(180deg,rgba(217,192,138,0.16),rgba(217,192,138,0.04))] shadow-[0_12px_28px_-18px_rgba(217,192,138,0.8)]"
+                        : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/35"
                     }`}
                   >
-                    {look.label}
+                    <span className={`block text-[12px] font-medium ${active ? "text-gold-50" : "text-[#e8e2d2]"}`}>{look.label}</span>
+                    <span className="mt-0.5 block truncate text-[10px] text-[#8f9086]">{style?.name ?? "Any style"} · {motion?.name ?? "Any motion"}</span>
                   </button>
                 )
               })}
             </div>
-            <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] text-white/65">Style presets</p>
-                <button
-                  type="button"
-                  onClick={() => setShowAllStyleChips((prev) => !prev)}
-                  className="text-[10px] text-gold-200/80 hover:text-gold-100"
-                >
-                  {showAllStyleChips ? "Show less" : "See more"}
-                </button>
-              </div>
-              <Input
-                value={styleSearch}
-                onChange={(event) => setStyleSearch(event.target.value)}
-                placeholder="Search styles..."
-                className="h-8 rounded-lg border-gold-400/[0.12] bg-white/5 text-[11px] text-white placeholder:text-white/35"
-              />
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => applyStylePreset("")}
-                  aria-pressed={!stylePresetId}
-                  className={`h-7 rounded-full border px-2.5 text-[10px] transition ${
-                    !stylePresetId
-                      ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
-                      : "border-white/12 bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
-                  }`}
-                >
-                  No style
-                </button>
-                {styleChipList.map((preset) => (
-                  <div key={preset.id} className="flex items-center gap-1.5 rounded-full border border-gold-400/[0.12] bg-white/[0.02] px-1 py-1">
-                    <button
-                      type="button"
-                      onClick={() => applyStylePreset(preset.id)}
-                      className={`h-7 rounded-full border px-2.5 text-[10px] transition ${
-                        stylePresetId === preset.id
-                          ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
-                          : "border-white/12 bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
-                      }`}
-                    >
-                      {preset.name}
-                    </button>
-                    {recentStyleIds.includes(preset.id) ? (
-                      <span className="rounded-full border border-gold-300/25 bg-gold-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-gold-100">
-                        Recent
-                      </span>
-                    ) : null}
-                    {favoriteStyleIds.includes(preset.id) ? (
-                      <span className="rounded-full border border-gold-400/20 bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-white/80">
-                        Pinned
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => toggleFavoriteStyle(preset.id)}
-                      className={`h-7 rounded-full border px-2 text-[10px] transition ${
-                        favoriteStyleIds.includes(preset.id)
-                          ? "border-gold-300/40 bg-gold-500/12 text-gold-100"
-                          : "border-white/12 bg-white/5 text-white/60 hover:bg-gold-400/[0.08]"
-                      }`}
-                    >
-                      {favoriteStyleIds.includes(preset.id) ? "Pinned" : "Pin"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] text-white/65">Motion presets</p>
-                <button
-                  type="button"
-                  onClick={() => setShowAllMotionChips((prev) => !prev)}
-                  className="text-[10px] text-gold-200/80 hover:text-gold-100"
-                >
-                  {showAllMotionChips ? "Show less" : "See more"}
-                </button>
-              </div>
-              <Input
-                value={motionSearch}
-                onChange={(event) => setMotionSearch(event.target.value)}
-                placeholder="Search motion..."
-                className="h-8 rounded-lg border-gold-400/[0.12] bg-white/5 text-[11px] text-white placeholder:text-white/35"
-              />
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => applyMotionPreset("")}
-                  aria-pressed={!motionPresetId}
-                  className={`h-7 rounded-full border px-2.5 text-[10px] transition ${
-                    !motionPresetId
-                      ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
-                      : "border-white/12 bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
-                  }`}
-                >
-                  No motion
-                </button>
-                {motionChipList.map((preset) => (
-                  <div key={preset.id} className="flex items-center gap-1.5 rounded-full border border-gold-400/[0.12] bg-white/[0.02] px-1 py-1">
-                    <button
-                      type="button"
-                      onClick={() => applyMotionPreset(preset.id)}
-                      className={`h-7 rounded-full border px-2.5 text-[10px] transition ${
-                        motionPresetId === preset.id
-                          ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
-                          : "border-white/12 bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
-                      }`}
-                    >
-                      {preset.name}
-                    </button>
-                    {recentMotionIds.includes(preset.id) ? (
-                      <span className="rounded-full border border-gold-300/25 bg-gold-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-gold-100">
-                        Recent
-                      </span>
-                    ) : null}
-                    {favoriteMotionIds.includes(preset.id) ? (
-                      <span className="rounded-full border border-gold-400/20 bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-white/80">
-                        Pinned
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => toggleFavoriteMotion(preset.id)}
-                      className={`h-7 rounded-full border px-2 text-[10px] transition ${
-                        favoriteMotionIds.includes(preset.id)
-                          ? "border-gold-300/40 bg-gold-500/12 text-gold-100"
-                          : "border-white/12 bg-white/5 text-white/60 hover:bg-gold-400/[0.08]"
-                      }`}
-                    >
-                      {favoriteMotionIds.includes(preset.id) ? "Pinned" : "Pin"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Select value={stylePresetId || "none"} onValueChange={(value) => applyStylePreset(value === "none" ? "" : value)}>
-                <SelectTrigger className="studio-field rounded-xl text-white">
-                  <SelectValue placeholder="No style" />
-                </SelectTrigger>
-                <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white">
-                  <SelectItem value="none" className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">None</SelectItem>
-                  {STYLE_PRESETS.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id} className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
-                      {preset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={motionPresetId || "none"} onValueChange={(value) => applyMotionPreset(value === "none" ? "" : value)}>
-                <SelectTrigger className="studio-field rounded-xl text-white">
-                  <SelectValue placeholder="No motion" />
-                </SelectTrigger>
-                <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white">
-                  <SelectItem value="none" className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">None</SelectItem>
-                  {MOTION_PRESETS.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id} className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
-                      {preset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <PresetPicker
+              label="Style presets"
+              noneLabel="No style"
+              noneDescription="Your prompt alone sets the look."
+              options={styleChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description }))}
+              selectedId={stylePresetId}
+              onSelect={applyStylePreset}
+              search={styleSearch}
+              onSearch={setStyleSearch}
+              pinnedIds={favoriteStyleIds}
+              recentIds={recentStyleIds}
+              onTogglePin={toggleFavoriteStyle}
+              expanded={showAllStyleChips}
+              onToggleExpanded={() => setShowAllStyleChips((prev) => !prev)}
+              totalCount={filteredStyles.length}
+            />
+            <PresetPicker
+              label="Motion presets"
+              noneLabel="No motion"
+              noneDescription="Camera movement comes from your prompt."
+              options={motionChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, detail: preset.useCase }))}
+              selectedId={motionPresetId}
+              onSelect={applyMotionPreset}
+              search={motionSearch}
+              onSearch={setMotionSearch}
+              pinnedIds={favoriteMotionIds}
+              recentIds={recentMotionIds}
+              onTogglePin={toggleFavoriteMotion}
+              expanded={showAllMotionChips}
+              onToggleExpanded={() => setShowAllMotionChips((prev) => !prev)}
+              totalCount={filteredMotions.length}
+            />
             <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
               {KIE_VIDEO_MODEL_FAMILIES.map((family) => (
                 <button
@@ -2598,33 +2472,19 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             {showAdvanced ? (
               <div className={`${subtlePanelClass} space-y-3`}>
                 <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Advanced</p>
-                <div className="grid gap-2 grid-cols-3">
-                  {FAST_VIDEO_ASPECT_RATIOS.map((ratio) => (
-                    <button
-                      key={ratio}
-                      type="button"
-                      onClick={() => setAspectRatio(ratio)}
-                      className={optionClass(aspectRatio === ratio)}
-                    >
-                      {ratio}
-                    </button>
-                  ))}
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-[11px] text-white/55">Creative style intensity</p>
-                  <div className="grid gap-2 grid-cols-3">
-                    {FAST_VIDEO_VARIATIONS.map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => setVariation(item)}
-                        className={`${optionClass(variation === item)} capitalize`}
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <SegmentedPreset
+                  label="Aspect ratio"
+                  options={FAST_VIDEO_ASPECT_RATIOS}
+                  value={aspectRatio}
+                  onChange={setAspectRatio}
+                  render={(ratio, active) => <><AspectGlyph ratio={ratio} active={active} />{ratio}</>}
+                />
+                <SegmentedPreset
+                  label="Creative style intensity"
+                  options={FAST_VIDEO_VARIATIONS}
+                  value={variation}
+                  onChange={setVariation}
+                />
                 <MediaReferenceManager
                   key={`${selectedProjectId}:${selectedSceneId}`}
                   references={currentReferences}

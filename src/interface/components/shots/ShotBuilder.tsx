@@ -176,6 +176,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     const [availableElements, setAvailableElements] = useState<AvailableElement[]>([])
     const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set())
     const [isMounted, setIsMounted] = useState(false)
+    const [appliedQuickStyle, setAppliedQuickStyle] = useState<string | null>(null)
     const [presets, setPresets] = useState<ShotPreset[]>([])
     const [isLoadingPresets, setIsLoadingPresets] = useState(true)
     const [isSavingPreset, setIsSavingPreset] = useState(false)
@@ -289,6 +290,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     }
 
     const clearAllFields = () => {
+        setAppliedQuickStyle(null)
         const resetValues: ShotFormValues = {
             subject: "",
             shot: undefined,
@@ -550,10 +552,11 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                         <button
                                             key={style.id}
                                             type="button"
-                                            onClick={() => applyQuickStyle(style.id)}
-                                            className="studio-chip rounded-full px-3 py-1.5 text-xs"
+                                            aria-pressed={appliedQuickStyle === style.id}
+                                            onClick={() => { applyQuickStyle(style.id); setAppliedQuickStyle(style.id) }}
+                                            className={`studio-chip rounded-full px-3 py-1.5 text-xs ${appliedQuickStyle === style.id ? "!border-gold-300/60 !bg-gold-400/15 !text-gold-50 shadow-[0_0_18px_-6px_rgba(217,192,138,0.7)]" : ""}`}
                                         >
-                                            {style.name}
+                                            {appliedQuickStyle === style.id ? "✓ " : ""}{style.name}
                                         </button>
                                     ))}
                                 </div>
