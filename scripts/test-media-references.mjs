@@ -143,3 +143,113 @@ test("ffmpeg-static stays external so its binary path is not rewritten to a /ROO
   assert.match(config, /serverExternalPackages:\s*\[[^\]]*"ffmpeg-static"/)
   assert.match(config, /"\/api\/media\/references\/analyse": \["\.\/node_modules\/ffmpeg-static\/ffmpeg"\]/)
 })
+
+// ─── Auto-fit instead of refusing to generate ─────────────────────────────
+const { fitReferencePrompt } = module.exports
+const refId = n => `123e4567-e89b-42d3-a456-4266141742${String(n).padStart(2, "0")}`
+const directed = (n, priority, guidance, extra = {}) => ({ ...base, id: refId(n), name: `ref-${n}.png`, priority, influence: "medium", analysis: { guidance, observations: ["x"], warnings: [], limitations: "y" }, ...extra })
+const sentence = (word, count) => Array.from({ length: count }, (_, i) => `${word} detail ${i} stays exactly as shown.`).join(" ")
+
+test("reproduces an 877-character overflow and fits without blocking", () => {
+  const subject = sentence("Courier", 18).slice(0, 700)
+  const refs = [directed(1, "primary", sentence("Coat", 6).slice(0, 240)), directed(2, "secondary", sentence("Street", 6).slice(0, 240)), directed(3, "secondary", sentence("Lamp", 6).slice(0, 240)), directed(4, "supporting", sentence("Rain", 6).slice(0, 240)), { ...directed(5, "supporting", ""), analysis: undefined, manualGuidance: sentence("Mood", 12).slice(0, 500) }]
+  assert.ok(referencePromptBudget(subject, refs).overflow > 800, "scenario really is ~877 over")
+  const fit = fitReferencePrompt(subject, refs)
+  assert.equal(referencePromptFits(fit.subject, fit.references), true)
+  assert.ok(fit.notes.length > 0, "the user is told what changed")
+  assert.equal(fit.subject, subject.replace(/\s+/g, " ").trim(), "directions absorb the cut before the creator's prompt")
+  assert.ok(fit.references.find(ref => ref.id === refId(1)).applied, "the primary reference stays in the prompt")
+})
+
+test("fitting is a no-op when the prompt already fits", () => {
+  const refs = [directed(1, "primary", "Keep the red coat.")]
+  const fit = fitReferencePrompt("A courier walks through rain at dusk.", refs)
+  assert.equal(fit.notes.length, 0)
+  assert.equal(fit.subject, "A courier walks through rain at dusk.")
+  assert.equal(JSON.stringify(fit.references), JSON.stringify(refs))
+})
+
+test("least important directions are condensed first and primaries last", () => {
+  const long = sentence("Detail", 8).slice(0, 240)
+  const refs = [directed(1, "primary", long), directed(2, "supporting", long), directed(3, "secondary", long)]
+  const subject = "x ".repeat(330).trim()
+  const fit = fitReferencePrompt(subject, refs)
+  const guidance = id => fit.references.find(ref => ref.id === refId(id)).analysis.guidance
+  assert.equal(referencePromptFits(fit.subject, fit.references), true)
+  assert.ok(guidance(2).length <= guidance(1).length, "supporting is cut at least as hard as primary")
+  assert.ok(guidance(1).length >= guidance(3).length)
+})
+
+test("lower-priority references leave the text before the creator's prompt is cut; files stay attached", () => {
+  const big = sentence("Detail", 8).slice(0, 240)
+  const refs = Array.from({ length: 6 }, (_, i) => directed(i + 1, i === 0 ? "primary" : i < 3 ? "secondary" : "supporting", big))
+  const subject = sentence("Courier", 30).slice(0, 900)
+  const fit = fitReferencePrompt(subject, refs)
+  assert.equal(referencePromptFits(fit.subject, fit.references), true)
+  assert.equal(fit.references.length, 6, "no reference is removed from the list")
+  assert.ok(fit.references.find(ref => ref.id === refId(1)).applied, "primary kept")
+  assert.ok(fit.notes.some(note => /files? stays? attached/.test(note)))
+})
+
+test("a shot prompt that alone exceeds the limit is shortened at a sentence boundary", () => {
+  const subject = sentence("Courier", 60).slice(0, 1200)
+  const fit = fitReferencePrompt(subject, [])
+  assert.equal(referencePromptFits(fit.subject, []), true)
+  assert.ok(subject.startsWith(fit.subject.replace(/…$/, "")), "shortening keeps the opening of the prompt")
+  assert.match(fit.subject, /[.…]$/)
+  assert.ok(fit.notes.some(note => /Shortened your shot prompt by \d+ characters/.test(note)))
+})
+
+test("direct starting-frame images are never touched by fitting", () => {
+  const frame = { ...base, id: refId(9), target: "provider", applied: true }
+  const fit = fitReferencePrompt(sentence("Courier", 60).slice(0, 1200), [frame, directed(1, "secondary", sentence("Coat", 8).slice(0, 240))])
+  const kept = fit.references.find(ref => ref.id === refId(9))
+  assert.equal(kept.applied, true)
+  assert.equal(kept.target, "provider")
+})
+
+test("fitting never mutates the caller's references and is deterministic", () => {
+  const refs = [directed(1, "secondary", sentence("Coat", 8).slice(0, 240)), { ...directed(2, "supporting", ""), analysis: undefined, manualGuidance: sentence("Mood", 12).slice(0, 500) }]
+  const before = JSON.stringify(refs)
+  const subject = sentence("Courier", 30).slice(0, 950)
+  const first = fitReferencePrompt(subject, refs)
+  assert.equal(JSON.stringify(refs), before)
+  assert.equal(JSON.stringify(fitReferencePrompt(subject, refs)), JSON.stringify(first), "browser and server compute the same fit")
+})
+
+test("fuzz: any prompt and reference mix always fits after fitting", () => {
+  let seed = 7
+  const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648
+  const priorities = ["primary", "secondary", "supporting"]
+  for (let run = 0; run < 400; run += 1) {
+    const refs = Array.from({ length: Math.floor(rand() * 7) }, (_, i) => {
+      const priority = priorities[Math.floor(rand() * 3)]
+      const kind = rand()
+      if (kind < 0.33) return directed(i + 1, priority, sentence("A", 10).slice(0, 1 + Math.floor(rand() * 239)))
+      if (kind < 0.66) return { ...directed(i + 1, priority, ""), analysis: undefined, manualGuidance: sentence("M", 20).slice(0, 1 + Math.floor(rand() * 499)) }
+      return { ...directed(i + 1, priority, ""), analysis: undefined, mediaType: "audio", role: "voiceover", duration: 9, trimStart: 0, trimEnd: 9 }
+    })
+    const subject = sentence("S", 60).slice(0, 3 + Math.floor(rand() * 1197))
+    const fit = fitReferencePrompt(subject, refs)
+    assert.equal(referencePromptFits(fit.subject, fit.references), true, `run ${run} must fit`)
+    assert.ok(fit.subject.length >= Math.min(60, subject.trim().length) - 1, `run ${run} keeps a usable prompt`)
+    assert.equal(fit.references.length, refs.length, `run ${run} keeps every reference attached`)
+  }
+})
+
+test("generation no longer refuses on prompt length on either side", () => {
+  const action = readFileSync(new URL("../src/core/actions/fast-video.ts", import.meta.url), "utf8")
+  const studio = readFileSync(new URL("../src/interface/components/fast-video/FastVideoStudio.tsx", import.meta.url), "utf8")
+  assert.doesNotMatch(action, /nothing was dropped/)
+  assert.doesNotMatch(studio, /nothing was dropped/)
+  assert.match(action, /fitReferencePrompt\(payload\.prompt_inputs\.text_subject, refs\)/)
+  assert.match(studio, /fitReferencePrompt\(/)
+})
+
+test("primary references outrank the prompt's tail: the prompt is shortened before a primary leaves the text", () => {
+  const refs = [directed(1, "primary", sentence("Coat", 8).slice(0, 240)), directed(2, "primary", sentence("Face", 8).slice(0, 240))]
+  const fit = fitReferencePrompt(sentence("Courier", 60).slice(0, 1200), refs)
+  assert.equal(referencePromptFits(fit.subject, fit.references), true)
+  assert.ok(fit.references.every(ref => ref.applied), "both primaries stay in the prompt")
+  assert.ok(fit.notes.some(note => /Shortened your shot prompt/.test(note)))
+})

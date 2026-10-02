@@ -83,7 +83,7 @@ import { MediaReferenceManager } from "./MediaReferenceManager"
 import { AspectGlyph, PresetPicker, SegmentedPreset } from "./PresetPicker"
 import { orderPresets } from "./preset-order"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
-import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, referencePromptBudget, referencePromptFits, type MediaReference } from "@/core/validation/media-reference"
+import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, type MediaReference } from "@/core/validation/media-reference"
 
 type SceneOption = {
   id: string
@@ -1608,9 +1608,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     const referenceIssues = referenceCompatibility(generationReferences)
     if (referenceIssues.length) { toast.error(referenceIssues.join(" ")); return }
     if (referenceImageUrl && generationReferences.some((ref) => ref.target === "provider")) { toast.error("Remove the legacy starting image before using another direct image."); return }
-    if (!referencePromptFits(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), generationReferences)) {
-      toast.error(`Prompt and applied reference directions exceed the ${promptBudget.limit}-character budget by ${promptBudget.overflow} characters. Shorten the shot prompt or an approved direction; nothing was dropped.`)
-      return
+    // Never block on length: the server applies this same fit; tell the user what it condensed.
+    const promptFit = fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), generationReferences)
+    if (promptFit.notes.length) {
+      toast.message("Fitted to the video model's prompt limit", { description: promptFit.notes.join(" ") })
     }
 
     setIsGenerating(true)
@@ -2070,7 +2071,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
                 <label htmlFor="fast-video-prompt" className="text-[11px] uppercase tracking-[0.14em] text-white/50 font-medium">Prompt</label>
-                {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-amber-300" : "text-white/40"}`} aria-live="polite">Prompt + references: {promptBudget.used}/{promptBudget.limit}</span>}
+                {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite" title={promptBudget.overflow ? "Over the limit is fine: reference directions are condensed first, your prompt last." : undefined}>Prompt + references: {promptBudget.used}/{promptBudget.limit}{promptBudget.overflow ? " · will auto-fit" : ""}</span>}
               </div>
               <Textarea
                 id="fast-video-prompt"

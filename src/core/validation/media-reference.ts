@@ -133,6 +133,95 @@ export function referencePromptFits(subject: string, refs: MediaReference[]) {
   return referencePromptBudget(subject, refs).overflow === 0
 }
 
+function shortenAtBoundary(value: string, limit: number) {
+  const text = value.replace(/\s+/g, " ").trim()
+  if (text.length <= limit) return text
+  const candidate = text.slice(0, Math.max(1, limit - 1))
+  const sentenceEnd = Math.max(candidate.lastIndexOf(". "), candidate.lastIndexOf("! "), candidate.lastIndexOf("? "))
+  if (sentenceEnd >= limit * 0.5) return candidate.slice(0, sentenceEnd + 1)
+  const space = candidate.lastIndexOf(" ")
+  return `${(space > limit * 0.5 ? candidate.slice(0, space) : candidate).replace(/[,;:\-–—]+$/, "").trimEnd()}…`
+}
+
+export type PromptFit = {
+  subject: string
+  references: MediaReference[]
+  /** Human-readable notes describing what was condensed; empty when nothing changed. */
+  notes: string[]
+}
+
+const PRIORITY_RANK = { primary: 0, secondary: 1, supporting: 2 } as const
+const INFLUENCE_RANK = { high: 0, medium: 1, low: 2 } as const
+
+/**
+ * Fits the shot prompt and applied reference directions inside the adapter's
+ * budget instead of refusing to generate. Order protects the creator's words:
+ * 1) shorten reference directions, least important first;
+ * 2) leave lower-priority references out of the text (files stay attached);
+ * 3) only then shorten the shot prompt at a sentence boundary.
+ * Deterministic, so the browser preview and the server agree exactly.
+ */
+export function fitReferencePrompt(subject: string, refs: MediaReference[]): PromptFit {
+  let fittedSubject = subject.replace(/\s+/g, " ").trim()
+  let fitted = refs.map((ref) => ({ ...ref, analysis: ref.analysis ? { ...ref.analysis } : undefined }))
+  const notes: string[] = []
+  const fits = () => referencePromptFits(fittedSubject, fitted)
+  if (fits()) return { subject: fittedSubject, references: fitted, notes }
+
+  const inPrompt = () => fitted.filter((ref) => ref.applied && ref.target === "director")
+  const leastImportantFirst = () => [...inPrompt()].sort((a, b) =>
+    PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] || INFLUENCE_RANK[b.influence] - INFLUENCE_RANK[a.influence])
+  const directionOf = (ref: MediaReference) => ref.analysis?.guidance || ref.manualGuidance?.trim() || ""
+  const setDirection = (ref: MediaReference, value: string) => {
+    if (ref.analysis?.guidance) ref.analysis.guidance = value
+    else if (ref.manualGuidance?.trim()) ref.manualGuidance = value
+  }
+
+  // 1) Condense written directions, least important first.
+  let condensed = 0
+  for (const cap of [140, 80]) {
+    for (const ref of leastImportantFirst()) {
+      const direction = directionOf(ref)
+      if (direction.length <= cap) continue
+      setDirection(ref, shortenAtBoundary(direction, cap))
+      condensed += 1
+      if (fits()) break
+    }
+    if (fits()) break
+  }
+  if (condensed) notes.push(`Condensed ${condensed === 1 ? "1 reference direction" : `${condensed} reference directions`}.`)
+
+  // 2) Leave lower-priority references out of the text prompt; primaries stay.
+  const omitted: string[] = []
+  while (!fits()) {
+    const candidate = leastImportantFirst().find((ref) => ref.priority !== "primary")
+    if (!candidate) break
+    fitted = fitted.map((ref) => ref.id === candidate.id ? { ...ref, applied: false } : ref)
+    omitted.push(candidate.name)
+  }
+  if (omitted.length) notes.push(`Left ${omitted.join(", ")} out of the text prompt; ${omitted.length === 1 ? "the file stays" : "the files stay"} attached.`)
+
+  // 3) Last resort: shorten the shot prompt to whatever room remains.
+  if (!fits()) {
+    const { overflow } = referencePromptBudget(fittedSubject, fitted)
+    const before = fittedSubject.length
+    fittedSubject = shortenAtBoundary(fittedSubject, Math.max(60, before - overflow))
+    if (!fits()) {
+      // Primary directions still too long for the remaining room.
+      for (const ref of leastImportantFirst()) setDirection(ref, shortenAtBoundary(directionOf(ref), 40))
+    }
+    notes.push(`Shortened your shot prompt by ${before - fittedSubject.length} characters to fit the video model.`)
+  }
+  // 4) Guarantee: never refuse to generate. Keep files attached, text out.
+  if (!fits()) {
+    const remaining = inPrompt().map((ref) => ref.name)
+    fitted = fitted.map((ref) => ref.applied && ref.target === "director" ? { ...ref, applied: false } : ref)
+    if (remaining.length) notes.push(`Left ${remaining.join(", ")} out of the text prompt to make room; the files stay attached.`)
+  }
+  if (!fits()) fittedSubject = shortenAtBoundary(fittedSubject, referencePromptBudget("", []).limit - referencePromptBudget("", []).used)
+  return { subject: fittedSubject, references: fitted, notes }
+}
+
 export function validateOwnedReferences(input: unknown, userId: string) {
   const result = mediaReferencesSchema.safeParse(input ?? [])
   if (!result.success) throw new Error(result.error.issues[0]?.message || "Invalid references")
