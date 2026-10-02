@@ -48,3 +48,6 @@
 .card[open] .body { animation: refIn .45s cubic-bezier(.22, 1, .36, 1) both; }
 @keyframes refIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .card[open] .body { animation: none; } }
+
+.inlineActions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.detail { display:block; margin-top:4px; opacity:.75; font-size:10px; }

@@ -68,11 +68,40 @@ test("never silently passes unsupported media to video provider", () => {
   assert.equal(referenceCompatibility([{ ...base, target: "provider" }]).length, 0)
   assert.ok(referenceCompatibility([{ ...base, target: "provider" }, { ...base, target: "provider" }]).length)
 })
-test("image references require analysis, manual guidance or direct-image mode; unapplied references do not affect generation", () => {
-  assert.ok(referenceCompatibility([{ ...base, analysis: undefined }]).length)
-  assert.equal(referenceCompatibility([{ ...base, analysis: undefined, manualGuidance: "Use the voiceover for a calm narration mood." }]).length, 0)
+test("analysis is optional: unanalysed images apply, are labelled honestly, and unapplied references stay inert", () => {
+  const unanalysed = { ...base, analysis: undefined, analysisUnavailable: true }
+  assert.equal(mediaReferenceSchema.safeParse(unanalysed).success, true)
+  assert.equal(referenceCompatibility([unanalysed]).length, 0, "no analysis or manual text is required")
+  assert.match(referencePrompt([unanalysed]), /^wardrobe\/primary\/high \(unanalysed\): image not analysed; no visual details inferred/)
+  assert.equal(referenceCompatibility([{ ...base, analysis: undefined, manualGuidance: "Keep the red coat." }]).length, 0)
+  assert.match(referencePrompt([{ ...base, analysis: undefined, manualGuidance: "Keep the red coat." }]), /\(manual\): Keep the red coat\./)
   assert.equal(referenceCompatibility([{ ...base, applied: false, analysis: undefined }]).length, 0)
   assert.equal(referencePrompt([{ ...base, applied: false }]), "")
+})
+test("continuing without analysis routes each media type to where it can actually help", () => {
+  const { continueWithoutAnalysisTarget } = module.exports
+  const image = { ...base, applied: false, analysis: undefined }
+  assert.equal(continueWithoutAnalysisTarget(image, [image]), "provider", "a free starting frame is used by the unanalysed image")
+  const frame = { ...base, id: "123e4567-e89b-42d3-a456-426614174099", target: "provider", applied: true }
+  assert.equal(continueWithoutAnalysisTarget(image, [frame, image]), "director", "never displace an existing starting frame")
+  assert.equal(continueWithoutAnalysisTarget(image, [{ ...frame, applied: false }, image]), "provider", "unapplied frames do not hold the slot")
+  assert.equal(continueWithoutAnalysisTarget({ ...image, target: "provider" }, [frame, image]), "provider", "a user-chosen direct image stays direct")
+  for (const mediaType of ["video", "audio"]) assert.equal(continueWithoutAnalysisTarget({ ...image, mediaType }, [image]), "director")
+  const applied = { ...image, applied: true, target: continueWithoutAnalysisTarget(image, [image]) }
+  assert.equal(referenceCompatibility([applied]).length, 0)
+  assert.equal(referencePrompt([applied]), "", "a starting-frame image adds no text to the prompt budget")
+  const second = { ...image, id: "123e4567-e89b-42d3-a456-426614174098" }
+  const secondApplied = { ...second, applied: true, target: continueWithoutAnalysisTarget(second, [applied, second]) }
+  assert.equal(referenceCompatibility([applied, secondApplied]).length, 0, "two unanalysed images never trip the one-direct-image rule")
+})
+test("every unanalysed media type continues with a role-specific, budget-safe fallback", () => {
+  const cases = [["image", "wardrobe"], ["video", "camera movement"], ["audio", "voiceover"], ["audio", "dialogue"], ["audio", "music"], ["audio", "effects"], ["audio", "ambience"], ["audio", "timing"]]
+  const refs = cases.slice(0, 6).map(([mediaType, role], index) => ({ ...base, id: `123e4567-e89b-42d3-a456-4266141741${10 + index}`, mediaType, role, analysis: undefined, analysisUnavailable: true, priority: "secondary", ...(mediaType === "image" ? {} : { duration: 9, trimStart: 0, trimEnd: 9 }) }))
+  assert.equal(referenceCompatibility(refs).length, 0)
+  const prompt = referencePrompt(refs)
+  assert.equal(prompt.split("; ").length >= 6, true)
+  assert.doesNotMatch(prompt, /undefined/)
+  assert.equal(referencePromptFits("A courier walks through rain at dusk.", refs), true, "six unanalysed references still fit the adapter budget")
 })
 test("warns about competing primary roles", () => {
   assert.equal(referenceConflicts([base, base]).length, 1)
@@ -108,4 +137,9 @@ test("rejects prompt overflow rather than silently dropping reference or duratio
   const budget = referencePromptBudget("A slow tracking shot", [base])
   assert.equal(budget.limit, 1100)
   assert.equal(budget.overflow, 0)
+})
+test("ffmpeg-static stays external so its binary path is not rewritten to a /ROOT placeholder", () => {
+  const config = readFileSync(new URL("../next.config.ts", import.meta.url), "utf8")
+  assert.match(config, /serverExternalPackages:\s*\[[^\]]*"ffmpeg-static"/)
+  assert.match(config, /"\/api\/media\/references\/analyse": \["\.\/node_modules\/ffmpeg-static\/ffmpeg"\]/)
 })

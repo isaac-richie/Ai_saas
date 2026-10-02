@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // Bundling ffmpeg-static rewrites its __dirname to a "/ROOT/..." placeholder,
+  // so the binary path it exports does not exist at runtime. Require it from
+  // node_modules instead so it resolves to the traced binary below.
+  serverExternalPackages: ["ffmpeg-static"],
   // FFmpeg is required for video/audio reference analysis in Node functions.
   // Make the platform binary explicit in traces so deployment does not rely
   // on a system-level `ffmpeg` being preinstalled by the host.

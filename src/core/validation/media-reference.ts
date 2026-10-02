@@ -72,9 +72,20 @@ export function referenceCompatibility(refs: MediaReference[]): string[] {
   if (active.filter((ref) => ref.target === "provider").length > 1) issues.push("The current video adapter accepts only one direct image. Use Director guidance for the other references.")
   for (const ref of active) {
     if (ref.target === "provider" && ref.mediaType !== "image") issues.push(`${ref.name}: direct video/audio conditioning is not wired into this adapter. Choose Director guidance.`)
-    if (ref.target === "director" && ref.mediaType === "image" && !ref.analysis && !ref.manualGuidance?.trim()) issues.push(`${ref.name}: add manual direction or use the original image directly before applying.`)
   }
   return issues
+}
+
+/**
+ * Where a reference goes when the user continues without analysis. An
+ * unanalysed image only reaches the video as the starting frame, so it takes
+ * that slot when free; everything else stays as labelled director guidance.
+ */
+export function continueWithoutAnalysisTarget(ref: MediaReference, refs: MediaReference[]): MediaReference["target"] {
+  if (ref.mediaType !== "image") return "director"
+  if (ref.target === "provider") return "provider"
+  const startingFrameTaken = refs.some((item) => item.id !== ref.id && item.applied && item.target === "provider")
+  return startingFrameTaken ? "director" : "provider"
 }
 
 export function referenceConflicts(refs: MediaReference[]) {
@@ -90,11 +101,13 @@ export function referenceConflicts(refs: MediaReference[]) {
 export function referencePrompt(refs: MediaReference[]) {
   const rank = { primary: 0, secondary: 1, supporting: 2 }
   return refs.filter((ref) => ref.applied && ref.target === "director" && (ref.analysis || ref.manualGuidance?.trim()))
-    .concat(refs.filter((ref) => ref.applied && ref.target === "director" && !ref.analysis && !ref.manualGuidance?.trim() && ref.mediaType !== "image"))
+    .concat(refs.filter((ref) => ref.applied && ref.target === "director" && !ref.analysis && !ref.manualGuidance?.trim()))
     .sort((a, b) => rank[a.priority] - rank[b.priority])
     .map((ref) => {
       const source = ref.analysis ? "" : ref.manualGuidance?.trim() ? " (manual)" : " (unanalysed)"
-      const fallback = ref.mediaType === "video"
+      const fallback = ref.mediaType === "image"
+        ? "image not analysed; no visual details inferred; follow written shot direction"
+        : ref.mediaType === "video"
         ? "follow only written shot direction; do not infer the source video's content"
         : ref.role === "voiceover" ? "no transcript or voice identity inferred; no audio mix or lip-sync"
           : ref.role === "dialogue" ? "no dialogue inferred; use written lines only; no lip-sync"

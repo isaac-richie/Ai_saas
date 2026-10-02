@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import { ImagePlus, Film, AudioLines, LockKeyhole, ChevronDown, Loader2 } from "lucide-react"
 import { createClient } from "@/infrastructure/supabase/client"
-import { MAX_REFERENCE_BYTES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, type MediaReference } from "@/core/validation/media-reference"
+import { continueWithoutAnalysisTarget, MAX_REFERENCE_BYTES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, type MediaReference } from "@/core/validation/media-reference"
 import styles from "./MediaReferenceManager.module.css"
 
 async function getDuration(file: File, kind: "video" | "audio") {
@@ -192,6 +192,11 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
     setError("")
     onChange((current) => current.map((item) => item.id === ref.id ? result.data : item))
   }
+  /** Analysis is optional: attach the reference as-is. An unanalysed image only
+   *  reaches the video when it is the starting frame, so take that slot if free. */
+  function continueWithoutAnalysis(ref: MediaReference) {
+    apply({ ...ref, target: continueWithoutAnalysisTarget(ref, references) })
+  }
   const warnings = [...referenceCompatibility(references), ...referenceConflicts(references)]
   return <section className={styles.manager} aria-label="Media references">
     <div className={styles.header}><h3>Media references</h3><span className={styles.count}>{references.filter((ref) => ref.applied).length} applied / {references.length} added</span></div>
@@ -209,15 +214,22 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
     {references.map((ref) => {
       const analysisError = analysisErrors[ref.id]
       const hasManualGuidance = Boolean(ref.manualGuidance?.trim())
-      const canContinueWithoutAnalysis = ref.mediaType !== "image"
       const canUseImageDirectly = ref.mediaType === "image" && ref.target === "provider"
-      const canApply = Boolean(ref.analysis || hasManualGuidance || canContinueWithoutAnalysis || canUseImageDirectly)
-      const applyLabel = ref.applied ? "Applied" : ref.analysis ? "Apply Reference" : canContinueWithoutAnalysis ? "Continue without analysis" : canUseImageDirectly ? "Use image directly" : "Apply manual direction"
+      const applyLabel = ref.applied ? "Applied" : ref.analysis ? "Apply Reference" : hasManualGuidance ? "Apply manual direction" : canUseImageDirectly ? "Use image directly" : "Continue without analysis"
+      const continueHint = ref.mediaType === "image"
+        ? continueWithoutAnalysisTarget(ref, references) === "provider" ? "It will be used directly as the starting frame." : "It stays attached as a labelled reference; the starting frame is already taken."
+        : "Your written prompt leads; the file stays attached."
       return <details className={styles.card} key={ref.id} open={expandedId === ref.id}>
-      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><span>{ref.mediaType === "image" ? <ImagePlus size={16} /> : ref.mediaType === "video" ? <Film size={16} /> : <AudioLines size={16} />}</span><div className={styles.title}><strong>{ref.name}</strong><span>{ref.role} / {ref.scope}{ref.locked ? " / locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : ref.analysis ? "Ready to apply" : ref.analysisUnavailable || analysisError ? "Analysis unavailable" : "Needs analysis"}</span><ChevronDown size={12} /></summary>
+      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><span>{ref.mediaType === "image" ? <ImagePlus size={16} /> : ref.mediaType === "video" ? <Film size={16} /> : <AudioLines size={16} />}</span><div className={styles.title}><strong>{ref.name}</strong><span>{ref.role} / {ref.scope}{ref.locked ? " / locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : ref.analysis ? "Ready to apply" : ref.analysisUnavailable || analysisError ? "Analysis unavailable" : "Analysis optional"}</span><ChevronDown size={12} /></summary>
       <div className={styles.body}>
         <ReferencePreview reference={ref} />
-        {(ref.analysisUnavailable || analysisError) && <p className={styles.warning} role="status">Analysis unavailable — your file is still attached and can still be used. {analysisError || "Retry analysis or add manual direction to continue."}</p>}
+        {(ref.analysisUnavailable || analysisError) && !ref.applied && <div className={styles.warning} role="status">
+          <p>Analysis unavailable — you can keep going. {continueHint}{analysisError ? <span className={styles.detail}> ({analysisError})</span> : null}</p>
+          <div className={styles.inlineActions}>
+            <button type="button" className={styles.apply} disabled={disabled || !!busy || ref.locked} onClick={() => continueWithoutAnalysis(ref)}>Continue without analysis</button>
+            <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => void analyse(ref)}>{busy === ref.id && <Loader2 size={12} className="animate-spin" />}Retry analysis</button>
+          </div>
+        </div>}
         <div className={styles.grid}>
           <label className={styles.field}>Role<select disabled={disabled || !!busy || ref.locked} value={ref.role} onChange={(e) => update(ref.id, { role: e.target.value }, true)}>{REFERENCE_ROLES[ref.mediaType].map((role) => <option key={role}>{role}</option>)}</select></label>
           <label className={styles.field}>Use for<select disabled={disabled || !!busy || ref.locked} value={ref.target} onChange={(e) => update(ref.id, { target: e.target.value as MediaReference["target"] })}><option value="director">Director guidance</option><option value="provider" disabled={ref.mediaType !== "image"}>Direct image-to-video</option></select></label>
@@ -246,7 +258,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
         </div>}
         <div className={styles.actions}>
           <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => void analyse(ref)}>{busy === ref.id && <Loader2 size={12} className="animate-spin" />}{ref.analysis ? "Re-analyse" : ref.analysisUnavailable || analysisError ? "Retry analysis" : "Analyse"}</button>
-          <button type="button" className={styles.apply} disabled={disabled || !!busy || ref.applied || !canApply} onClick={() => apply(ref)}>{applyLabel}</button>
+          <button type="button" className={styles.apply} disabled={disabled || !!busy || ref.applied} onClick={() => ref.analysis || hasManualGuidance ? apply(ref) : continueWithoutAnalysis(ref)}>{applyLabel}</button>
           <button type="button" disabled={disabled || !!busy} aria-pressed={ref.locked} onClick={() => update(ref.id, { locked: !ref.locked })}><LockKeyhole size={12} />{ref.locked ? "Unlock" : "Lock"}</button>
           <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => pick(ref.mediaType, ref.id)}>Replace</button>
           <button type="button" className={styles.remove} disabled={disabled || !!busy || ref.locked} onClick={() => onChange((current) => current.filter((item) => item.id !== ref.id))}>Remove</button>
