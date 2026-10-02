@@ -102,7 +102,7 @@ function PreviewCard({ item }: { item: typeof PREVIEWS[0] }) {
 
         {/* Hover Elements */}
         <div className="absolute inset-0 flex items-center justify-center translate-y-4 opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
-           <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
+           <div className="h-12 w-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-gold-400/25">
              <Play className="h-5 w-5 text-white fill-white ml-0.5" />
            </div>
         </div>

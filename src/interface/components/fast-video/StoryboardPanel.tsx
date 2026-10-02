@@ -97,7 +97,7 @@ export function StoryboardPanel({
   }, [items])
 
   return (
-    <Card className="hover-lift animate-in fade-in-0 slide-in-from-bottom-2 duration-500 rounded-3xl border border-white/12 bg-obsidian-900 text-white shadow-[0_24px_55px_-40px_rgba(0,0,0,0.95)]">
+    <Card className="hover-lift animate-in fade-in-0 slide-in-from-bottom-2 duration-500 rounded-3xl border border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_55px_-40px_rgba(0,0,0,0.95)]">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -151,7 +151,7 @@ export function StoryboardPanel({
               className={`h-8 rounded-full border px-3 text-[11px] transition ${
                 groupFilter === group
                   ? "border-gold-300/40 bg-gold-500/15 text-gold-100"
-                  : "border-white/12 bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
+                  : "border-gold-400/[0.12] bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
               }`}
               disabled={isLoading}
             >
@@ -208,7 +208,7 @@ export function StoryboardPanel({
             <Button
               type="button"
               onClick={onSwitchToBuilder}
-              className="mt-4 h-9 rounded-xl border border-white/12 bg-white/5 px-3.5 text-xs text-white/85 hover:bg-white/12"
+              className="mt-4 h-9 rounded-xl border border-gold-400/[0.12] bg-white/5 px-3.5 text-xs text-white/85 hover:bg-gold-400/[0.1]"
             >
               Go to Shot Builder
             </Button>
@@ -231,7 +231,7 @@ export function StoryboardPanel({
                   onReorder(draggingId, item.id)
                   setDraggingId(null)
                 }}
-                className="hover-lift animate-in fade-in-0 slide-in-from-bottom-1 duration-300 rounded-2xl border border-white/12 bg-obsidian-800 p-3"
+                className="hover-lift animate-in fade-in-0 slide-in-from-bottom-1 duration-300 rounded-2xl border border-gold-400/[0.12] bg-obsidian-800 p-3"
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -252,7 +252,7 @@ export function StoryboardPanel({
                     <select
                       value={item.sceneGroup}
                       onChange={(event) => onUpdateGroup(item.id, event.target.value as "Scene A" | "Scene B" | "Scene C")}
-                      className="h-6 rounded-md border border-white/12 bg-white/5 px-1.5 text-[10px] text-white"
+                      className="h-6 rounded-md border border-gold-400/[0.12] bg-white/5 px-1.5 text-[10px] text-white"
                       disabled={isSyncing}
                     >
                       <option value="Scene A" className="bg-obsidian-900">Scene A</option>

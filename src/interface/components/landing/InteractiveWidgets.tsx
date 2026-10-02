@@ -33,7 +33,7 @@ function ComparisonRow({ label, oldWay, newWay }: ComparisonRowProps) {
 
 export function InteractiveComparisonCard() {
     return (
-        <article className="overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-white/[0.055] to-white/[0.015] backdrop-blur-xl">
+        <article className="overflow-hidden rounded-3xl border border-gold-400/[0.12] bg-gradient-to-b from-white/[0.055] to-white/[0.015] backdrop-blur-xl">
             <div className="grid grid-cols-[1fr_0.9fr_1.2fr] border-b border-white/10 text-xs">
                 <div className="border-r border-white/10 px-3 py-2 text-white/40" />
                 <div className="border-r border-white/10 px-3 py-2 text-white/55">Old way</div>

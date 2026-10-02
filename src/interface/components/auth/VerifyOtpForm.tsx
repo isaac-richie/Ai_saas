@@ -90,7 +90,7 @@ export function VerifyOtpForm({ email, nextPath, mode }: VerifyOtpFormProps) {
   }
 
   return (
-    <Card className="w-full rounded-3xl border border-white/12 bg-obsidian-900/95 text-white shadow-[0_30px_50px_-35px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+    <Card className="w-full rounded-3xl border border-gold-400/[0.12] bg-obsidian-900/95 text-white shadow-[0_30px_50px_-35px_rgba(0,0,0,0.95)] backdrop-blur-xl">
       <CardHeader className="space-y-4">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-white/60">
           <ShieldCheck className="h-3.5 w-3.5" />

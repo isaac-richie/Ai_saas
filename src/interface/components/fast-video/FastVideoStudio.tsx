@@ -82,6 +82,7 @@ import { StoryboardExportPanel } from "./StoryboardExportPanel"
 import { MediaReferenceManager } from "./MediaReferenceManager"
 import { AspectGlyph, PresetPicker, SegmentedPreset } from "./PresetPicker"
 import { orderPresets } from "./preset-order"
+import { MotionGlyph, StyleSwatch } from "./preset-visuals"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
 import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, type MediaReference } from "@/core/validation/media-reference"
 
@@ -456,13 +457,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   const styleChipList = useMemo(() => orderPresets(filteredStyles, {
     pinnedIds: favoriteStyleIds, recentIds: recentStyleIds, selectedId: stylePresetId,
-    expanded: showAllStyleChips, searching: Boolean(styleSearch.trim()),
-  }), [favoriteStyleIds, filteredStyles, recentStyleIds, showAllStyleChips, styleSearch, stylePresetId])
+    expanded: true, searching: Boolean(styleSearch.trim()),
+  }), [favoriteStyleIds, filteredStyles, recentStyleIds, styleSearch, stylePresetId])
 
   const motionChipList = useMemo(() => orderPresets(filteredMotions, {
     pinnedIds: favoriteMotionIds, recentIds: recentMotionIds, selectedId: motionPresetId,
-    expanded: showAllMotionChips, searching: Boolean(motionSearch.trim()),
-  }), [favoriteMotionIds, filteredMotions, recentMotionIds, showAllMotionChips, motionSearch, motionPresetId])
+    expanded: true, searching: Boolean(motionSearch.trim()),
+  }), [favoriteMotionIds, filteredMotions, recentMotionIds, motionSearch, motionPresetId])
 
 
   const handleLoadClip = (clip: SavedFastClip) => {
@@ -1609,10 +1610,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     if (referenceIssues.length) { toast.error(referenceIssues.join(" ")); return }
     if (referenceImageUrl && generationReferences.some((ref) => ref.target === "provider")) { toast.error("Remove the legacy starting image before using another direct image."); return }
     // Never block on length: the server applies this same fit; tell the user what it condensed.
+    // Shown only once the job is accepted, so a refused request never claims it was fitted.
     const promptFit = fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), generationReferences)
-    if (promptFit.notes.length) {
-      toast.message("Fitted to the video model's prompt limit", { description: promptFit.notes.join(" ") })
-    }
 
     setIsGenerating(true)
     setStatus("processing")
@@ -1667,8 +1666,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (res.error || !res.data) {
         setStatus("failed")
         setStatusMessage(res.error || "Generation failed")
-        toast.error(res.error || "Generation failed")
+        toast.error(res.error || "Generation failed", { id: "fast-video-generate" })
         return
+      }
+      if (promptFit.notes.length) {
+        toast.message("Fitted to the video model's prompt limit", { id: "fast-video-fit", description: promptFit.notes.join(" ") })
       }
 
       const appliedDuration =
@@ -2177,7 +2179,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       className={`h-9 rounded-lg border text-xs transition ${
                         campaignAssetCount === count
                           ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
-                          : "border-white/12 bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
+                          : "border-gold-400/[0.12] bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
                       }`}
                     >
                       {count}
@@ -2257,7 +2259,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                               variant="ghost"
                               size="sm"
                               onClick={handleCancelEditPrompt}
-                              className="h-6 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/60 hover:bg-white/12"
+                              className="h-6 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/60 hover:bg-gold-400/[0.1]"
                             >
                               <X className="mr-1 h-3 w-3" />
                               Cancel
@@ -2292,7 +2294,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleStartEditPrompt(item)}
-                          className="ml-auto h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
+                          className="ml-auto h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-gold-400/[0.1]"
                         >
                           <Pencil className="mr-1 h-3 w-3" />
                           Edit
@@ -2302,7 +2304,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleUseCampaignItem(item)}
-                          className="h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
+                          className="h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-gold-400/[0.1]"
                         >
                           Use
                         </Button>
@@ -2311,7 +2313,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           variant="ghost"
                           size="sm"
                           onClick={() => void handleCopyCampaignPrompt(item)}
-                          className="h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
+                          className="h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-gold-400/[0.1]"
                         >
                           <Copy className="mr-1 h-3 w-3" />
                           Copy
@@ -2322,7 +2324,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           size="sm"
                           onClick={() => void handleRetryCampaignItem(item)}
                           disabled={isGeneratingCampaign || item.status === "processing" || item.status === "queued"}
-                          className="h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
+                          className="h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-gold-400/[0.1]"
                         >
                           <RotateCcw className="mr-1 h-3 w-3" />
                           Retry
@@ -2356,7 +2358,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     type="button"
                     onClick={() => void handleAddCampaignToStoryboard()}
                     disabled={isAddingCampaignToStoryboard || campaignItems.every((item) => !item.url)}
-                    className="h-10 rounded-xl border border-white/12 bg-white/5 text-xs text-white/80 hover:bg-white/12"
+                    className="h-10 rounded-xl border border-gold-400/[0.12] bg-white/5 text-xs text-white/80 hover:bg-gold-400/[0.1]"
                   >
                     {isAddingCampaignToStoryboard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clapperboard className="mr-2 h-4 w-4" />}
                     Add All
@@ -2386,14 +2388,23 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       applyStylePreset(active ? "" : look.stylePresetId)
                       applyMotionPreset(active ? "" : look.motionPresetId)
                     }}
-                    className={`lux-sheen rounded-xl border px-3 py-2.5 text-left transition-all duration-300 ${
+                    data-active={active}
+                    className={`preset-card lux-sheen overflow-hidden rounded-xl border text-left transition-all duration-300 ${
                       active
-                        ? "border-gold-300/60 bg-[linear-gradient(180deg,rgba(217,192,138,0.16),rgba(217,192,138,0.04))] shadow-[0_12px_28px_-18px_rgba(217,192,138,0.8)]"
+                        ? "border-gold-300/60 bg-gold-400/[0.07] shadow-[0_12px_28px_-18px_rgba(217,192,138,0.8)]"
                         : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/35"
                     }`}
                   >
-                    <span className={`block text-[12px] font-medium ${active ? "text-gold-50" : "text-[#e8e2d2]"}`}>{look.label}</span>
-                    <span className="mt-0.5 block truncate text-[10px] text-[#8f9086]">{style?.name ?? "Any style"} · {motion?.name ?? "Any motion"}</span>
+                    <span className="grid h-10 grid-cols-2">
+                      <span className="overflow-hidden">{style ? <StyleSwatch id={style.id} /> : null}</span>
+                      <span className="overflow-hidden border-l border-black/40">{motion ? <MotionGlyph id={motion.id} /> : null}</span>
+                    </span>
+                    <span className="block px-3 pb-2.5 pt-2">
+                      <span className={`flex items-center gap-1.5 text-[12px] font-medium ${active ? "text-gold-50" : "text-[#e8e2d2]"}`}>
+                        {active ? <Check className="h-3 w-3 text-gold-300" strokeWidth={3} /> : null}{look.label}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[10px] text-[#8f9086]">{style?.name ?? "Any style"} · {motion?.name ?? "Any motion"}</span>
+                    </span>
                   </button>
                 )
               })}
@@ -2402,7 +2413,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               label="Style presets"
               noneLabel="No style"
               noneDescription="Your prompt alone sets the look."
-              options={styleChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description }))}
+              options={styleChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, visual: <StyleSwatch id={preset.id} /> }))}
               selectedId={stylePresetId}
               onSelect={applyStylePreset}
               search={styleSearch}
@@ -2418,7 +2429,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               label="Motion presets"
               noneLabel="No motion"
               noneDescription="Camera movement comes from your prompt."
-              options={motionChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, detail: preset.useCase }))}
+              options={motionChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, detail: preset.useCase, visual: <MotionGlyph id={preset.id} /> }))}
               selectedId={motionPresetId}
               onSelect={applyMotionPreset}
               search={motionSearch}
@@ -2965,7 +2976,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={selectedProjectId}
                       onChange={(event) => setSelectedProjectId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-white/12 bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
                     >
                       {projects.map((project) => (
                         <option key={project.id} value={project.id} className="bg-obsidian-900">
@@ -2980,7 +2991,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={selectedSceneId}
                       onChange={(event) => setSelectedSceneId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-white/12 bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
                       disabled={destinationMode === "create_scene"}
                     >
                       {(selectedProject?.scenes || []).map((scene) => (
@@ -2999,7 +3010,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       value={newSceneName}
                       onChange={(event) => setNewSceneName(event.target.value)}
                       placeholder="INT. SHOWROOM - GOLDEN HOUR"
-                      className="h-11 rounded-xl border-white/12 bg-white/5 text-white placeholder:text-white/35"
+                      className="h-11 rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                     />
                   </div>
                 ) : null}
@@ -3013,7 +3024,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={replaceShotId}
                       onChange={(event) => setReplaceShotId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-white/12 bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
                       disabled={isSceneShotsLoading || sceneShotOptions.length === 0}
                     >
                       {sceneShotOptions.length === 0 ? (

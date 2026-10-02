@@ -330,7 +330,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                                                 href={item.output_url}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className="rounded-full border border-white/20 px-2 py-0.5 text-white/80 hover:bg-gold-400/[0.08]"
+                                                                className="rounded-full border border-gold-400/25 px-2 py-0.5 text-white/80 hover:bg-gold-400/[0.08]"
                                                             >
                                                                 Open
                                                             </a>

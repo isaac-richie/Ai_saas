@@ -150,7 +150,7 @@ function Field({
         autoCapitalize="none"
         spellCheck={false}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-white/12 bg-white/[0.03] px-4 py-3 text-white placeholder:text-white/30 outline-none transition focus:border-gold-300/70"
+        className="w-full rounded-xl border border-gold-400/[0.12] bg-white/[0.03] px-4 py-3 text-white placeholder:text-white/30 outline-none transition focus:border-gold-300/70"
       />
     </label>
   );

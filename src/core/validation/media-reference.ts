@@ -143,6 +143,13 @@ function shortenAtBoundary(value: string, limit: number) {
   return `${(space > limit * 0.5 ? candidate.slice(0, space) : candidate).replace(/[,;:\-–—]+$/, "").trimEnd()}…`
 }
 
+/** Readable list of reference names for notices: short names, at most two listed. */
+function describeReferences(names: string[]) {
+  const short = names.map((name) => name.length > 24 ? `${name.slice(0, 14)}…${name.slice(-7)}` : name)
+  if (short.length <= 2) return short.join(" and ")
+  return `${short.slice(0, 2).join(", ")} and ${short.length - 2} more ${short.length - 2 === 1 ? "reference" : "references"}`
+}
+
 export type PromptFit = {
   subject: string
   references: MediaReference[]
@@ -178,18 +185,18 @@ export function fitReferencePrompt(subject: string, refs: MediaReference[]): Pro
   }
 
   // 1) Condense written directions, least important first.
-  let condensed = 0
+  const condensed = new Set<string>()
   for (const cap of [140, 80]) {
     for (const ref of leastImportantFirst()) {
       const direction = directionOf(ref)
       if (direction.length <= cap) continue
       setDirection(ref, shortenAtBoundary(direction, cap))
-      condensed += 1
+      condensed.add(ref.id)
       if (fits()) break
     }
     if (fits()) break
   }
-  if (condensed) notes.push(`Condensed ${condensed === 1 ? "1 reference direction" : `${condensed} reference directions`}.`)
+  if (condensed.size) notes.push(`Condensed ${condensed.size === 1 ? "1 reference direction" : `${condensed.size} reference directions`}.`)
 
   // 2) Leave lower-priority references out of the text prompt; primaries stay.
   const omitted: string[] = []
@@ -199,7 +206,7 @@ export function fitReferencePrompt(subject: string, refs: MediaReference[]): Pro
     fitted = fitted.map((ref) => ref.id === candidate.id ? { ...ref, applied: false } : ref)
     omitted.push(candidate.name)
   }
-  if (omitted.length) notes.push(`Left ${omitted.join(", ")} out of the text prompt; ${omitted.length === 1 ? "the file stays" : "the files stay"} attached.`)
+  if (omitted.length) notes.push(`Left ${describeReferences(omitted)} out of the text prompt; ${omitted.length === 1 ? "the file stays" : "the files stay"} attached.`)
 
   // 3) Last resort: shorten the shot prompt to whatever room remains.
   if (!fits()) {
@@ -216,7 +223,7 @@ export function fitReferencePrompt(subject: string, refs: MediaReference[]): Pro
   if (!fits()) {
     const remaining = inPrompt().map((ref) => ref.name)
     fitted = fitted.map((ref) => ref.applied && ref.target === "director" ? { ...ref, applied: false } : ref)
-    if (remaining.length) notes.push(`Left ${remaining.join(", ")} out of the text prompt to make room; the files stay attached.`)
+    if (remaining.length) notes.push(`Left ${describeReferences(remaining)} out of the text prompt to make room; the files stay attached.`)
   }
   if (!fits()) fittedSubject = shortenAtBoundary(fittedSubject, referencePromptBudget("", []).limit - referencePromptBudget("", []).used)
   return { subject: fittedSubject, references: fitted, notes }

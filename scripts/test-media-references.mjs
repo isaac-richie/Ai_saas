@@ -253,3 +253,20 @@ test("primary references outrank the prompt's tail: the prompt is shortened befo
   assert.ok(fit.references.every(ref => ref.applied), "both primaries stay in the prompt")
   assert.ok(fit.notes.some(note => /Shortened your shot prompt/.test(note)))
 })
+
+test("fit notices count each condensed reference once and keep long file names readable", () => {
+  const longName = "ElevenLabs_2026-07-31T18_03_04_new girl_gen_sp100_s50_sb75_v3.mp3"
+  const big = sentence("Detail", 8).slice(0, 240)
+  const refs = [
+    directed(1, "primary", big), directed(2, "secondary", big, { name: "chrono.png" }), directed(3, "secondary", big, { name: "arc.png" }),
+    directed(4, "supporting", big, { name: longName }), directed(5, "supporting", big, { name: "a1761a62dc1e4becbe3fdf7ef950d9b0.mp4" }), directed(6, "supporting", big),
+  ]
+  const fit = fitReferencePrompt(sentence("Courier", 40).slice(0, 1000), refs)
+  const condensedNote = fit.notes.find(note => note.startsWith("Condensed"))
+  const count = Number(condensedNote.match(/Condensed (\d+)/)[1])
+  assert.ok(count <= refs.length, `counted ${count} for ${refs.length} references`)
+  const notice = fit.notes.join(" ")
+  assert.doesNotMatch(notice, /sp100_s50_sb75/, "long file names are shortened")
+  assert.ok(notice.length < 260, "the whole notice stays toast-sized")
+  assert.match(notice, /and \d+ more references?/)
+})

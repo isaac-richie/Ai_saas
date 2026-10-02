@@ -488,7 +488,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                             className={`absolute top-2 right-2 z-10 h-7 w-7 rounded-full border text-xs backdrop-blur-md transition-all duration-300 hover:scale-110 ${
                                                 selectedIds.has(asset.id)
                                                     ? "border-gold-300 bg-gold-400/30 text-gold-50 shadow-[0_0_16px_rgba(217,192,138,0.6)]"
-                                                    : "border-white/20 bg-black/40 text-white/60 hover:bg-gold-400/[0.08]"
+                                                    : "border-gold-400/25 bg-black/40 text-white/60 hover:bg-gold-400/[0.08]"
                                             }`}
                                             title={selectedIds.has(asset.id) ? "Deselect" : "Select"}
                                         >

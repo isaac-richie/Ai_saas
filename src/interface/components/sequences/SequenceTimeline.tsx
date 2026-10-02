@@ -116,7 +116,7 @@ export function SequenceTimeline({ sequenceId, items }: SequenceTimelineProps) {
                                     <GripVertical className="h-5 w-5" />
                                 </div>
                             )}
-                            <span className="absolute left-2 top-2 rounded-full border border-white/20 bg-black/60 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/80">
+                            <span className="absolute left-2 top-2 rounded-full border border-gold-400/25 bg-black/60 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/80">
                                 {index + 1}
                             </span>
                         </div>

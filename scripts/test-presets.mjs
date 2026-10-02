@@ -60,3 +60,29 @@ test('preset pickers are accessible radio groups', () => {
   assert.match(picker, /role="radio"\s+aria-checked=\{active\}/)
   assert.match(picker, /aria-label=\{pinned \? `Unpin \$\{name\}` : `Pin \$\{name\}`\}/)
 })
+
+test('every style and motion preset has its own visual and a release-ready name', () => {
+  const presets = read('../src/core/config/fast-video-presets.ts')
+  const visuals = read('../src/interface/components/fast-video/preset-visuals.tsx')
+  const ids = [...presets.matchAll(/id: "((?:style|motion)_[a-z0-9_]+)"/g)].map(match => match[1])
+  assert.ok(ids.length >= 20)
+  for (const id of ids) assert.match(visuals, new RegExp(`\\b${id}:`), `${id} needs a swatch or motion glyph`)
+  for (const [, name] of presets.matchAll(/name: "([^"]+)"/g)) assert.doesNotMatch(name, /\bWIP\b|TODO|TBD/i, `"${name}" is not release-ready`)
+})
+
+test('the preset rail and grid both keep None first and selection obvious', () => {
+  const picker = read('../src/interface/components/fast-video/PresetPicker.tsx')
+  assert.match(picker, /preset-rail[^"]*snap-x/)
+  assert.match(picker, /name=\{noneLabel\}[\s\S]{0,140}active=\{!selectedId\}/)
+  assert.match(picker, /aria-label=\{`Clear \$\{label\.toLowerCase\(\)\}`\}/, 'a selected preset can be cleared in one click')
+  assert.match(picker, /aria-expanded=\{expanded\}/)
+})
+
+test('free plan Fast Track allowance is raised to 10 and older writers cannot lower it', () => {
+  const sql = read('../src/infrastructure/supabase/migrations/0033_fast_track_quota_10.sql')
+  assert.match(sql, /jsonb_set\(features_json, '\{max_fast_video_generations\}', '10'::jsonb/)
+  assert.match(sql, /update public\.entitlements[\s\S]*max_fast_video_generations = 10[\s\S]*plan_code = 'creator_free'/)
+  assert.match(sql, /before insert or update on public\.entitlements/)
+  assert.match(sql, /new\.max_fast_video_generations < 10 then\s+new\.max_fast_video_generations := 10/)
+  assert.doesNotMatch(sql, /max_studio_generations/, 'only Fast Track changes')
+})

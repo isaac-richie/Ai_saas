@@ -1024,3 +1024,63 @@
     animation: none !important;
   }
 }
+
+/* ── Preset visuals ─────────────────────────────────────────────── */
+.preset-swatch {
+  background:
+    radial-gradient(120% 90% at 15% 10%, var(--sw-a), transparent 60%),
+    radial-gradient(120% 120% at 90% 100%, var(--sw-c), transparent 65%),
+    linear-gradient(135deg, var(--sw-a), var(--sw-b) 55%, var(--sw-c));
+  transition: transform 1.2s var(--ease-lux), filter 0.6s ease;
+  filter: saturate(0.85);
+}
+.preset-card:hover .preset-swatch,
+.preset-card[data-active="true"] .preset-swatch {
+  transform: scale(1.08);
+  filter: saturate(1.05);
+}
+.motion-tile {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  width: 100%;
+  background:
+    linear-gradient(rgba(217, 192, 138, 0.07), rgba(217, 192, 138, 0.07)) center / 100% 1px no-repeat,
+    linear-gradient(rgba(217, 192, 138, 0.07), rgba(217, 192, 138, 0.07)) center / 1px 100% no-repeat,
+    radial-gradient(60% 90% at 50% 50%, rgba(217, 192, 138, 0.08), transparent 70%),
+    #0e100e;
+}
+.motion-glyph { display: block; width: 72px; height: 40px; overflow: visible; }
+.motion-glyph__frame rect { fill: none; stroke: #d9c08a; stroke-width: 1.4; transform-box: fill-box; transform-origin: center; }
+.motion-glyph__dot { fill: #f3e5c0; }
+.motion-glyph__frame, .motion-glyph__dot { transform-box: fill-box; transform-origin: center; }
+.motion-glyph--pan .motion-glyph__frame { animation: mgPan 3.2s ease-in-out infinite; }
+.motion-glyph--in .motion-glyph__frame { animation: mgIn 2.6s ease-in-out infinite; }
+.motion-glyph--out .motion-glyph__frame { animation: mgOut 2.6s ease-in-out infinite; }
+.motion-glyph--track .motion-glyph__frame { animation: mgTrack 1.4s linear infinite; }
+.motion-glyph--track .motion-glyph__dot { animation: mgTrack 1.4s linear infinite; }
+.motion-glyph--pushpull .motion-glyph__frame > rect:first-child { animation: mgIn 2.6s ease-in-out infinite; }
+.motion-glyph--pushpull .motion-glyph__inner { animation: mgOut 2.6s ease-in-out infinite; }
+.motion-glyph--tilt .motion-glyph__frame { animation: mgTilt 3s ease-in-out infinite; }
+.motion-glyph--shake .motion-glyph__frame { animation: mgShake 1.8s ease-in-out infinite; }
+.motion-glyph--shake-hard .motion-glyph__frame { animation: mgShakeHard 0.5s steps(4) infinite; }
+.motion-glyph--whip .motion-glyph__frame { animation: mgWhip 1.6s cubic-bezier(0.7, 0, 0.3, 1) infinite; }
+.motion-glyph--static .motion-glyph__dot { animation: mgBlink 2s ease-in-out infinite; }
+@keyframes mgPan { 0%, 100% { transform: translateX(-9px); } 50% { transform: translateX(9px); } }
+@keyframes mgIn { 0%, 100% { transform: scale(0.75); } 50% { transform: scale(1.3); } }
+@keyframes mgOut { 0%, 100% { transform: scale(1.3); } 50% { transform: scale(0.75); } }
+@keyframes mgTrack { from { transform: translateX(-20px); } to { transform: translateX(20px); } }
+@keyframes mgTilt { 0%, 100% { transform: translateY(6px); } 50% { transform: translateY(-6px); } }
+@keyframes mgShake { 0%, 100% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(1px, -1px) rotate(-1.5deg); } 75% { transform: translate(-1px, 1px) rotate(1.5deg); } }
+@keyframes mgShakeHard { 0% { transform: translate(-2px, 1px) rotate(-3deg); } 50% { transform: translate(2px, -2px) rotate(3deg); } 100% { transform: translate(-1px, 2px) rotate(-2deg); } }
+@keyframes mgWhip { 0%, 40% { transform: translateX(-22px); opacity: 0; } 55% { opacity: 1; } 70%, 100% { transform: translateX(22px); opacity: 0; } }
+@keyframes mgBlink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .motion-glyph * { animation: none !important; }
+}
+.motion-reduce-user .motion-glyph * { animation: none !important; }
+.preset-rail {
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+}
+.preset-rail::-webkit-scrollbar { display: none; }

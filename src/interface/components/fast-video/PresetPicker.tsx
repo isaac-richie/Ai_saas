@@ -1,13 +1,16 @@
 "use client"
 
-import { Check, Search, Star, X } from "lucide-react"
+import { useState } from "react"
 import type * as React from "react"
+import { Check, Search, Star, X } from "lucide-react"
+import { NoneTile } from "./preset-visuals"
 
 export type PresetOption = {
   id: string
   name: string
   description?: string
   detail?: string
+  visual?: React.ReactNode
 }
 
 type PresetPickerProps = {
@@ -28,56 +31,72 @@ type PresetPickerProps = {
 }
 
 /**
- * Card-based preset chooser shared by every Fast Track preset family.
- * "None" is always the first card so presets are never mandatory.
+ * Visual preset chooser shared by every Fast Track preset family. Collapsed it
+ * is a snap-scrolling rail; expanded it is a browsable grid. "None" is always
+ * first, so presets are never mandatory.
  */
 export function PresetPicker({
   label, noneLabel, noneDescription, options, selectedId, onSelect, search, onSearch,
   pinnedIds, recentIds, onTogglePin, expanded, onToggleExpanded, totalCount,
 }: PresetPickerProps) {
+  const [searchOpen, setSearchOpen] = useState(false)
   const selected = options.find((option) => option.id === selectedId)
-  const hiddenCount = Math.max(0, totalCount - options.length)
+  const showSearch = searchOpen || Boolean(search)
   return (
-    <section className="space-y-3 rounded-2xl border border-gold-400/[0.12] bg-white/[0.02] p-3" aria-label={label}>
-      <header className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[#8f9086]">{label}</p>
+    <section className="space-y-2.5" aria-label={label}>
+      <header className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-[#8f9086]">{label}</p>
           <p className="truncate text-[13px] text-[#f3eee2]">
             {selected ? selected.name : <span className="lux-serif text-gold-300">{noneLabel}</span>}
           </p>
         </div>
-        {(hiddenCount > 0 || expanded) && (
-          <button
-            type="button"
-            onClick={onToggleExpanded}
-            className="shrink-0 rounded-full border border-gold-400/20 px-2.5 py-1 text-[10px] text-gold-200/90 transition hover:border-gold-400/45 hover:bg-gold-400/[0.08]"
-          >
-            {expanded ? "Show less" : `All ${totalCount}`}
-          </button>
-        )}
-      </header>
-
-      <label className="relative block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-gold-400/60" aria-hidden />
-        <input
-          value={search}
-          onChange={(event) => onSearch(event.target.value)}
-          placeholder={`Search ${label.toLowerCase()}…`}
-          aria-label={`Search ${label.toLowerCase()}`}
-          className="h-9 w-full rounded-xl border pl-8 pr-8 text-[12px]"
-        />
-        {search && (
-          <button type="button" aria-label="Clear search" onClick={() => onSearch("")} className="absolute right-2 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-[#8f9086] hover:text-gold-100">
+        {selectedId ? (
+          <button type="button" onClick={() => onSelect("")} aria-label={`Clear ${label.toLowerCase()}`} title="Clear" className="grid size-7 place-items-center rounded-full border border-gold-400/15 text-[#8f9086] transition hover:border-gold-400/40 hover:text-gold-100">
             <X className="h-3 w-3" />
           </button>
-        )}
-      </label>
+        ) : null}
+        <button type="button" onClick={() => setSearchOpen((open) => !open)} aria-pressed={showSearch} aria-label={`Search ${label.toLowerCase()}`} className={`grid size-7 place-items-center rounded-full border transition ${showSearch ? "border-gold-400/45 bg-gold-400/10 text-gold-100" : "border-gold-400/15 text-[#8f9086] hover:border-gold-400/40 hover:text-gold-100"}`}>
+          <Search className="h-3 w-3" />
+        </button>
+        <button type="button" onClick={onToggleExpanded} aria-expanded={expanded} className="h-7 shrink-0 rounded-full border border-gold-400/15 px-2.5 text-[10px] text-gold-200/90 transition hover:border-gold-400/45 hover:bg-gold-400/[0.08]">
+          {expanded ? "Rail view" : `Browse ${totalCount}`}
+        </button>
+      </header>
 
-      <div role="radiogroup" aria-label={label} className="lux-stagger grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {showSearch && (
+        <label className="lux-rise relative block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-gold-400/60" aria-hidden />
+          <input
+            autoFocus
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Escape") { onSearch(""); setSearchOpen(false) } }}
+            placeholder={`Search ${label.toLowerCase()}…`}
+            aria-label={`Search ${label.toLowerCase()}`}
+            className="h-9 w-full rounded-xl border pl-8 pr-8 text-[12px]"
+          />
+          {search && (
+            <button type="button" aria-label="Clear search" onClick={() => onSearch("")} className="absolute right-2 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-[#8f9086] hover:text-gold-100">
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </label>
+      )}
+
+      <div
+        role="radiogroup"
+        aria-label={label}
+        className={expanded
+          ? "lux-stagger grid grid-cols-2 gap-2 sm:grid-cols-3"
+          : "preset-rail -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1"}
+      >
         <PresetCard
           index={0}
+          compact={!expanded}
           name={noneLabel}
           description={noneDescription}
+          visual={<NoneTile />}
           active={!selectedId}
           onSelect={() => onSelect("")}
         />
@@ -85,9 +104,11 @@ export function PresetPicker({
           <PresetCard
             key={option.id}
             index={index + 1}
+            compact={!expanded}
             name={option.name}
             description={option.description}
             detail={option.detail}
+            visual={option.visual}
             active={selectedId === option.id}
             onSelect={() => onSelect(option.id)}
             pinned={pinnedIds.includes(option.id)}
@@ -105,11 +126,13 @@ export function PresetPicker({
   )
 }
 
-function PresetCard({ index, name, description, detail, active, onSelect, pinned, recent, onTogglePin }: {
+function PresetCard({ index, compact, name, description, detail, visual, active, onSelect, pinned, recent, onTogglePin }: {
   index: number
+  compact: boolean
   name: string
   description?: string
   detail?: string
+  visual?: React.ReactNode
   active: boolean
   onSelect: () => void
   pinned?: boolean
@@ -118,29 +141,37 @@ function PresetCard({ index, name, description, detail, active, onSelect, pinned
 }) {
   return (
     <div
+      data-active={active}
       style={{ "--i": Math.min(index, 10) } as React.CSSProperties}
-      className={`lux-spotlight group relative rounded-xl border transition-all duration-300 ${
+      className={`preset-card group relative overflow-hidden rounded-xl border transition-all duration-300 ${compact ? "w-[132px] shrink-0 snap-start" : ""} ${
         active
-          ? "border-gold-300/60 bg-[linear-gradient(180deg,rgba(217,192,138,0.14),rgba(217,192,138,0.04))] shadow-[0_0_0_1px_rgba(217,192,138,0.15),0_14px_30px_-20px_rgba(217,192,138,0.7)]"
-          : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/35"
+          ? "border-gold-300/70 bg-gold-400/[0.07] shadow-[0_0_0_1px_rgba(217,192,138,0.2),0_16px_32px_-20px_rgba(217,192,138,0.8)]"
+          : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40"
       }`}
     >
       <button
         type="button"
         role="radio"
         aria-checked={active}
+        title={description}
         onClick={onSelect}
-        className="relative block w-full rounded-xl px-3 py-2.5 pr-9 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/60"
+        className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold-400/60"
       >
-        <span className="flex items-center gap-1.5">
-          <span className={`text-[12px] font-medium ${active ? "text-gold-50" : "text-[#e8e2d2]"}`}>{name}</span>
-          {recent && !active ? <span className="size-1 rounded-full bg-gold-400/70" title="Recently used" aria-label="Recently used" /> : null}
+        <span className="relative block h-14 overflow-hidden rounded-t-[11px] bg-obsidian-900">
+          {visual}
+          <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         </span>
-        {description ? <span className="mt-0.5 line-clamp-2 block text-[10.5px] leading-snug text-[#8f9086]">{description}</span> : null}
-        {detail ? <span className="mt-1 block text-[9.5px] uppercase tracking-[0.14em] text-gold-300/60">{detail}</span> : null}
+        <span className="block px-2.5 pb-2.5 pt-2">
+          <span className="flex items-center gap-1.5">
+            <span className={`truncate text-[11.5px] font-medium ${active ? "text-gold-50" : "text-[#e8e2d2]"}`}>{name}</span>
+            {recent && !active ? <span className="size-1 shrink-0 rounded-full bg-gold-400/70" title="Recently used" aria-label="Recently used" /> : null}
+          </span>
+          {description ? <span className={`mt-0.5 block text-[10px] leading-snug text-[#8f9086] ${compact ? "line-clamp-1" : "line-clamp-2"}`}>{description}</span> : null}
+          {detail && !compact ? <span className="mt-1 block text-[9px] uppercase tracking-[0.14em] text-gold-300/60">{detail}</span> : null}
+        </span>
       </button>
       {active ? (
-        <span className="pointer-events-none absolute right-2.5 top-2.5 grid size-4 place-items-center rounded-full bg-gold-300 text-[#1a160e]">
+        <span className="pointer-events-none absolute right-1.5 top-1.5 grid size-4 place-items-center rounded-full bg-gold-300 text-[#1a160e] shadow-[0_0_10px_rgba(217,192,138,0.8)]">
           <Check className="h-2.5 w-2.5" strokeWidth={3} />
         </span>
       ) : onTogglePin ? (
@@ -149,12 +180,12 @@ function PresetCard({ index, name, description, detail, active, onSelect, pinned
           onClick={onTogglePin}
           aria-pressed={pinned}
           aria-label={pinned ? `Unpin ${name}` : `Pin ${name}`}
-          title={pinned ? "Unpin" : "Pin to top"}
-          className={`absolute right-2 top-2 grid size-6 place-items-center rounded-full transition ${
-            pinned ? "text-gold-300" : "text-[#77796f] opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-gold-200"
+          title={pinned ? "Unpin" : "Pin to front"}
+          className={`absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-black/40 backdrop-blur-sm transition ${
+            pinned ? "text-gold-300" : "text-white/70 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-gold-200"
           }`}
         >
-          <Star className="h-3.5 w-3.5" fill={pinned ? "currentColor" : "none"} />
+          <Star className="h-3 w-3" fill={pinned ? "currentColor" : "none"} />
         </button>
       ) : null}
     </div>

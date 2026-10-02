@@ -43,7 +43,7 @@ export function MotionSettingsCard() {
         <Button
           type="button"
           variant="ghost"
-          className="rounded-xl border border-gold-400/[0.12] bg-white/5 text-white/80 hover:bg-white/12"
+          className="rounded-xl border border-gold-400/[0.12] bg-white/5 text-white/80 hover:bg-gold-400/[0.1]"
           onClick={toggle}
         >
           {motionReduced ? "Enable Motion" : "Reduce Motion"}

@@ -13,7 +13,7 @@ const buttonVariants = cva(
         studio:
           "rounded-xl border border-gold-300/35 bg-gradient-to-r from-gold-300 to-gold-400 text-slate-950 shadow-[0_8px_24px_-14px_rgba(217,192,138,0.95)] hover:-translate-y-px hover:from-gold-200 hover:to-gold-300 hover:shadow-[0_14px_26px_-14px_rgba(217,192,138,0.95)] active:translate-y-[1px] active:shadow-[0_8px_20px_-16px_rgba(217,192,138,0.85)]",
         studioSecondary:
-          "rounded-xl border border-white/12 bg-white/[0.07] text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:-translate-y-px hover:border-gold-300/35 hover:bg-white/[0.11] active:translate-y-[1px]",
+          "rounded-xl border border-gold-400/[0.12] bg-white/[0.07] text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:-translate-y-px hover:border-gold-300/35 hover:bg-white/[0.11] active:translate-y-[1px]",
         studioGhost:
           "rounded-full border border-transparent bg-transparent text-white/65 hover:border-white/10 hover:bg-white/[0.06] hover:text-white",
         liquidMetal:

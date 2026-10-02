@@ -87,7 +87,7 @@ export const MOTION_PRESETS: MotionPreset[] = [
   },
   {
     id: "motion_whip_transition",
-    name: "Seamless Transition WIP",
+    name: "Whip Pan Transition",
     description: "Fast whip pan designed for edit transitions.",
     motionTokens: "fast whip pan right, transition-ready motion blur, edit bridge move",
     useCase: "Fast-paced transitions",

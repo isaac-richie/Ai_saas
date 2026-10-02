@@ -47,7 +47,7 @@ export function ContinuityPanel({
           className={`h-7 rounded-full border px-2.5 text-[10px] font-medium transition ${
             enabled
               ? "border-gold-300/40 bg-gold-500/15 text-gold-100"
-              : "border-white/12 bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
+              : "border-gold-400/[0.12] bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
           }`}
         >
           {enabled ? "Enabled" : "Disabled"}
@@ -63,7 +63,7 @@ export function ContinuityPanel({
                 className={`h-8 rounded-lg border px-2.5 text-[11px] transition ${
                   locks[item.key]
                     ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
-                    : "border-white/12 bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
+                    : "border-gold-400/[0.12] bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
                 }`}
               >
                 {item.label}
@@ -73,7 +73,7 @@ export function ContinuityPanel({
                 onChange={(event) => onChangeValue(item.key, event.target.value)}
                 placeholder={`${item.label} reference (optional)`}
                 disabled={!locks[item.key]}
-                className="h-8 rounded-lg border-white/12 bg-white/5 text-[11px] text-white placeholder:text-white/35 disabled:opacity-45"
+                className="h-8 rounded-lg border-gold-400/[0.12] bg-white/5 text-[11px] text-white placeholder:text-white/35 disabled:opacity-45"
               />
             </div>
           ))}
