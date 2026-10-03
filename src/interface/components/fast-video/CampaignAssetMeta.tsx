@@ -8,13 +8,10 @@ import { applicableQualityChecks, type CampaignReferences, type QualityFlags } f
  * settings, and the review checklist. Checks are recorded by the reviewer;
  * this does not claim automated verification.
  */
-export function CampaignAssetMeta({ references, characterReferenceId, productReferenceId, model, durationSeconds, aspectRatio, completed, flags, onFlag, requireBrandSafety = false, onApproveBrandSafety }: {
+export function CampaignAssetMeta({ references, characterReferenceId, productReferenceId, completed, flags, onFlag, requireBrandSafety = false, onApproveBrandSafety }: {
   references: CampaignReferences
   characterReferenceId?: string | null
   productReferenceId?: string | null
-  model: string
-  durationSeconds: number
-  aspectRatio: string
   completed: boolean
   flags: QualityFlags
   onFlag: (checkId: string, value: "pass" | "flag") => void
@@ -32,8 +29,8 @@ export function CampaignAssetMeta({ references, characterReferenceId, productRef
   const reviewed = checks.filter((check) => flags[check.id]).length
 
   return (
-    <div className="mt-2 space-y-2">
-      <div className="flex flex-wrap items-center gap-1">
+    <div className="mt-2.5 space-y-2">
+      <div className="flex flex-wrap items-center gap-1 empty:hidden">
         {characterActive ? (
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${characterLocked ? "bg-gold-400/15 text-gold-100" : "border border-gold-400/15 text-[#a3a59a]"}`}>
             <UserRound className="h-2.5 w-2.5" />{references.character?.name}{characterLocked ? <Lock className="h-2.5 w-2.5" /> : null}
@@ -44,7 +41,6 @@ export function CampaignAssetMeta({ references, characterReferenceId, productRef
             <Package className="h-2.5 w-2.5" />{references.product?.name}{productLocked ? <Lock className="h-2.5 w-2.5" /> : " · unlocked"}
           </span>
         ) : null}
-        <span className="text-[10px] text-[#8f9086]">{model} · {durationSeconds}s · {aspectRatio}</span>
       </div>
       {completed && requireBrandSafety && !brandSafe ? (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/30 bg-amber-300/[0.06] px-2.5 py-1.5 text-[10.5px] text-amber-100">

@@ -2141,163 +2141,143 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   </Button>
                 </div>
                 {planDetailsOpen ? <p className="text-[11px] leading-relaxed text-white/50">{campaignPlan.creativeStrategy}</p> : null}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {campaignItems.map((item, index) => (
-                    <div key={item.id} className="rounded-lg border border-gold-400/[0.12] bg-black/20 p-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-white/85">
-                            {index + 1}. {item.title}
-                          </p>
-                          <p className="mt-1 text-[11px] text-gold-100/75">{item.conceptType}</p>
+                    <article key={item.id} className="group/ugc overflow-hidden rounded-2xl border border-gold-400/[0.14] bg-gradient-to-b from-white/[0.035] to-black/30 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] transition hover:border-gold-300/30">
+                      <header className="flex items-center gap-2.5 px-3 pt-3">
+                        <span className="grid size-7 shrink-0 place-items-center rounded-full border border-gold-300/35 bg-gold-400/10 font-serif text-[12px] text-gold-100">{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[12.5px] font-medium tracking-tight text-[#f1ece0]">{item.title}</p>
+                          <p className="truncate text-[10.5px] uppercase tracking-[0.12em] text-gold-200/60">{item.conceptType}</p>
                         </div>
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] ${
-                            item.status === "completed"
-                              ? "border-emerald-300/25 bg-emerald-500/10 text-emerald-100"
-                              : item.status === "failed"
-                                ? "border-rose-300/25 bg-rose-500/10 text-rose-100"
-                                : item.status === "processing" || item.status === "queued"
-                                  ? "border-gold-300/25 bg-gold-500/10 text-gold-100"
-                                  : "border-gold-400/[0.12] bg-white/5 text-white/60"
-                          }`}
-                        >
+                        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] capitalize ${
+                          item.status === "completed" ? "bg-emerald-400/10 text-emerald-100"
+                            : item.status === "failed" ? "bg-rose-400/10 text-rose-100"
+                              : item.status === "processing" || item.status === "queued" ? "bg-gold-400/10 text-gold-100"
+                                : "bg-white/5 text-white/55"
+                        }`}>
+                          <span className={`size-1.5 rounded-full ${
+                            item.status === "completed" ? "bg-emerald-300"
+                              : item.status === "failed" ? "bg-rose-300"
+                                : item.status === "processing" || item.status === "queued" ? "animate-pulse bg-gold-300"
+                                  : "bg-white/35"
+                          }`} />
                           {item.status}
                         </span>
-                      </div>
-                      {planDetailsOpen ? <>
-                        <p className="mt-2 line-clamp-2 text-[11px] text-white/55">{item.hook}</p>
-                        {item.productInteraction ? <p className="mt-1 line-clamp-2 text-[10.5px] text-gold-100/70">Interaction: {item.productInteraction}</p> : null}
-                      </> : null}
-                      <CampaignAssetMeta
-                        references={campaignReferences}
-                        characterReferenceId={item.characterReferenceId}
-                        productReferenceId={item.productReferenceId}
-                        model={getKieVideoModelFamily(item.generationModel ? (item.generationModel.includes("seedance") ? "seedance" : "kling") : campaignModel ?? item.modelFamilyId).label}
-                        durationSeconds={item.durationSeconds}
-                        aspectRatio={item.aspectRatio}
-                        completed={item.status === "completed"}
-                        flags={item.qualityFlags ?? {}}
-                        requireBrandSafety={campaignHasReferences}
-                        onApproveBrandSafety={() => {
-                          const qualityFlags = { ...(item.qualityFlags ?? {}), no_competitor_logos: "pass" as const, no_unapproved_claims: "pass" as const }
-                          updateCampaignItem(item.id, { qualityFlags })
-                          void persistCampaignItem(item, { qualityFlags })
-                        }}
-                        onFlag={(checkId, value) => {
-                          const qualityFlags = { ...(item.qualityFlags ?? {}), [checkId]: value }
-                          updateCampaignItem(item.id, { qualityFlags })
-                          void persistCampaignItem(item, { qualityFlags })
-                        }}
-                      />
-
-                      {/* Editable prompt */}
-                      {editingCampaignItemId === item.id ? (
-                        <div className="mt-2 space-y-1.5">
-                          <Textarea
-                            value={editingPromptValue}
-                            onChange={(e) => setEditingPromptValue(e.target.value)}
-                            className="min-h-[80px] rounded-lg border-gold-400/25 bg-black/40 text-[11px] leading-relaxed text-white/85 placeholder:text-white/30"
-                            placeholder="Edit your prompt..."
-                          />
-                          <div className="flex items-center gap-1.5">
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => void handleSaveEditPrompt(item)}
-                              className="h-6 rounded-md border border-emerald-400/30 bg-emerald-500/15 px-2 text-[10px] text-emerald-100 hover:bg-emerald-500/25"
-                            >
-                              <Check className="mr-1 h-3 w-3" />
-                              Save
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleCancelEditPrompt}
-                              className="h-6 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/60 hover:bg-gold-400/[0.1]"
-                            >
-                              <X className="mr-1 h-3 w-3" />
-                              Cancel
-                            </Button>
+                      </header>
+                      <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-gold-400/[0.12] bg-black/50">
+                        {item.url ? (
+                          <video src={`/api/media/proxy?url=${encodeURIComponent(item.url)}`} className="aspect-[4/5] w-full object-cover" controls playsInline preload="metadata" />
+                        ) : (
+                          <div className={`grid aspect-[4/5] w-full place-items-center text-center ${item.status === "processing" || item.status === "queued" ? "animate-pulse bg-gradient-to-br from-gold-400/[0.08] via-transparent to-gold-400/[0.05]" : ""}`}>
+                            <div className="space-y-1.5 px-6">
+                              {item.status === "processing" || item.status === "queued"
+                                ? <Loader2 className="mx-auto h-5 w-5 animate-spin text-gold-300/70" />
+                                : <Clapperboard className="mx-auto h-5 w-5 text-gold-300/40" />}
+                              <p className="text-[11px] text-white/45">{item.status === "processing" || item.status === "queued" ? "Rendering your ad…" : item.status === "failed" ? "Generation failed. Retry below." : "Ready to generate"}</p>
+                            </div>
                           </div>
+                        )}
+                        <div className="pointer-events-none absolute left-2 top-2 flex gap-1">
+                          <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/80 backdrop-blur">{getKieVideoModelFamily(item.generationModel ? (item.generationModel.includes("seedance") ? "seedance" : "kling") : campaignModel ?? item.modelFamilyId).label}</span>
+                          <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/80 backdrop-blur">{item.durationSeconds}s · {item.aspectRatio}</span>
                         </div>
-                      ) : (
-                        <p
-                          className="mt-2 line-clamp-3 cursor-pointer rounded-md border border-transparent px-1.5 py-1 text-[11px] text-white/50 transition hover:border-gold-400/[0.12] hover:bg-white/[0.03] hover:text-white/65"
-                          onClick={() => handleStartEditPrompt(item)}
-                          title="Click to edit prompt"
-                        >
-                          {item.masterPrompt}
-                        </p>
-                      )}
+                      </div>
+                      <div className="px-3 pb-3">
+                        {planDetailsOpen ? <>
+                          <p className="mt-2 line-clamp-2 text-[11px] text-white/55">{item.hook}</p>
+                          {item.productInteraction ? <p className="mt-1 line-clamp-2 text-[10.5px] text-gold-100/70">Interaction: {item.productInteraction}</p> : null}
+                        </> : null}
+                        <CampaignAssetMeta
+                          references={campaignReferences}
+                          characterReferenceId={item.characterReferenceId}
+                          productReferenceId={item.productReferenceId}
+                          completed={item.status === "completed"}
+                          flags={item.qualityFlags ?? {}}
+                          requireBrandSafety={campaignHasReferences}
+                          onApproveBrandSafety={() => {
+                            const qualityFlags = { ...(item.qualityFlags ?? {}), no_competitor_logos: "pass" as const, no_unapproved_claims: "pass" as const }
+                            updateCampaignItem(item.id, { qualityFlags })
+                            void persistCampaignItem(item, { qualityFlags })
+                          }}
+                          onFlag={(checkId, value) => {
+                            const qualityFlags = { ...(item.qualityFlags ?? {}), [checkId]: value }
+                            updateCampaignItem(item.id, { qualityFlags })
+                            void persistCampaignItem(item, { qualityFlags })
+                          }}
+                        />
 
-                      {item.error ? <p className="mt-1 text-[11px] text-rose-200">{item.error}</p> : null}
-                      {item.url ? (
-                        <div className="mt-2 overflow-hidden rounded-md border border-gold-400/[0.12] bg-black/35">
-                          <video src={`/api/media/proxy?url=${encodeURIComponent(item.url)}`} className="aspect-video w-full object-cover" muted playsInline />
-                        </div>
-                      ) : null}
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-full border border-gold-400/[0.12] bg-white/5 px-2 py-0.5 text-[10px] text-white/55">
-                          {getKieVideoModelFamily(item.modelFamilyId).label}
-                        </span>
-                        <span className="rounded-full border border-gold-400/[0.12] bg-white/5 px-2 py-0.5 text-[10px] text-white/55">
-                          {item.durationSeconds}s
-                        </span>
+                        {/* Editable prompt */}
+                        {editingCampaignItemId === item.id ? (
+                          <div className="mt-2 space-y-1.5">
+                            <Textarea
+                              value={editingPromptValue}
+                              onChange={(e) => setEditingPromptValue(e.target.value)}
+                              className="min-h-[80px] rounded-lg border-gold-400/25 bg-black/40 text-[11px] leading-relaxed text-white/85 placeholder:text-white/30"
+                              placeholder="Edit your prompt..."
+                            />
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => void handleSaveEditPrompt(item)}
+                                className="h-6 rounded-md border border-emerald-400/30 bg-emerald-500/15 px-2 text-[10px] text-emerald-100 hover:bg-emerald-500/25"
+                              >
+                                <Check className="mr-1 h-3 w-3" />
+                                Save
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleCancelEditPrompt}
+                                className="h-6 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/60 hover:bg-gold-400/[0.1]"
+                              >
+                                <X className="mr-1 h-3 w-3" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p
+                            className="mt-2 line-clamp-2 cursor-text rounded-lg border border-transparent px-2 py-1.5 text-[11px] leading-relaxed text-white/45 transition hover:border-gold-400/[0.12] hover:bg-white/[0.03] hover:text-white/65"
+                            onClick={() => handleStartEditPrompt(item)}
+                            title="Click to edit prompt"
+                          >
+                            {item.masterPrompt}
+                          </p>
+                        )}
+                        {item.error ? <p className="mt-1 text-[11px] text-rose-200">{item.error}</p> : null}
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleStartEditPrompt(item)}
-                          className="ml-auto h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-gold-400/[0.1]"
-                        >
-                          <Pencil className="mr-1 h-3 w-3" />
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleUseCampaignItem(item)}
-                          className="h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-gold-400/[0.1]"
-                        >
-                          Use
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void handleCopyCampaignPrompt(item)}
-                          className="h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-gold-400/[0.1]"
-                        >
-                          <Copy className="mr-1 h-3 w-3" />
-                          Copy
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void handleRetryCampaignItem(item)}
-                          disabled={isGeneratingCampaign || item.status === "processing" || item.status === "queued"}
-                          className="h-7 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/75 hover:bg-gold-400/[0.1]"
-                        >
-                          <RotateCcw className="mr-1 h-3 w-3" />
-                          Retry
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
                           onClick={() => handleAddCampaignItemToStoryboard(item)}
                           disabled={!item.url}
-                          className="h-7 rounded-md border border-gold-300/20 bg-gold-500/10 px-2 text-[10px] text-gold-100 hover:bg-gold-500/20"
+                          className="mt-2.5 h-9 w-full rounded-xl border border-gold-300/35 bg-gold-400/15 text-[11.5px] font-medium text-gold-50 hover:bg-gold-400/25"
                         >
-                          <Clapperboard className="mr-1 h-3 w-3" />
-                          Add
+                          <Clapperboard className="mr-1.5 h-3.5 w-3.5" />
+                          Add to storyboard
                         </Button>
+                        <div className="mt-1.5 grid grid-cols-4 gap-1">
+                          {([
+                            { label: "Use", icon: Send, onClick: () => handleUseCampaignItem(item), disabled: false },
+                            { label: "Edit", icon: Pencil, onClick: () => handleStartEditPrompt(item), disabled: false },
+                            { label: "Copy", icon: Copy, onClick: () => void handleCopyCampaignPrompt(item), disabled: false },
+                            { label: "Retry", icon: RotateCcw, onClick: () => void handleRetryCampaignItem(item), disabled: isGeneratingCampaign || item.status === "processing" || item.status === "queued" },
+                          ] as const).map(({ label, icon: Icon, onClick, disabled }) => (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={onClick}
+                              disabled={disabled}
+                              className="flex min-w-0 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] text-white/60 transition hover:bg-gold-400/[0.08] hover:text-gold-50 disabled:pointer-events-none disabled:opacity-35"
+                            >
+                              <Icon className="h-3.5 w-3.5" />
+                              {label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    </article>
                   ))}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
