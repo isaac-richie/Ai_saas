@@ -88,10 +88,13 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               </a>
             ))}
           </nav>
-          <Link href={destination} className="cinema-nav-cta">
-            {isAuthenticated ? 'Enter studio' : 'Start creating'}
-            <ArrowUpRight size={16} />
-          </Link>
+          {/* The hero and closing buttons lead into the studio; the nav only offers sign-in. */}
+          {isAuthenticated ? null : (
+            <Link href="/login" className="cinema-nav-cta">
+              Sign in
+              <ArrowRight size={16} />
+            </Link>
+          )}
           <button
             className="cinema-menu-toggle"
             onClick={() => setMenuOpen(!menuOpen)}
@@ -270,7 +273,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
             <div className="cinema-section-heading">
               <span className="cinema-eyebrow">02 / YOUR CREATIVE TOOLKIT</span>
               <h2>
-                Three models.
+                Two models.
                 <br />
                 <em>Your signature.</em>
               </h2>
