@@ -721,7 +721,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                             <div className="relative aspect-video bg-black/55">
                                                 {mediaUrl ? (
                                                     opt.status === 'completed' && isVideoUrl(mediaUrl) ? (
-                                                        <video src={getVideoProxyUrl(mediaUrl)} className="h-full w-full object-contain" controls playsInline loop muted preload="metadata" />
+                                                        <video src={getVideoProxyUrl(mediaUrl)} className="h-full w-full object-contain" controls playsInline muted preload="metadata" />
                                                     ) : (
                                                         <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full cursor-zoom-in overflow-hidden">
                                                             <img src={mediaUrl} alt={opt.prompt || ""} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
@@ -941,7 +941,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                             {compareTargets.map((target) => (
                                 <div key={target.id} className="relative flex items-center justify-center border-r border-gold-400/[0.12] bg-black p-4 last:border-r-0">
                                     {target.output_url?.endsWith(".mp4") ? (
-                                        <video src={getVideoProxyUrl(target.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay loop playsInline preload="metadata" />
+                                        <video src={getVideoProxyUrl(target.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay playsInline preload="metadata" />
                                     ) : (
                                         <img src={target.output_url || ""} alt={target.prompt || ""} className="max-h-full max-w-full object-contain" />
                                     )}
@@ -965,7 +965,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 return (
                                     <div key={id} className="relative flex items-center justify-center border-r border-gold-400/[0.12] bg-black p-4 last:border-r-0">
                                         {option.output_url?.endsWith(".mp4") ? (
-                                            <video src={getVideoProxyUrl(option.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay loop playsInline preload="metadata" />
+                                            <video src={getVideoProxyUrl(option.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay playsInline preload="metadata" />
                                         ) : (
                                             <img src={option.output_url || ""} alt={option.prompt || ""} className="max-h-full max-w-full object-contain" />
                                         )}

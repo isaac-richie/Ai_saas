@@ -2481,11 +2481,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     className="h-full w-full object-contain"
                     controls
                     autoPlay
-                    loop
                     playsInline
                     preload="auto"
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
+                    onEnded={() => setIsPlaying(false)}
                     onVolumeChange={() => {
                       const node = videoRef.current
                       if (!node) return

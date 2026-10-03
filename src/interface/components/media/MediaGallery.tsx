@@ -675,7 +675,6 @@ function AssetMedia({
                 className="h-full w-full object-contain"
                 controls
                 autoPlay
-                loop
                 playsInline
                 preload="metadata"
                 onError={() => setErrored(true)}

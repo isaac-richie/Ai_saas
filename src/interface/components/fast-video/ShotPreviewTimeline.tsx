@@ -157,7 +157,7 @@ export function ShotPreviewTimeline({
         playSequenceShot(next)
       } else {
         setSequenceMode(false)
-        node.loop = true
+        node.loop = false
         if (videoUrl) {
           node.src = `/api/media/proxy?url=${encodeURIComponent(videoUrl)}`
           node.load()
@@ -264,7 +264,7 @@ export function ShotPreviewTimeline({
                   setSequenceMode(false)
                   const node = videoRef.current
                   if (node) {
-                    node.loop = true
+                    node.loop = false
                     if (videoUrl) {
                       node.src = `/api/media/proxy?url=${encodeURIComponent(videoUrl)}`
                       node.load()
