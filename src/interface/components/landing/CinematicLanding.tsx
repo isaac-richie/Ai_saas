@@ -7,7 +7,6 @@ import { MotionConfig } from 'framer-motion';
 import {
   ArrowDown,
   ArrowUpRight,
-  ArrowRight,
   Play,
   Pause,
   Menu,
@@ -88,13 +87,10 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               </a>
             ))}
           </nav>
-          {/* The hero and closing buttons lead into the studio; the nav only offers sign-in. */}
-          {isAuthenticated ? null : (
-            <Link href="/login" className="cinema-nav-cta">
-              Sign in
-              <ArrowRight size={16} />
-            </Link>
-          )}
+          <Link href={destination} className="cinema-nav-cta">
+            Enter studio
+            <ArrowUpRight size={16} />
+          </Link>
           <button
             className="cinema-menu-toggle"
             onClick={() => setMenuOpen(!menuOpen)}
@@ -113,9 +109,9 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 <ArrowUpRight size={18} />
               </a>
             ))}
-            <Link href="/login">
-              Sign in
-              <ArrowRight size={18} />
+            <Link href={destination}>
+              Enter studio
+              <ArrowUpRight size={18} />
             </Link>
           </nav>
         )}
@@ -138,10 +134,6 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 <br className="cinema-desktop-break" /> Direct the feeling. Shape the frame. Make
                 your film.
               </p>
-              <Link href={destination} className="cinema-button cinema-primary">
-                {isAuthenticated ? 'Enter your studio' : 'Create your first frame'}
-                <ArrowUpRight size={19} />
-              </Link>
             </div>
             <div className="cinema-reel-heading">
               <span>VISIOWAVE / MOTION STUDY 001</span>
@@ -301,7 +293,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <em>worth feeling.</em>
             </h2>
             <Link href={destination} className="cinema-button cinema-primary">
-              Start your story
+              Enter studio
               <ArrowUpRight size={20} />
             </Link>
           </section>
@@ -320,7 +312,6 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               Limitless frames.
             </p>
             <nav aria-label="Footer navigation">
-              <Link href="/login">Sign in</Link>
               <a href="https://x.com/visiowavestudio" target="_blank" rel="noopener noreferrer" aria-label="Visiowave on X">
                 X <ArrowUpRight size={13} />
               </a>
