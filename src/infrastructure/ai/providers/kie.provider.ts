@@ -109,6 +109,12 @@ export class KieProvider extends BaseProvider {
             }
         }
 
+        // Seedance's multimodal reference mode is mutually exclusive with first/last
+        // frames, so references are only sent when no frame image is present.
+        if (normalizedModel.includes("seedance-2") && !request.image_prompt && request.reference_image_urls?.length) {
+            input.reference_image_urls = request.reference_image_urls.slice(0, 9);
+        }
+
         if (model.toLowerCase().includes("kling-3.0")) {
             // Kie's Kling 3.0 schema requires a resolution mode even for a
             // single-shot image-to-video request. Keep previews in standard

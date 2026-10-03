@@ -8,6 +8,7 @@ import {
   studioAdPacketSchema,
 } from '@/core/validation/studio-ad';
 import { enforcePromptCompliance } from '@/core/utils/ai/prompt-compliance';
+import { CAMPAIGN_MODE_LABELS, campaignLockDirective, campaignLockNegatives, campaignMode } from '@/core/validation/campaign-references';
 
 const MODEL = process.env.STUDIO_AD_MODEL || 'gpt-5.5';
 const REFINER_MODEL = process.env.STUDIO_AD_REFINER_MODEL || MODEL;
@@ -239,12 +240,49 @@ function buildUserPrompt(input: StudioAdRequest): string {
   );
 }
 
+/** Reference metadata for the planner. Image paths never leave the server. */
+function campaignReferenceBrief(input: StudioAdCampaignRequest) {
+  const refs = input.references
+  if (!refs || campaignMode(refs) === 'generic') return null
+  const character = refs.character ? {
+    name: refs.character.name, role: refs.character.role, ageRange: refs.character.ageRange || null,
+    appearance: refs.character.appearance || null, wardrobe: refs.character.wardrobe || null,
+    voice: refs.character.voice || null, expressionAction: refs.character.expressionAction || null,
+    locks: refs.character.locks, influence: refs.character.influence,
+  } : null
+  const product = refs.product ? {
+    name: refs.product.name, variant: refs.product.variant || null, logoText: refs.product.logoText || null,
+    colourMaterial: refs.product.colourMaterial || null, packaging: refs.product.packaging || null,
+    keyFeatures: refs.product.keyFeatures || null, forbiddenChanges: refs.product.forbiddenChanges,
+    locks: refs.product.locks, influence: refs.product.influence,
+  } : null
+  return {
+    mode: CAMPAIGN_MODE_LABELS[campaignMode(refs)],
+    character,
+    product,
+    style: refs.style,
+    relationship: refs.relationship,
+    lockDirective: campaignLockDirective(refs),
+    negativeConstraints: campaignLockNegatives(refs),
+    rules: [
+      'The same character and the same product must appear in every deliverable; the video model receives their reference images.',
+      'Describe the character and product by their locked attributes; never redesign the face, wardrobe, logo, label text, colour, shape or packaging.',
+      'Keep the product clearly visible during the chosen interaction; hands must not hide the label.',
+      'Vary hook, setting and camera across deliverables, not the identities.',
+      'Do not invent product claims (medical, financial or performance) or on-screen captions beyond the brief.',
+      'Fill productInteraction, shotSequence and callToAction for every deliverable.',
+    ],
+  }
+}
+
 function buildCampaignUserPrompt(input: StudioAdCampaignRequest): string {
+  const referenceBrief = campaignReferenceBrief(input)
   return JSON.stringify(
     {
       task: 'Create a reviewable multi-video campaign plan for batch video generation.',
       qualityBar: 'state_of_the_art_campaign_director',
-      input,
+      input: { ...input, references: undefined },
+      campaignReferences: referenceBrief,
       campaignRules: {
         assetCount: input.assetCount,
         outputType: 'video',
@@ -288,8 +326,14 @@ function buildCampaignUserPrompt(input: StudioAdCampaignRequest): string {
             motionPresetId: null,
             continuityAnchors: [],
             productionNotes: ['short note'],
+            productInteraction: 'how the character handles the product (references only)',
+            shotSequence: 'beat-by-beat sequence in one line (references only)',
+            callToAction: 'closing call to action (references only)',
           },
         ],
+        campaignGoal: 'one-line campaign goal',
+        platform: input.platform || 'TikTok / Reels',
+        negativeConstraints: referenceBrief ? referenceBrief.negativeConstraints : [],
         score: {
           campaignReadiness: '0-100 int',
           varietyStrength: '0-100 int',
@@ -506,7 +550,16 @@ function normalizeCampaignPlan(input: StudioAdCampaignRequest, plan: StudioAdCam
       motionPresetId: item.motionPresetId || null,
       continuityAnchors: uniqueTokens([...(item.continuityAnchors || []), ...(input.continuityAnchors || [])].map(cleanText)).slice(0, 12),
       productionNotes: uniqueTokens((item.productionNotes || []).map(cleanText)).slice(0, 5),
+      ...(item.productInteraction ? { productInteraction: cleanText(item.productInteraction).slice(0, 220) } : {}),
+      ...(item.shotSequence ? { shotSequence: cleanText(item.shotSequence).slice(0, 400) } : {}),
+      ...(item.callToAction ? { callToAction: cleanText(item.callToAction).slice(0, 160) } : {}),
     };
+  }).map((item) => {
+    // Locked references always carry their negatives, whatever the planner wrote.
+    const lockNegatives = campaignLockNegatives(input.references)
+    return lockNegatives.length
+      ? { ...item, negativePrompt: uniqueTokens([...tokenizeCsv(item.negativePrompt), ...lockNegatives]).join(', ').slice(0, 700) }
+      : item;
   });
 
   while (deliverables.length < targetCount) {
@@ -540,6 +593,11 @@ function normalizeCampaignPlan(input: StudioAdCampaignRequest, plan: StudioAdCam
       promptClarity: clampScore(plan.score.promptClarity),
     },
     suggestions: uniqueTokens((plan.suggestions || []).map(cleanText)).slice(0, 6),
+    ...(plan.campaignGoal ? { campaignGoal: cleanText(plan.campaignGoal).slice(0, 220) } : {}),
+    ...(plan.platform || input.platform ? { platform: cleanText(plan.platform || input.platform || '').slice(0, 60) } : {}),
+    ...(campaignLockNegatives(input.references).length || plan.negativeConstraints?.length
+      ? { negativeConstraints: uniqueTokens([...(plan.negativeConstraints || []), ...campaignLockNegatives(input.references)].map(cleanText)).slice(0, 16) }
+      : {}),
   };
 }
 

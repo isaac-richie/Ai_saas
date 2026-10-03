@@ -3,6 +3,7 @@ export interface GenerationRequest {
     negative_prompt?: string;
     image_prompt?: string; // Used for image-to-video as starting frame or reference
     end_image_prompt?: string; // Target last frame; only with image_prompt on models that support first+last frames
+    reference_image_urls?: string[]; // Seedance multimodal references; never combined with first/last frames
     reference_elements?: Array<{
         name: string;
         description: string;

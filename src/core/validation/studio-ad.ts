@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { campaignReferencesSchema } from './campaign-references';
 
 export const studioAdRequestSchema = z.object({
   userIntent: z.string().min(8).max(4000),
@@ -103,6 +104,9 @@ export const studioAdCampaignRequestSchema = z.object({
     .optional(),
   currentPromptContext: z.string().max(4000).optional(),
   continuityAnchors: z.array(z.string().max(500)).max(20).optional().default([]),
+  // Optional character / product references; generic UGC omits them.
+  references: campaignReferencesSchema.optional().nullable(),
+  platform: z.string().max(60).optional(),
 });
 
 export const studioAdCampaignDeliverableSchema = z.object({
@@ -123,6 +127,10 @@ export const studioAdCampaignDeliverableSchema = z.object({
   continuityStartState: z.string().min(3).max(300).optional(),
   continuityEndState: z.string().min(3).max(300).optional(),
   intentionalChanges: z.array(z.string().min(2).max(160)).max(4).optional(),
+  // Reference-aware plan fields (spec section 8); absent for generic UGC.
+  productInteraction: z.string().max(220).optional(),
+  shotSequence: z.string().max(400).optional(),
+  callToAction: z.string().max(160).optional(),
 });
 
 export const studioAdCampaignPlanSchema = z.object({
@@ -136,6 +144,9 @@ export const studioAdCampaignPlanSchema = z.object({
     promptClarity: z.number().int().min(0).max(100),
   }),
   suggestions: z.array(z.string().min(5).max(220)).max(6).default([]),
+  campaignGoal: z.string().max(220).optional(),
+  platform: z.string().max(60).optional(),
+  negativeConstraints: z.array(z.string().min(2).max(120)).max(16).optional(),
 });
 
 export type StudioAdCampaignRequest = z.infer<typeof studioAdCampaignRequestSchema>;

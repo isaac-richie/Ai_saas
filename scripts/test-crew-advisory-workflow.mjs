@@ -39,7 +39,7 @@ function extractFunctions(path, names, globals) {
 
 // Real validation schemas and helpers, never pass-through mocks.
 const settings = loadModule('../src/core/validation/production-settings.ts')
-const studioAd = loadModule('../src/core/validation/studio-ad.ts')
+const studioAd = loadModule('../src/core/validation/studio-ad.ts', { './campaign-references': loadModule('../src/core/validation/campaign-references.ts') })
 const crewValidation = loadModule('../src/core/validation/production-crew.ts', { './studio-ad': studioAd })
 const revisionContext = loadModule('../src/core/utils/production/revision-context.ts')
 

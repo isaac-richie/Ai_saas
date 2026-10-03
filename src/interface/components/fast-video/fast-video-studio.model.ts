@@ -1,4 +1,5 @@
 /** Types, static data and pure mappers for Fast Track. No React state lives here. */
+import { EMPTY_CAMPAIGN_REFERENCES, campaignReferencesSchema, qualityFlagsSchema, type CampaignReferences, type QualityFlags } from "@/core/validation/campaign-references"
 import { type FastVideoAspectRatio, type FastVideoVariation } from "@/core/config/fast-video-presets"
 import { type KieVideoModelFamilyId, getKieVideoModelFamily } from "@/core/config/kie-video-models"
 import { type FastVideoStoryboardRow } from "@/core/actions/fast-video-storyboard"
@@ -72,6 +73,11 @@ export type CampaignBatchItem = StudioAdCampaignDeliverable & {
   traceId: string | null
   url: string | null
   error: string | null
+  /** Campaign reference IDs and review results (migration 0035). */
+  characterReferenceId?: string | null
+  productReferenceId?: string | null
+  generationModel?: string | null
+  qualityFlags?: QualityFlags
 }
 
 export type ContinuityKey = ContinuityKeyExtracted
@@ -174,8 +180,18 @@ export function mapCampaignRowToPlan(row: StudioAdCampaignWithItems): StudioAdCa
   }
 }
 
+/** Restores a saved campaign's character / product references, if any. */
+export function campaignRowReferences(row: StudioAdCampaignWithItems): CampaignReferences {
+  const parsed = campaignReferencesSchema.safeParse((row as { campaign_references?: unknown }).campaign_references)
+  return parsed.success ? parsed.data : EMPTY_CAMPAIGN_REFERENCES
+}
+
 export function mapCampaignRowToItems(row: StudioAdCampaignWithItems): CampaignBatchItem[] {
-  return row.items.map((item) => ({
+  return row.items.map((raw) => {
+    // Columns from migration 0035 are optional on older databases.
+    const item = raw as typeof raw & { character_reference_id?: string | null; product_reference_id?: string | null; generation_model?: string | null; quality_flags?: unknown; product_interaction?: string | null; shot_sequence?: string | null; call_to_action?: string | null }
+    const flags = qualityFlagsSchema.safeParse(item.quality_flags ?? {})
+    return {
     id: item.id,
     dbId: item.id,
     title: item.title,
@@ -196,5 +212,13 @@ export function mapCampaignRowToItems(row: StudioAdCampaignWithItems): CampaignB
     traceId: item.trace_id,
     url: item.output_url,
     error: item.error,
-  }))
+    characterReferenceId: item.character_reference_id ?? null,
+    productReferenceId: item.product_reference_id ?? null,
+    generationModel: item.generation_model ?? null,
+    qualityFlags: flags.success ? flags.data : {},
+    ...(item.product_interaction ? { productInteraction: item.product_interaction } : {}),
+    ...(item.shot_sequence ? { shotSequence: item.shot_sequence } : {}),
+    ...(item.call_to_action ? { callToAction: item.call_to_action } : {}),
+  }
+  })
 }

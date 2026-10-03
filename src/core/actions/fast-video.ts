@@ -20,6 +20,7 @@ import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { REFERENCE_BUCKET, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
 import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
+import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
@@ -410,6 +411,8 @@ export async function generateFastVideo(input: unknown) {
   // Reject unsupported inputs before consuming quota or calling the provider.
   let endFramePrompt: string | undefined
   let shotFrames: ShotFrames | null = null
+  let referenceImageUrls: string[] | undefined
+  let campaignRefs: CampaignReferences | null = null
   try {
     const refs = validateOwnedReferences(payload.prompt_inputs.media_references, user.id)
     const issues = referenceCompatibility(refs)
@@ -455,6 +458,43 @@ export async function generateFastVideo(input: unknown) {
       shotFrames = frames
       debug.push("frames.validated", { start: frames.start?.id || null, end: frames.end?.id || null, family: family.id })
     }
+    // Campaign character / product references: validated, rights-checked and
+    // signed before any allowance is reserved. They are never dropped silently.
+    const campaign = payload.prompt_inputs.campaign_references
+      ? validateOwnedCampaignReferences(payload.prompt_inputs.campaign_references, user.id)
+      : null
+    if (campaign && campaignMode(campaign) !== "generic") {
+      const requestedModel = payload.settings.model?.trim() || ""
+      const family = KIE_VIDEO_MODEL_FAMILIES.find((item) => item.i2vModel === requestedModel || item.t2vModel === requestedModel)
+      const issues = campaignReferenceIssues(campaign, family?.id)
+      if (!family) issues.push("Character and product references need Kling or Seedance.")
+      if (issues.length) return { error: `${issues.join(" ")} Nothing was charged.` }
+      const signReference = async (assetPath: string) => {
+        const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(assetPath, 3600)
+        if (error || !data) throw new Error("A campaign reference image is unavailable. Re-add it, then retry; nothing was charged.")
+        return data.signedUrl
+      }
+      const ordered = [campaign.character, campaign.product].filter((ref): ref is NonNullable<typeof ref> => Boolean(ref))
+      if (family!.id === "seedance") {
+        if (payload.prompt_inputs.reference_image || hasShotFrames(frames)) {
+          return { error: "Seedance cannot combine character / product references with a starting image or Start / End Frames. Remove the frame, or switch to Kling. Nothing was charged." }
+        }
+        referenceImageUrls = []
+        for (const ref of ordered) for (const path of ref.assetPaths) referenceImageUrls.push(await signReference(path))
+      } else {
+        if (requestedModel !== family!.i2vModel) return { error: "Kling references need its image-to-video model. Retry; nothing was charged." }
+        payload.prompt_inputs.reference_elements = await Promise.all(ordered.map(async (ref, index) => ({
+          name: `reference_set_${index + 1}`,
+          description: `${ref.type}: ${ref.name}`.slice(0, 500),
+          image_urls: await Promise.all(ref.assetPaths.map(signReference)),
+        })))
+        // Kling elements require an opening image: keep a Start Frame, else open on the lead reference.
+        if (!payload.prompt_inputs.reference_image) payload.prompt_inputs.reference_image = payload.prompt_inputs.reference_elements[0].image_urls[0]
+      }
+      payload.prompt_inputs.text_subject = `${campaignLockDirective(campaign)}. ${payload.prompt_inputs.text_subject}`
+      campaignRefs = campaign
+      debug.push("campaign.references", { mode: campaignMode(campaign), family: family!.id, images: ordered.reduce((sum, ref) => sum + ref.assetPaths.length, 0) })
+    }
     // Fit instead of refusing: condense directions first, the creator's prompt last.
     // Only the provider text changes; saved takes keep every attached reference.
     const fit = fitReferencePrompt(payload.prompt_inputs.text_subject, payload.prompt_inputs.media_references ? validateOwnedReferences(payload.prompt_inputs.media_references, user.id) : refs)
@@ -479,9 +519,10 @@ export async function generateFastVideo(input: unknown) {
   })
 
   const composed = assembleFastVideoPrompt(payload, safeDuration, { scene: sceneCtx, continuity: continuityCtx })
+  const lockNegatives = campaignLockNegatives(campaignRefs)
   const compliance = enforcePromptCompliance({
     prompt: composed.prompt,
-    negativePrompt: composed.negativePrompt,
+    negativePrompt: lockNegatives.length ? `${composed.negativePrompt}, ${lockNegatives.join(", ")}` : composed.negativePrompt,
     outputType: "video",
   })
   if (compliance.blocked) {
@@ -502,6 +543,7 @@ export async function generateFastVideo(input: unknown) {
       negative_prompt: compliance.negativePrompt,
       image_prompt: payload.prompt_inputs.reference_image || undefined,
       end_image_prompt: endFramePrompt,
+      reference_image_urls: referenceImageUrls,
       reference_elements: payload.prompt_inputs.reference_elements,
       output_type: "video" as const,
       aspect_ratio: payload.prompt_inputs.aspect_ratio,
@@ -574,6 +616,8 @@ export async function generateFastVideo(input: unknown) {
         // Frame IDs are reported separately from media references.
         startFrameId: shotFrames?.start?.id || null,
         endFrameId: shotFrames?.end?.id || null,
+        characterReferenceId: campaignRefs?.character?.id || null,
+        productReferenceId: campaignRefs?.product?.id || null,
         debug: {
           traceId: debug.traceId,
           events: debug.events,

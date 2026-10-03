@@ -47,6 +47,18 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     const input = studioAdCampaignRequestSchema.parse(body);
+    // Rights are confirmed before any reference reaches the planner.
+    for (const ref of [input.references?.character, input.references?.product]) {
+      if (!ref) continue;
+      if (ref.assetPaths.some((path) => !path.startsWith(`${user.id}/`))) {
+        return NextResponse.json({ ok: false, error: 'A campaign reference belongs to another account.' }, { status: 403 });
+      }
+      if (!ref.rightsConfirmed) {
+        return NextResponse.json({ ok: false, error: ref.type === 'character'
+          ? `Confirm you have permission to use ${ref.name}'s likeness before planning.`
+          : `Confirm you own or are authorised to use the ${ref.name} images and branding before planning.` }, { status: 400 });
+      }
+    }
     const resolvedKey = resolveStudioAdOpenAIKey();
 
     if (!resolvedKey.apiKey) {

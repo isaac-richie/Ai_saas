@@ -366,7 +366,7 @@ test('complete editorial repair notes survive crew and saved-plan validation wit
     })
     return result.exports
   }
-  const studio = loadSchema('../src/core/validation/studio-ad.ts')
+  const studio = loadSchema('../src/core/validation/studio-ad.ts', { './campaign-references': loadSchema('../src/core/validation/campaign-references.ts') })
   const crew = loadSchema('../src/core/validation/production-crew.ts', { './studio-ad': studio })
   const note = 'Cut at right toe-off into shot 2, matching the advancing left knee and preserving forward motion. Assumption: runner and styling are proposed specifications, not approved assets. If supported and available, use an approved identity reference and shot 1 selected end frame as reference controls; these do not guarantee continuity.'
   assert.ok(note.length > 220)
@@ -585,7 +585,7 @@ test('provider structured output contract requires exact shot count for 2 throug
     vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports, require: name => name === 'zod' ? { z } : dependencies[name] })
     return module.exports
   }
-  const studio = load('../src/core/validation/studio-ad.ts')
+  const studio = load('../src/core/validation/studio-ad.ts', { './campaign-references': load('../src/core/validation/campaign-references.ts') })
   const schemas = load('../src/core/validation/production-crew.ts', { './studio-ad': studio })
   const fn = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'createCrewRunner').getText(tree)
   let request
@@ -645,7 +645,7 @@ function loadCrewWithRealSchemas() {
     vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports, require: name => requireMap[name] })
     return loaded.exports
   }
-  const studioAd = load('../src/core/validation/studio-ad.ts', { zod: { z: settingsZod } })
+  const studioAd = load('../src/core/validation/studio-ad.ts', { zod: { z: settingsZod }, './campaign-references': load('../src/core/validation/campaign-references.ts', { zod: { z: settingsZod } }) })
   const schemas = load('../src/core/validation/production-crew.ts', { zod: { z: settingsZod }, './studio-ad': studioAd })
   const fnNames = new Set(['fallbackLedger', 'clip', 'compileContinuityPrompt', 'compileContinuityNegativePrompt', 'normalizeCrewShots', 'compileProductionPlan'])
   const body = tree.statements.filter(node => ts.isFunctionDeclaration(node) && fnNames.has(node.name?.text)).map(node => node.getText(tree)).join('\n')

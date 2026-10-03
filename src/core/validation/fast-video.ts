@@ -2,6 +2,7 @@ import { z } from "zod"
 import { FAST_VIDEO_ASPECT_RATIOS, FAST_VIDEO_VARIATIONS } from "@/core/config/fast-video-presets"
 import { mediaReferencesSchema } from "./media-reference"
 import { shotFramesSchema } from "./shot-frames"
+import { campaignReferencesSchema } from "./campaign-references"
 
 export const fastVideoRequestSchema = z.object({
   request_type: z.literal("fast_video"),
@@ -22,6 +23,8 @@ export const fastVideoRequestSchema = z.object({
     media_references: mediaReferencesSchema.optional(),
     // Temporal Start / End Frame controls, separate from media references.
     shot_frames: shotFramesSchema.optional().nullable(),
+    // Optional Campaign Director character / product references.
+    campaign_references: campaignReferencesSchema.optional().nullable(),
     variation_setting: z.enum(FAST_VIDEO_VARIATIONS),
   }),
   settings: z.object({
