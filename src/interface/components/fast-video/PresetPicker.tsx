@@ -143,7 +143,7 @@ function PresetCard({ index, compact, name, description, detail, visual, active,
     <div
       data-active={active}
       style={{ "--i": Math.min(index, 10) } as React.CSSProperties}
-      className={`preset-card group relative overflow-hidden rounded-xl border transition-all duration-300 ${compact ? "w-[132px] shrink-0 snap-start" : ""} ${
+      className={`preset-card group relative overflow-hidden rounded-xl border transition-all duration-300 ${compact ? "w-[148px] shrink-0 snap-start" : ""} ${
         active
           ? "border-gold-300/70 bg-gold-400/[0.07] shadow-[0_0_0_1px_rgba(217,192,138,0.2),0_16px_32px_-20px_rgba(217,192,138,0.8)]"
           : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40"
@@ -157,7 +157,7 @@ function PresetCard({ index, compact, name, description, detail, visual, active,
         onClick={onSelect}
         className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold-400/60"
       >
-        <span className="relative block h-14 overflow-hidden rounded-t-[11px] bg-obsidian-900">
+        <span className={`relative block overflow-hidden rounded-t-[11px] bg-obsidian-900 ${compact ? "h-[72px]" : "aspect-video"}`}>
           {visual}
           <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         </span>

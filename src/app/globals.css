@@ -1084,3 +1084,12 @@
   mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
 }
 .preset-rail::-webkit-scrollbar { display: none; }
+.preset-image {
+  transition: transform 1.4s var(--ease-lux), filter 0.6s ease;
+  filter: saturate(0.92) contrast(1.02);
+}
+.preset-card:hover .preset-image,
+.preset-card[data-active="true"] .preset-image {
+  transform: scale(1.08);
+  filter: saturate(1.08) contrast(1.05);
+}
