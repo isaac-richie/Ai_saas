@@ -8,7 +8,7 @@ import { applicableQualityChecks, type CampaignReferences, type QualityFlags } f
  * settings, and the review checklist. Checks are recorded by the reviewer;
  * this does not claim automated verification.
  */
-export function CampaignAssetMeta({ references, characterReferenceId, productReferenceId, model, durationSeconds, aspectRatio, completed, flags, onFlag }: {
+export function CampaignAssetMeta({ references, characterReferenceId, productReferenceId, model, durationSeconds, aspectRatio, completed, flags, onFlag, requireBrandSafety = false, onApproveBrandSafety }: {
   references: CampaignReferences
   characterReferenceId?: string | null
   productReferenceId?: string | null
@@ -18,7 +18,11 @@ export function CampaignAssetMeta({ references, characterReferenceId, productRef
   completed: boolean
   flags: QualityFlags
   onFlag: (checkId: string, value: "pass" | "flag") => void
+  /** Reference campaigns: Use / Add wait for a human brand-safety review. */
+  requireBrandSafety?: boolean
+  onApproveBrandSafety?: () => void
 }) {
+  const brandSafe = flags.no_competitor_logos === "pass" && flags.no_unapproved_claims === "pass"
   const characterActive = Boolean(references.character && (!characterReferenceId || characterReferenceId === references.character.id))
   const productActive = Boolean(references.product && (!productReferenceId || productReferenceId === references.product.id))
   const characterLocked = characterActive && Boolean(references.character?.locks.identity)
@@ -42,6 +46,12 @@ export function CampaignAssetMeta({ references, characterReferenceId, productRef
         ) : null}
         <span className="text-[10px] text-[#8f9086]">{model} · {durationSeconds}s · {aspectRatio}</span>
       </div>
+      {completed && requireBrandSafety && !brandSafe ? (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/30 bg-amber-300/[0.06] px-2.5 py-1.5 text-[10.5px] text-amber-100">
+          <span className="flex items-center gap-1.5"><ShieldAlert className="h-3 w-3" />Check for competitor logos and unapproved claims before using this ad.</span>
+          {onApproveBrandSafety ? <button type="button" onClick={onApproveBrandSafety} className="rounded-full bg-gold-300 px-2.5 py-0.5 text-[10.5px] font-semibold text-[#1a160e] transition hover:bg-gold-200">Looks brand-safe</button> : null}
+        </div>
+      ) : null}
       {completed ? (
         <details className="rounded-lg border border-gold-400/[0.12] bg-black/20 px-2.5 py-1.5">
           <summary className="flex cursor-pointer select-none items-center justify-between text-[10.5px] text-[#c8c3b3]">

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/infrastructure/supabase/server"
 import { Database } from "@/core/types/db"
 import { validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
+import { campaignProvenanceSchema, type CampaignProvenance } from "@/core/validation/campaign-references"
 
 export type FastVideoStoryboardRow = Database["public"]["Tables"]["fast_video_storyboard_items"]["Row"]
 
@@ -12,6 +13,7 @@ type ReplaceFastVideoStoryboardInput = {
   sceneId: string
   items: Array<{
     mediaReferences?: MediaReference[]
+    campaignProvenance?: CampaignProvenance | null
     id: string
     sourceClipId: string | null
     url: string
@@ -60,7 +62,9 @@ function sanitizeStoryboardItem(
     status: ITEM_STATUSES.has(item.status) ? item.status : "ready",
     created_at: item.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  }
+    // Migration 0036; omitted entirely when absent so older databases still accept the row.
+    ...(item.campaignProvenance ? { campaign_provenance: campaignProvenanceSchema.parse(item.campaignProvenance) } : {}),
+  } as Database["public"]["Tables"]["fast_video_storyboard_items"]["Insert"]
 }
 
 export async function getFastVideoStoryboard(sceneId: string) {
@@ -119,9 +123,14 @@ export async function replaceFastVideoStoryboard(input: ReplaceFastVideoStoryboa
       return sanitized
     })
 
-    const { error: upsertError } = await supabase
+    let { error: upsertError } = await supabase
       .from("fast_video_storyboard_items")
       .upsert(payload, { onConflict: "id" })
+    // Before migration 0036 there is no provenance column: keep the storyboard, drop only the metadata.
+    if (upsertError && /campaign_provenance/.test(upsertError.message)) {
+      const withoutProvenance = payload.map((row) => { const copy = { ...row } as Record<string, unknown>; delete copy.campaign_provenance; return copy as typeof row })
+      ;({ error: upsertError } = await supabase.from("fast_video_storyboard_items").upsert(withoutProvenance, { onConflict: "id" }))
+    }
 
     if (upsertError) return { error: upsertError.message.includes("media_references") ? "Apply migration 0027 to save storyboard reference snapshots." : upsertError.message }
 

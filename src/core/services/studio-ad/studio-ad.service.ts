@@ -283,6 +283,10 @@ function buildCampaignUserPrompt(input: StudioAdCampaignRequest): string {
       qualityBar: 'state_of_the_art_campaign_director',
       input: { ...input, references: undefined },
       campaignReferences: referenceBrief,
+      // Only an explicit style narrows the formats; "mixed" keeps generic variety.
+      campaignStyle: input.campaignStyle && input.campaignStyle !== 'mixed'
+        ? `Every deliverable uses the ${input.campaignStyle.replace(/_/g, ' ')} format.`
+        : null,
       campaignRules: {
         assetCount: input.assetCount,
         outputType: 'video',

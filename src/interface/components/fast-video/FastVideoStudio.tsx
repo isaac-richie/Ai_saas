@@ -77,9 +77,9 @@ import { TemplateGallery } from "./StudioPickers"
 import { ShotLookSection } from "./ShotLookSection"
 import { PROMPT_TEMPLATES, type PromptTemplate } from "@/core/config/fast-video-templates"
 import { ShotFramesPanel } from "./ShotFramesPanel"
-import { CampaignReferencesPanel } from "./CampaignReferencesPanel"
+import { CampaignReferencesPanel, type CampaignOutputSettings } from "./CampaignReferencesPanel"
 import { CampaignAssetMeta } from "./CampaignAssetMeta"
-import { EMPTY_CAMPAIGN_REFERENCES, campaignMode, campaignReferenceIssues, campaignReferencesSchema, type CampaignReferences } from "@/core/validation/campaign-references"
+import { EMPTY_CAMPAIGN_REFERENCES, brandSafetyReviewed, type CampaignProvenance, campaignMode, campaignPlanSummary, campaignReferenceIssues, campaignReferencesSchema, recommendedCampaignModel, type CampaignReferences } from "@/core/validation/campaign-references"
 import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
 import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, type MediaReference } from "@/core/validation/media-reference"
@@ -182,6 +182,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   // Optional Character / Product references; empty keeps generic UGC unchanged.
   const [campaignReferences, setCampaignReferences] = useState<CampaignReferences>(EMPTY_CAMPAIGN_REFERENCES)
   const [isCampaignReferenceBusy, setIsCampaignReferenceBusy] = useState(false)
+  // Campaign output defaults from the spec: vertical 9:16, 5 s, automatic model.
+  const [campaignSettings, setCampaignSettings] = useState<CampaignOutputSettings>({ aspectRatio: "9:16", durationSeconds: 5, modelOverride: null })
+  const [planDetailsOpen, setPlanDetailsOpen] = useState(false)
+  const campaignHasReferences = campaignMode(campaignReferences) !== "generic"
+  // Reference campaigns default to Seedance (works with one image); generic keeps the planner's choice.
+  const campaignModel = recommendedCampaignModel(campaignReferences, campaignSettings.modelOverride)
   const [campaignAssetCount, setCampaignAssetCount] = useState(3)
   const [campaignPlan, setCampaignPlan] = useState<StudioAdCampaignPlan | null>(null)
   const [campaignItems, setCampaignItems] = useState<CampaignBatchItem[]>([])
@@ -369,6 +375,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         referenceLibrary?: MediaReference[]
         shotFrames?: unknown
         campaignReferences?: unknown
+        campaignSettings?: CampaignOutputSettings
         status?: "idle" | "processing" | "completed" | "failed"
         statusMessage?: string
         taskId?: string | null
@@ -412,6 +419,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         const result = mediaReferenceSchema.safeParse(ref)
         return result.success ? [result.data] : []
       }))
+      if (parsed.campaignSettings && typeof parsed.campaignSettings.aspectRatio === "string" && typeof parsed.campaignSettings.durationSeconds === "number") {
+        setCampaignSettings({ aspectRatio: parsed.campaignSettings.aspectRatio, durationSeconds: parsed.campaignSettings.durationSeconds, modelOverride: parsed.campaignSettings.modelOverride === "kling" || parsed.campaignSettings.modelOverride === "seedance" ? parsed.campaignSettings.modelOverride : null })
+      }
       if (parsed.campaignReferences) {
         const refs = campaignReferencesSchema.safeParse(parsed.campaignReferences)
         if (refs.success) setCampaignReferences(refs.data)
@@ -494,6 +504,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           referenceLibrary,
           shotFrames,
           campaignReferences,
+          campaignSettings,
           status,
           statusMessage,
           taskId,
@@ -534,6 +545,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     motionPresetId,
     shotFrames,
     campaignReferences,
+    campaignSettings,
     modelFamilyId,
     aspectRatio,
     variation,
@@ -722,6 +734,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     prompt: string
     durationSeconds: number
     modelFamilyId?: KieVideoModelFamilyId
+    campaignProvenance?: CampaignProvenance | null
   }) => {
     if (!input.url) {
       toast.error("No media available to add")
@@ -741,6 +754,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       createdAt: new Date().toISOString(),
       mediaReferences: savedClips.find((clip) => clip.id === input.sourceClipId || clip.url === input.url)?.mediaReferences
         || (input.url === videoUrl ? generationSnapshotRef.current?.mediaReferences : undefined),
+      ...(input.campaignProvenance ? { campaignProvenance: input.campaignProvenance } : {}),
     }
     const nextItems = normalizeStoryboardItems([item, ...storyboardItems])
     setStoryboardItems(nextItems)
@@ -952,7 +966,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     const activeReferences = campaignMode(campaignReferences) === "generic" ? null : campaignReferences
     if (activeReferences) {
       // Explain rights or model limits before planning, never drop a reference silently.
-      const issues = campaignReferenceIssues(activeReferences, modelFamilyId)
+      const issues = campaignReferenceIssues(activeReferences, campaignModel)
       if (issues.length) { toast.error(issues.join(" "), { id: "campaign-references" }); return }
     }
     if (isCampaignReferenceBusy) { toast.message("Wait for the reference images to finish uploading."); return }
@@ -968,12 +982,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           outputType: "video",
           providerTarget: "kie",
           campaignType: "ugc",
-          aspectRatio,
-          durationSeconds,
+          aspectRatio: campaignSettings.aspectRatio,
+          durationSeconds: campaignSettings.durationSeconds,
+          campaignStyle: campaignReferences.style,
           context: {
             projectId: selectedProjectId || undefined,
             sceneId: selectedSceneId || undefined,
-            generationModelHint: activeModelFamily.label,
+            generationModelHint: campaignModel ? getKieVideoModelFamily(campaignModel).label : activeModelFamily.label,
           },
           currentPromptContext: subject.trim() || undefined,
           continuityAnchors: continuityClause ? [continuityClause] : [],
@@ -1009,8 +1024,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         brief,
         plan: payload.data,
         assetCount: campaignAssetCount,
-        aspectRatio,
-        durationSeconds,
+        aspectRatio: campaignSettings.aspectRatio,
+        durationSeconds: campaignSettings.durationSeconds,
         engineModel: payload.engine?.model || null,
         references: activeReferences,
       })
@@ -1032,7 +1047,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
   }
 
+  const provenanceFor = (item: CampaignBatchItem): CampaignProvenance | null => campaignHasReferences ? {
+    campaignId, campaignItemId: item.dbId || item.id,
+    characterReferenceId: campaignReferences.character?.id ?? null, productReferenceId: campaignReferences.product?.id ?? null,
+    style: campaignReferences.style, relationship: campaignReferences.character && campaignReferences.product ? campaignReferences.relationship : null,
+    model: item.generationModel ?? campaignModel,
+  } : null
+
+  /** Reference campaigns need a human brand-safety review before an asset is used. */
+  const needsBrandSafetyReview = (item: CampaignBatchItem) => campaignHasReferences && item.status === "completed" && !brandSafetyReviewed(item.qualityFlags)
+
   const handleUseCampaignItem = (item: CampaignBatchItem) => {
+    if (needsBrandSafetyReview(item)) {
+      toast.error("Review brand safety first", { id: "brand-safety", description: "Confirm there are no competitor logos or unapproved claims in this asset, then use it." })
+      return
+    }
     const safeAspectRatio = FAST_VIDEO_ASPECT_RATIOS.includes(item.aspectRatio as FastVideoAspectRatio)
       ? (item.aspectRatio as FastVideoAspectRatio)
       : aspectRatio
@@ -1048,7 +1077,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const startCampaignItemGeneration = async (item: CampaignBatchItem) => {
     const activeReferences = campaignMode(campaignReferences) === "generic" ? null : campaignReferences
     // With references, every asset uses the chosen model so the identity lock is consistent.
-    const itemFamily = activeReferences ? modelFamilyId : item.modelFamilyId
+    const itemFamily = (activeReferences ? recommendedCampaignModel(activeReferences, campaignSettings.modelOverride) : campaignSettings.modelOverride) ?? item.modelFamilyId
     if (activeReferences) {
       const issues = campaignReferenceIssues(activeReferences, itemFamily)
       if (issues.length) {
@@ -1175,7 +1204,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       // Copy the prompt plus the structured campaign settings (spec: Copy).
       const settings = {
         title: item.title, hook: item.hook, durationSeconds: item.durationSeconds, aspectRatio: item.aspectRatio,
-        model: refs ? modelFamilyId : item.modelFamilyId, negativePrompt: item.negativePrompt,
+        model: campaignModel ?? item.modelFamilyId, negativePrompt: item.negativePrompt,
         ...(item.productInteraction ? { productInteraction: item.productInteraction } : {}),
         ...(item.callToAction ? { callToAction: item.callToAction } : {}),
         ...(refs ? {
@@ -1219,6 +1248,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       toast.error("Generate this campaign video first")
       return
     }
+    if (needsBrandSafetyReview(item)) {
+      toast.error("Review brand safety first", { id: "brand-safety", description: "Confirm there are no competitor logos or unapproved claims in this asset, then add it." })
+      return
+    }
     addToStoryboard({
       sourceClipId: item.taskId || item.id,
       url: item.url,
@@ -1226,15 +1259,19 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       prompt: item.masterPrompt,
       durationSeconds: item.durationSeconds,
       modelFamilyId: item.modelFamilyId,
+      campaignProvenance: provenanceFor(item),
     })
   }
 
   const handleAddCampaignToStoryboard = async () => {
-    const completed = campaignItems.filter((item) => item.status === "completed" && item.url)
+    const finished = campaignItems.filter((item) => item.status === "completed" && item.url)
+    const completed = finished.filter((item) => !needsBrandSafetyReview(item))
+    const awaitingReview = finished.length - completed.length
     if (completed.length === 0) {
-      toast.error("No completed campaign videos to add")
+      toast.error(awaitingReview ? "Review brand safety first" : "No completed campaign videos to add", awaitingReview ? { description: `${awaitingReview} asset${awaitingReview === 1 ? " needs" : "s need"} a brand-safety review before adding.` } : undefined)
       return
     }
+    if (awaitingReview) toast.message(`${awaitingReview} asset${awaitingReview === 1 ? " was" : "s were"} skipped until reviewed for brand safety.`)
 
     setIsAddingCampaignToStoryboard(true)
     try {
@@ -1246,6 +1283,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         prompt: item.masterPrompt,
         durationSeconds: item.durationSeconds,
         modelFamilyId: item.modelFamilyId,
+        campaignProvenance: provenanceFor(item),
         sceneGroup: (["Scene A", "Scene B", "Scene C"] as const)[index % 3],
         note: item.hook,
         status: "ready",
@@ -2042,8 +2080,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             <CampaignReferencesPanel
               value={campaignReferences}
               onChange={setCampaignReferences}
-              modelFamilyId={modelFamilyId}
-              modelLabel={activeModelFamily.label}
+              settings={campaignSettings}
+              onSettingsChange={setCampaignSettings}
+              effectiveModel={campaignModel ?? modelFamilyId}
+              modelLabel={campaignModel ? getKieVideoModelFamily(campaignModel).label : "Auto"}
+              prompt={campaignBrief || subject}
               onBusy={setIsCampaignReferenceBusy}
               disabled={isPlanningCampaign || isGeneratingCampaign}
             />
@@ -2080,15 +2121,26 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             </div>
             {campaignPlan ? (
               <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-medium text-white/85">{campaignPlan.campaignSummary}</p>
-                    <p className="mt-1 text-[11px] text-white/45">{campaignPlan.creativeStrategy}</p>
-                  </div>
-                  <span className="rounded-full border border-gold-400/[0.12] bg-white/5 px-2 py-0.5 text-[10px] text-white/65">
-                    {campaignPlan.score.campaignReadiness}%
-                  </span>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
+                  {campaignPlanSummary({
+                    title: campaignPlan.campaignSummary.split(/(?<=[.!?])\s/)[0].slice(0, 90),
+                    refs: campaignReferences,
+                    assetCount: campaignItems.length,
+                    aspectRatio: campaignItems[0]?.aspectRatio ?? campaignSettings.aspectRatio,
+                  }).map((row) => (
+                    <div key={row.label} className="contents">
+                      <dt className="text-[#8f9086]">{row.label}</dt>
+                      <dd className={`min-w-0 truncate ${row.value === "Attached" ? "text-gold-100" : "text-[#e8e2d2]"}`}>{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setPlanDetailsOpen((open) => !open)} aria-expanded={planDetailsOpen} className="rounded-lg border border-gold-400/20 px-3 py-1.5 text-[11.5px] text-[#d4cfc0] transition hover:border-gold-400/45 hover:text-gold-50">{planDetailsOpen ? "Hide plan details" : "Edit plan"}</button>
+                  <Button type="button" variant="studio" size="sm" className="h-8 text-[11.5px]" onClick={handleGenerateCampaign} disabled={isGeneratingCampaign || campaignItems.every((item) => item.status === "completed")}>
+                    {isGeneratingCampaign ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}Generate campaign
+                  </Button>
                 </div>
+                {planDetailsOpen ? <p className="text-[11px] leading-relaxed text-white/50">{campaignPlan.creativeStrategy}</p> : null}
                 <div className="space-y-2">
                   {campaignItems.map((item, index) => (
                     <div key={item.id} className="rounded-lg border border-gold-400/[0.12] bg-black/20 p-2">
@@ -2113,17 +2165,25 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           {item.status}
                         </span>
                       </div>
-                      <p className="mt-2 line-clamp-2 text-[11px] text-white/55">{item.hook}</p>
-                      {item.productInteraction ? <p className="mt-1 line-clamp-2 text-[10.5px] text-gold-100/70">Interaction: {item.productInteraction}</p> : null}
+                      {planDetailsOpen ? <>
+                        <p className="mt-2 line-clamp-2 text-[11px] text-white/55">{item.hook}</p>
+                        {item.productInteraction ? <p className="mt-1 line-clamp-2 text-[10.5px] text-gold-100/70">Interaction: {item.productInteraction}</p> : null}
+                      </> : null}
                       <CampaignAssetMeta
                         references={campaignReferences}
                         characterReferenceId={item.characterReferenceId}
                         productReferenceId={item.productReferenceId}
-                        model={getKieVideoModelFamily(item.generationModel ? (item.generationModel.includes("seedance") ? "seedance" : "kling") : campaignMode(campaignReferences) === "generic" ? item.modelFamilyId : modelFamilyId).label}
+                        model={getKieVideoModelFamily(item.generationModel ? (item.generationModel.includes("seedance") ? "seedance" : "kling") : campaignModel ?? item.modelFamilyId).label}
                         durationSeconds={item.durationSeconds}
                         aspectRatio={item.aspectRatio}
                         completed={item.status === "completed"}
                         flags={item.qualityFlags ?? {}}
+                        requireBrandSafety={campaignHasReferences}
+                        onApproveBrandSafety={() => {
+                          const qualityFlags = { ...(item.qualityFlags ?? {}), no_competitor_logos: "pass" as const, no_unapproved_claims: "pass" as const }
+                          updateCampaignItem(item.id, { qualityFlags })
+                          void persistCampaignItem(item, { qualityFlags })
+                        }}
                         onFlag={(checkId, value) => {
                           const qualityFlags = { ...(item.qualityFlags ?? {}), [checkId]: value }
                           updateCampaignItem(item.id, { qualityFlags })

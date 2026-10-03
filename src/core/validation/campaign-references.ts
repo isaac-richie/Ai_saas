@@ -10,6 +10,8 @@ export const CHARACTER_ROLES = ["presenter", "customer", "influencer", "actor", 
 export const REFERENCE_INFLUENCES = ["low", "medium", "high"] as const
 
 export const CAMPAIGN_STYLES = [
+  // Default: lets the planner vary formats across assets, as generic UGC always has.
+  { id: "mixed", label: "Mixed formats" },
   { id: "ugc_testimonial", label: "UGC testimonial" },
   { id: "unboxing_reaction", label: "Unboxing & reaction" },
   { id: "demo_tutorial", label: "Demo / how-to" },
@@ -59,7 +61,7 @@ export const characterReferenceSchema = z.object({
   voice: note(200),
   expressionAction: note(200),
   locks: characterLocksSchema.default({ identity: true, wardrobe: true, expression: false, movement: false }),
-  influence: z.enum(REFERENCE_INFLUENCES).default("high"),
+  influence: z.enum(REFERENCE_INFLUENCES).default("medium"),
   rightsConfirmed: z.boolean(),
 })
 export type CharacterReference = z.infer<typeof characterReferenceSchema>
@@ -76,7 +78,7 @@ export const productReferenceSchema = z.object({
   keyFeatures: note(300),
   forbiddenChanges: z.array(z.string().trim().min(2).max(80)).max(8).default(DEFAULT_PRODUCT_FORBIDDEN_CHANGES),
   locks: productLocksSchema.default({ shape: true, logoText: true, colour: true, packaging: true }),
-  influence: z.enum(REFERENCE_INFLUENCES).default("high"),
+  influence: z.enum(REFERENCE_INFLUENCES).default("medium"),
   rightsConfirmed: z.boolean(),
 })
 export type ProductReference = z.infer<typeof productReferenceSchema>
@@ -84,12 +86,12 @@ export type ProductReference = z.infer<typeof productReferenceSchema>
 export const campaignReferencesSchema = z.object({
   character: characterReferenceSchema.nullish(),
   product: productReferenceSchema.nullish(),
-  style: z.enum(CAMPAIGN_STYLES.map((style) => style.id) as [string, ...string[]]).default("ugc_testimonial"),
+  style: z.enum(CAMPAIGN_STYLES.map((style) => style.id) as [string, ...string[]]).default("mixed"),
   relationship: z.enum(PRODUCT_RELATIONSHIPS.map((item) => item.id) as [string, ...string[]]).default("testimonial_visible"),
 })
 export type CampaignReferences = z.infer<typeof campaignReferencesSchema>
 
-export const EMPTY_CAMPAIGN_REFERENCES: CampaignReferences = { character: null, product: null, style: "ugc_testimonial", relationship: "testimonial_visible" }
+export const EMPTY_CAMPAIGN_REFERENCES: CampaignReferences = { character: null, product: null, style: "mixed", relationship: "testimonial_visible" }
 
 export type CampaignMode = "generic" | "character" | "product" | "character_product"
 
@@ -109,6 +111,13 @@ export const CAMPAIGN_MODE_LABELS: Record<CampaignMode, string> = {
 
 export type ReferenceCapability = {
   supported: boolean
+  characterReference: boolean
+  productReference: boolean
+  imageReference: boolean
+  videoReference: boolean
+  maxReferences: number
+  maxImageMb: number
+  durations: string
   /** How references are delivered, in plain words for the UI. */
   method: string
   maxImagesPerReference: number
@@ -123,18 +132,21 @@ export type ReferenceCapability = {
  */
 export const REFERENCE_CAPABILITIES: Record<string, ReferenceCapability> = {
   seedance: {
-    supported: true, method: "reference images", minImagesPerReference: 1, maxImagesPerReference: 4,
+    supported: true, characterReference: true, productReference: true, imageReference: true, videoReference: true,
+    maxReferences: 9, maxImageMb: 30, durations: "4 to 15 s", method: "reference images", minImagesPerReference: 1, maxImagesPerReference: 4,
     note: "Seedance receives every character and product image as a reference.",
   },
   kling: {
-    supported: true, method: "identity elements", minImagesPerReference: 2, maxImagesPerReference: 4,
+    supported: true, characterReference: true, productReference: true, imageReference: true, videoReference: false,
+    maxReferences: 3, maxImageMb: 10, durations: "5 or 10 s", method: "identity elements", minImagesPerReference: 2, maxImagesPerReference: 4,
     note: "Kling needs 2 to 4 JPG or PNG images per reference and opens each video on the lead reference's first image.",
   },
 }
 
 export function referenceCapability(familyId: string | null | undefined): ReferenceCapability {
   return REFERENCE_CAPABILITIES[familyId ?? ""] ?? {
-    supported: false, method: "none", minImagesPerReference: 0, maxImagesPerReference: 0,
+    supported: false, characterReference: false, productReference: false, imageReference: false, videoReference: false,
+    maxReferences: 0, maxImageMb: 0, durations: "", method: "none", minImagesPerReference: 0, maxImagesPerReference: 0,
     note: "This model cannot take character or product references.",
   }
 }
@@ -184,7 +196,7 @@ export function campaignLockDirective(refs: CampaignReferences | null | undefine
     parts.push(`Product ${product.name}${product.variant ? ` (${product.variant})` : ""} from the product reference images${locked.length ? `, locked: ${locked.join(", ")}` : ""}`)
   }
   if (character && product) parts.push(`Interaction: ${RELATIONSHIP_LABEL[refs!.relationship] ?? refs!.relationship}`)
-  parts.push(`Style: ${STYLE_LABEL[refs!.style] ?? refs!.style}`)
+  if (refs!.style !== "mixed") parts.push(`Style: ${STYLE_LABEL[refs!.style] ?? refs!.style}`)
   return parts.join(". ")
 }
 
@@ -241,3 +253,65 @@ export type QualityFlags = z.infer<typeof qualityFlagsSchema>
 export function applicableQualityChecks(refs: CampaignReferences | null | undefined) {
   return QUALITY_CHECKS.filter((check) => check.needs === null || (check.needs === "character" ? Boolean(refs?.character) : Boolean(refs?.product)))
 }
+
+/**
+ * The model a reference campaign uses unless the creator overrides it in
+ * Advanced. Seedance is the confirmed default because it works with a single
+ * image per reference; Kling needs 2 to 4 JPG/PNG images each.
+ */
+export function recommendedCampaignModel(refs: CampaignReferences | null | undefined, override?: string | null): string | null {
+  if (override === "kling" || override === "seedance") return override
+  return campaignMode(refs) === "generic" ? null : "seedance"
+}
+
+const RELATIONSHIP_HINTS: [RegExp, string][] = [
+  [/\b(apply|applies|applying|rub|spray|spritz|put on)\b/i, "applying"],
+  [/\b(unbox|unboxing|react|reaction|reacting|surprised)\b/i, "reacting"],
+  [/\b(demo|demonstrat|show(s|ing)? how|tutorial|how to)\b/i, "demonstrating"],
+  [/\b(hold|holds|holding)\b/i, "holding"],
+  [/\b(use|uses|using|try|tries|trying)\b/i, "using"],
+  [/\b(hero shot|product only|packshot|product shot)\b/i, "product_hero"],
+  [/\b(introduc|then (a )?close.?up)\b/i, "intro_then_closeup"],
+]
+
+/** Sensible default interaction from the campaign prompt; testimonial otherwise. */
+export function inferRelationship(prompt: string): string {
+  for (const [pattern, relationship] of RELATIONSHIP_HINTS) if (pattern.test(prompt)) return relationship
+  return "testimonial_visible"
+}
+
+/** Plain-language plan summary for the default view (no technical metadata). */
+export function campaignPlanSummary(input: {
+  title: string
+  refs: CampaignReferences | null | undefined
+  assetCount: number
+  aspectRatio: string
+}) {
+  const orientation = input.aspectRatio === "9:16" ? "vertical" : input.aspectRatio === "1:1" ? "square" : input.aspectRatio === "16:9" ? "widescreen" : input.aspectRatio
+  return [
+    { label: "Campaign", value: input.title },
+    { label: "Character", value: input.refs?.character ? "Attached" : "None" },
+    { label: "Product", value: input.refs?.product ? "Attached" : "None" },
+    { label: "Assets", value: `${input.assetCount} ${orientation} video${input.assetCount === 1 ? "" : "s"}` },
+    { label: "Style", value: CAMPAIGN_STYLES.find((style) => style.id === input.refs?.style)?.label ?? "Mixed formats" },
+  ]
+}
+
+/** Brand-safety checks that need a human review before an asset is used. */
+export const BRAND_SAFETY_CHECKS = ["no_competitor_logos", "no_unapproved_claims"] as const
+
+export function brandSafetyReviewed(flags: QualityFlags | null | undefined) {
+  return BRAND_SAFETY_CHECKS.every((id) => flags?.[id] === "pass")
+}
+
+/** Campaign metadata carried by assets that leave the campaign (Use / Add / Add All). */
+export const campaignProvenanceSchema = z.object({
+  campaignId: z.string().max(80).nullish(),
+  campaignItemId: z.string().max(80).nullish(),
+  characterReferenceId: z.string().uuid().nullish(),
+  productReferenceId: z.string().uuid().nullish(),
+  style: z.string().max(40).nullish(),
+  relationship: z.string().max(40).nullish(),
+  model: z.string().max(120).nullish(),
+})
+export type CampaignProvenance = z.infer<typeof campaignProvenanceSchema>

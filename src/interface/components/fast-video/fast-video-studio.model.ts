@@ -1,5 +1,5 @@
 /** Types, static data and pure mappers for Fast Track. No React state lives here. */
-import { EMPTY_CAMPAIGN_REFERENCES, campaignReferencesSchema, qualityFlagsSchema, type CampaignReferences, type QualityFlags } from "@/core/validation/campaign-references"
+import { EMPTY_CAMPAIGN_REFERENCES, campaignProvenanceSchema, campaignReferencesSchema, qualityFlagsSchema, type CampaignReferences, type QualityFlags } from "@/core/validation/campaign-references"
 import { type FastVideoAspectRatio, type FastVideoVariation } from "@/core/config/fast-video-presets"
 import { type KieVideoModelFamilyId, getKieVideoModelFamily } from "@/core/config/kie-video-models"
 import { type FastVideoStoryboardRow } from "@/core/actions/fast-video-storyboard"
@@ -128,6 +128,7 @@ export function normalizeStoryboardItems(items: StoryboardItem[]): StoryboardIte
 export function mapRemoteStoryboardItem(row: FastVideoStoryboardRow): StoryboardItem {
   return {
     mediaReferences: mediaReferencesSchema.safeParse(row.media_references).data || [],
+    campaignProvenance: campaignProvenanceSchema.safeParse((row as { campaign_provenance?: unknown }).campaign_provenance).data ?? null,
     id: row.id,
     sourceClipId: row.source_clip_id,
     url: row.url,

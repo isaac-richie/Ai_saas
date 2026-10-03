@@ -107,6 +107,7 @@ export const studioAdCampaignRequestSchema = z.object({
   // Optional character / product references; generic UGC omits them.
   references: campaignReferencesSchema.optional().nullable(),
   platform: z.string().max(60).optional(),
+  campaignStyle: z.string().max(40).optional(),
 });
 
 export const studioAdCampaignDeliverableSchema = z.object({

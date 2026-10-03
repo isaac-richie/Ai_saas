@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/infrastructure/supabase/server"
 import { Database, Json } from "@/core/types/db"
 import type { StudioAdCampaignPlan } from "@/core/validation/studio-ad"
-import { campaignMode, qualityFlagsSchema, validateOwnedCampaignReferences, type CampaignReferences, type QualityFlags } from "@/core/validation/campaign-references"
+import { frameCapability } from "@/core/validation/shot-frames"
+import { campaignMode, characterReferenceSchema, referenceCapability, productReferenceSchema, qualityFlagsSchema, validateOwnedCampaignReferences, type CampaignReferences, type CharacterReference, type ProductReference, type QualityFlags } from "@/core/validation/campaign-references"
 
 const MISSING_COLUMN = ["42703", "PGRST204", "42P01", "PGRST205"]
 
@@ -246,10 +247,20 @@ export async function updateStudioAdCampaignItem(input: UpdateCampaignItemInput)
     if (!flags.success) return { error: "Invalid review flags." }
     extras.quality_flags = flags.data
   }
-  if (input.generationModel) extras.generation_model = input.generationModel.slice(0, 120)
+  if (input.generationModel) {
+    // Provider, model and capability snapshot stored on the asset (migration 0036).
+    const family = input.generationModel.includes("seedance") ? "seedance" : "kling"
+    extras.generation_model = input.generationModel.slice(0, 120)
+    extras.provider = "kie"
+    extras.capability_snapshot = { model: input.generationModel, family, frames: frameCapability(family), references: referenceCapability(family) }
+  }
   if (Object.keys(extras).length) {
     const { error: extrasError } = await session.supabase.from("studio_ad_campaign_items").update(extras as never).eq("id", input.itemId)
-    if (extrasError && MISSING_COLUMN.includes(extrasError.code)) return { error: "Review flags need migration 0035. Your campaign is unchanged." }
+    if (extrasError && MISSING_COLUMN.includes(extrasError.code)) {
+      // Capability snapshots (0036) are best-effort; review flags (0035) are user-facing.
+      if (!input.qualityFlags) return { data: true }
+      return { error: "Review flags need migration 0035. Your campaign is unchanged." }
+    }
     if (extrasError) return { error: extrasError.message }
   }
 
@@ -302,4 +313,38 @@ async function refreshCampaignStatus(campaignId: string) {
     .from("studio_ad_campaigns")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", campaignId)
+}
+
+/**
+ * Characters and products the user already attached to earlier campaigns, so
+ * they can be reused without re-uploading. Newest first, one entry per reference.
+ */
+export async function listSavedCampaignReferences(): Promise<{ data?: { characters: CharacterReference[]; products: ProductReference[] }; error?: string }> {
+  const session = await ensureSession()
+  if (session.error || !session.user) return { error: session.error || "Unauthorized" }
+  const db = session.supabase as unknown as { from: (table: string) => { select: (columns: string) => { eq: (k: string, v: string) => { order: (k: string, o: { ascending: boolean }) => { limit: (n: number) => Promise<{ data: Record<string, unknown>[] | null; error: { code: string } | null }> } } } } }
+  const { data, error } = await db.from("campaign_references")
+    .select("reference_id,reference_type,name,asset_paths,description,locks,influence_strength,rights_confirmed,created_at")
+    .eq("user_id", session.user.id)
+    .order("created_at", { ascending: false })
+    .limit(60)
+  if (error) return { data: { characters: [], products: [] } }
+  const seen = new Set<string>()
+  const characters: CharacterReference[] = []
+  const products: ProductReference[] = []
+  for (const row of data || []) {
+    const id = String(row.reference_id)
+    if (seen.has(id)) continue
+    seen.add(id)
+    const description = (row.description && typeof row.description === "object" ? row.description : {}) as Record<string, unknown>
+    const base = { id, name: row.name, assetPaths: row.asset_paths, locks: row.locks, influence: row.influence_strength, rightsConfirmed: row.rights_confirmed === true }
+    if (row.reference_type === "character") {
+      const parsed = characterReferenceSchema.safeParse({ ...base, type: "character", ...description })
+      if (parsed.success && parsed.data.assetPaths.every((path) => path.startsWith(`${session.user!.id}/`))) characters.push(parsed.data)
+    } else {
+      const parsed = productReferenceSchema.safeParse({ ...base, type: "product", ...description })
+      if (parsed.success && parsed.data.assetPaths.every((path) => path.startsWith(`${session.user!.id}/`))) products.push(parsed.data)
+    }
+  }
+  return { data: { characters: characters.slice(0, 12), products: products.slice(0, 12) } }
 }

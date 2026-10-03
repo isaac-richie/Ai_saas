@@ -227,3 +227,80 @@ test("Campaign References sits between the brief and the asset controls; actions
   assert.match(panelSource, /I have permission to use this person's likeness/)
   assert.match(panelSource, /I own or am authorised to use these product images and branding/)
 })
+
+// ─── Revised spec: simple by default ──────────────────────────────────────
+const { recommendedCampaignModel, inferRelationship, campaignPlanSummary, brandSafetyReviewed } = refsModule.exports
+
+test("new-user path: one character photo and one product photo work on the default settings", () => {
+  const firstTimer = refs({ character: character({ assetPaths: [path(1)] }), product: product({ assetPaths: [path(3)] }) })
+  const model = recommendedCampaignModel(firstTimer, null)
+  assert.equal(model, "seedance", "the confirmed default works with a single image per reference")
+  assert.equal(campaignReferenceIssues(firstTimer, model).length, 0, "no model, lock or provider decisions required")
+})
+
+test("defaults: locks on, medium influence, mixed formats, generic model unchanged", () => {
+  const parsed = campaignReferencesSchema.parse({ character: { ...character(), locks: undefined, influence: undefined } })
+  assert.equal(parsed.character.locks.identity, true)
+  assert.equal(parsed.character.influence, "medium")
+  assert.equal(parsed.style, "mixed", "generic campaigns keep varied UGC formats")
+  assert.equal(recommendedCampaignModel(refs(), null), null, "generic UGC keeps the planner's per-asset model")
+  assert.equal(recommendedCampaignModel(refs({ character: character() }), "kling"), "kling", "Advanced override is honoured")
+  assert.doesNotMatch(campaignLockDirective(refs({ product: product() })), /Style:/, "mixed adds no style constraint")
+})
+
+test("the interaction defaults sensibly from the prompt", () => {
+  assert.equal(inferRelationship("She applies the serum before bed"), "applying")
+  assert.equal(inferRelationship("Unboxing reaction to the new headphones"), "reacting")
+  assert.equal(inferRelationship("Show how the blender works"), "demonstrating")
+  assert.equal(inferRelationship("A creator holding the perfume bottle"), "holding")
+  assert.equal(inferRelationship("Three natural creator videos recommending this perfume"), "testimonial_visible")
+})
+
+test("the plan summary is plain language, not metadata", () => {
+  const rows = campaignPlanSummary({ title: "Perfume creator testimonial", refs: refs({ character: character(), product: product(), style: "ugc_testimonial" }), assetCount: 3, aspectRatio: "9:16" })
+  assert.equal(JSON.stringify(rows.map((row) => `${row.label}: ${row.value}`)), JSON.stringify(["Campaign: Perfume creator testimonial", "Character: Attached", "Product: Attached", "Assets: 3 vertical videos", "Style: UGC testimonial"]))
+})
+
+test("brand safety needs both checks passed by a person", () => {
+  assert.equal(brandSafetyReviewed({}), false)
+  assert.equal(brandSafetyReviewed({ no_competitor_logos: "pass" }), false)
+  assert.equal(brandSafetyReviewed({ no_competitor_logos: "pass", no_unapproved_claims: "flag" }), false)
+  assert.equal(brandSafetyReviewed({ no_competitor_logos: "pass", no_unapproved_claims: "pass" }), true)
+})
+
+test("technical controls live only under Advanced; the default view stays simple", () => {
+  const panel = read("../src/interface/components/fast-video/CampaignReferencesPanel.tsx")
+  const visible = panel.slice(panel.indexOf("export function CampaignReferencesPanel"), panel.indexOf("function ReferenceSlot"))
+  for (const advancedOnly of ["<LockChip", "<Influence", "Campaign model", "Campaign aspect ratio", "Character role"]) {
+    assert.ok(!visible.includes(advancedOnly), `${advancedOnly} must not be on the default screen`)
+    assert.ok(panel.slice(panel.indexOf("function AdvancedSettings")).includes(advancedOnly.replace("<", "<").trim()) || panel.includes(advancedOnly), advancedOnly)
+  }
+  assert.match(panel, /<details className="group rounded-xl[^"]*">\s*<summary[^>]*>\s*Advanced/, "Advanced is collapsed by default")
+  assert.match(visible, /aria-label="Campaign style"/, "Style stays visible")
+  assert.match(panel, /label="Gallery"/)
+  assert.match(panel, /label="Saved"/)
+  assert.match(panel, /not pixel-perfect/, "honest about consistency")
+})
+
+test("Use, Add and Add All wait for brand safety and carry campaign provenance", () => {
+  const studio = read("../src/interface/components/fast-video/FastVideoStudio.tsx")
+  assert.equal((studio.match(/if \(needsBrandSafetyReview\(item\)\)/g) || []).length, 2, "Use and Add are gated")
+  assert.match(studio, /finished\.filter\(\(item\) => !needsBrandSafetyReview\(item\)\)/, "Add All skips unreviewed assets")
+  assert.equal((studio.match(/campaignProvenance: provenanceFor\(item\)/g) || []).length, 2, "Add and Add All keep provenance")
+  assert.match(studio, /campaignHasReferences && item\.status === "completed" && !brandSafetyReviewed/, "generic campaigns are not gated")
+  const storyboard = read("../src/core/actions/fast-video-storyboard.ts")
+  assert.match(storyboard, /campaign_provenance: campaignProvenanceSchema\.parse/)
+  assert.match(storyboard, /\/campaign_provenance\/\.test\(upsertError\.message\)/, "storyboards still save before migration 0036")
+  const actions = read("../src/core/actions/studio-ad-campaigns.ts")
+  assert.match(actions, /extras\.capability_snapshot = \{ model: input\.generationModel, family, frames: frameCapability\(family\), references: referenceCapability\(family\) \}/)
+  const sql = read("../src/infrastructure/supabase/migrations/0036_campaign_provenance.sql")
+  assert.match(sql, /add column if not exists campaign_provenance jsonb/)
+  assert.match(sql, /add column if not exists capability_snapshot jsonb/)
+})
+
+test("campaigns default to 9:16 and 5 seconds and use the campaign model", () => {
+  const studio = read("../src/interface/components/fast-video/FastVideoStudio.tsx")
+  assert.match(studio, /useState<CampaignOutputSettings>\(\{ aspectRatio: "9:16", durationSeconds: 5, modelOverride: null \}\)/)
+  assert.match(studio, /aspectRatio: campaignSettings\.aspectRatio,\s+durationSeconds: campaignSettings\.durationSeconds,\s+campaignStyle: campaignReferences\.style/)
+  assert.match(studio, /recommendedCampaignModel\(activeReferences, campaignSettings\.modelOverride\)/)
+})

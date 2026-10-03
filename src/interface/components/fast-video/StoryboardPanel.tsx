@@ -6,10 +6,13 @@ import { Textarea } from "@/interface/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components/ui/card"
 import { Clapperboard, ArrowRight, Pencil } from "lucide-react"
 import type { KieVideoModelFamilyId } from "@/core/config/kie-video-models"
+import type { CampaignProvenance } from "@/core/validation/campaign-references"
 import type { MediaReference } from "@/core/validation/media-reference"
 
 export type StoryboardItem = {
   mediaReferences?: MediaReference[]
+  /** Campaign metadata when the item came from a Campaign Director asset. */
+  campaignProvenance?: CampaignProvenance | null
   id: string
   sourceClipId: string | null
   url: string

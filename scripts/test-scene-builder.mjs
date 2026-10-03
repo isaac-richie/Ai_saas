@@ -42,3 +42,10 @@ test("Scene Builder uses the look builder instead of eleven dropdowns, writing t
   assert.match(builder, /form\.setValue\(category, key, \{ shouldDirty: true \}\)/)
   assert.match(builder, /QUICK_STYLE_PREVIEWS/)
 })
+
+test("source files contain no invisible control characters", async () => {
+  const { execSync } = await import("node:child_process")
+  const files = execSync("git ls-files src scripts", { cwd: new URL("..", import.meta.url) }).toString().trim().split("\n").filter((file) => /\.(ts|tsx|mjs|css|sql)$/.test(file))
+  const offenders = files.filter((file) => /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(readFileSync(new URL(`../${file}`, import.meta.url), "utf8")))
+  assert.deepEqual(offenders, [], `control characters (e.g. a backspace in place of \\b) found in: ${offenders.join(", ")}`)
+})
