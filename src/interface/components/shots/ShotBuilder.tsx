@@ -29,7 +29,9 @@ import { createShot } from "@/core/actions/shots"
 import { attachElementToShot } from "@/core/actions/elements"
 import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
-import { Loader2, Plus, Sparkles, Layers, Copy } from "lucide-react"
+import { LookBuilder } from "@/interface/components/shots/LookBuilder"
+import { Loader2, Plus, Sparkles, Layers, Copy, Check } from "lucide-react"
+import { StyleSwatch } from "@/interface/components/fast-video/preset-visuals"
 import { toast } from "sonner"
 
 const numericOptionalZod = z.coerce.number().optional()
@@ -125,6 +127,12 @@ const CATEGORY_LABELS: Record<PromptCategory, string> = {
     depthOfField: "Depth of Field",
     aspectRatio: "Aspect Ratio",
     genreMood: "Genre / Mood",
+}
+
+/** Example stills for quick styles that match a Fast Track style image. */
+const QUICK_STYLE_PREVIEWS: Record<string, string> = {
+    noir: "style_classic_noir_bw",
+    "golden-hour": "style_golden_hour_film",
 }
 
 const QUICK_STYLE_PRESETS: Array<{
@@ -259,10 +267,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             variations: 1,
         },
     })
-
-    const handleOptionalSelect = (value: string, onChange: (value: string | undefined) => void) => {
-        onChange(value === "__none__" ? undefined : value)
-    }
 
     const applyQuickStyle = (styleId: string) => {
         if (!presetOptions) {
@@ -547,58 +551,53 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                         Clear All
                                     </Button>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {QUICK_STYLE_PRESETS.map((style) => (
-                                        <button
-                                            key={style.id}
-                                            type="button"
-                                            aria-pressed={appliedQuickStyle === style.id}
-                                            onClick={() => { applyQuickStyle(style.id); setAppliedQuickStyle(style.id) }}
-                                            className={`studio-chip rounded-full px-3 py-1.5 text-xs ${appliedQuickStyle === style.id ? "!border-gold-300/60 !bg-gold-400/15 !text-gold-50 shadow-[0_0_18px_-6px_rgba(217,192,138,0.7)]" : ""}`}
-                                        >
-                                            {appliedQuickStyle === style.id ? "✓ " : ""}{style.name}
-                                        </button>
-                                    ))}
+                                <div className="grid grid-cols-3 gap-2">
+                                    {QUICK_STYLE_PRESETS.map((style) => {
+                                        const applied = appliedQuickStyle === style.id
+                                        const preview = QUICK_STYLE_PREVIEWS[style.id]
+                                        return (
+                                            <button
+                                                key={style.id}
+                                                type="button"
+                                                aria-pressed={applied}
+                                                data-active={applied}
+                                                onClick={() => { applyQuickStyle(style.id); setAppliedQuickStyle(style.id) }}
+                                                className={`preset-card group relative overflow-hidden rounded-xl border text-left transition-all duration-300 ${applied ? "border-gold-300/70 shadow-[0_14px_30px_-20px_rgba(217,192,138,0.8)]" : "border-gold-400/[0.14] hover:-translate-y-0.5 hover:border-gold-400/45"}`}
+                                            >
+                                                <span className="relative block h-16 overflow-hidden bg-obsidian-900">
+                                                    {preview ? <StyleSwatch id={preview} name={style.name} /> : (
+                                                        // Anamorphic is a lens format: show the 2.39:1 letterbox, not a borrowed look.
+                                                        <span aria-hidden className="absolute inset-0 grid place-items-center bg-[radial-gradient(80%_120%_at_50%_50%,rgba(217,192,138,0.18),transparent_70%),#0e100e]">
+                                                            <span className="h-[42%] w-[86%] rounded-[2px] border border-gold-300/60 bg-[linear-gradient(90deg,transparent,rgba(160,200,255,0.35),transparent)]" />
+                                                        </span>
+                                                    )}
+                                                    <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 to-transparent" />
+                                                    <span className="absolute bottom-1.5 left-2 flex items-center gap-1 text-[12px] font-medium text-white">{applied ? <Check className="h-3 w-3 text-gold-300" strokeWidth={3} /> : null}{style.name}</span>
+                                                </span>
+                                            </button>
+                                        )
+                                    })}
                                 </div>
                             </div>
 
                             {loadingOptions ? (
-                                <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-xs text-white/50">
-                                    Loading presets...
+                                <div className="grid gap-2" aria-label="Loading presets">
+                                    <div className="lux-shimmer h-10 rounded-xl" />
+                                    <div className="lux-shimmer h-24 rounded-xl" />
                                 </div>
                             ) : (
-                                <div className="grid gap-3">
-                                    {PROMPT_ORDER.map((category) => (
-                                        <FormField
-                                            key={category}
-                                            control={form.control}
-                                            name={category}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-white/80">{CATEGORY_LABELS[category]}</FormLabel>
-                                                    <Select
-                                                        onValueChange={(value) => handleOptionalSelect(value, field.onChange)}
-                                                        value={field.value ?? undefined}
-                                                    >
-                                                        <FormControl>
-                                                            <SelectTrigger className="studio-field rounded-xl text-white">
-                                                                <SelectValue placeholder={`Select ${CATEGORY_LABELS[category].toLowerCase()}`} />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent className="border-gold-400/[0.12] bg-obsidian-800 text-white">
-                                                            <SelectItem value="__none__">Clear</SelectItem>
-                                                            {(presetOptions?.[category] || []).map((option) => (
-                                                                <SelectItem key={option.id} value={option.key}>
-                                                                    {option.label}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </FormItem>
-                                            )}
-                                        />
-                                    ))}
-                                </div>
+                                <LookBuilder
+                                    options={presetOptions ?? {}}
+                                    values={Object.fromEntries(PROMPT_ORDER.map((category) => {
+                                        const raw = watchedValues[category as keyof ShotFormValues]
+                                        return [category, typeof raw === "string" ? raw : undefined]
+                                    }))}
+                                    labels={CATEGORY_LABELS}
+                                    onChange={(category, key) => {
+                                        form.setValue(category, key, { shouldDirty: true })
+                                        setAppliedQuickStyle(null)
+                                    }}
+                                />
                             )}
 
                             {availableElements.length > 0 && (
