@@ -187,7 +187,7 @@ test("frames persist across refresh", () => {
 test("every preset example image exists and stays lightweight", () => {
   const visuals = read("../src/interface/components/fast-video/preset-visuals.tsx")
   const paths = [...visuals.matchAll(/"(\/presets\/[a-z0-9_]+\.jpg)"/g)].map((match) => match[1])
-  assert.equal(paths.length, 9)
+  assert.equal(paths.length, 10, "every style preset has an example image")
   for (const path of paths) {
     const file = new URL(`../public${path}`, import.meta.url)
     assert.ok(existsSync(file), `${path} is missing`)

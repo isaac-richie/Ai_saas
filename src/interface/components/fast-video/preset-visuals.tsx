@@ -26,6 +26,7 @@ export const STYLE_PREVIEW_IMAGES: Record<string, string> = {
   style_fantasy_ethereal: "/presets/style_fantasy_ethereal.jpg",
   style_lofi_security: "/presets/style_lofi_security.jpg",
   style_post_apocalypse: "/presets/style_post_apocalypse.jpg",
+  style_underwater_blue: "/presets/style_underwater_blue.jpg",
 }
 
 export function StyleSwatch({ id, name }: { id: string; name?: string }) {
