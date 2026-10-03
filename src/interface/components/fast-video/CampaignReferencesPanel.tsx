@@ -93,7 +93,7 @@ export function CampaignReferencesPanel({ value, onChange, settings, onSettingsC
 
   return (
     <section aria-label="Campaign references" className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         {(["character", "product"] as const).map((kind) => (
           <ReferenceSlot
             key={kind}
@@ -111,7 +111,7 @@ export function CampaignReferencesPanel({ value, onChange, settings, onSettingsC
         ))}
       </div>
 
-      <div className={`grid gap-2 ${both ? "sm:grid-cols-2" : ""}`}>
+      <div className="grid gap-2">
         <label className="block">
           <span className="text-[10px] uppercase tracking-[0.18em] text-[#8f9086]">Style</span>
           <select aria-label="Campaign style" value={value.style} disabled={disabled} onChange={(event) => onChange({ ...value, style: event.target.value })} className="mt-1 h-9 w-full rounded-xl border px-2.5 text-[12px]">
@@ -193,10 +193,10 @@ function ReferenceSlot({ kind, reference, busy, disabled, onUpload, onGallery, o
   return (
     <div className={`rounded-xl border p-2.5 transition-colors ${reference ? "border-gold-300/40 bg-gold-400/[0.04]" : "border-dashed border-gold-400/20 bg-white/[0.02]"}`}>
       <div className="flex items-center justify-between">
-        <span className="flex items-center gap-1.5 text-[12px] font-medium text-[#e8e2d2]"><Icon className="h-3.5 w-3.5 text-gold-400" />{label}</span>
+        <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-medium text-[#e8e2d2]"><Icon className="h-3.5 w-3.5 shrink-0 text-gold-400" />{label}</span>
         {reference
           ? <button type="button" onClick={onRemove} disabled={disabled} className="text-[10.5px] text-[#8f9086] hover:text-red-200">Remove</button>
-          : <span className="text-[9.5px] uppercase tracking-[0.16em] text-[#77796f]">Optional</span>}
+          : <span className="ml-2 shrink-0 text-[9.5px] uppercase tracking-[0.16em] text-[#77796f]">Optional</span>}
       </div>
       {reference ? (
         <div className="mt-2 flex gap-1.5">
@@ -215,7 +215,7 @@ function ReferenceSlot({ kind, reference, busy, disabled, onUpload, onGallery, o
       ) : busy ? (
         <div className="lux-shimmer mt-2 h-12 rounded-lg" />
       ) : (
-        <div className="mt-2 flex gap-1.5">
+        <div className="mt-2 flex flex-wrap gap-1.5">
           <SourceButton icon={<Upload className="h-3 w-3" />} label={`Add ${label.toLowerCase()}`} onClick={onUpload} disabled={disabled} primary />
           <SourceButton icon={<Images className="h-3 w-3" />} label="Gallery" onClick={onGallery} disabled={disabled} />
           <SourceButton icon={<History className="h-3 w-3" />} label="Saved" onClick={onSaved} disabled={disabled} />
@@ -234,7 +234,7 @@ function ReferenceSlot({ kind, reference, busy, disabled, onUpload, onGallery, o
 function SourceButton({ icon, label, onClick, disabled, primary }: { icon: React.ReactNode; label: string; onClick: () => void; disabled: boolean; primary?: boolean }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled}
-      className={`inline-flex items-center justify-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] transition disabled:opacity-40 ${primary ? "flex-1 border-gold-300/40 bg-gold-400/10 text-gold-50 hover:bg-gold-400/20" : "border-gold-400/15 text-[#c8c3b3] hover:border-gold-400/45 hover:text-gold-100"}`}>
+      className={`inline-flex min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] transition disabled:opacity-40 ${primary ? "flex-[1_1_100%] border-gold-300/40 bg-gold-400/10 text-gold-50 hover:bg-gold-400/20" : "border-gold-400/15 text-[#c8c3b3] hover:border-gold-400/45 hover:text-gold-100"}`}>
       {icon}{label}
     </button>
   )
@@ -346,10 +346,10 @@ function AdvancedSettings({ value, onChange, settings, onSettingsChange, effecti
         ) : null}
         <fieldset className="space-y-2" disabled={disabled}>
           <legend className="mb-1 text-[11px] font-medium text-[#e8e2d2]">Output</legend>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             <label><span className={labelClass}>Aspect</span><select aria-label="Campaign aspect ratio" value={settings.aspectRatio} onChange={(event) => onSettingsChange({ ...settings, aspectRatio: event.target.value })} className={inputClass}>{["9:16", "1:1", "4:5", "16:9"].map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}</select></label>
             <label><span className={labelClass}>Duration</span><select aria-label="Campaign duration" value={settings.durationSeconds} onChange={(event) => onSettingsChange({ ...settings, durationSeconds: Number(event.target.value) })} className={inputClass}>{[5, 8, 10, 15].map((seconds) => <option key={seconds} value={seconds}>{seconds}s</option>)}</select></label>
-            <label><span className={labelClass}>Model</span><select aria-label="Campaign model" value={settings.modelOverride ?? "auto"} onChange={(event) => onSettingsChange({ ...settings, modelOverride: event.target.value === "auto" ? null : event.target.value as "kling" | "seedance" })} className={inputClass}>
+            <label className="col-span-2"><span className={labelClass}>Model</span><select aria-label="Campaign model" value={settings.modelOverride ?? "auto"} onChange={(event) => onSettingsChange({ ...settings, modelOverride: event.target.value === "auto" ? null : event.target.value as "kling" | "seedance" })} className={inputClass}>
               <option value="auto">Auto{campaignMode(value) !== "generic" ? " (Seedance)" : ""}</option><option value="kling">Kling</option><option value="seedance">Seedance</option>
             </select></label>
           </div>

@@ -87,6 +87,14 @@ test('free plan Fast Track allowance is raised to 10 and older writers cannot lo
   assert.doesNotMatch(sql, /max_studio_generations/, 'only Fast Track changes')
 })
 
+test('free plan Fast Track allowance is raised to 20', () => {
+  const sql = read('../src/infrastructure/supabase/migrations/0037_fast_track_quota_20.sql')
+  assert.match(sql, /jsonb_set\(features_json, '\{max_fast_video_generations\}', '20'::jsonb/)
+  assert.match(sql, /update public\.entitlements[\s\S]*max_fast_video_generations = 20[\s\S]*plan_code = 'creator_free'/)
+  assert.match(sql, /new\.max_fast_video_generations < 20 then\s+new\.max_fast_video_generations := 20/)
+  assert.doesNotMatch(sql, /max_studio_generations/, 'only Fast Track changes')
+})
+
 test('every template points at real presets and shows a real style image', () => {
   const templates = read('../src/core/config/fast-video-templates.ts')
   const presets = read('../src/core/config/fast-video-presets.ts')
