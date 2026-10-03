@@ -83,6 +83,8 @@ import { MediaReferenceManager } from "./MediaReferenceManager"
 import { AspectGlyph, PresetPicker, SegmentedPreset } from "./PresetPicker"
 import { orderPresets } from "./preset-order"
 import { MotionGlyph, StyleSwatch } from "./preset-visuals"
+import { ShotFramesPanel } from "./ShotFramesPanel"
+import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
 import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, type MediaReference } from "@/core/validation/media-reference"
 
@@ -114,6 +116,7 @@ type FastVideoDebugEvent = {
 
 type GenerationSnapshot = {
   mediaReferences?: MediaReference[]
+  shotFrames?: ShotFrames | null
   projectId?: string | null
   subject: string
   prompt: string
@@ -125,6 +128,7 @@ type GenerationSnapshot = {
 
 type SavedFastClip = {
   mediaReferences?: MediaReference[]
+  shotFrames?: ShotFrames | null
   projectId?: string | null
   id: string
   taskId: string | null
@@ -354,6 +358,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const generationSnapshotRef = useRef<GenerationSnapshot | null>(null)
+  // Temporal Start / End Frames: kept apart from the media reference library.
+  const [shotFrames, setShotFrames] = useState<ShotFrames>(EMPTY_SHOT_FRAMES)
+  const [isFrameBusy, setIsFrameBusy] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [volume, setVolume] = useState(1)
@@ -538,6 +545,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         durationSeconds?: number
         referenceImageUrl?: string
         referenceLibrary?: MediaReference[]
+        shotFrames?: unknown
         status?: "idle" | "processing" | "completed" | "failed"
         statusMessage?: string
         taskId?: string | null
@@ -581,6 +589,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         const result = mediaReferenceSchema.safeParse(ref)
         return result.success ? [result.data] : []
       }))
+      if (parsed.shotFrames) {
+        const frames = shotFramesSchema.safeParse(parsed.shotFrames)
+        if (frames.success) setShotFrames(frames.data)
+      }
       if (parsed.status) setStatus(parsed.status)
       if (typeof parsed.statusMessage === "string") setStatusMessage(parsed.statusMessage)
       if (typeof parsed.taskId === "string" || parsed.taskId === null) setTaskId(parsed.taskId ?? null)
@@ -653,6 +665,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           durationSeconds,
           referenceImageUrl,
           referenceLibrary,
+          shotFrames,
           status,
           statusMessage,
           taskId,
@@ -691,6 +704,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     templateId,
     stylePresetId,
     motionPresetId,
+    shotFrames,
     modelFamilyId,
     aspectRatio,
     variation,
@@ -846,6 +860,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           durationSeconds: clip.durationSeconds,
           projectId: clip.projectId ?? (selectedProjectId || null),
           mediaReferences: clip.mediaReferences,
+          shotFrames: clip.shotFrames ?? null,
+          modelFamilyId: clip.modelFamilyId,
         })
         if (result.error) toast.error(`Clip kept locally. Gallery save failed: ${result.error}`)
       } catch {
@@ -1567,6 +1583,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             durationSeconds: snapshot.durationSeconds,
             modelFamilyId: snapshot.modelFamilyId,
             mediaReferences: snapshot.mediaReferences,
+            shotFrames: snapshot.shotFrames ?? null,
             projectId: snapshot.projectId,
             createdAt: new Date().toISOString(),
           })
@@ -1601,7 +1618,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       toast.error("Please add a subject prompt")
       return
     }
-    if (isUploading || isReferenceSyncing || isGenerating || status === "processing") {
+    if (isUploading || isFrameBusy || isReferenceSyncing || isGenerating || status === "processing") {
       toast.message("Wait for the current upload, analysis or generation to finish.")
       return
     }
@@ -1610,8 +1627,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     if (referenceIssues.length) { toast.error(referenceIssues.join(" ")); return }
     if (referenceImageUrl && generationReferences.some((ref) => ref.target === "provider")) { toast.error("Remove the legacy starting image before using another direct image."); return }
     // Never block on length: the server applies this same fit; tell the user what it condensed.
+    const generationFrames = hasShotFrames(shotFrames) ? structuredClone(shotFrames) : null
+    const frameProblems = frameIssues(generationFrames, modelFamilyId)
+    if (frameProblems.length) { toast.error(frameProblems.join(" "), { id: "fast-video-generate" }); return }
+    if (generationFrames?.start && referenceImageUrl) { toast.error("Remove the legacy starting image; your Start Frame now sets the opening image.", { id: "fast-video-generate" }); return }
     // Shown only once the job is accepted, so a refused request never claims it was fitted.
-    const promptFit = fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), generationReferences)
+    const fitSubject = continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim()
+    const promptFit = fitReferencePrompt(generationFrames ? `${frameDirective(generationFrames)}. ${fitSubject}` : fitSubject, generationReferences)
 
     setIsGenerating(true)
     setStatus("processing")
@@ -1625,7 +1647,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
     const selectedModel = resolveKieVideoModelByFamily({
       familyId: modelFamilyId,
-      useImageToVideo: Boolean(referenceImageUrl) || generationReferences.some((ref) => ref.target === "provider"),
+      useImageToVideo: Boolean(referenceImageUrl) || Boolean(generationFrames?.start) || generationReferences.some((ref) => ref.target === "provider"),
     })
 
     const subjectWithContinuity = continuityClause
@@ -1634,6 +1656,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
     generationSnapshotRef.current = {
       mediaReferences: generationReferences,
+      shotFrames: generationFrames,
       projectId: selectedProjectId || null,
       subject: subject.trim(),
       prompt: subjectWithContinuity,
@@ -1655,6 +1678,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           aspect_ratio: aspectRatio,
           reference_image: referenceImageUrl || null,
           media_references: generationReferences,
+          ...(generationFrames ? { shot_frames: generationFrames } : {}),
           variation_setting: variation,
         },
         settings: {
@@ -1679,6 +1703,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
       generationSnapshotRef.current = {
         mediaReferences: generationReferences,
+        shotFrames: generationFrames,
         projectId: selectedProjectId || null,
         subject: subject.trim(),
         prompt: resolvedPrompt,
@@ -1710,6 +1735,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         saveClip({
           id: completedClipId,
           mediaReferences: generationReferences,
+          shotFrames: generationFrames,
           projectId: selectedProjectId || null,
           taskId: res.data.taskId || null,
           url: res.data.url,
@@ -2413,7 +2439,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               label="Style presets"
               noneLabel="No style"
               noneDescription="Your prompt alone sets the look."
-              options={styleChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, visual: <StyleSwatch id={preset.id} /> }))}
+              options={styleChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, visual: <StyleSwatch id={preset.id} name={preset.name} /> }))}
               selectedId={stylePresetId}
               onSelect={applyStylePreset}
               search={styleSearch}
@@ -2506,11 +2532,27 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   onBusy={setIsUploading}
                   disabled={isReferenceSyncing || isGenerating || status === "processing"}
                 />
+                <ShotFramesPanel
+                  frames={shotFrames}
+                  onChange={setShotFrames}
+                  modelFamilyId={modelFamilyId}
+                  modelLabel={activeModelFamily.label}
+                  captureSource={videoUrl ? {
+                    url: useDirectVideoUrl ? videoUrl : `/api/media/proxy?url=${encodeURIComponent(videoUrl)}`,
+                    currentTime: () => videoRef.current?.currentTime ?? 0,
+                    shotId: activeSavedClipId || taskId,
+                    label: "Current clip",
+                  } : null}
+                  onBusy={setIsFrameBusy}
+                  disabled={isReferenceSyncing || isGenerating || status === "processing"}
+                />
                 <ReferenceLibrarySync
                   references={referenceLibrary}
                   onLoad={setReferenceLibrary}
+                  frames={shotFrames}
+                  onLoadFrames={setShotFrames}
                   onBusy={setIsReferenceSyncing}
-                  disabled={isUploading || isGenerating || status === "processing"}
+                  disabled={isUploading || isFrameBusy || isGenerating || status === "processing"}
                 />
                 {referenceImageUrl && <div className="rounded-xl border border-amber-300/20 p-3 text-xs text-amber-100">
                   A legacy starting image is still attached.

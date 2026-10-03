@@ -242,7 +242,7 @@ test("generation no longer refuses on prompt length on either side", () => {
   const studio = readFileSync(new URL("../src/interface/components/fast-video/FastVideoStudio.tsx", import.meta.url), "utf8")
   assert.doesNotMatch(action, /nothing was dropped/)
   assert.doesNotMatch(studio, /nothing was dropped/)
-  assert.match(action, /fitReferencePrompt\(payload\.prompt_inputs\.text_subject, refs\)/)
+  assert.match(action, /fitReferencePrompt\(payload\.prompt_inputs\.text_subject, /)
   assert.match(studio, /fitReferencePrompt\(/)
 })
 

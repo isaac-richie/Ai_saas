@@ -96,10 +96,14 @@ export class KieProvider extends BaseProvider {
         if (typeof request.cfg_scale === "number") input.cfg_scale = request.cfg_scale;
 
         if (request.image_prompt) {
+            // End frames are only sent alongside a start frame: Kling 3.0 reads
+            // image_urls as [first, last]; Seedance 2 takes last_frame_url.
+            const endFrame = request.end_image_prompt || undefined;
             if (normalizedModel.includes("seedance-2")) {
                 input.first_frame_url = request.image_prompt;
+                if (endFrame) input.last_frame_url = endFrame;
             } else if (normalizedModel.includes("kling-3.0")) {
-                input.image_urls = [request.image_prompt];
+                input.image_urls = endFrame ? [request.image_prompt, endFrame] : [request.image_prompt];
             } else {
                 input.image_url = request.image_prompt;
             }
@@ -187,6 +191,7 @@ export class KieProvider extends BaseProvider {
         const prepared = {
             ...request,
             image_prompt: request.image_prompt ? uploaded.get(request.image_prompt) || request.image_prompt : undefined,
+            end_image_prompt: request.end_image_prompt ? uploaded.get(request.end_image_prompt) || request.end_image_prompt : undefined,
             reference_elements: request.reference_elements.map(element => ({ ...element, image_urls: element.image_urls.map(url => uploaded.get(url) || url) })),
         };
         // The same in-memory request is passed to generate after quota is

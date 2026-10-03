@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test scripts/test-media-references.mjs scripts/test-bounded-body.mjs scripts/test-media-runtime.mjs scripts/test-prompt-budget.mjs scripts/test-crew-prompt-integrity.mjs scripts/test-crew-advisory-workflow.mjs scripts/test-presets.mjs scripts/test-kie-provider.mjs scripts/test-preview-safety.mjs"
+    "test": "node --test scripts/test-media-references.mjs scripts/test-bounded-body.mjs scripts/test-media-runtime.mjs scripts/test-prompt-budget.mjs scripts/test-crew-prompt-integrity.mjs scripts/test-crew-advisory-workflow.mjs scripts/test-presets.mjs scripts/test-shot-frames.mjs scripts/test-kie-provider.mjs scripts/test-preview-safety.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
