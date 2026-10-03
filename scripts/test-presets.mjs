@@ -45,7 +45,7 @@ test('ordering never mutates the source presets', () => {
 })
 
 test('every preset family offers a "none" choice so presets are never mandatory', () => {
-  const studio = read('../src/interface/components/fast-video/FastVideoStudio.tsx')
+  const studio = read('../src/interface/components/fast-video/FastVideoStudio.tsx') + read('../src/interface/components/fast-video/ShotLookSection.tsx')
   const picker = read('../src/interface/components/fast-video/PresetPicker.tsx')
   assert.match(picker, /active=\{!selectedId\}[\s\S]{0,40}onSelect=\{\(\) => onSelect\(""\)\}/, 'None card selects an empty preset')
   assert.match(studio, /noneLabel="No style"/)
@@ -85,4 +85,29 @@ test('free plan Fast Track allowance is raised to 10 and older writers cannot lo
   assert.match(sql, /before insert or update on public\.entitlements/)
   assert.match(sql, /new\.max_fast_video_generations < 10 then\s+new\.max_fast_video_generations := 10/)
   assert.doesNotMatch(sql, /max_studio_generations/, 'only Fast Track changes')
+})
+
+test('every template points at real presets and shows a real style image', () => {
+  const templates = read('../src/core/config/fast-video-templates.ts')
+  const presets = read('../src/core/config/fast-video-presets.ts')
+  const visuals = read('../src/interface/components/fast-video/preset-visuals.tsx')
+  const ids = [...templates.matchAll(/id: "([a-z0-9-]+)"/g)].map(match => match[1])
+  assert.ok(ids.length >= 8)
+  assert.equal(new Set(ids).size, ids.length, 'template ids are unique')
+  for (const [, presetId] of templates.matchAll(/(?:stylePresetId|motionPresetId): "([a-z0-9_]+)"/g)) {
+    assert.match(presets, new RegExp(`id: "${presetId}"`), `${presetId} must exist`)
+  }
+  for (const [, styleId] of templates.matchAll(/stylePresetId: "([a-z0-9_]+)"/g)) {
+    assert.match(visuals, new RegExp(`${styleId}: "/presets/`), `${styleId} should have an example image for its template card`)
+  }
+})
+
+test('applying a template can be undone and the model cards state real limits', () => {
+  const studio = read('../src/interface/components/fast-video/FastVideoStudio.tsx')
+  assert.match(studio, /label: "Undo",[\s\S]{0,120}setSubject\(before\.subject\)/)
+  const pickers = read('../src/interface/components/fast-video/StudioPickers.tsx')
+  assert.match(pickers, /Text-only shots: 5 or 10 s/)
+  assert.match(pickers, /4 to 15 s/)
+  assert.match(pickers, /frames\.start \? "Start \+ End frames" : "No frame control"/)
+  assert.match(pickers, /role="radiogroup" aria-label="Video model"/)
 })

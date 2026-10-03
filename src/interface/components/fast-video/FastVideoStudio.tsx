@@ -9,13 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components
 import { Button } from "@/interface/components/ui/button"
 import { Input } from "@/interface/components/ui/input"
 import { Textarea } from "@/interface/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/interface/components/ui/select"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import {
   FAST_VIDEO_ASPECT_RATIOS,
@@ -27,7 +20,6 @@ import {
 } from "@/core/config/fast-video-presets"
 import {
   DEFAULT_KIE_VIDEO_MODEL_FAMILY,
-  KIE_VIDEO_MODEL_FAMILIES,
   type KieVideoModelFamilyId,
   getKieVideoModelFamily,
   resolveKieVideoModelByFamily,
@@ -36,7 +28,6 @@ import { generateFastVideo, pollFastVideoStatus, routeFastVideoToScene, persistF
 import {
   getFastVideoStoryboard,
   replaceFastVideoStoryboard,
-  type FastVideoStoryboardRow,
 } from "@/core/actions/fast-video-storyboard"
 import {
   createStudioAdCampaign,
@@ -46,7 +37,7 @@ import {
   type StudioAdCampaignWithItems,
 } from "@/core/actions/studio-ad-campaigns"
 import { getShots } from "@/core/actions/shots"
-import type { StudioAdCampaignDeliverable, StudioAdCampaignPlan } from "@/core/validation/studio-ad"
+import type { StudioAdCampaignPlan } from "@/core/validation/studio-ad"
 import {
   Loader2,
   Sparkles,
@@ -73,236 +64,38 @@ import {
 import { buildMediaFilename } from "@/lib/download-filename"
 import { saveFastVideoClipToGallery } from "@/core/actions/fast-video"
 import { TakesPanel, type TakeItem } from "./TakesPanel"
-import { ContinuityPanel, type ContinuityKey as ContinuityKeyExtracted, CONTINUITY_LOCKS, buildContinuityClauseFromState } from "./ContinuityPanel"
-import { StoryboardPanel, type StoryboardItem as StoryboardItemImported } from "./StoryboardPanel"
+import { ContinuityPanel, CONTINUITY_LOCKS, buildContinuityClauseFromState } from "./ContinuityPanel"
+import { StoryboardPanel } from "./StoryboardPanel"
 import { useContinuitySync } from "@/interface/hooks/useContinuitySync"
 import { ShotPreviewTimeline } from "./ShotPreviewTimeline"
 import { GenerationJobsPanel } from "./GenerationJobsPanel"
 import { StoryboardExportPanel } from "./StoryboardExportPanel"
 import { MediaReferenceManager } from "./MediaReferenceManager"
-import { AspectGlyph, PresetPicker, SegmentedPreset } from "./PresetPicker"
+import { AspectGlyph, SegmentedPreset } from "./PresetPicker"
 import { orderPresets } from "./preset-order"
-import { MotionGlyph, StyleSwatch } from "./preset-visuals"
+import { TemplateGallery } from "./StudioPickers"
+import { ShotLookSection } from "./ShotLookSection"
+import { PROMPT_TEMPLATES, type PromptTemplate } from "@/core/config/fast-video-templates"
 import { ShotFramesPanel } from "./ShotFramesPanel"
 import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
 import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, type MediaReference } from "@/core/validation/media-reference"
 
-type SceneOption = {
-  id: string
-  name: string
-}
-
-type SceneShotOption = {
-  id: string
-  name: string
-}
-
-type ProjectOption = {
-  id: string
-  name: string
-  scenes: SceneOption[]
-}
-
-interface FastVideoStudioProps {
-  projects: ProjectOption[]
-}
-
-type FastVideoDebugEvent = {
-  at: string
-  step: string
-  details?: Record<string, unknown>
-}
-
-type GenerationSnapshot = {
-  mediaReferences?: MediaReference[]
-  shotFrames?: ShotFrames | null
-  projectId?: string | null
-  subject: string
-  prompt: string
-  aspectRatio: FastVideoAspectRatio
-  variation: FastVideoVariation
-  durationSeconds: number
-  modelFamilyId: KieVideoModelFamilyId
-}
-
-type SavedFastClip = {
-  mediaReferences?: MediaReference[]
-  shotFrames?: ShotFrames | null
-  projectId?: string | null
-  id: string
-  taskId: string | null
-  url: string
-  subject: string
-  prompt: string
-  aspectRatio: FastVideoAspectRatio
-  variation: FastVideoVariation
-  durationSeconds: number
-  modelFamilyId?: KieVideoModelFamilyId
-  createdAt: string
-}
-
-type StoryboardItem = StoryboardItemImported
-
-type CampaignBatchItem = StudioAdCampaignDeliverable & {
-  dbId?: string
-  status: "planned" | "queued" | "processing" | "completed" | "failed"
-  taskId: string | null
-  traceId: string | null
-  url: string | null
-  error: string | null
-}
-
-type ContinuityKey = ContinuityKeyExtracted
-
-type PromptTemplate = {
-  id: string
-  label: string
-  prompt: string
-}
-
-type QuickLook = {
-  id: string
-  label: string
-  stylePresetId: string
-  motionPresetId: string
-}
-
-const PROMPT_TEMPLATES: PromptTemplate[] = [
-  {
-    id: "neo-noir",
-    label: "Neo-noir alley",
-    prompt:
-      "A lone detective walks through a rain-soaked neon alley at night, cinematic realism, subtle fog, reflective asphalt, slow dolly tracking shot",
-  },
-  {
-    id: "fashion-commercial",
-    label: "Fashion commercial",
-    prompt:
-      "A high-end fashion model exits a black car in golden-hour city light, elegant camera glide, premium ad look, clean depth and polished textures",
-  },
-  {
-    id: "documentary-intro",
-    label: "Documentary intro",
-    prompt:
-      "A confident founder steps onto a rooftop at sunrise, medium close-up, natural wind movement, grounded documentary tone, smooth cinematic motion",
-  },
-]
-
-const QUICK_LOOKS: QuickLook[] = [
-  {
-    id: "look_cinematic_close",
-    label: "Cinematic Close-Up",
-    stylePresetId: "style_golden_hour_film",
-    motionPresetId: "motion_dolly_in",
-  },
-  {
-    id: "look_documentary",
-    label: "Documentary Natural",
-    stylePresetId: "style_hyperreal_studio",
-    motionPresetId: "motion_handheld_gentle",
-  },
-  {
-    id: "look_neon_drive",
-    label: "Neon Night Drive",
-    stylePresetId: "style_cyberpunk_neon",
-    motionPresetId: "motion_fast_action_tracking",
-  },
-]
-
-const FAST_VIDEO_STORAGE_KEY = "aisas.fast-video.v1"
-
-function normalizeStoryboardItems(items: StoryboardItem[]): StoryboardItem[] {
-  return items.slice(0, 60).map((item) => ({
-    ...item,
-    subject: item.subject?.trim() || "Storyboard shot",
-    prompt: item.prompt?.trim() || "",
-    durationSeconds: Math.max(1, Math.min(30, Math.round(item.durationSeconds || 5))),
-    sceneGroup: item.sceneGroup || "Scene A",
-    note: item.note || "",
-    status: item.status || "ready",
-  }))
-}
-
-function mapRemoteStoryboardItem(row: FastVideoStoryboardRow): StoryboardItem {
-  return {
-    mediaReferences: mediaReferencesSchema.safeParse(row.media_references).data || [],
-    id: row.id,
-    sourceClipId: row.source_clip_id,
-    url: row.url,
-    subject: row.subject || "Storyboard shot",
-    prompt: row.prompt || "",
-    durationSeconds: row.duration_seconds || 5,
-    modelFamilyId: (row.model_family_id as KieVideoModelFamilyId | null) || undefined,
-    sceneGroup: (row.scene_group as StoryboardItem["sceneGroup"]) || "Scene A",
-    note: row.note || "",
-    status: (row.status as StoryboardItem["status"]) || "ready",
-    createdAt: row.created_at,
-  }
-}
-
-function jsonStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
-}
-
-function mapCampaignRowToPlan(row: StudioAdCampaignWithItems): StudioAdCampaignPlan {
-  const score = row.score && typeof row.score === "object" && !Array.isArray(row.score)
-    ? row.score as Record<string, unknown>
-    : {}
-
-  return {
-    campaignSummary: row.campaign_summary,
-    audience: row.audience,
-    creativeStrategy: row.creative_strategy,
-    deliverables: row.items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      conceptType: item.concept_type,
-      hook: item.hook,
-      creatorDirection: item.creator_direction,
-      masterPrompt: item.master_prompt,
-      negativePrompt: item.negative_prompt,
-      durationSeconds: item.duration_seconds,
-      aspectRatio: item.aspect_ratio,
-      modelFamilyId: getKieVideoModelFamily(item.model_family_id).id,
-      stylePresetId: item.style_preset_id,
-      motionPresetId: item.motion_preset_id,
-      continuityAnchors: jsonStringArray(item.continuity_anchors),
-      productionNotes: jsonStringArray(item.production_notes),
-    })),
-    score: {
-      campaignReadiness: typeof score.campaignReadiness === "number" ? score.campaignReadiness : 0,
-      varietyStrength: typeof score.varietyStrength === "number" ? score.varietyStrength : 0,
-      promptClarity: typeof score.promptClarity === "number" ? score.promptClarity : 0,
-    },
-    suggestions: jsonStringArray(row.suggestions),
-  }
-}
-
-function mapCampaignRowToItems(row: StudioAdCampaignWithItems): CampaignBatchItem[] {
-  return row.items.map((item) => ({
-    id: item.id,
-    dbId: item.id,
-    title: item.title,
-    conceptType: item.concept_type,
-    hook: item.hook,
-    creatorDirection: item.creator_direction,
-    masterPrompt: item.master_prompt,
-    negativePrompt: item.negative_prompt,
-    durationSeconds: item.duration_seconds,
-    aspectRatio: item.aspect_ratio,
-    modelFamilyId: getKieVideoModelFamily(item.model_family_id).id,
-    stylePresetId: item.style_preset_id,
-    motionPresetId: item.motion_preset_id,
-    continuityAnchors: jsonStringArray(item.continuity_anchors),
-    productionNotes: jsonStringArray(item.production_notes),
-    status: item.status as CampaignBatchItem["status"],
-    taskId: item.task_id,
-    traceId: item.trace_id,
-    url: item.output_url,
-    error: item.error,
-  }))
-}
+import {
+  SceneShotOption,
+  FastVideoStudioProps,
+  FastVideoDebugEvent,
+  GenerationSnapshot,
+  SavedFastClip,
+  StoryboardItem,
+  CampaignBatchItem,
+  ContinuityKey,
+  FAST_VIDEO_STORAGE_KEY,
+  normalizeStoryboardItems,
+  mapRemoteStoryboardItem,
+  mapCampaignRowToPlan,
+  mapCampaignRowToItems,
+} from "./fast-video-studio.model"
 
 export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const router = useRouter()
@@ -498,6 +291,28 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       id: referenceIsInContext(ref, selectedProjectId || null, selectedSceneId || null) ? ref.id : crypto.randomUUID(),
       scope: !selectedProjectId || (ref.scope === "scene" && !selectedSceneId) ? "shot" : ref.scope,
     })))
+  }
+
+  const applyTemplate = (template: PromptTemplate) => {
+    const before = { subject, stylePresetId, motionPresetId, templateId }
+    setSubject(template.prompt)
+    setTemplateId(template.id)
+    if (template.stylePresetId) applyStylePreset(template.stylePresetId)
+    if (template.motionPresetId) applyMotionPreset(template.motionPresetId)
+    // Templates replace the prompt, so the previous draft is always one click away.
+    toast.message(`${template.label} template applied`, {
+      id: "fast-video-template",
+      description: "Prompt, style and motion updated. Everything stays editable.",
+      action: before.subject.trim() && before.subject.trim() !== template.prompt ? {
+        label: "Undo",
+        onClick: () => {
+          setSubject(before.subject)
+          setStylePresetId(before.stylePresetId)
+          setMotionPresetId(before.motionPresetId)
+          setTemplateId(before.templateId)
+        },
+      } : undefined,
+    })
   }
 
   const applyStylePreset = (id: string) => {
@@ -2109,35 +1924,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 className="studio-field min-h-32 resize-none rounded-xl text-sm text-white placeholder:text-white/30 leading-relaxed"
               />
             </div>
-            <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-              <div className="space-y-1.5">
-                <label className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Template</label>
-                <Select value={templateId} onValueChange={setTemplateId}>
-                  <SelectTrigger className="studio-field rounded-xl text-white">
-                    <SelectValue placeholder="Use Template" />
-                  </SelectTrigger>
-                  <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white">
-                    {PROMPT_TEMPLATES.map((template) => (
-                      <SelectItem key={template.id} value={template.id} className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
-                        {template.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                type="button"
-                variant="liquidMetal"
-                size="sm"
-                className="h-11 px-4"
-                onClick={() => {
-                  const selected = PROMPT_TEMPLATES.find((item) => item.id === templateId)
-                  if (selected) setSubject(selected.prompt)
-                }}
-              >
-                Use
-              </Button>
-            </div>
+            <TemplateGallery
+              templates={PROMPT_TEMPLATES}
+              activeId={PROMPT_TEMPLATES.find((template) => template.prompt === subject.trim())?.id ?? null}
+              onApply={applyTemplate}
+            />
           </div>
 
           <div className={sectionClass}>
@@ -2394,92 +2185,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             ) : null}
           </div>
 
-          <div className={sectionClass}>
-            <label className="text-[11px] uppercase tracking-[0.12em] text-white/50 font-medium">Shot Look</label>
-            <div role="radiogroup" aria-label="Shot look" className="lux-stagger grid grid-cols-2 gap-2">
-              {QUICK_LOOKS.map((look, index) => {
-                const active = stylePresetId === look.stylePresetId && motionPresetId === look.motionPresetId
-                const style = STYLE_PRESETS.find((preset) => preset.id === look.stylePresetId)
-                const motion = MOTION_PRESETS.find((preset) => preset.id === look.motionPresetId)
-                return (
-                  <button
-                    key={look.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    style={{ "--i": index } as React.CSSProperties}
-                    title={active ? "Click again to clear this look" : undefined}
-                    onClick={() => {
-                      // Looks are a shortcut, never a requirement: clicking the active look clears it.
-                      applyStylePreset(active ? "" : look.stylePresetId)
-                      applyMotionPreset(active ? "" : look.motionPresetId)
-                    }}
-                    data-active={active}
-                    className={`preset-card lux-sheen overflow-hidden rounded-xl border text-left transition-all duration-300 ${
-                      active
-                        ? "border-gold-300/60 bg-gold-400/[0.07] shadow-[0_12px_28px_-18px_rgba(217,192,138,0.8)]"
-                        : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/35"
-                    }`}
-                  >
-                    <span className="grid h-10 grid-cols-2">
-                      <span className="overflow-hidden">{style ? <StyleSwatch id={style.id} /> : null}</span>
-                      <span className="overflow-hidden border-l border-black/40">{motion ? <MotionGlyph id={motion.id} /> : null}</span>
-                    </span>
-                    <span className="block px-3 pb-2.5 pt-2">
-                      <span className={`flex items-center gap-1.5 text-[12px] font-medium ${active ? "text-gold-50" : "text-[#e8e2d2]"}`}>
-                        {active ? <Check className="h-3 w-3 text-gold-300" strokeWidth={3} /> : null}{look.label}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[10px] text-[#8f9086]">{style?.name ?? "Any style"} · {motion?.name ?? "Any motion"}</span>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-            <PresetPicker
-              label="Style presets"
-              noneLabel="No style"
-              noneDescription="Your prompt alone sets the look."
-              options={styleChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, visual: <StyleSwatch id={preset.id} name={preset.name} /> }))}
-              selectedId={stylePresetId}
-              onSelect={applyStylePreset}
-              search={styleSearch}
-              onSearch={setStyleSearch}
-              pinnedIds={favoriteStyleIds}
-              recentIds={recentStyleIds}
-              onTogglePin={toggleFavoriteStyle}
-              expanded={showAllStyleChips}
-              onToggleExpanded={() => setShowAllStyleChips((prev) => !prev)}
-              totalCount={filteredStyles.length}
-            />
-            <PresetPicker
-              label="Motion presets"
-              noneLabel="No motion"
-              noneDescription="Camera movement comes from your prompt."
-              options={motionChipList.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, detail: preset.useCase, visual: <MotionGlyph id={preset.id} /> }))}
-              selectedId={motionPresetId}
-              onSelect={applyMotionPreset}
-              search={motionSearch}
-              onSearch={setMotionSearch}
-              pinnedIds={favoriteMotionIds}
-              recentIds={recentMotionIds}
-              onTogglePin={toggleFavoriteMotion}
-              expanded={showAllMotionChips}
-              onToggleExpanded={() => setShowAllMotionChips((prev) => !prev)}
-              totalCount={filteredMotions.length}
-            />
-            <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-              {KIE_VIDEO_MODEL_FAMILIES.map((family) => (
-                <button
-                  key={family.id}
-                  type="button"
-                  onClick={() => setModelFamilyId(family.id)}
-                  className={optionClass(modelFamilyId === family.id)}
-                >
-                  <div className="text-xs font-medium text-white">{family.label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+          <ShotLookSection
+            className={sectionClass}
+            style={{
+              selectedId: stylePresetId, onSelect: applyStylePreset, options: styleChipList, totalCount: filteredStyles.length,
+              search: styleSearch, onSearch: setStyleSearch, pinnedIds: favoriteStyleIds, recentIds: recentStyleIds,
+              onTogglePin: toggleFavoriteStyle, expanded: showAllStyleChips, onToggleExpanded: () => setShowAllStyleChips((prev) => !prev),
+            }}
+            motion={{
+              selectedId: motionPresetId, onSelect: applyMotionPreset, options: motionChipList, totalCount: filteredMotions.length,
+              search: motionSearch, onSearch: setMotionSearch, pinnedIds: favoriteMotionIds, recentIds: recentMotionIds,
+              onTogglePin: toggleFavoriteMotion, expanded: showAllMotionChips, onToggleExpanded: () => setShowAllMotionChips((prev) => !prev),
+            }}
+            modelFamilyId={modelFamilyId}
+            onModelChange={setModelFamilyId}
+          />
 
           <div className={sectionClass}>
             <label className="text-[11px] uppercase tracking-[0.12em] text-white/50 font-medium">Model & Duration</label>

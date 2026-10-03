@@ -1,0 +1,200 @@
+/** Types, static data and pure mappers for Fast Track. No React state lives here. */
+import { type FastVideoAspectRatio, type FastVideoVariation } from "@/core/config/fast-video-presets"
+import { type KieVideoModelFamilyId, getKieVideoModelFamily } from "@/core/config/kie-video-models"
+import { type FastVideoStoryboardRow } from "@/core/actions/fast-video-storyboard"
+import { type StudioAdCampaignWithItems } from "@/core/actions/studio-ad-campaigns"
+import { type StudioAdCampaignDeliverable, type StudioAdCampaignPlan } from "@/core/validation/studio-ad"
+import type { ContinuityKey as ContinuityKeyExtracted } from "./ContinuityPanel"
+import type { StoryboardItem as StoryboardItemImported } from "./StoryboardPanel"
+import { mediaReferencesSchema, type MediaReference } from "@/core/validation/media-reference"
+import { type ShotFrames } from "@/core/validation/shot-frames"
+
+export type SceneOption = {
+  id: string
+  name: string
+}
+
+export type SceneShotOption = {
+  id: string
+  name: string
+}
+
+export type ProjectOption = {
+  id: string
+  name: string
+  scenes: SceneOption[]
+}
+
+export interface FastVideoStudioProps {
+  projects: ProjectOption[]
+}
+
+export type FastVideoDebugEvent = {
+  at: string
+  step: string
+  details?: Record<string, unknown>
+}
+
+export type GenerationSnapshot = {
+  mediaReferences?: MediaReference[]
+  shotFrames?: ShotFrames | null
+  projectId?: string | null
+  subject: string
+  prompt: string
+  aspectRatio: FastVideoAspectRatio
+  variation: FastVideoVariation
+  durationSeconds: number
+  modelFamilyId: KieVideoModelFamilyId
+}
+
+export type SavedFastClip = {
+  mediaReferences?: MediaReference[]
+  shotFrames?: ShotFrames | null
+  projectId?: string | null
+  id: string
+  taskId: string | null
+  url: string
+  subject: string
+  prompt: string
+  aspectRatio: FastVideoAspectRatio
+  variation: FastVideoVariation
+  durationSeconds: number
+  modelFamilyId?: KieVideoModelFamilyId
+  createdAt: string
+}
+
+export type StoryboardItem = StoryboardItemImported
+
+export type CampaignBatchItem = StudioAdCampaignDeliverable & {
+  dbId?: string
+  status: "planned" | "queued" | "processing" | "completed" | "failed"
+  taskId: string | null
+  traceId: string | null
+  url: string | null
+  error: string | null
+}
+
+export type ContinuityKey = ContinuityKeyExtracted
+
+export type QuickLook = {
+  id: string
+  label: string
+  stylePresetId: string
+  motionPresetId: string
+}
+
+
+export const QUICK_LOOKS: QuickLook[] = [
+  {
+    id: "look_cinematic_close",
+    label: "Cinematic Close-Up",
+    stylePresetId: "style_golden_hour_film",
+    motionPresetId: "motion_dolly_in",
+  },
+  {
+    id: "look_documentary",
+    label: "Documentary Natural",
+    stylePresetId: "style_hyperreal_studio",
+    motionPresetId: "motion_handheld_gentle",
+  },
+  {
+    id: "look_neon_drive",
+    label: "Neon Night Drive",
+    stylePresetId: "style_cyberpunk_neon",
+    motionPresetId: "motion_fast_action_tracking",
+  },
+]
+
+export const FAST_VIDEO_STORAGE_KEY = "aisas.fast-video.v1"
+
+export function normalizeStoryboardItems(items: StoryboardItem[]): StoryboardItem[] {
+  return items.slice(0, 60).map((item) => ({
+    ...item,
+    subject: item.subject?.trim() || "Storyboard shot",
+    prompt: item.prompt?.trim() || "",
+    durationSeconds: Math.max(1, Math.min(30, Math.round(item.durationSeconds || 5))),
+    sceneGroup: item.sceneGroup || "Scene A",
+    note: item.note || "",
+    status: item.status || "ready",
+  }))
+}
+
+export function mapRemoteStoryboardItem(row: FastVideoStoryboardRow): StoryboardItem {
+  return {
+    mediaReferences: mediaReferencesSchema.safeParse(row.media_references).data || [],
+    id: row.id,
+    sourceClipId: row.source_clip_id,
+    url: row.url,
+    subject: row.subject || "Storyboard shot",
+    prompt: row.prompt || "",
+    durationSeconds: row.duration_seconds || 5,
+    modelFamilyId: (row.model_family_id as KieVideoModelFamilyId | null) || undefined,
+    sceneGroup: (row.scene_group as StoryboardItem["sceneGroup"]) || "Scene A",
+    note: row.note || "",
+    status: (row.status as StoryboardItem["status"]) || "ready",
+    createdAt: row.created_at,
+  }
+}
+
+export function jsonStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
+}
+
+export function mapCampaignRowToPlan(row: StudioAdCampaignWithItems): StudioAdCampaignPlan {
+  const score = row.score && typeof row.score === "object" && !Array.isArray(row.score)
+    ? row.score as Record<string, unknown>
+    : {}
+
+  return {
+    campaignSummary: row.campaign_summary,
+    audience: row.audience,
+    creativeStrategy: row.creative_strategy,
+    deliverables: row.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      conceptType: item.concept_type,
+      hook: item.hook,
+      creatorDirection: item.creator_direction,
+      masterPrompt: item.master_prompt,
+      negativePrompt: item.negative_prompt,
+      durationSeconds: item.duration_seconds,
+      aspectRatio: item.aspect_ratio,
+      modelFamilyId: getKieVideoModelFamily(item.model_family_id).id,
+      stylePresetId: item.style_preset_id,
+      motionPresetId: item.motion_preset_id,
+      continuityAnchors: jsonStringArray(item.continuity_anchors),
+      productionNotes: jsonStringArray(item.production_notes),
+    })),
+    score: {
+      campaignReadiness: typeof score.campaignReadiness === "number" ? score.campaignReadiness : 0,
+      varietyStrength: typeof score.varietyStrength === "number" ? score.varietyStrength : 0,
+      promptClarity: typeof score.promptClarity === "number" ? score.promptClarity : 0,
+    },
+    suggestions: jsonStringArray(row.suggestions),
+  }
+}
+
+export function mapCampaignRowToItems(row: StudioAdCampaignWithItems): CampaignBatchItem[] {
+  return row.items.map((item) => ({
+    id: item.id,
+    dbId: item.id,
+    title: item.title,
+    conceptType: item.concept_type,
+    hook: item.hook,
+    creatorDirection: item.creator_direction,
+    masterPrompt: item.master_prompt,
+    negativePrompt: item.negative_prompt,
+    durationSeconds: item.duration_seconds,
+    aspectRatio: item.aspect_ratio,
+    modelFamilyId: getKieVideoModelFamily(item.model_family_id).id,
+    stylePresetId: item.style_preset_id,
+    motionPresetId: item.motion_preset_id,
+    continuityAnchors: jsonStringArray(item.continuity_anchors),
+    productionNotes: jsonStringArray(item.production_notes),
+    status: item.status as CampaignBatchItem["status"],
+    taskId: item.task_id,
+    traceId: item.trace_id,
+    url: item.output_url,
+    error: item.error,
+  }))
+}
