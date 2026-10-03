@@ -1290,3 +1290,14 @@
   animation: none !important;
   transition: none !important;
 }
+
+/* ─── Gallery cards: image first, details on hover ─────────────── */
+.gallery-card__caption { opacity: 0; transform: translateY(6px); transition: opacity 0.35s var(--ws-ease), transform 0.45s var(--ws-ease); }
+.gallery-card:hover .gallery-card__caption,
+.gallery-card:focus-visible .gallery-card__caption { opacity: 1; transform: none; }
+.gallery-card__check { opacity: 0; }
+.gallery-card:hover .gallery-card__check,
+.gallery-card:focus-visible .gallery-card__check { opacity: 1; }
+@media (hover: none) {
+  .gallery-card__caption, .gallery-card__check { opacity: 1; transform: none; }
+}
