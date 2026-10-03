@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/interface/components/ui/button"
 import { Film, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { approvedForRender, type ShotReview } from "./storyboard-continuity"
 import { queueGalleryExport, type ExportProfile } from "@/core/actions/exports"
 
 interface StoryboardExportPanelProps {
@@ -12,6 +13,7 @@ interface StoryboardExportPanelProps {
     sourceClipId: string | null
     url: string
     approvedTakeId?: string | null
+    review?: ShotReview
   }[]
   projectId: string | null
 }
@@ -26,12 +28,13 @@ export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanel
   const [selectedProfile, setSelectedProfile] = useState<ExportProfile>("master_16_9")
   const [isExporting, setIsExporting] = useState(false)
 
-  const exportableItems = storyboardItems.filter((i) => i.sourceClipId || i.approvedTakeId)
+  // Only approved shots render, in storyboard order.
+  const exportableItems = approvedForRender(storyboardItems)
   const hasItems = exportableItems.length > 0
 
   const handleExport = async () => {
     if (!hasItems) {
-      toast.error("No exportable shots in storyboard")
+      toast.error("Approve at least one shot to render.")
       return
     }
 
@@ -78,8 +81,8 @@ export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanel
           <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-gold-200/60">Final render</p>
           <p className="mt-1 text-[11.5px] text-white/55">
             {hasItems
-              ? `${exportableItems.length} shot${exportableItems.length !== 1 ? "s" : ""} ready`
-              : "Save or approve shots to enable rendering"}
+              ? `${exportableItems.length} of ${storyboardItems.length} shot${storyboardItems.length !== 1 ? "s" : ""} approved, rendered in storyboard order`
+              : "Approve takes on your shots to render them"}
           </p>
         </div>
         <div role="radiogroup" aria-label="Export format" className="inline-flex rounded-full border border-gold-400/[0.12] bg-black/30 p-0.5">
@@ -100,11 +103,12 @@ export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanel
       <Button
         type="button"
         onClick={handleExport}
+        variant="studio"
         disabled={!hasItems || isExporting}
-        className="mt-3 h-10 w-full rounded-xl border border-gold-300/35 bg-gold-400/15 text-xs font-medium text-gold-50 hover:bg-gold-400/25"
+        className="mt-3 h-10 w-full text-xs font-semibold"
       >
         {isExporting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Film className="mr-1.5 h-3.5 w-3.5" />}
-        {isExporting ? "Queuing…" : `Render ${exportableItems.length} shot${exportableItems.length !== 1 ? "s" : ""}`}
+        {isExporting ? "Queuing…" : "Render approved shots"}
       </Button>
     </div>
   )

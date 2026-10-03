@@ -1,4 +1,5 @@
 /** Types, static data and pure mappers for Fast Track. No React state lives here. */
+import { shotFrameSchema } from "@/core/validation/shot-frames"
 import { EMPTY_CAMPAIGN_REFERENCES, campaignProvenanceSchema, campaignReferencesSchema, qualityFlagsSchema, type CampaignReferences, type QualityFlags } from "@/core/validation/campaign-references"
 import { type FastVideoAspectRatio, type FastVideoVariation } from "@/core/config/fast-video-presets"
 import { type KieVideoModelFamilyId, getKieVideoModelFamily } from "@/core/config/kie-video-models"
@@ -46,6 +47,8 @@ export type GenerationSnapshot = {
   variation: FastVideoVariation
   durationSeconds: number
   modelFamilyId: KieVideoModelFamilyId
+  /** Storyboard card this generation fills in when it finishes. */
+  storyboardTargetId?: string | null
 }
 
 export type SavedFastClip = {
@@ -140,6 +143,21 @@ export function mapRemoteStoryboardItem(row: FastVideoStoryboardRow): Storyboard
     note: row.note || "",
     status: (row.status as StoryboardItem["status"]) || "ready",
     createdAt: row.created_at,
+    ...mapContinuityColumns(row as unknown as Record<string, unknown>),
+  }
+}
+
+const REVIEW_STATES = new Set(["draft", "generating", "review", "approved", "failed"])
+
+function mapContinuityColumns(row: Record<string, unknown>): Partial<StoryboardItem> {
+  const review = typeof row.review_status === "string" && REVIEW_STATES.has(row.review_status) ? row.review_status as StoryboardItem["review"] : undefined
+  return {
+    direction: typeof row.direction === "string" ? row.direction : undefined,
+    // A shot that was mid-generation when the page closed is shown as ready to retry.
+    review: review === "generating" ? (row.url ? "review" : "draft") : review,
+    startFrame: shotFrameSchema.safeParse(row.start_frame).data ?? null,
+    endFrame: shotFrameSchema.safeParse(row.end_frame).data ?? null,
+    previousItemId: typeof row.previous_item_id === "string" ? row.previous_item_id : null,
   }
 }
 

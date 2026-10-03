@@ -79,6 +79,8 @@ import { PROMPT_TEMPLATES, type PromptTemplate } from "@/core/config/fast-video-
 import { ShotFramesPanel } from "./ShotFramesPanel"
 import { CampaignReferencesPanel, type CampaignOutputSettings } from "./CampaignReferencesPanel"
 import { CampaignAssetMeta } from "./CampaignAssetMeta"
+import { captureVideoFrame, uploadFrameImage } from "./frame-capture"
+import { continueFromShot, insertAfter } from "./storyboard-continuity"
 import { EMPTY_CAMPAIGN_REFERENCES, brandSafetyReviewed, type CampaignProvenance, campaignMode, campaignPlanSummary, campaignReferenceIssues, campaignReferencesSchema, recommendedCampaignModel, type CampaignReferences } from "@/core/validation/campaign-references"
 import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
@@ -155,6 +157,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const generationSnapshotRef = useRef<GenerationSnapshot | null>(null)
+  // Storyboard card the next builder generation fills in; consumed by handleGenerate.
+  const storyboardTargetRef = useRef<string | null>(null)
+  const [generatingStoryboardId, setGeneratingStoryboardId] = useState<string | null>(null)
+  const [approvingStoryboardId, setApprovingStoryboardId] = useState<string | null>(null)
+  const [storyboardGenerateRequest, setStoryboardGenerateRequest] = useState(0)
   // Temporal Start / End Frames: kept apart from the media reference library.
   const [shotFrames, setShotFrames] = useState<ShotFrames>(EMPTY_SHOT_FRAMES)
   const [isFrameBusy, setIsFrameBusy] = useState(false)
@@ -1543,6 +1550,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     const fitSubject = continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim()
     const promptFit = fitReferencePrompt(generationFrames ? `${frameDirective(generationFrames)}. ${fitSubject}` : fitSubject, generationReferences)
 
+    const storyboardTargetId = storyboardTargetRef.current
+    storyboardTargetRef.current = null
+    setGeneratingStoryboardId(storyboardTargetId)
+
     setIsGenerating(true)
     setStatus("processing")
     setStatusMessage("Initializing...")
@@ -1563,6 +1574,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       : subject.trim()
 
     generationSnapshotRef.current = {
+      storyboardTargetId,
       mediaReferences: generationReferences,
       shotFrames: generationFrames,
       projectId: selectedProjectId || null,
@@ -1610,6 +1622,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       const resolvedPrompt = res.data.prompt || subjectWithContinuity
 
       generationSnapshotRef.current = {
+        storyboardTargetId,
         mediaReferences: generationReferences,
         shotFrames: generationFrames,
         projectId: selectedProjectId || null,
@@ -1847,6 +1860,146 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setDebugEvents([])
     setFinalPrompt("")
     generationSnapshotRef.current = null
+  }
+
+  const handleGenerateRef = useRef(handleGenerate)
+  useEffect(() => { handleGenerateRef.current = handleGenerate })
+  // "Generate shot" on a storyboard card loads the builder first; generate once that state has rendered.
+  useEffect(() => {
+    if (!storyboardGenerateRequest) return
+    void handleGenerateRef.current().finally(() => { storyboardTargetRef.current = null })
+  }, [storyboardGenerateRequest])
+
+  // A generation started from a storyboard card lands back on that card.
+  useEffect(() => {
+    const snapshot = generationSnapshotRef.current
+    const target = snapshot?.storyboardTargetId
+    if (!snapshot || !target) return
+    if (status === "completed" && videoUrl) {
+      snapshot.storyboardTargetId = null
+      setGeneratingStoryboardId(null)
+      const nextItems = normalizeStoryboardItems(storyboardItems.map((item) => item.id === target ? {
+        ...item,
+        url: videoUrl,
+        sourceClipId: taskId ?? item.sourceClipId,
+        prompt: snapshot.prompt,
+        subject: item.subject === "New shot" || item.subject === "Next shot" ? snapshot.subject.slice(0, 80) : item.subject,
+        durationSeconds: snapshot.durationSeconds,
+        modelFamilyId: snapshot.modelFamilyId,
+        mediaReferences: snapshot.mediaReferences ?? item.mediaReferences,
+        review: "review" as const,
+        status: "ready" as const,
+        endFrame: null,
+        approvedTakeId: null,
+      } : item))
+      setStoryboardItems(nextItems)
+      void persistStoryboardItems(nextItems, { suppressSuccess: true })
+      toast.success("Shot ready for review", { id: "storyboard-shot", action: { label: "Open storyboard", onClick: () => setActiveTab("storyboard") } })
+    } else if (status === "failed") {
+      snapshot.storyboardTargetId = null
+      setGeneratingStoryboardId(null)
+      const nextItems = storyboardItems.map((item) => item.id === target ? { ...item, review: "failed" as const } : item)
+      setStoryboardItems(nextItems)
+      void persistStoryboardItems(nextItems, { suppressSuccess: true })
+    }
+    // Runs on generation status changes only; the card list is read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, videoUrl])
+
+  const patchStoryboardItem = (id: string, patch: Partial<StoryboardItem>, persist = true) => {
+    const nextItems = normalizeStoryboardItems(storyboardItems.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+    setStoryboardItems(nextItems)
+    if (persist) void persistStoryboardItems(nextItems, { suppressSuccess: true })
+    return nextItems
+  }
+
+  const handleNewStoryboardShot = () => {
+    const last = storyboardItems[storyboardItems.length - 1]
+    const item: StoryboardItem = {
+      id: crypto.randomUUID(),
+      sourceClipId: null,
+      url: "",
+      subject: "New shot",
+      prompt: "",
+      direction: "",
+      durationSeconds,
+      modelFamilyId,
+      sceneGroup: last?.sceneGroup ?? "Scene A",
+      note: "",
+      status: "draft",
+      review: "draft",
+      createdAt: new Date().toISOString(),
+      mediaReferences: structuredClone(currentReferences.filter((ref) => ref.applied)),
+      startFrame: shotFrames.start ?? null,
+      endFrame: null,
+      previousItemId: null,
+    }
+    const nextItems = normalizeStoryboardItems([...storyboardItems, item])
+    setStoryboardItems(nextItems)
+    void persistStoryboardItems(nextItems, { suppressSuccess: true })
+  }
+
+  const handleGenerateStoryboardShot = async (item: StoryboardItem) => {
+    const direction = (item.direction || "").trim() || item.prompt.trim()
+    if (!direction) { toast.error("Describe what happens in this shot first.", { id: "storyboard-shot" }); return }
+    if (isGenerating || status === "processing") { toast.message("Wait for the current generation to finish.", { id: "storyboard-shot" }); return }
+    restoreReferences(item.mediaReferences || [])
+    setShotFrames({ start: item.startFrame ?? null, end: null, transitionDirection: "" })
+    setSubject(direction)
+    setDurationSeconds(item.durationSeconds)
+    if (item.modelFamilyId) setModelFamilyId(item.modelFamilyId)
+    // A continued shot also inherits the previous shot's wardrobe / location continuity locks.
+    const previous = item.previousItemId ? storyboardItems.find((entry) => entry.id === item.previousItemId) : undefined
+    if (previous?.sourceClipId) {
+      const continuity = await loadContinuity(previous.sourceClipId)
+      if (continuity) {
+        setContinuityEnabled(true)
+        setContinuityLocks(continuity.locks)
+        setContinuityValues(continuity.values)
+      }
+    }
+    storyboardTargetRef.current = item.id
+    setStoryboardGenerateRequest((n) => n + 1)
+    toast.message(`Generating Shot ${storyboardItems.indexOf(item) + 1}`, { id: "storyboard-shot", description: "It comes back to this card when it's ready." })
+  }
+
+  const handleApproveStoryboardShot = async (item: StoryboardItem) => {
+    if (!item.url) return
+    setApprovingStoryboardId(item.id)
+    try {
+      // The approved take's last frame becomes the next shot's starting image.
+      const { blob, timestampMs } = await captureVideoFrame(`/api/media/proxy?url=${encodeURIComponent(item.url)}`, "end")
+      const assetPath = await uploadFrameImage(blob)
+      patchStoryboardItem(item.id, {
+        review: "approved",
+        endFrame: {
+          id: crypto.randomUUID(), assetPath, name: `${item.subject.slice(0, 150) || "Shot"} end.jpg`,
+          sourceType: "capture", sourceShotId: item.id, sourceTimestampMs: timestampMs,
+          sourceLabel: item.subject.slice(0, 120), influence: "medium",
+        },
+      })
+      toast.success("Take approved", { id: "storyboard-shot", description: "Its last frame is saved. Continue to the next shot when you're ready." })
+    } catch (error) {
+      toast.error(error instanceof Error ? `Couldn't save the end frame: ${error.message}` : "Couldn't save the end frame.", { id: "storyboard-shot" })
+    } finally {
+      setApprovingStoryboardId(null)
+    }
+  }
+
+  const handleContinueStoryboardShot = (item: StoryboardItem) => {
+    const result = continueFromShot(item, { itemId: crypto.randomUUID(), frameId: crypto.randomUUID() }, new Date().toISOString())
+    if (!result.ok) { toast.error(result.reason, { id: "storyboard-shot" }); return }
+    const nextItems = normalizeStoryboardItems(insertAfter(storyboardItems, item.id, result.item))
+    setStoryboardItems(nextItems)
+    void persistStoryboardItems(nextItems, { suppressSuccess: true })
+    toast.success(`Shot ${nextItems.findIndex((entry) => entry.id === result.item.id) + 1} starts where this one ends`, { id: "storyboard-shot", description: "Write what happens next, then generate." })
+  }
+
+  const handleStartNewSceneFromShot = (item: StoryboardItem) => {
+    const order = ["Scene A", "Scene B", "Scene C"] as const
+    const nextGroup = order[Math.min(order.indexOf(item.sceneGroup) + 1, order.length - 1)]
+    patchStoryboardItem(item.id, { startFrame: null, previousItemId: null, sceneGroup: nextGroup })
+    toast.message(`Moved to ${nextGroup} with a fresh start`, { id: "storyboard-shot" })
   }
 
   const handleSelectTake = (take: TakeItem) => {
@@ -3027,37 +3180,37 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               modelFamilyId,
             })
           }}
+          onNewShot={handleNewStoryboardShot}
           onRemoveItem={removeStoryboardItem}
           onDuplicateItem={duplicateStoryboardItem}
           onUpdateGroup={updateStoryboardGroup}
           onReorder={reorderStoryboardItems}
           onUpdateNote={updateStoryboardNote}
           onSaveNote={(id) => void saveStoryboardNote(id)}
+          onUpdateDirection={(id, direction) => patchStoryboardItem(id, { direction }, false)}
+          onSaveDirection={(id) => { const item = storyboardItems.find((entry) => entry.id === id); if (item) patchStoryboardItem(id, { direction: (item.direction || "").trim() }) }}
           onClearGroup={clearStoryboardGroup}
           onDuplicateGroup={duplicateStoryboardGroupToNext}
           onCopyGroupShotList={(group) => void copyStoryboardGroupShotList(group)}
-          onContinueFromShot={async (item) => {
-            restoreReferences((item.mediaReferences || []).filter((ref) => ref.locked && ref.scope !== "shot"))
-            setSubject(item.prompt)
-            setActiveTab("builder")
-            if (item.sourceClipId) {
-              const result = await loadContinuity(item.sourceClipId)
-              if (result) {
-                setContinuityEnabled(true)
-                setContinuityLocks(result.locks)
-                setContinuityValues(result.values)
-                toast.success("Loaded shot with continuity locks — continue your sequence")
-                return
-              }
-            }
-            toast.success("Loaded shot prompt into builder — continue your sequence")
-          }}
+          onGenerateShot={(item) => void handleGenerateStoryboardShot(item)}
+          onApproveShot={(item) => void handleApproveStoryboardShot(item)}
+          onContinueToNext={handleContinueStoryboardShot}
+          onStartNewScene={handleStartNewSceneFromShot}
+          onToggleReferenceLock={(item, referenceId) => patchStoryboardItem(item.id, {
+            mediaReferences: (item.mediaReferences || []).map((ref) => (ref.id === referenceId ? { ...ref, locked: !ref.locked } : ref)),
+          })}
+          onRemoveReference={(item, referenceId) => patchStoryboardItem(item.id, {
+            mediaReferences: (item.mediaReferences || []).filter((ref) => ref.id !== referenceId),
+          })}
           onEditShot={(item) => {
             restoreReferences(item.mediaReferences || [])
-            setSubject(item.subject)
+            setShotFrames({ start: item.startFrame ?? null, end: null, transitionDirection: "" })
+            setSubject((item.direction || "").trim() || item.prompt || item.subject)
             setActiveTab("builder")
-            toast.success("Loaded shot into builder for editing")
+            toast.success("Loaded shot into Shot Builder")
           }}
+          approvingId={approvingStoryboardId}
+          generatingId={generatingStoryboardId}
           onSwitchToBuilder={() => setActiveTab("builder")}
           hasOutput={!!videoUrl}
         />

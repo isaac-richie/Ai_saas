@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/infrastructure/supabase/server"
 import { Database } from "@/core/types/db"
 import { validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
+import { shotFrameSchema } from "@/core/validation/shot-frames"
 import { campaignProvenanceSchema, type CampaignProvenance } from "@/core/validation/campaign-references"
 
 export type FastVideoStoryboardRow = Database["public"]["Tables"]["fast_video_storyboard_items"]["Row"]
@@ -25,11 +26,25 @@ type ReplaceFastVideoStoryboardInput = {
     note: string
     status: "draft" | "ready"
     createdAt: string
+    direction?: string
+    review?: string
+    startFrame?: unknown
+    endFrame?: unknown
+    previousItemId?: string | null
   }>
 }
 
 const SCENE_GROUPS = new Set(["Scene A", "Scene B", "Scene C"])
 const ITEM_STATUSES = new Set(["draft", "ready"])
+const REVIEW_STATES = new Set(["draft", "generating", "review", "approved", "failed"])
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// Migration 0038 columns. Older databases drop them on save rather than losing the storyboard.
+const CONTINUITY_COLUMNS = ["direction", "review_status", "start_frame", "end_frame", "previous_item_id"] as const
+
+function ownedFrame(frame: unknown, userId: string) {
+  const parsed = shotFrameSchema.safeParse(frame)
+  return parsed.success && parsed.data.assetPath.startsWith(`${userId}/`) ? parsed.data : null
+}
 
 async function ensureSession() {
   const supabase = await createClient()
@@ -43,7 +58,8 @@ async function ensureSession() {
 
 function sanitizeStoryboardItem(
   item: ReplaceFastVideoStoryboardInput["items"][number],
-  orderIndex: number
+  orderIndex: number,
+  userId: string
 ): Database["public"]["Tables"]["fast_video_storyboard_items"]["Insert"] {
   return {
     media_references: JSON.parse(JSON.stringify(item.mediaReferences || [])),
@@ -64,6 +80,11 @@ function sanitizeStoryboardItem(
     updated_at: new Date().toISOString(),
     // Migration 0036; omitted entirely when absent so older databases still accept the row.
     ...(item.campaignProvenance ? { campaign_provenance: campaignProvenanceSchema.parse(item.campaignProvenance) } : {}),
+    direction: (item.direction || "").trim().slice(0, 1200),
+    review_status: item.review && REVIEW_STATES.has(item.review) ? item.review : null,
+    start_frame: ownedFrame(item.startFrame, userId),
+    end_frame: ownedFrame(item.endFrame, userId),
+    previous_item_id: item.previousItemId && UUID.test(item.previousItemId) ? item.previousItemId : null,
   } as Database["public"]["Tables"]["fast_video_storyboard_items"]["Insert"]
 }
 
@@ -117,7 +138,7 @@ export async function replaceFastVideoStoryboard(input: ReplaceFastVideoStoryboa
     if (deleteError) return { error: deleteError.message }
   } else {
     const payload = items.map((item, index) => {
-      const sanitized = sanitizeStoryboardItem(item, index)
+      const sanitized = sanitizeStoryboardItem(item, index, session.user!.id)
       sanitized.project_id = projectId
       sanitized.scene_id = sceneId
       return sanitized
@@ -127,9 +148,18 @@ export async function replaceFastVideoStoryboard(input: ReplaceFastVideoStoryboa
       .from("fast_video_storyboard_items")
       .upsert(payload, { onConflict: "id" })
     // Before migration 0036 there is no provenance column: keep the storyboard, drop only the metadata.
-    if (upsertError && /campaign_provenance/.test(upsertError.message)) {
-      const withoutProvenance = payload.map((row) => { const copy = { ...row } as Record<string, unknown>; delete copy.campaign_provenance; return copy as typeof row })
-      ;({ error: upsertError } = await supabase.from("fast_video_storyboard_items").upsert(withoutProvenance, { onConflict: "id" }))
+    if (upsertError && /campaign_provenance|direction|review_status|start_frame|end_frame|previous_item_id/.test(upsertError.message)) {
+      const legacy = payload.map((row) => {
+        const copy = { ...row } as Record<string, unknown>
+        if (/campaign_provenance/.test(upsertError!.message)) delete copy.campaign_provenance
+        for (const column of CONTINUITY_COLUMNS) delete copy[column]
+        return copy as typeof row
+      })
+      ;({ error: upsertError } = await supabase.from("fast_video_storyboard_items").upsert(legacy, { onConflict: "id" }))
+      if (upsertError && /campaign_provenance/.test(upsertError.message)) {
+        const bare = legacy.map((row) => { const copy = { ...row } as Record<string, unknown>; delete copy.campaign_provenance; return copy as typeof row })
+        ;({ error: upsertError } = await supabase.from("fast_video_storyboard_items").upsert(bare, { onConflict: "id" }))
+      }
     }
 
     if (upsertError) return { error: upsertError.message.includes("media_references") ? "Apply migration 0027 to save storyboard reference snapshots." : upsertError.message }
