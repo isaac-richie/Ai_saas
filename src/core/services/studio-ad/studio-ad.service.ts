@@ -751,7 +751,56 @@ export class StudioAdService {
       buildCampaignUserPrompt(input),
       MODEL_REASONING_EFFORT
     );
-    const parsed = studioAdCampaignPlanSchema.parse(rawPlan);
-    return normalizeCampaignPlan(input, parsed);
+    const fitted = fitCampaignPlan(rawPlan);
+    const result = studioAdCampaignPlanSchema.safeParse(fitted);
+    if (!result.success) {
+      throw new Error('The Assistant Director returned an incomplete plan. Please try Plan again.');
+    }
+    return normalizeCampaignPlan(input, result.data);
   }
+}
+
+const CAMPAIGN_TEXT_LIMITS: Record<string, number> = {
+  campaignSummary: 600, audience: 220, creativeStrategy: 500,
+};
+const DELIVERABLE_TEXT_LIMITS: Record<string, number> = {
+  id: 80, title: 120, conceptType: 80, hook: 220, creatorDirection: 500,
+  masterPrompt: 1200, negativePrompt: 700, aspectRatio: 20,
+  stylePresetId: 120, motionPresetId: 120, continuityStartState: 300,
+  continuityEndState: 300, productInteraction: 220, shotSequence: 400, callToAction: 160,
+};
+const DELIVERABLE_LIST_LIMITS: Record<string, [number, number]> = {
+  continuityAnchors: [12, 240], productionNotes: [5, 220], intentionalChanges: [4, 160],
+};
+
+function clip(value: unknown, max: number): unknown {
+  if (typeof value !== 'string' || value.length <= max) return value;
+  const cut = value.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.7 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+function clipList(value: unknown, count: number, max: number): unknown {
+  return Array.isArray(value) ? value.slice(0, count).map((item) => clip(item, max)) : value;
+}
+
+/** Detailed briefs make the model overshoot field limits; trim rather than reject. */
+export function fitCampaignPlan(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const plan = { ...(raw as Record<string, unknown>) };
+  for (const [key, max] of Object.entries(CAMPAIGN_TEXT_LIMITS)) plan[key] = clip(plan[key], max);
+  plan.suggestions = clipList(plan.suggestions, 6, 220);
+  if (Array.isArray(plan.deliverables)) {
+    plan.deliverables = plan.deliverables.slice(0, 5).map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const deliverable = { ...(item as Record<string, unknown>) };
+      for (const [key, max] of Object.entries(DELIVERABLE_TEXT_LIMITS)) deliverable[key] = clip(deliverable[key], max);
+      for (const [key, [count, max]] of Object.entries(DELIVERABLE_LIST_LIMITS)) deliverable[key] = clipList(deliverable[key], count, max);
+      if (typeof deliverable.durationSeconds === 'number') {
+        deliverable.durationSeconds = Math.min(15, Math.max(5, Math.round(deliverable.durationSeconds)));
+      }
+      return deliverable;
+    });
+  }
+  return plan;
 }
