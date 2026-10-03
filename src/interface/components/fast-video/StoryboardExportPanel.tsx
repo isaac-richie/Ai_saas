@@ -72,48 +72,40 @@ export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanel
   if (storyboardItems.length === 0) return null
 
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
-      <p className="mb-3 text-[10px] uppercase tracking-[0.14em] text-white/35 font-medium">Final Render</p>
-
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex items-center gap-1.5">
+    <div className="rounded-3xl border border-gold-400/[0.12] bg-gradient-to-b from-white/[0.035] to-black/30 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-gold-200/60">Final render</p>
+          <p className="mt-1 text-[11.5px] text-white/55">
+            {hasItems
+              ? `${exportableItems.length} shot${exportableItems.length !== 1 ? "s" : ""} ready`
+              : "Save or approve shots to enable rendering"}
+          </p>
+        </div>
+        <div role="radiogroup" aria-label="Export format" className="inline-flex rounded-full border border-gold-400/[0.12] bg-black/30 p-0.5">
           {PROFILES.map((p) => (
             <button
               key={p.id}
               type="button"
+              role="radio"
+              aria-checked={selectedProfile === p.id}
               onClick={() => setSelectedProfile(p.id)}
-              className={`h-8 rounded-lg border px-2.5 text-[11px] transition ${
-                selectedProfile === p.id
-                  ? "border-gold-300/40 bg-gold-500/15 text-gold-100"
-                  : "border-gold-400/[0.12] bg-white/5 text-white/60 hover:bg-gold-400/[0.08]"
-              }`}
+              className={`h-7 rounded-full px-3 text-[11px] transition ${selectedProfile === p.id ? "bg-gold-400/20 text-gold-50" : "text-white/55 hover:text-white/90"}`}
             >
               {p.label}
             </button>
           ))}
         </div>
-
-        <Button
-          type="button"
-          variant="liquidMetalCyan"
-          onClick={handleExport}
-          disabled={!hasItems || isExporting}
-          className="h-9 px-4 text-xs font-medium"
-        >
-          {isExporting ? (
-            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Film className="mr-1.5 h-3.5 w-3.5" />
-          )}
-          {isExporting ? "Queuing..." : `Render ${exportableItems.length} Shot${exportableItems.length !== 1 ? "s" : ""}`}
-        </Button>
       </div>
-
-      <p className="mt-2 text-[10px] text-white/35">
-        {hasItems
-          ? `${exportableItems.length} shot${exportableItems.length !== 1 ? "s" : ""} ready for final render`
-          : "Add approved shots to storyboard to enable rendering"}
-      </p>
+      <Button
+        type="button"
+        onClick={handleExport}
+        disabled={!hasItems || isExporting}
+        className="mt-3 h-10 w-full rounded-xl border border-gold-300/35 bg-gold-400/15 text-xs font-medium text-gold-50 hover:bg-gold-400/25"
+      >
+        {isExporting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Film className="mr-1.5 h-3.5 w-3.5" />}
+        {isExporting ? "Queuing…" : `Render ${exportableItems.length} shot${exportableItems.length !== 1 ? "s" : ""}`}
+      </Button>
     </div>
   )
 }
