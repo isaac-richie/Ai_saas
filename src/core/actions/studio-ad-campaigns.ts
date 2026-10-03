@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/infrastructure/supabase/server"
 import { Database, Json } from "@/core/types/db"
 import type { StudioAdCampaignPlan } from "@/core/validation/studio-ad"
+import { campaignMode, qualityFlagsSchema, validateOwnedCampaignReferences, type CampaignReferences, type QualityFlags } from "@/core/validation/campaign-references"
+
+const MISSING_COLUMN = ["42703", "PGRST204", "42P01", "PGRST205"]
 
 export type StudioAdCampaignRow = Database["public"]["Tables"]["studio_ad_campaigns"]["Row"]
 export type StudioAdCampaignItemRow = Database["public"]["Tables"]["studio_ad_campaign_items"]["Row"]
@@ -21,6 +24,7 @@ type CreateCampaignInput = {
   aspectRatio: string
   durationSeconds: number
   engineModel?: string | null
+  references?: CampaignReferences | null
 }
 
 type UpdateCampaignItemInput = {
@@ -32,6 +36,8 @@ type UpdateCampaignItemInput = {
   error?: string | null
   masterPrompt?: string
   durationSeconds?: number
+  qualityFlags?: QualityFlags
+  generationModel?: string | null
 }
 
 async function ensureSession() {
@@ -59,6 +65,13 @@ export async function createStudioAdCampaign(input: CreateCampaignInput) {
   if (session.error || !session.user) return { error: session.error || "Unauthorized" }
 
   const { supabase, user } = session
+  let references: CampaignReferences | null = null
+  try {
+    references = input.references ? validateOwnedCampaignReferences(input.references, user.id) : null
+  } catch (cause) {
+    return { error: cause instanceof Error ? cause.message : "Invalid campaign references." }
+  }
+  const withReferences = references && campaignMode(references) !== "generic" ? references : null
   const { data: campaign, error: campaignError } = await supabase
     .from("studio_ad_campaigns")
     .insert({
@@ -113,8 +126,53 @@ export async function createStudioAdCampaign(input: CreateCampaignInput) {
 
   if (itemsError) return { error: itemsError.message }
 
+  if (withReferences) {
+    await recordCampaignReferences(supabase, user.id, campaign.id, withReferences, input.plan, createdItems || [])
+  }
+
   revalidatePath("/dashboard/fast-video")
-  return { data: { ...campaign, items: createdItems || [] } as StudioAdCampaignWithItems }
+  return { data: { ...campaign, campaign_references: withReferences, items: createdItems || [] } as StudioAdCampaignWithItems }
+}
+
+/**
+ * Stores references (migration 0035) next to the campaign. The plan and items
+ * are already saved, so a missing migration only skips these typed rows.
+ */
+async function recordCampaignReferences(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  campaignId: string,
+  refs: CampaignReferences,
+  plan: StudioAdCampaignPlan,
+  items: StudioAdCampaignItemRow[],
+) {
+  const db = supabase as unknown as { from: (table: string) => { update: (v: unknown) => { eq: (k: string, v: string) => Promise<{ error: { code: string } | null }> }; insert: (v: unknown) => Promise<{ error: { code: string } | null }> } }
+  const snapshot = await db.from("studio_ad_campaigns").update({
+    campaign_references: refs, campaign_style: refs.style, relationship_type: refs.relationship, platform: plan.platform ?? null,
+  }).eq("id", campaignId)
+  if (snapshot.error) {
+    console.warn("Campaign reference snapshot skipped; apply migration 0035.", { code: snapshot.error.code })
+    return
+  }
+  const rows = [refs.character, refs.product].flatMap((ref) => ref ? [{
+    user_id: userId, reference_id: ref.id, campaign_id: campaignId, reference_type: ref.type, asset_paths: ref.assetPaths, name: ref.name,
+    description: ref.type === "character"
+      ? { role: ref.role, ageRange: ref.ageRange, appearance: ref.appearance, wardrobe: ref.wardrobe, voice: ref.voice, expressionAction: ref.expressionAction }
+      : { variant: ref.variant, logoText: ref.logoText, colourMaterial: ref.colourMaterial, packaging: ref.packaging, keyFeatures: ref.keyFeatures, forbiddenChanges: ref.forbiddenChanges },
+    lock_identity: ref.type === "character" ? ref.locks.identity : ref.locks.shape && ref.locks.logoText,
+    lock_appearance: ref.type === "character" ? ref.locks.wardrobe : ref.locks.colour && ref.locks.packaging,
+    locks: ref.locks, influence_strength: ref.influence, rights_confirmed: ref.rightsConfirmed,
+  }] : [])
+  const inserted = await db.from("campaign_references").insert(rows)
+  if (inserted.error) console.warn("Campaign reference rows skipped.", { code: inserted.error.code })
+  await Promise.all(items.map((item, index) => db.from("studio_ad_campaign_items").update({
+    character_reference_id: refs.character?.id ?? null,
+    product_reference_id: refs.product?.id ?? null,
+    relationship_type: refs.character && refs.product ? refs.relationship : null,
+    product_interaction: plan.deliverables[index]?.productInteraction ?? null,
+    shot_sequence: plan.deliverables[index]?.shotSequence ?? null,
+    call_to_action: plan.deliverables[index]?.callToAction ?? null,
+  }).eq("id", item.id)))
 }
 
 export async function listStudioAdCampaigns(projectId?: string | null) {
@@ -172,12 +230,28 @@ export async function updateStudioAdCampaignItem(input: UpdateCampaignItemInput)
     updated_at: new Date().toISOString(),
   }
   if (input.status) updates.status = input.status
-  if ("taskId" in input) updates.task_id = input.taskId ?? null
-  if ("traceId" in input) updates.trace_id = input.traceId ?? null
-  if ("outputUrl" in input) updates.output_url = input.outputUrl ?? null
-  if ("error" in input) updates.error = input.error ?? null
+  // Callers pass every key, using undefined for "unchanged". Only explicit values
+  // (including null to clear) are written, so a flag or status update never wipes
+  // a finished clip's URL or task ID.
+  if (input.taskId !== undefined) updates.task_id = input.taskId
+  if (input.traceId !== undefined) updates.trace_id = input.traceId
+  if (input.outputUrl !== undefined) updates.output_url = input.outputUrl
+  if (input.error !== undefined) updates.error = input.error
   if (input.masterPrompt) updates.master_prompt = input.masterPrompt
   if (typeof input.durationSeconds === "number") updates.duration_seconds = input.durationSeconds
+  // Columns from migration 0035; written separately so older databases still update.
+  const extras: Record<string, unknown> = {}
+  if (input.qualityFlags) {
+    const flags = qualityFlagsSchema.safeParse(input.qualityFlags)
+    if (!flags.success) return { error: "Invalid review flags." }
+    extras.quality_flags = flags.data
+  }
+  if (input.generationModel) extras.generation_model = input.generationModel.slice(0, 120)
+  if (Object.keys(extras).length) {
+    const { error: extrasError } = await session.supabase.from("studio_ad_campaign_items").update(extras as never).eq("id", input.itemId)
+    if (extrasError && MISSING_COLUMN.includes(extrasError.code)) return { error: "Review flags need migration 0035. Your campaign is unchanged." }
+    if (extrasError) return { error: extrasError.message }
+  }
 
   const { data, error } = await session.supabase
     .from("studio_ad_campaign_items")
