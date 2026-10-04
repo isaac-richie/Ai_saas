@@ -79,6 +79,7 @@ import { PROMPT_TEMPLATES, type PromptTemplate } from "@/core/config/fast-video-
 import { ShotFramesPanel } from "./ShotFramesPanel"
 import { CampaignReferencesPanel, type CampaignOutputSettings } from "./CampaignReferencesPanel"
 import { CampaignAssetMeta } from "./CampaignAssetMeta"
+import { FAST_TRACK_HANDOFF_KEY } from "@/core/config/handoff"
 import { captureVideoFrame, uploadFrameImage } from "./frame-capture"
 import { continueFromShot, insertAfter } from "./storyboard-continuity"
 import { generationPrompt, needsEnhancement, referenceClassificationSchema } from "@/core/validation/storyboard-direction"
@@ -1863,6 +1864,19 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setFinalPrompt("")
     generationSnapshotRef.current = null
   }
+
+  // Prompt handed over from Scene Builder ("Make video in Fast Track").
+  useEffect(() => {
+    let prompt: string | null = null
+    try {
+      prompt = sessionStorage.getItem(FAST_TRACK_HANDOFF_KEY)
+      sessionStorage.removeItem(FAST_TRACK_HANDOFF_KEY)
+    } catch { prompt = null }
+    if (!prompt?.trim()) return
+    setActiveTab("builder")
+    setSubject(prompt.trim())
+    toast.success("Prompt brought over from Scene Builder", { id: "fast-track-handoff", description: "Pick a model and press Generate." })
+  }, [])
 
   const handleGenerateRef = useRef(handleGenerate)
   useEffect(() => { handleGenerateRef.current = handleGenerate })

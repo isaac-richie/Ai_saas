@@ -130,3 +130,12 @@ test('public test period: free plan is unlimited and Studio is open by default',
   assert.match(gallery, /\.update\(\{ shot_id: createdShot\.id \}\)/, 'Move re-parents instead of copying')
   assert.doesNotMatch(gallery, /\(Moved\)/)
 })
+
+test('Scene Builder prompt can be generated in place or sent to Fast Track', () => {
+  const builder = read('../src/interface/components/shots/ShotBuilder.tsx')
+  assert.match(builder, /const shotId = await saveShot\(data\)[\s\S]*await generateShot\(shotId\)/)
+  assert.match(builder, /Add shot & generate/)
+  assert.match(builder, /sessionStorage\.setItem\(FAST_TRACK_HANDOFF_KEY/)
+  const studio = read('../src/interface/components/fast-video/FastVideoStudio.tsx')
+  assert.match(studio, /sessionStorage\.removeItem\(FAST_TRACK_HANDOFF_KEY\)/, 'handoff is read once')
+})

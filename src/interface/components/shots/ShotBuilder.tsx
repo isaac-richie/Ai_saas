@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { useForm, useWatch, Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -26,13 +27,15 @@ import { Checkbox } from "@/interface/components/ui/checkbox"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/interface/components/ui/card"
 import { assemblePrompt, PROMPT_ORDER, PromptCategory, PromptPreset } from "@/core/utils/prompts/builder"
 import { createShot } from "@/core/actions/shots"
+import { generateShot } from "@/core/actions/generation"
 import { attachElementToShot } from "@/core/actions/elements"
 import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import { LookBuilder } from "@/interface/components/shots/LookBuilder"
-import { Loader2, Plus, Sparkles, Layers, Copy, Check } from "lucide-react"
+import { Loader2, Plus, Sparkles, Layers, Copy, Check, Wand2, Clapperboard } from "lucide-react"
 import { StyleSwatch } from "@/interface/components/fast-video/preset-visuals"
 import { toast } from "sonner"
+import { FAST_TRACK_HANDOFF_KEY } from "@/core/config/handoff"
 
 const numericOptionalZod = z.coerce.number().optional()
 
@@ -181,6 +184,9 @@ const QUICK_STYLE_PRESETS: Array<{
 
 export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderProps) {
     const [isSaving, setIsSaving] = useState(false)
+    const [isGenerating, setIsGenerating] = useState(false)
+    const router = useRouter()
+    const previewRef = useRef<HTMLDivElement>(null)
     const [availableElements, setAvailableElements] = useState<AvailableElement[]>([])
     const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set())
     const [isMounted, setIsMounted] = useState(false)
@@ -432,10 +438,19 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             form.setValue("providerSlug", "auto")
         }
 
-        toast.success("Assistant Director prompt applied to builder")
+        toast.success("Assistant Director prompt applied", {
+            description: "Generate it here, or turn it into a video in Fast Track.",
+            action: { label: "Add shot & generate", onClick: () => void handleAddAndGenerate() },
+        })
+        requestAnimationFrame(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }))
     }
 
     async function onSubmit(data: ShotFormValues) {
+        await saveShot(data)
+    }
+
+    /** Creates the shot from the current builder state; returns its id on success. */
+    async function saveShot(data: ShotFormValues): Promise<string | null> {
         setIsSaving(true)
 
         const shotLabel = selections.shot?.label || "Shot"
@@ -482,12 +497,38 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         if (res.error) {
             toast.error(`Error creating shot: ${res.error}`)
         } else {
-            toast.success("Shot created successfully!")
+            toast.success("Shot added to your shot list")
             // Keep the current prompt/choices until user manually clears or refreshes.
             form.setValue("subject", data.subject)
             setSelectedElementIds(new Set())
             onShotCreated?.()
         }
+        return res.error ? null : res.data?.id ?? null
+    }
+
+    // One step from a finished prompt to a generated shot.
+    const handleAddAndGenerate = form.handleSubmit(async (data) => {
+        const shotId = await saveShot(data)
+        if (!shotId) return
+        setIsGenerating(true)
+        toast.loading("Generating your shot…", { id: "shot-generate" })
+        try {
+            const res = await generateShot(shotId)
+            if (res.error) toast.error(res.error, { id: "shot-generate" })
+            else toast.success("Shot generated. Approve your favourite take below, then animate it.", { id: "shot-generate" })
+        } catch {
+            toast.error("Generation failed. Try Generate on the shot card.", { id: "shot-generate" })
+        } finally {
+            setIsGenerating(false)
+            router.refresh()
+        }
+    }, () => toast.error("Add a subject before generating."))
+
+    const handleSendToFastTrack = () => {
+        const prompt = (form.getValues("subject") || "").trim() || promptPreview.trim()
+        if (!prompt) { toast.error("Build a prompt first."); return }
+        try { sessionStorage.setItem(FAST_TRACK_HANDOFF_KEY, prompt.slice(0, 4000)) } catch { /* storage blocked: Fast Track opens empty */ }
+        router.push("/dashboard/fast-video")
     }
 
     if (!isMounted) {
@@ -892,9 +933,19 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                             {promptPreview || <span className="italic text-white/45">Start building your shot...</span>}
                         </div>
                     </CardContent>
-                    <CardFooter>
-                        <p className="text-xs text-white/50">
-                            Descriptors are assembled in the exact order required for cinematic prompts.
+                    <CardFooter className="flex flex-col items-stretch gap-2">
+                        <div ref={previewRef} className="grid gap-2 sm:grid-cols-2">
+                            <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating || !promptPreview.trim()} className="h-10">
+                                {isSaving || isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                {isGenerating ? "Generating…" : isSaving ? "Adding shot…" : "Add shot & generate"}
+                            </Button>
+                            <Button type="button" variant="studioSecondary" onClick={handleSendToFastTrack} disabled={!promptPreview.trim()} className="h-10">
+                                <Clapperboard className="mr-2 h-4 w-4" />
+                                Make video in Fast Track
+                            </Button>
+                        </div>
+                        <p className="text-xs text-white/45">
+                            Generate creates image takes for this scene; approve one, then animate it. Fast Track turns the prompt straight into video.
                         </p>
                     </CardFooter>
                 </Card>
