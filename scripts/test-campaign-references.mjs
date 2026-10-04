@@ -290,7 +290,7 @@ test("Use, Add and Add All wait for brand safety and carry campaign provenance",
   assert.match(studio, /campaignHasReferences && item\.status === "completed" && !brandSafetyReviewed/, "generic campaigns are not gated")
   const storyboard = read("../src/core/actions/fast-video-storyboard.ts")
   assert.match(storyboard, /campaign_provenance: campaignProvenanceSchema\.parse/)
-  assert.match(storyboard, /\/campaign_provenance\/\.test\(upsertError\.message\)/, "storyboards still save before migration 0036")
+  assert.match(storyboard, /\["campaign_provenance"\], \/\/ 0036/, "storyboards still save before migration 0036")
   const actions = read("../src/core/actions/studio-ad-campaigns.ts")
   assert.match(actions, /extras\.capability_snapshot = \{ model: input\.generationModel, family, frames: frameCapability\(family\), references: referenceCapability\(family\) \}/)
   const sql = read("../src/infrastructure/supabase/migrations/0036_campaign_provenance.sql")

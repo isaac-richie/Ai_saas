@@ -73,10 +73,50 @@ test("storyboard continuity persists and degrades on older databases", () => {
   }
   const action = read("../src/core/actions/fast-video-storyboard.ts")
   assert.match(action, /ownedFrame\(item\.startFrame, userId\)/, "frames must belong to the signed-in user")
-  assert.match(action, /for \(const column of CONTINUITY_COLUMNS\) delete copy\[column\]/)
+  assert.match(action, /for \(const column of OPTIONAL_COLUMN_GROUPS\[index\]\) delete copy\[column\]/)
   const panel = read("../src/interface/components/fast-video/StoryboardPanel.tsx")
   for (const label of ["Generate shot", "Approve take", "Continue to next shot", "Regenerate this shot", "More options", "Start new scene instead", "Unlock for this shot"]) {
     assert.ok(panel.includes(label), label)
   }
   assert.ok(read("../src/interface/components/fast-video/StoryboardExportPanel.tsx").includes("Render approved shots"))
+})
+
+import { createRequire } from "node:module"
+const directionModule = { exports: {} }
+vm.runInNewContext(
+  ts.transpileModule(read("../src/core/validation/storyboard-direction.ts"), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText,
+  { module: directionModule, exports: directionModule.exports, require: createRequire(import.meta.url) },
+)
+const { needsEnhancement, generationPrompt, referenceClassificationSchema, enhanceDirectionRequestSchema } = directionModule.exports
+
+test("a short direction is enhanced once and reused until it changes", () => {
+  assert.equal(needsEnhancement({ direction: "puts the earbud in" }), true)
+  assert.equal(needsEnhancement({ direction: "puts the earbud in", enhancedPrompt: "FULL", enhancedFrom: "puts the earbud in" }), false)
+  assert.equal(needsEnhancement({ direction: "takes it out", enhancedPrompt: "FULL", enhancedFrom: "puts the earbud in" }), true)
+  assert.equal(needsEnhancement({ direction: "anything", autoEnhance: false }), false, "switch off sends words as written")
+  assert.equal(needsEnhancement({ direction: "  " }), false)
+  assert.equal(generationPrompt({ direction: "puts the earbud in", enhancedPrompt: "FULL", enhancedFrom: "puts the earbud in" }), "FULL")
+  assert.equal(generationPrompt({ direction: "takes it out", enhancedPrompt: "FULL", enhancedFrom: "puts the earbud in" }), "takes it out", "stale enhancement is never sent")
+  assert.equal(generationPrompt({ direction: "x y", enhancedPrompt: "FULL", enhancedFrom: "x y", autoEnhance: false }), "x y")
+  assert.equal(generationPrompt({ direction: "", prompt: "legacy prompt" }), "legacy prompt")
+})
+
+test("dropped-image tags and enhance requests are bounded", () => {
+  assert.equal(referenceClassificationSchema.safeParse({ role: "character", label: "Man", description: "Short dark hair, pearl necklace" }).success, true)
+  assert.equal(referenceClassificationSchema.safeParse({ role: "celebrity", label: "x", description: "y" }).success, false)
+  assert.equal(enhanceDirectionRequestSchema.safeParse({ direction: "x".repeat(1201) }).success, false)
+  assert.equal(enhanceDirectionRequestSchema.safeParse({ direction: "ok go", references: Array(7).fill({ role: "character", name: "a" }) }).success, false)
+})
+
+test("storyboard AI routes require sign-in, own the image and never identify people", () => {
+  const classify = read("../src/app/api/storyboard/classify-reference/route.ts")
+  assert.match(classify, /if \(!user\) return NextResponse\.json\(\{ error: "Please sign in\." \}, \{ status: 401 \}\)/)
+  assert.match(classify, /startsWith\(`\$\{user\.id\}\/`\)/)
+  assert.match(classify, /Never identify a real person/)
+  const enhance = read("../src/app/api/storyboard/enhance-direction/route.ts")
+  assert.match(enhance, /status: 401/)
+  assert.match(enhance, /never add story beats, dialogue, people or products they did not ask for/)
+  const studio = read("../src/interface/components/fast-video/FastVideoStudio.tsx")
+  assert.match(studio, /toast\.message\("Using your direction as written"/, "enhancement failure falls back")
+  assert.match(read("../src/infrastructure/supabase/migrations/0039_storyboard_enhanced_prompt.sql"), /add column if not exists auto_enhance boolean not null default true/)
 })

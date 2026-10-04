@@ -158,6 +158,9 @@ function mapContinuityColumns(row: Record<string, unknown>): Partial<StoryboardI
     startFrame: shotFrameSchema.safeParse(row.start_frame).data ?? null,
     endFrame: shotFrameSchema.safeParse(row.end_frame).data ?? null,
     previousItemId: typeof row.previous_item_id === "string" ? row.previous_item_id : null,
+    enhancedPrompt: typeof row.enhanced_prompt === "string" ? row.enhanced_prompt : null,
+    enhancedFrom: typeof row.enhanced_from === "string" ? row.enhanced_from : null,
+    autoEnhance: row.auto_enhance !== false,
   }
 }
 

@@ -13,6 +13,8 @@ const ECONOMY_ROLES = new Set([
   "reference-analysis",
   "continuity-extractor",
   "keyframe-inspection",
+  "reference-classifier",
+  "shot-enhancer",
 ])
 
 const BALANCED_ROLES = new Set([

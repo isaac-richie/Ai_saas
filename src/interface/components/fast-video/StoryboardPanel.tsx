@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type * as React from "react"
 import { Button } from "@/interface/components/ui/button"
 import { Textarea } from "@/interface/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components/ui/card"
-import { Clapperboard, ArrowRight, Pencil, Copy, Trash2, GripVertical, StickyNote, Lock, Unlock, CheckCircle2, ListChecks, CopyPlus, Eraser, Plus, Sparkles, RotateCcw, Loader2, ChevronDown, AlertTriangle, X, Link2 } from "lucide-react"
+import { Clapperboard, ArrowRight, Pencil, Copy, Trash2, GripVertical, StickyNote, Lock, Unlock, CheckCircle2, ListChecks, CopyPlus, Eraser, Plus, Sparkles, RotateCcw, Loader2, ChevronDown, AlertTriangle, X, Link2, ImagePlus, Wand2 } from "lucide-react"
 import { createClient } from "@/infrastructure/supabase/client"
 import { REFERENCE_BUCKET } from "@/core/validation/media-reference"
 import type { KieVideoModelFamilyId } from "@/core/config/kie-video-models"
@@ -38,6 +38,12 @@ export type StoryboardItem = {
   /** Captured from the approved take; becomes the next shot's start frame. */
   endFrame?: ShotFrame | null
   previousItemId?: string | null
+  /** Full prompt the director built from the short direction. */
+  enhancedPrompt?: string | null
+  /** The direction text enhancedPrompt was built from; a change triggers a rebuild. */
+  enhancedFrom?: string | null
+  /** Off: the direction is sent exactly as written. */
+  autoEnhance?: boolean
 }
 
 type SceneGroupFilter = "All" | "Scene A" | "Scene B" | "Scene C"
@@ -69,7 +75,11 @@ interface StoryboardPanelProps {
   onToggleReferenceLock: (item: StoryboardItem, referenceId: string) => void
   onRemoveReference: (item: StoryboardItem, referenceId: string) => void
   onEditShot?: (item: StoryboardItem) => void
+  /** Images dropped or picked on a card become references for that shot. */
+  onAddReferenceFiles: (item: StoryboardItem, files: File[]) => void
+  onPatchItem: (id: string, patch: Partial<StoryboardItem>, persist?: boolean) => void
   onSwitchToBuilder: () => void
+  addingReferencesId?: string | null
   /** The shot whose take is being captured as an end frame. */
   approvingId?: string | null
   /** The shot the builder is currently generating into. */
@@ -112,7 +122,10 @@ export function StoryboardPanel({
   onToggleReferenceLock,
   onRemoveReference,
   onEditShot,
+  onAddReferenceFiles,
+  onPatchItem,
   onSwitchToBuilder,
+  addingReferencesId,
   approvingId,
   generatingId,
   hasOutput,
@@ -247,6 +260,7 @@ export function StoryboardPanel({
                   previousNumber={previous ? items.indexOf(previous) + 1 : null}
                   isSyncing={isSyncing}
                   approving={approvingId === item.id}
+                  addingReferences={addingReferencesId === item.id}
                   generating={generatingId === item.id}
                   dragging={draggingId === item.id}
                   dropTarget={dropTargetId === item.id}
@@ -262,7 +276,7 @@ export function StoryboardPanel({
                       setDraggingId(null)
                     },
                   }}
-                  actions={{ onRemoveItem, onDuplicateItem, onUpdateGroup, onUpdateNote, onSaveNote, onUpdateDirection, onSaveDirection, onGenerateShot, onApproveShot, onContinueToNext, onStartNewScene, onToggleReferenceLock, onRemoveReference, onEditShot }}
+                  actions={{ onRemoveItem, onDuplicateItem, onUpdateGroup, onUpdateNote, onSaveNote, onUpdateDirection, onSaveDirection, onGenerateShot, onApproveShot, onContinueToNext, onStartNewScene, onToggleReferenceLock, onRemoveReference, onEditShot, onAddReferenceFiles, onPatchItem }}
                 />
               )
             })}
@@ -275,14 +289,16 @@ export function StoryboardPanel({
 
 type ShotActions = Pick<StoryboardPanelProps,
   "onRemoveItem" | "onDuplicateItem" | "onUpdateGroup" | "onUpdateNote" | "onSaveNote" | "onUpdateDirection" | "onSaveDirection"
-  | "onGenerateShot" | "onApproveShot" | "onContinueToNext" | "onStartNewScene" | "onToggleReferenceLock" | "onRemoveReference" | "onEditShot">
+  | "onGenerateShot" | "onApproveShot" | "onContinueToNext" | "onStartNewScene" | "onToggleReferenceLock" | "onRemoveReference" | "onEditShot"
+  | "onAddReferenceFiles" | "onPatchItem">
 
-function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, generating, dragging, dropTarget, dragHandlers, actions }: {
+function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, addingReferences, generating, dragging, dropTarget, dragHandlers, actions }: {
   item: StoryboardItem
   shotNumber: number
   previousNumber: number | null
   isSyncing: boolean
   approving: boolean
+  addingReferences: boolean
   generating: boolean
   dragging: boolean
   dropTarget: boolean
@@ -299,15 +315,48 @@ function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, gene
   const hasVideo = Boolean(item.url)
   const isContinuation = Boolean(item.previousItemId && item.startFrame)
   const openChip = chips.find((chip) => chip.id === openChipId) ?? null
+  const [fileOver, setFileOver] = useState(false)
+  const picker = useRef<HTMLInputElement>(null)
+  const hasFiles = (event: React.DragEvent) => Array.from(event.dataTransfer.types).includes("Files")
+  const canAddReferences = !isSyncing && !addingReferences && chips.length < 6
+  const autoEnhance = item.autoEnhance !== false
 
   return (
     <article
       draggable
       {...dragHandlers}
-      className={`group/shot animate-in fade-in-0 slide-in-from-bottom-1 duration-300 overflow-hidden rounded-2xl border bg-gradient-to-b from-white/[0.035] to-black/30 transition ${
-        dropTarget ? "border-gold-300/70 ring-2 ring-gold-300/25" : review === "approved" ? "border-emerald-300/25" : "border-gold-400/[0.14] hover:border-gold-300/30"
+      onDragOver={(event) => {
+        if (hasFiles(event)) { event.preventDefault(); if (canAddReferences) setFileOver(true); return }
+        dragHandlers.onDragOver?.(event)
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFileOver(false)
+        dragHandlers.onDragLeave?.(event)
+      }}
+      onDrop={(event) => {
+        if (hasFiles(event)) {
+          event.preventDefault()
+          setFileOver(false)
+          if (canAddReferences) actions.onAddReferenceFiles(item, Array.from(event.dataTransfer.files))
+          return
+        }
+        dragHandlers.onDrop?.(event)
+      }}
+      className={`group/shot relative animate-in fade-in-0 slide-in-from-bottom-1 duration-300 overflow-hidden rounded-2xl border bg-gradient-to-b from-white/[0.035] to-black/30 transition ${
+        dropTarget || fileOver ? "border-gold-300/70 ring-2 ring-gold-300/25" : review === "approved" ? "border-emerald-300/25" : "border-gold-400/[0.14] hover:border-gold-300/30"
       } ${dragging ? "opacity-40" : ""}`}
     >
+      {fileOver ? (
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-black/70 backdrop-blur-sm">
+          <div className="text-center">
+            <ImagePlus className="mx-auto h-6 w-6 text-gold-200" />
+            <p className="mt-2 text-[12px] font-medium text-gold-50">Drop images to use in this shot</p>
+            <p className="mt-0.5 text-[10.5px] text-white/55">Characters, products or places. Tagged automatically.</p>
+          </div>
+        </div>
+      ) : null}
+      <input ref={picker} type="file" hidden multiple accept="image/jpeg,image/png,image/webp" aria-label="Add reference images"
+        onChange={(event) => { const files = Array.from(event.target.files || []); event.target.value = ""; if (files.length) actions.onAddReferenceFiles(item, files) }} />
       <header className="flex items-center gap-2 px-3 pt-3">
         <GripVertical aria-hidden className="h-4 w-4 shrink-0 cursor-grab text-white/25 transition group-hover/shot:text-gold-300/70 active:cursor-grabbing" />
         <span className="grid size-7 shrink-0 place-items-center rounded-full border border-gold-300/35 bg-gold-400/10 font-serif text-[12px] text-gold-100">{shotNumber}</span>
@@ -357,8 +406,7 @@ function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, gene
           </div>
         ) : null}
 
-        {chips.length ? (
-          <div>
+        <div>
             <div className="flex flex-wrap items-center gap-1">
               <span className="mr-0.5 text-[10.5px] text-white/40">Using</span>
               {chips.map((chip) => (
@@ -379,6 +427,15 @@ function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, gene
                   {chip.locked ? <Lock className="h-2.5 w-2.5 shrink-0 text-gold-300" /> : null}
                 </button>
               ))}
+              {addingReferences ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/20 px-2 py-0.5 text-[10.5px] text-gold-100"><Loader2 className="h-2.5 w-2.5 animate-spin" />Adding…</span>
+              ) : chips.length < 6 ? (
+                <button type="button" onClick={() => picker.current?.click()} disabled={!canAddReferences}
+                  title="Add or drop character, product or location images"
+                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-gold-400/30 px-2 py-0.5 text-[10.5px] text-white/55 transition hover:border-gold-300/60 hover:text-gold-50 disabled:opacity-40">
+                  <ImagePlus className="h-2.5 w-2.5" />{chips.length ? "Image" : "Add or drop images"}
+                </button>
+              ) : null}
             </div>
             {openChip ? (
               <div className="mt-1.5 rounded-xl border border-gold-400/[0.16] bg-black/40 p-2.5 text-[11px]">
@@ -400,8 +457,7 @@ function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, gene
                 </div>
               </div>
             ) : null}
-          </div>
-        ) : null}
+        </div>
 
         {item.startFrame ? (
           <div className="flex items-center gap-2 text-[10.5px] text-white/50">
@@ -419,7 +475,7 @@ function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, gene
             value={direction}
             onChange={(event) => actions.onUpdateDirection(item.id, event.target.value)}
             onBlur={() => actions.onSaveDirection(item.id)}
-            placeholder={hasVideo ? item.prompt || "Describe the action…" : "e.g. Takes one earbud out and looks towards camera."}
+            placeholder={hasVideo ? "Describe the action…" : "Short is fine, e.g. puts the earbud in, eyes closed, enjoying it"}
             maxLength={1200}
             className="mt-1 min-h-14 rounded-xl border-gold-400/[0.12] bg-black/30 text-[11.5px] leading-relaxed text-white placeholder:text-white/30"
           />
@@ -456,6 +512,28 @@ function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, gene
             <ChevronDown className="h-3 w-3 transition group-open/more:rotate-180" />
           </summary>
           <div className="space-y-2.5 border-t border-gold-400/[0.08] px-2.5 pb-2.5 pt-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[10.5px] text-white/60"><Wand2 className="h-3 w-3 text-gold-300" />Auto-enhance short directions</span>
+              <button type="button" role="switch" aria-checked={autoEnhance} aria-label="Auto-enhance short directions"
+                onClick={() => actions.onPatchItem(item.id, { autoEnhance: !autoEnhance })}
+                className={`relative h-5 w-9 rounded-full transition ${autoEnhance ? "bg-gold-400/70" : "bg-white/15"}`}>
+                <span className={`absolute top-0.5 size-4 rounded-full bg-white shadow transition-all ${autoEnhance ? "left-[18px]" : "left-0.5"}`} />
+              </button>
+            </div>
+            {autoEnhance && item.enhancedPrompt ? (
+              <label className="block">
+                <span className="text-[10px] text-white/40">
+                  Full prompt sent to the model{(item.enhancedFrom || "").trim() !== direction.trim() ? " (rebuilt on next generate)" : ""}
+                </span>
+                <Textarea
+                  value={item.enhancedPrompt}
+                  onChange={(event) => actions.onPatchItem(item.id, { enhancedPrompt: event.target.value, enhancedFrom: direction.trim() }, false)}
+                  onBlur={() => actions.onPatchItem(item.id, { enhancedPrompt: (item.enhancedPrompt || "").trim() || null })}
+                  maxLength={1200}
+                  className="mt-1 min-h-20 rounded-xl border-gold-400/[0.12] bg-black/30 text-[10.5px] leading-relaxed text-white/75"
+                />
+              </label>
+            ) : null}
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10.5px] text-white/45">Scene</span>
               <div role="radiogroup" aria-label="Scene" className="inline-flex rounded-full border border-gold-400/[0.12] bg-black/30 p-0.5">

@@ -81,6 +81,7 @@ import { CampaignReferencesPanel, type CampaignOutputSettings } from "./Campaign
 import { CampaignAssetMeta } from "./CampaignAssetMeta"
 import { captureVideoFrame, uploadFrameImage } from "./frame-capture"
 import { continueFromShot, insertAfter } from "./storyboard-continuity"
+import { generationPrompt, needsEnhancement, referenceClassificationSchema } from "@/core/validation/storyboard-direction"
 import { EMPTY_CAMPAIGN_REFERENCES, brandSafetyReviewed, type CampaignProvenance, campaignMode, campaignPlanSummary, campaignReferenceIssues, campaignReferencesSchema, recommendedCampaignModel, type CampaignReferences } from "@/core/validation/campaign-references"
 import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
@@ -161,6 +162,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const storyboardTargetRef = useRef<string | null>(null)
   const [generatingStoryboardId, setGeneratingStoryboardId] = useState<string | null>(null)
   const [approvingStoryboardId, setApprovingStoryboardId] = useState<string | null>(null)
+  const [addingReferencesStoryboardId, setAddingReferencesStoryboardId] = useState<string | null>(null)
   const [storyboardGenerateRequest, setStoryboardGenerateRequest] = useState(0)
   // Temporal Start / End Frames: kept apart from the media reference library.
   const [shotFrames, setShotFrames] = useState<ShotFrames>(EMPTY_SHOT_FRAMES)
@@ -1883,7 +1885,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         url: videoUrl,
         sourceClipId: taskId ?? item.sourceClipId,
         prompt: snapshot.prompt,
-        subject: item.subject === "New shot" || item.subject === "Next shot" ? snapshot.subject.slice(0, 80) : item.subject,
+        subject: item.subject === "New shot" || item.subject === "Next shot" ? ((item.direction || "").trim() || snapshot.subject).slice(0, 60) : item.subject,
         durationSeconds: snapshot.durationSeconds,
         modelFamilyId: snapshot.modelFamilyId,
         mediaReferences: snapshot.mediaReferences ?? item.mediaReferences,
@@ -1906,8 +1908,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, videoUrl])
 
+  // Async card actions (uploads, frame capture, enhancement) patch the latest list, not the one they started with.
+  const storyboardItemsRef = useRef(storyboardItems)
+  useEffect(() => { storyboardItemsRef.current = storyboardItems }, [storyboardItems])
   const patchStoryboardItem = (id: string, patch: Partial<StoryboardItem>, persist = true) => {
-    const nextItems = normalizeStoryboardItems(storyboardItems.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+    const nextItems = normalizeStoryboardItems(storyboardItemsRef.current.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+    storyboardItemsRef.current = nextItems
     setStoryboardItems(nextItems)
     if (persist) void persistStoryboardItems(nextItems, { suppressSuccess: true })
     return nextItems
@@ -1943,13 +1949,38 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     const direction = (item.direction || "").trim() || item.prompt.trim()
     if (!direction) { toast.error("Describe what happens in this shot first.", { id: "storyboard-shot" }); return }
     if (isGenerating || status === "processing") { toast.message("Wait for the current generation to finish.", { id: "storyboard-shot" }); return }
+    const previous = item.previousItemId ? storyboardItems.find((entry) => entry.id === item.previousItemId) : undefined
+    let prompt = generationPrompt(item)
+    if (needsEnhancement(item)) {
+      // A short direction becomes a full, consistent prompt. Any failure falls back to the creator's words.
+      toast.loading("Polishing your direction…", { id: "storyboard-shot" })
+      try {
+        const response = await fetch("/api/storyboard/enhance-direction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(45_000),
+          body: JSON.stringify({
+            direction,
+            durationSeconds: item.durationSeconds,
+            startsFromPreviousShot: Boolean(item.startFrame && item.previousItemId),
+            references: (item.mediaReferences || []).filter((ref) => ref.applied).map((ref) => ({ role: ref.role, name: ref.name.slice(0, 180), guidance: ref.analysis?.guidance })),
+            previous: previous ? { direction: (previous.direction || "").slice(0, 1200), prompt: (previous.enhancedPrompt || previous.prompt || "").slice(0, 4000) } : null,
+          }),
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok || typeof body.prompt !== "string") throw new Error(body.error || "Enhancement failed")
+        prompt = body.prompt
+        patchStoryboardItem(item.id, { enhancedPrompt: body.prompt, enhancedFrom: direction })
+      } catch {
+        toast.message("Using your direction as written", { id: "storyboard-shot" })
+      }
+    }
     restoreReferences(item.mediaReferences || [])
     setShotFrames({ start: item.startFrame ?? null, end: null, transitionDirection: "" })
-    setSubject(direction)
+    setSubject(prompt)
     setDurationSeconds(item.durationSeconds)
     if (item.modelFamilyId) setModelFamilyId(item.modelFamilyId)
     // A continued shot also inherits the previous shot's wardrobe / location continuity locks.
-    const previous = item.previousItemId ? storyboardItems.find((entry) => entry.id === item.previousItemId) : undefined
     if (previous?.sourceClipId) {
       const continuity = await loadContinuity(previous.sourceClipId)
       if (continuity) {
@@ -1993,6 +2024,52 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setStoryboardItems(nextItems)
     void persistStoryboardItems(nextItems, { suppressSuccess: true })
     toast.success(`Shot ${nextItems.findIndex((entry) => entry.id === result.item.id) + 1} starts where this one ends`, { id: "storyboard-shot", description: "Write what happens next, then generate." })
+  }
+
+  const handleAddStoryboardReferenceFiles = async (item: StoryboardItem, files: File[]) => {
+    const images = files.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type))
+    if (!images.length) { toast.error("Drop JPG, PNG or WebP images.", { id: "storyboard-refs" }); return }
+    const existing = item.mediaReferences || []
+    const room = 6 - existing.length
+    if (room <= 0) { toast.error("A shot can use up to six references.", { id: "storyboard-refs" }); return }
+    if (images.length > room) toast.message(`Only ${room} more image${room === 1 ? "" : "s"} fit on this shot.`, { id: "storyboard-refs" })
+    setAddingReferencesStoryboardId(item.id)
+    const added: MediaReference[] = []
+    try {
+      for (const file of images.slice(0, room)) {
+        const assetPath = await uploadFrameImage(file)
+        let classification: { role: string; label: string; description: string } | null = null
+        try {
+          const response = await fetch("/api/storyboard/classify-reference", {
+            method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(50_000),
+            body: JSON.stringify({ assetPath, fileName: file.name.slice(0, 180) }),
+          })
+          const body = await response.json().catch(() => ({}))
+          classification = response.ok ? referenceClassificationSchema.safeParse(body.classification).data ?? null : null
+        } catch { classification = null }
+        // One direct image at most, and none when the shot already opens on a start frame.
+        const providerTaken = Boolean(item.startFrame) || [...existing, ...added].some((ref) => ref.applied && ref.target === "provider")
+        const role = classification?.role ?? "character"
+        added.push({
+          id: crypto.randomUUID(), assetPath, name: (classification?.label || file.name.replace(/\.[a-z0-9]+$/i, "")).slice(0, 180) || "Reference",
+          mediaType: "image", role, priority: "primary", influence: "high", scope: "shot", projectId: null, sceneId: null,
+          locked: role === "character" || role === "product" || role === "wardrobe", target: !providerTaken && (role === "character" || role === "product") ? "provider" : "director",
+          applied: true, trimStart: 0, volume: 1,
+          ...(classification
+            ? { analysis: { guidance: classification.description, observations: [], warnings: [], limitations: "Tagged automatically when added to the storyboard.", transcript: null } }
+            : { analysisUnavailable: true }),
+        })
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't add that image.", { id: "storyboard-refs" })
+    } finally {
+      setAddingReferencesStoryboardId(null)
+    }
+    if (!added.length) return
+    const latest = storyboardItemsRef.current.find((entry) => entry.id === item.id) ?? item
+    // New references change what the shot should look like, so the full prompt is rebuilt.
+    patchStoryboardItem(item.id, { mediaReferences: [...(latest.mediaReferences || []), ...added], enhancedFrom: null })
+    toast.success(added.map((ref) => `${ref.name} (${ref.role})`).join(", ") + " added", { id: "storyboard-refs", description: "Tap a chip to change its role or lock." })
   }
 
   const handleStartNewSceneFromShot = (item: StoryboardItem) => {
@@ -3209,6 +3286,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             setActiveTab("builder")
             toast.success("Loaded shot into Shot Builder")
           }}
+          onAddReferenceFiles={(item, files) => void handleAddStoryboardReferenceFiles(item, files)}
+          onPatchItem={patchStoryboardItem}
+          addingReferencesId={addingReferencesStoryboardId}
           approvingId={approvingStoryboardId}
           generatingId={generatingStoryboardId}
           onSwitchToBuilder={() => setActiveTab("builder")}
