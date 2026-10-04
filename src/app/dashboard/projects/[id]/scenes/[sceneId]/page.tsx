@@ -1,5 +1,8 @@
 import { getShots } from "@/core/actions/shots";
-import { getActiveGenerationProvider } from "@/core/actions/generation";
+import { getProjectById } from "@/core/actions/projects";
+import { getScenes } from "@/core/actions/scenes";
+import Link from "next/link";
+import { Check, ChevronRight } from "lucide-react";
 import { getSequences } from "@/core/actions/sequences";
 import { ShotBuilder } from "@/interface/components/shots/ShotBuilder";
 import { ShotList } from "@/interface/components/shots/ShotList";
@@ -23,22 +26,20 @@ export default async function ScenePage(props: ScenePageProps) {
     const params = await props.params;
     const shotsResult = await getShots(params.sceneId);
     const sequencesResult = await getSequences(params.sceneId);
-    const providerResult = await getActiveGenerationProvider();
+    const [projectResult, scenesResult] = await Promise.all([getProjectById(params.id), getScenes(params.id)]);
     const shots = shotsResult.data || [];
     const sequences = sequencesResult.data || [];
-    const providerLabel = providerResult.data?.slug
-        ? providerResult.data.slug === "openai"
-            ? "OpenAI"
-            : providerResult.data.slug === "kie"
-                ? "Flux (Kie.ai)"
-                : "Runway"
-        : "Not configured";
-    const providerSourceLabel =
-        providerResult.data?.source === "env"
-            ? "System key"
-            : providerResult.data?.source === "user_key"
-                ? "Your key"
-                : "No key";
+    const projectName = projectResult.data?.name || "Project";
+    const sceneName = (scenesResult.data || []).find((scene: { id: string }) => scene.id === params.sceneId)?.name || "Scene";
+    // Live progress: each step ticks off from what already exists in this scene.
+    const options = shots.flatMap((shot: { options?: { status?: string | null; output_url?: string | null }[] }) => shot.options || []);
+    const steps = [
+        { label: "Add a shot", done: shots.length > 0 },
+        { label: "Generate takes", done: options.some((opt) => opt.status === "completed" || opt.status === "approved") },
+        { label: "Approve, then animate", done: options.some((opt) => opt.status === "approved") && options.some((opt) => /\.mp4($|\?)/i.test(opt.output_url || "")) },
+        { label: "Sequence and export", done: sequences.length > 0 },
+    ];
+    const currentStep = steps.findIndex((step) => !step.done);
 
     return (
         <div className="mx-auto w-full max-w-7xl space-y-6 py-2 md:py-3">
@@ -51,10 +52,11 @@ export default async function ScenePage(props: ScenePageProps) {
                             Define camera language, generate visuals, and iterate quickly with cinematic consistency.
                         </p>
                     </div>
-                    <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 py-2 text-xs text-white/50">
-                        <div>Project: {params.id}</div>
-                        <div>Scene: {params.sceneId}</div>
-                    </div>
+<nav aria-label="Breadcrumb" className="flex items-center gap-1.5 rounded-full border border-gold-400/[0.12] bg-white/5 px-3.5 py-1.5 text-xs text-white/55">
+                        <Link href={`/dashboard/projects/${params.id}`} className="max-w-[12rem] truncate transition hover:text-gold-100">{projectName}</Link>
+                        <ChevronRight className="h-3 w-3 text-white/30" />
+                        <span className="max-w-[12rem] truncate text-[#f1ece0]">{sceneName}</span>
+                    </nav>
                 </div>
 
                 <div className="mt-8 grid gap-8 xl:grid-cols-3 min-w-0">
@@ -62,11 +64,7 @@ export default async function ScenePage(props: ScenePageProps) {
                     <div>
                         <div className="mb-3 flex items-center justify-between gap-2">
                             <h2 className="text-lg font-semibold">New Shot</h2>
-                            <Badge
-                                className="rounded-full border border-gold-400/[0.12] bg-white/10 px-3 py-1 text-[11px] text-white/90"
-                            >
-                                Active Provider: {providerLabel} ({providerSourceLabel})
-                            </Badge>
+
                         </div>
                         <ShotBuilder projectId={params.id} sceneId={params.sceneId} />
                     </div>
@@ -79,24 +77,19 @@ export default async function ScenePage(props: ScenePageProps) {
 
                 <aside data-reveal="card" className="space-y-4">
                     <div className="rounded-2xl lux-glass lux-hairline p-4 text-white">
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Workflow</h3>
-                        <ol className="mt-3 space-y-2 text-sm text-white/55">
-                            <li className="flex items-start gap-2">
-                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-gold-400/[0.12] bg-white/5 text-[11px] text-white/70">1</span>
-                                Project → Scene → Shot
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-gold-400/[0.12] bg-white/5 text-[11px] text-white/70">2</span>
-                                Add references + confirm prompt
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-gold-400/[0.12] bg-white/5 text-[11px] text-white/70">3</span>
-                                Generate → Approve → Animate
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border border-gold-400/[0.12] bg-white/5 text-[11px] text-white/70">4</span>
-                                Add to sequence → Export
-                            </li>
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Your progress</h3>
+                        <ol className="mt-3 space-y-2 text-sm">
+                            {steps.map((step, index) => (
+                                <li key={step.label} className={`flex items-center gap-2.5 ${step.done ? "text-white/45" : index === currentStep ? "text-[#f1ece0]" : "text-white/40"}`}>
+                                    <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
+                                        step.done ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-200" : index === currentStep ? "border-gold-300/50 bg-gold-400/15 text-gold-100" : "border-gold-400/[0.12] bg-white/5 text-white/50"
+                                    }`}>
+                                        {step.done ? <Check className="h-3 w-3" /> : index + 1}
+                                    </span>
+                                    <span className={step.done ? "line-through decoration-white/20" : undefined}>{step.label}</span>
+                                    {index === currentStep ? <span className="ml-auto text-[10px] uppercase tracking-[0.16em] text-gold-300/80">Next</span> : null}
+                                </li>
+                            ))}
                         </ol>
                     </div>
 

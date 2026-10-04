@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { useForm, useWatch, Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -32,7 +33,7 @@ import { attachElementToShot } from "@/core/actions/elements"
 import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import { LookBuilder } from "@/interface/components/shots/LookBuilder"
-import { Loader2, Plus, Sparkles, Layers, Copy, Check, Wand2, Clapperboard } from "lucide-react"
+import { Loader2, Plus, Sparkles, Layers, Copy, Check, Wand2, Clapperboard, X } from "lucide-react"
 import { StyleSwatch } from "@/interface/components/fast-video/preset-visuals"
 import { toast } from "sonner"
 import { FAST_TRACK_HANDOFF_KEY } from "@/core/config/handoff"
@@ -195,7 +196,6 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     const [isLoadingPresets, setIsLoadingPresets] = useState(true)
     const [isSavingPreset, setIsSavingPreset] = useState(false)
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
-    const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false)
     const [newPresetName, setNewPresetName] = useState("")
     const [newPresetDescription, setNewPresetDescription] = useState("")
     const [presetOptions, setPresetOptions] = useState<PresetMap | null>(null)
@@ -607,10 +607,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                             >
                                                 <span className="relative block h-16 overflow-hidden bg-obsidian-900">
                                                     {preview ? <StyleSwatch id={preview} name={style.name} /> : (
-                                                        // Anamorphic is a lens format: show the 2.39:1 letterbox, not a borrowed look.
-                                                        <span aria-hidden className="absolute inset-0 grid place-items-center bg-[radial-gradient(80%_120%_at_50%_50%,rgba(217,192,138,0.18),transparent_70%),#0e100e]">
-                                                            <span className="h-[42%] w-[86%] rounded-[2px] border border-gold-300/60 bg-[linear-gradient(90deg,transparent,rgba(160,200,255,0.35),transparent)]" />
-                                                        </span>
+                                                        // Anamorphic is a lens format: a widescreen still with its signature streak flares.
+                                                        <Image src="/presets/style_anamorphic_flare.jpg" alt="Example of the Anamorphic look" fill sizes="220px" className="preset-image object-cover" />
                                                     )}
                                                     <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 to-transparent" />
                                                     <span className="absolute bottom-1.5 left-2 flex items-center gap-1 text-[12px] font-medium text-white">{applied ? <Check className="h-3 w-3 text-gold-300" strokeWidth={3} /> : null}{style.name}</span>
@@ -929,7 +927,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                         </Button>
                     </CardHeader>
                     <CardContent>
-                        <div className="studio-subcard max-h-56 overflow-y-auto rounded-xl p-4 font-mono text-sm leading-relaxed text-white/80">
+                        <div className="studio-subcard max-h-56 overflow-y-auto rounded-xl p-4 text-[13px] leading-relaxed text-white/80">
                             {promptPreview || <span className="italic text-white/45">Start building your shot...</span>}
                         </div>
                     </CardContent>
@@ -950,103 +948,61 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                     </CardFooter>
                 </Card>
 
-                <details
-                    className="studio-card rounded-2xl text-white"
-                    open={isPresetManagerOpen}
-                    onToggle={(event) => setIsPresetManagerOpen(event.currentTarget.open)}
-                >
-                    <summary className="cursor-pointer list-none px-6 py-5">
-                        <div className="flex items-center justify-between gap-3">
-                            <CardTitle className="text-sm font-medium uppercase tracking-wider text-white/55">
-                                Shot Presets
-                            </CardTitle>
-                            <span className="text-[11px] uppercase tracking-[0.14em] text-white/45">
-                                {isPresetManagerOpen ? "Hide" : "Manage"}
-                            </span>
+                <Card className="studio-card rounded-2xl text-white">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium uppercase tracking-wider text-white/55">My looks</CardTitle>
+                        <p className="text-xs text-white/40">Save the current look and apply it to any shot in one tap.</p>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <div className="flex flex-wrap gap-1.5">
+                            {isLoadingPresets ? (
+                                <span className="h-8 w-40 rounded-full lux-shimmer" />
+                            ) : presets.length === 0 ? (
+                                <span className="text-xs text-white/40">No saved looks yet.</span>
+                            ) : (
+                                presets.map((preset) => (
+                                    <span key={preset.id} className="group/look inline-flex items-center rounded-full border border-gold-400/20 bg-white/[0.04] transition hover:border-gold-300/45">
+                                        <button
+                                            type="button"
+                                            onClick={() => applyPreset(preset)}
+                                            title={preset.description || `Apply ${preset.name}`}
+                                            className="h-8 max-w-[14rem] truncate pl-3 pr-1.5 text-xs text-white/85 hover:text-gold-50"
+                                        >
+                                            {preset.name}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeletePreset(preset.id)}
+                                            aria-label={`Delete ${preset.name}`}
+                                            className="grid size-7 place-items-center rounded-full text-white/30 transition hover:text-rose-200"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </span>
+                                ))
+                            )}
                         </div>
-                    </summary>
-                    <div className="space-y-3 border-t border-gold-400/[0.12] px-6 pb-5 pt-4">
-                        <div className="grid gap-2">
+                        <div className="flex gap-2">
                             <Input
                                 value={newPresetName}
                                 onChange={(e) => setNewPresetName(e.target.value)}
-                                placeholder="Preset name"
-                                className="studio-field rounded-xl text-white placeholder:text-white/35"
-                            />
-                            <Input
-                                value={newPresetDescription}
-                                onChange={(e) => setNewPresetDescription(e.target.value)}
-                                placeholder="Description (optional)"
-                                className="studio-field rounded-xl text-white placeholder:text-white/35"
+                                onKeyDown={(e) => { if (e.key === "Enter" && newPresetName.trim()) { e.preventDefault(); void handleSavePreset() } }}
+                                placeholder="Name this look, e.g. Moody night street"
+                                className="studio-field h-9 rounded-xl text-white placeholder:text-white/35"
                             />
                             <Button
                                 type="button"
                                 onClick={handleSavePreset}
                                 disabled={isSavingPreset || !newPresetName.trim()}
                                 variant="studioSecondary"
-                                className="w-full disabled:cursor-not-allowed disabled:opacity-60"
+                                className="h-9 shrink-0 rounded-xl"
                             >
-                                {isSavingPreset ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Save Current Preset
-                                    </>
-                                )}
+                                {isSavingPreset ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />}
+                                Save look
                             </Button>
                         </div>
-
-                        <div className="space-y-2">
-                            {isLoadingPresets && (
-                                <div className="studio-subcard rounded-xl p-3 text-xs text-white/50">
-                                    Loading presets...
-                                </div>
-                            )}
-                            {!isLoadingPresets && presets.length === 0 && (
-                                <div className="studio-subcard rounded-xl p-3 text-xs text-white/50">
-                                    No presets yet. Save your first setup.
-                                </div>
-                            )}
-                            {presets.map((preset) => (
-                                <div
-                                    key={preset.id}
-                                    className="studio-subcard flex items-center justify-between gap-3 rounded-xl px-3 py-2"
-                                >
-                                    <div>
-                                        <div className="text-sm text-white/90">{preset.name}</div>
-                                        {preset.description && (
-                                            <div className="text-xs text-white/45">{preset.description}</div>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => applyPreset(preset)}
-                                            variant="studioSecondary"
-                                            className="rounded-full px-3 text-xs"
-                                        >
-                                            Apply
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => handleDeletePreset(preset.id)}
-                                            variant="studioGhost"
-                                            className="rounded-full text-xs"
-                                        >
-                                            Delete
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </details>
+                    </CardContent>
+                </Card>
             </div>
         </div>
     )

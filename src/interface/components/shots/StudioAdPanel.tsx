@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { WandSparkles, Loader2, Copy, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { WandSparkles, Loader2, Copy, ShieldCheck, AlertTriangle, Sparkles, Wand2 } from 'lucide-react';
 import { Button } from '@/interface/components/ui/button';
 import { Textarea } from '@/interface/components/ui/textarea';
 import {
@@ -254,13 +254,25 @@ export function StudioAdPanel({
         <span className="text-[10px] uppercase tracking-[0.16em] text-gold-300/75">Studio AD</span>
       </div>
 
-      {engineModel ? (
-        <div className="mb-3 rounded-xl border border-gold-300/15 bg-gold-500/5 px-3 py-2 text-[11px] text-gold-100/85">
-          Prompt engine: {engineModel}
-        </div>
-      ) : null}
+      <div className="space-y-2.5">
+        <Textarea
+          value={intent}
+          onChange={(event) => setIntent(event.target.value)}
+          placeholder="Describe the shot in your words: who, what happens, the feel..."
+          className="studio-field min-h-28 rounded-xl text-white placeholder:text-white/35"
+        />
+        {promptPreview.trim() && promptPreview.trim() !== intent.trim() ? (
+          <button
+            type="button"
+            onClick={() => setIntent(promptPreview)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-gold-400/20 px-3 py-1 text-[11px] text-white/65 transition hover:border-gold-300/45 hover:text-gold-50"
+          >
+            <Sparkles className="h-3 w-3" />Start from my builder prompt
+          </button>
+        ) : null}
+      </div>
 
-      <div className={embedded ? "grid gap-3 grid-cols-1" : "grid gap-3 grid-cols-1 sm:grid-cols-2"}>
+      <div className={embedded ? "mt-3 grid gap-3 grid-cols-1" : "mt-3 grid gap-3 grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"}>
         <div className="space-y-1.5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">Direction Mode</p>
           <Select value={mode} onValueChange={(value) => setMode(value as (typeof MODES)[number]['value'])}>
@@ -281,6 +293,34 @@ export function StudioAdPanel({
           </Select>
         </div>
 
+        <Button
+          type="button"
+          variant="studio"
+          onClick={() => void runDirector()}
+          disabled={!canSubmit}
+          title={canSubmit ? undefined : "Describe the shot first"}
+          className="h-10 rounded-xl px-5 font-semibold"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Directing...
+            </>
+          ) : (
+            <>
+              <Wand2 className="mr-2 h-4 w-4" />
+              Direct this shot
+            </>
+          )}
+        </Button>
+      </div>
+
+      <details className="group/adv mt-3 rounded-xl border border-gold-400/[0.1] bg-black/20">
+        <summary className="flex cursor-pointer select-none list-none items-center justify-between px-3 py-2 text-[11px] text-white/50 hover:text-white/80 [&::-webkit-details-marker]:hidden">
+          <span>Advanced</span>
+          <span className="text-white/35">{PROVIDERS.find((item) => item.value === providerTarget)?.label ?? providerTarget} · {outputType === "video" ? "Video" : "Image"}</span>
+        </summary>
+        <div className="grid gap-3 border-t border-gold-400/[0.08] p-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">Target Provider</p>
           <Select
@@ -304,7 +344,7 @@ export function StudioAdPanel({
           </Select>
         </div>
 
-        <div className="space-y-1.5 sm:col-span-2">
+        <div className="space-y-1.5 ">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">Output Type</p>
           <Select value={outputType} onValueChange={(value) => setOutputType(value as 'image' | 'video')}>
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
@@ -320,43 +360,9 @@ export function StudioAdPanel({
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="mt-4 space-y-2.5">
-        <Textarea
-          value={intent}
-          onChange={(event) => setIntent(event.target.value)}
-          placeholder="Describe the shot vibe, subject, camera feel, and mood..."
-          className="studio-field min-h-28 rounded-xl text-white placeholder:text-white/35"
-        />
-        <div className={embedded ? "flex flex-col gap-2" : "flex flex-wrap items-center gap-2"}>
-          <Button
-            type="button"
-            size="sm"
-            variant="studioGhost"
-            onClick={() => setIntent(promptPreview || intent)}
-            className={embedded ? "w-full rounded-full text-xs" : "rounded-full text-xs"}
-          >
-            Use Prompt Preview
-          </Button>
-          <Button
-            type="button"
-            variant="studio"
-            onClick={() => void runDirector()}
-            disabled={!canSubmit}
-            className={embedded ? "w-full rounded-xl" : "rounded-xl"}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Directing...
-              </>
-            ) : (
-              'Direct This Shot'
-            )}
-          </Button>
+          {engineModel ? <p className="text-[10.5px] text-white/35 sm:col-span-2">Prompt engine: {engineModel}</p> : null}
         </div>
-      </div>
+      </details>
 
       {error ? (
         <div className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-xs text-red-200">
