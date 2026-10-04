@@ -361,7 +361,7 @@
 }
 .cinema-features p {
   color: var(--cinema-muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.9;
 }
 .cinema-editorial {
@@ -902,7 +902,7 @@
     display: block;
   }
   .cinema-hero-bottom p {
-    font-size: 13px;
+    font-size: 14px;
     max-width: 340px;
   }
   .cinema-hero-bottom .cinema-button {

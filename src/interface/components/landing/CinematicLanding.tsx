@@ -88,7 +88,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
             ))}
           </nav>
           <Link href={destination} className="cinema-nav-cta">
-            Enter studio
+            Enter the studio
             <ArrowUpRight size={16} />
           </Link>
           <button
@@ -110,7 +110,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               </a>
             ))}
             <Link href={destination}>
-              Enter studio
+              Enter the studio
               <ArrowUpRight size={18} />
             </Link>
           </nav>
@@ -130,7 +130,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
             </h1>
             <div className="cinema-hero-bottom">
               <p>
-                A cinematic AI studio for the stories only you can tell.
+                A cinematic AI studio for stories only you can tell.
                 <br className="cinema-desktop-break" /> Direct the feeling. Shape the frame. Make
                 your film.
               </p>
@@ -196,28 +196,28 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 We bring <em>the possibilities.</em>
               </h2>
               <p>
-                From a passing thought to a carefully directed shot. A workspace that speaks your
-                creative language.
+                Turn a simple idea into a carefully directed shot. Create in a workspace that works
+                the way you think.
               </p>
             </div>
             <div className="cinema-features">
               {[
                 {
                   icon: WandSparkles,
-                  title: 'An instinct for direction.',
-                  body: 'Work with your AI Director to turn an idea into a detailed prompt, with intention behind the subject, lighting, and camera movement.',
+                  title: 'Direct every detail.',
+                  body: 'Turn an idea into a detailed shot with help from your AI Director. Set the subject, lighting and camera movement.',
                   number: '01',
                 },
                 {
                   icon: Aperture,
-                  title: 'The details make the scene.',
-                  body: 'Explore lens, framing, style, and motion controls. Start with words or a reference image, then shape the shot around your vision.',
+                  title: 'Shape every detail.',
+                  body: 'Choose the lens, framing, style and motion. Start with a sentence or a reference image, then shape the shot your way.',
                   number: '02',
                 },
                 {
                   icon: Layers,
-                  title: 'Room to find your cut.',
-                  body: 'Generate variations, save your favourites to the gallery, and bring your shots together. Keep the creative process in one place.',
+                  title: 'Room to find the right cut.',
+                  body: 'Create variations, save your favourites and bring your shots together. Keep everything in one place.',
                   number: '03',
                 },
               ].map(({ icon: Icon, title, body, number }) => (
@@ -253,7 +253,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 it, without getting lost in the setup.
               </p>
               <Link href={destination} className="cinema-text-link">
-                Find your next scene
+                Try Fast Track
                 <ArrowUpRight size={20} />
               </Link>
               <div className="cinema-editorial-note">
@@ -270,8 +270,8 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 <em>Your signature.</em>
               </h2>
               <p>
-                Explore Kling and Seedance from the same workspace. Choose your model and
-                direct the result.
+                Explore Kling and Seedance video models in the same workspace. Choose your model
+                and direct the result.
               </p>
             </div>
             <div className="cinema-model-list">
@@ -279,7 +279,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 <Link href={destination} key={model}>
                   <span className="cinema-model-index">0{i + 1}</span>
                   <h3>{model}</h3>
-                  <span className="cinema-model-type">VIDEO GENERATION</span>
+                  <span className="cinema-model-type">Video generation</span>
                   <ArrowUpRight strokeWidth={1} />
                 </Link>
               ))}
@@ -293,7 +293,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <em>worth feeling.</em>
             </h2>
             <Link href={destination} className="cinema-button cinema-primary">
-              Enter studio
+              Enter the studio
               <ArrowUpRight size={20} />
             </Link>
           </section>
@@ -325,6 +325,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 href="https://www.instagram.com/visiowavestudios"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="Visiowave on Instagram"
               >
                 Instagram
                 <ArrowUpRight size={13} />

@@ -156,3 +156,14 @@ test('Scene Builder guided loop: references reach the image model and one image 
   }
   assert.match(flow, /useSourceImage: true/, 'animation starts from the approved image')
 })
+
+test('homepage uses the approved copy and plain-language actions', () => {
+  const landing = read('../src/interface/components/landing/CinematicLanding.tsx')
+  assert.equal((landing.match(/Enter the studio/g) || []).length, 3, 'nav, mobile nav and closing CTA')
+  assert.doesNotMatch(landing, /Enter studio\b/)
+  assert.doesNotMatch(landing, /Sign in/)
+  for (const line of ['Direct every detail.', 'Shape every detail.', 'Room to find the right cut.', 'Try Fast Track', 'A cinematic AI studio for stories only you can tell.', 'Video generation']) {
+    assert.ok(landing.includes(line), line)
+  }
+  assert.match(landing, /aria-label="Visiowave on Instagram"/)
+})
