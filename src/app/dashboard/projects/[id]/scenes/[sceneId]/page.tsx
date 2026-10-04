@@ -11,6 +11,9 @@ import { SequenceList } from "@/interface/components/sequences/SequenceList";
 import { Metadata } from "next";
 import { Badge } from "@/interface/components/ui/badge";
 
+// Server actions on this page (image generation) can wait on a provider.
+export const maxDuration = 300;
+
 export const metadata: Metadata = {
     title: "Scene Builder | AI Cinematography Dashboard",
 };

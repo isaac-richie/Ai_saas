@@ -21,7 +21,7 @@ export type FlowSequence = { id: string; name: string }
 const isMedia = (url?: string | null) => Boolean(url && url !== "pending_generation" && (/^https?:\/\//i.test(url) || url.startsWith("/storage/")))
 const isVideo = (url?: string | null) => isMedia(url) && /\.mp4($|\?)/i.test(url || "")
 
-export type ShotStage = "generating" | "choose" | "next" | "animating" | "video" | "failed"
+export type ShotStage = "empty" | "generating" | "choose" | "next" | "animating" | "video" | "failed"
 
 /** Where a shot is in the loop: choose an image, decide what next, or review its video. */
 export function shotStage(shot: FlowShot, busy: boolean): ShotStage {
@@ -32,10 +32,10 @@ export function shotStage(shot: FlowShot, busy: boolean): ShotStage {
   if (options.some((opt) => opt.status === "approved" && !isVideo(opt.output_url))) return "next"
   if (options.some((opt) => opt.status === "completed" && isMedia(opt.output_url))) return "choose"
   if (busy || options.some((opt) => opt.status === "processing")) return "generating"
-  return options.some((opt) => opt.status === "failed") ? "failed" : "generating"
+  return options.some((opt) => opt.status === "failed") ? "failed" : "empty"
 }
 
-export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences, referenceNames, onEdit, onContinue }: {
+export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences, referenceNames, generating = false, onEdit, onContinue }: {
   shot: FlowShot
   shotNumber: number
   projectId: string
@@ -43,6 +43,8 @@ export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences,
   sequences: FlowSequence[]
   /** Names of the references this shot uses, for the plain-language summary. */
   referenceNames: string[]
+  /** The builder is creating this shot's first images right now. */
+  generating?: boolean
   onEdit: () => void
   onContinue: (input: { imageUrl: string; shotName: string }) => void
 }) {
@@ -51,7 +53,7 @@ export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences,
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState<null | "approve" | "regenerate" | "animate" | "sequence" | "approve-video">(null)
   const options = shot.options ?? []
-  const stage = shotStage(shot, busy === "regenerate")
+  const stage = shotStage(shot, busy === "regenerate" || generating)
   const images = options.filter((opt) => isMedia(opt.output_url) && !isVideo(opt.output_url) && (opt.status === "completed" || opt.status === "approved"))
   const approvedImage = options.find((opt) => opt.status === "approved" && !isVideo(opt.output_url))
   const video = [...options].filter((opt) => isVideo(opt.output_url)).sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0]
@@ -131,6 +133,7 @@ export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences,
   }
 
   const stageTitle: Record<ShotStage, string> = {
+    empty: "No images yet",
     generating: "Generating your images…",
     choose: "Choose your image",
     next: "What next?",
@@ -152,6 +155,17 @@ export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences,
       {stage === "generating" ? (
         <div className="mt-3 grid grid-cols-2 gap-2">
           {[0, 1].map((n) => <div key={n} className="aspect-video rounded-xl lux-shimmer" />)}
+        </div>
+      ) : null}
+
+      {stage === "generating" ? <p className="mt-2 text-[11.5px] text-white/45">Usually under a minute. You can keep working; they appear here when ready.</p> : null}
+
+      {stage === "empty" ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <p className="text-[12px] text-white/55">This shot hasn&apos;t been generated yet. Your prompt and references are saved.</p>
+          <Button type="button" variant="studio" size="sm" onClick={() => void run("regenerate", () => generateShot(shot.id), "Generating your images")} disabled={Boolean(busy)} className="h-8">
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />Generate image
+          </Button>
         </div>
       ) : null}
 
@@ -265,7 +279,7 @@ function ReferenceSummary({ names }: { names: string[] }) {
 
 const STAGE_ORDER: ShotStage[] = ["generating", "choose", "next", "video"]
 function StageDots({ stage }: { stage: ShotStage }) {
-  const position = stage === "animating" ? 2.5 : stage === "failed" ? 0 : STAGE_ORDER.indexOf(stage)
+  const position = stage === "animating" ? 2.5 : stage === "failed" || stage === "empty" ? 0 : STAGE_ORDER.indexOf(stage)
   return (
     <ol aria-hidden className="flex items-center gap-1.5 text-[10px] text-white/40">
       {["Generate", "Choose", "Animate / add", "Video"].map((label, index) => (

@@ -167,3 +167,12 @@ test('homepage uses the approved copy and plain-language actions', () => {
   }
   assert.match(landing, /aria-label="Visiowave on Instagram"/)
 })
+
+test('image generation prefers Kie, fails fast on OpenAI and never spins forever', () => {
+  assert.match(read('../src/core/actions/generation.ts'), /const SUPPORTED_PROVIDER_PRIORITY = \["kie", "openai"\] as const;/)
+  const openai = read('../src/infrastructure/ai/providers/openai.provider.ts')
+  assert.match(openai, /maxRetries: 0/)
+  assert.match(openai, /if \(model\.startsWith\("dall-e"\)\) payload\.response_format = "url"/)
+  assert.match(read('../src/app/dashboard/projects/[id]/scenes/[sceneId]/page.tsx'), /export const maxDuration = 300;/)
+  assert.match(read('../src/interface/components/shots/ShotFlowPanel.tsx'), /: "empty"/, 'no options and not generating is not shown as generating')
+})

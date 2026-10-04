@@ -1002,6 +1002,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                     sceneId={sceneId}
                     sequences={sequences}
                     referenceNames={selectedElementNames}
+                    generating={isGenerating && activeShot.id === activeShotId}
                     onEdit={() => { composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); composerRef.current?.querySelector("textarea")?.focus() }}
                     onContinue={startContinuation}
                 />

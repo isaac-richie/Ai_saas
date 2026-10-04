@@ -19,7 +19,8 @@ export async function __REVALIDATION_TRIGGER() {
     return "c6a6de80-6ed4-4894-8c12-a274c1a77eba";
 }
 
-const SUPPORTED_PROVIDER_PRIORITY = ["openai", "kie"] as const;
+// Kie first: its image model (Nano Banana Pro) accepts reference images; OpenAI (DALL·E 3) does not.
+const SUPPORTED_PROVIDER_PRIORITY = ["kie", "openai"] as const;
 
 type SupportedProviderSlug = typeof SUPPORTED_PROVIDER_PRIORITY[number];
 type ProviderRow = { id: string; slug: string };
