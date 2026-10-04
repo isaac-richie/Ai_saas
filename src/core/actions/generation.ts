@@ -247,6 +247,30 @@ export async function checkAIStatus() {
     return { statuses };
 }
 
+const HTTP_URL = /^https:\/\/[^\s]+$/i
+
+/** Attached project references, then the continuity image, de-duplicated and capped. */
+async function shotReferenceImageUrls(
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    shotId: string,
+    settings: Record<string, unknown>,
+): Promise<string[]> {
+    const urls: string[] = []
+    if (typeof settings.continuity_image_url === "string" && HTTP_URL.test(settings.continuity_image_url)) {
+        urls.push(settings.continuity_image_url)
+    }
+    const { data } = await supabase
+        .from("shot_elements")
+        .select("elements ( image_url )")
+        .eq("shot_id", shotId)
+    for (const row of (data || []) as Array<{ elements: { image_url?: string | null } | { image_url?: string | null }[] | null }>) {
+        const element = Array.isArray(row.elements) ? row.elements[0] : row.elements
+        const url = element?.image_url
+        if (url && HTTP_URL.test(url) && !urls.includes(url)) urls.push(url)
+    }
+    return urls.slice(0, 8)
+}
+
 export async function generateShot(shotId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -296,6 +320,9 @@ export async function generateShot(shotId: string) {
         return { error: compliance.reason || "Prompt blocked by safety guardrails. Revise and retry." };
     }
 
+    // Reference images: attached project references plus the approved image this shot continues from.
+    const referenceImageUrls = await shotReferenceImageUrls(supabase, shotId, settings);
+
     const quota = await reserveUsageQuota(supabase, user.id, "studio");
     if (!quota.allowed) {
         return { error: quota.message || "Studio limit reached for your current plan." };
@@ -333,6 +360,7 @@ export async function generateShot(shotId: string) {
                         duration_seconds: typeof settings.duration_seconds === "number" ? settings.duration_seconds : undefined,
                         quality: typeof settings.quality === "string" ? settings.quality : undefined,
                         variations,
+                        ...(referenceImageUrls.length ? { reference_image_urls: referenceImageUrls } : {}),
                     });
 
                     if (result.status === 'completed' || result.status === 'processing') {
@@ -402,6 +430,8 @@ export async function generateShot(shotId: string) {
                     ...settings,
                     task_id: result.provider_check_id || null,
                     output_type: "image",
+                    // Exactly which reference files were sent with this take.
+                    reference_image_urls: referenceImageUrls,
                 },
             });
 

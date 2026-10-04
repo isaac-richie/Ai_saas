@@ -109,6 +109,12 @@ export class KieProvider extends BaseProvider {
             }
         }
 
+        // Image models (Nano Banana) take reference images as image_input, keeping the
+        // character, product and location consistent with the creator's references.
+        if (normalizedModel.includes("nano-banana") && request.reference_image_urls?.length) {
+            input.image_input = request.reference_image_urls.slice(0, 8);
+        }
+
         // Seedance's multimodal reference mode is mutually exclusive with first/last
         // frames, so references are only sent when no frame image is present.
         if (normalizedModel.includes("seedance-2") && !request.image_prompt && request.reference_image_urls?.length) {

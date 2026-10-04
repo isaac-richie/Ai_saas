@@ -119,7 +119,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-3 rounded-2xl lux-glass lux-hairline p-4 text-white">
+        <form id="project-references" onSubmit={handleSubmit} className="scroll-mt-24 space-y-3 rounded-2xl lux-glass lux-hairline p-4 text-white">
             <div>
                 <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Project references</h3>
                 <p className="mt-1 text-xs text-white/40">Characters, products and places you reuse across shots.</p>

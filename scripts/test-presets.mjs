@@ -134,8 +134,25 @@ test('public test period: free plan is unlimited and Studio is open by default',
 test('Scene Builder prompt can be generated in place or sent to Fast Track', () => {
   const builder = read('../src/interface/components/shots/ShotBuilder.tsx')
   assert.match(builder, /const shotId = await saveShot\(data\)[\s\S]*await generateShot\(shotId\)/)
-  assert.match(builder, /Add shot & generate/)
+  assert.match(builder, /"Generate image"/)
+  assert.match(builder, /Enhance with AI/)
+  assert.match(builder, /Undo enhance/, 'AI changes can be undone')
+  assert.match(builder, /continuity_image_url: continuation\.imageUrl/, 'continued shots start from the approved image')
   assert.match(builder, /sessionStorage\.setItem\(FAST_TRACK_HANDOFF_KEY/)
   const studio = read('../src/interface/components/fast-video/FastVideoStudio.tsx')
   assert.match(studio, /sessionStorage\.removeItem\(FAST_TRACK_HANDOFF_KEY\)/, 'handoff is read once')
+})
+
+test('Scene Builder guided loop: references reach the image model and one image is the anchor', () => {
+  const generation = read('../src/core/actions/generation.ts')
+  assert.match(generation, /reference_image_urls: referenceImageUrls/, 'references are sent with image takes')
+  assert.match(generation, /reference_image_urls: referenceImageUrls,\n\s*\}/, 'and logged on the take')
+  assert.match(read('../src/infrastructure/ai/providers/kie.provider.ts'), /input\.image_input = request\.reference_image_urls\.slice\(0, 8\)/)
+  const shots = read('../src/core/actions/shots.ts')
+  assert.match(shots, /update\(\{ approved_take_id: optionId \}\)/, 'approved image becomes the shot anchor')
+  const flow = read('../src/interface/components/shots/ShotFlowPanel.tsx')
+  for (const label of ['Choose your image', 'Approve image', 'Regenerate', 'Edit shot', 'Animate this image', 'Add to sequence', 'Continue to next shot', 'Approve video']) {
+    assert.ok(flow.includes(label), label)
+  }
+  assert.match(flow, /useSourceImage: true/, 'animation starts from the approved image')
 })

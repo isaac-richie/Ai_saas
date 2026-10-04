@@ -33,7 +33,8 @@ import { attachElementToShot } from "@/core/actions/elements"
 import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import { LookBuilder } from "@/interface/components/shots/LookBuilder"
-import { Loader2, Plus, Sparkles, Layers, Copy, Check, Wand2, Clapperboard, X } from "lucide-react"
+import { Loader2, Plus, Sparkles, Copy, Check, Wand2, Clapperboard, X, ChevronDown } from "lucide-react"
+import { ShotFlowPanel, type FlowSequence, type FlowShot } from "@/interface/components/shots/ShotFlowPanel"
 import { StyleSwatch } from "@/interface/components/fast-video/preset-visuals"
 import { toast } from "sonner"
 import { FAST_TRACK_HANDOFF_KEY } from "@/core/config/handoff"
@@ -101,12 +102,19 @@ interface ShotBuilderProps {
     projectId: string
     sceneId: string
     onShotCreated?: () => void
+    /** Shots in this scene; the newest one drives the guided Choose / Animate / Continue panel. */
+    shots?: FlowShot[]
+    sequences?: FlowSequence[]
 }
 
 type AvailableElement = {
     id: string
     name: string
+    type?: string | null
+    description?: string | null
 }
+
+type Continuation = { imageUrl: string; shotName: string; shotId: string }
 
 type PresetOption = {
     id: string
@@ -183,11 +191,18 @@ const QUICK_STYLE_PRESETS: Array<{
         }
     }
 
-export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderProps) {
+export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], sequences = [] }: ShotBuilderProps) {
     const [isSaving, setIsSaving] = useState(false)
     const [isGenerating, setIsGenerating] = useState(false)
     const router = useRouter()
     const previewRef = useRef<HTMLDivElement>(null)
+    const composerRef = useRef<HTMLDivElement>(null)
+    const [activeShotId, setActiveShotId] = useState<string | null>(null)
+    const [continuation, setContinuation] = useState<Continuation | null>(null)
+    const [enhanceUndo, setEnhanceUndo] = useState<string | null>(null)
+    const [isEnhancing, setIsEnhancing] = useState(false)
+    // The shot being worked on: the one just created here, otherwise the newest in the scene.
+    const activeShot = (activeShotId ? shots.find((shot) => shot.id === activeShotId) : undefined) ?? (activeShotId ? undefined : shots[shots.length - 1])
     const [availableElements, setAvailableElements] = useState<AvailableElement[]>([])
     const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set())
     const [isMounted, setIsMounted] = useState(false)
@@ -270,7 +285,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             providerSlug: "auto",
             quality: "standard",
             seedLocked: true,
-            variations: 1,
+            variations: 2,
         },
     })
 
@@ -322,7 +337,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             seedLocked: true,
             cfgScale: undefined,
             steps: undefined,
-            variations: 1,
+            variations: 2,
         }
         form.reset(resetValues)
         setSelectedElementIds(new Set())
@@ -439,10 +454,10 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         }
 
         toast.success("Assistant Director prompt applied", {
-            description: "Generate it here, or turn it into a video in Fast Track.",
-            action: { label: "Add shot & generate", onClick: () => void handleAddAndGenerate() },
+            description: "Nothing is generated yet. Press Generate image when ready.",
+            action: { label: "Generate image", onClick: () => void handleAddAndGenerate() },
         })
-        requestAnimationFrame(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }))
+        requestAnimationFrame(() => composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))
     }
 
     async function onSubmit(data: ShotFormValues) {
@@ -472,6 +487,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             cfg_scale: data.cfgScale !== undefined ? Number(data.cfgScale) : undefined,
             steps: data.steps !== undefined ? Number(data.steps) : undefined,
             variations: data.variations !== undefined ? Number(data.variations) : undefined,
+            // A continued shot starts from the previous shot's approved image.
+            ...(continuation ? { continuity_image_url: continuation.imageUrl, previous_shot_id: continuation.shotId } : {}),
         }
 
         const formData = new FormData()
@@ -503,6 +520,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             setSelectedElementIds(new Set())
             onShotCreated?.()
         }
+        if (!res.error && res.data?.id) setActiveShotId(res.data.id)
         return res.error ? null : res.data?.id ?? null
     }
 
@@ -515,14 +533,55 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         try {
             const res = await generateShot(shotId)
             if (res.error) toast.error(res.error, { id: "shot-generate" })
-            else toast.success("Shot generated. Approve your favourite take below, then animate it.", { id: "shot-generate" })
+            else {
+                toast.success("Your images are ready. Choose one below.", { id: "shot-generate" })
+                setContinuation(null)
+                setEnhanceUndo(null)
+            }
         } catch {
             toast.error("Generation failed. Try Generate on the shot card.", { id: "shot-generate" })
         } finally {
             setIsGenerating(false)
             router.refresh()
         }
-    }, () => toast.error("Add a subject before generating."))
+    }, () => toast.error("Describe what you want to see first."))
+
+    // Optional helper: turns a short idea into a fuller prompt, with Undo.
+    const handleEnhance = async () => {
+        const current = (form.getValues("subject") || "").trim()
+        if (current.length < 2) { toast.error("Write a short idea first."); return }
+        setIsEnhancing(true)
+        try {
+            const references = availableElements.filter((el) => selectedElementIds.has(el.id)).map((el) => ({ role: el.type || "reference", name: el.name.slice(0, 180), guidance: el.description?.slice(0, 240) || undefined }))
+            const response = await fetch("/api/storyboard/enhance-direction", {
+                method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(45_000),
+                body: JSON.stringify({ direction: current.slice(0, 1200), references, startsFromPreviousShot: Boolean(continuation) }),
+            })
+            const body = await response.json().catch(() => ({}))
+            if (!response.ok || typeof body.prompt !== "string") throw new Error(body.error || "Couldn't enhance right now")
+            setEnhanceUndo(current)
+            form.setValue("subject", body.prompt, { shouldDirty: true })
+            toast.success("AI-enhanced prompt ready", { description: "Nothing is generated until you press Generate image.", action: { label: "Undo", onClick: () => { form.setValue("subject", current); setEnhanceUndo(null) } } })
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Couldn't enhance right now")
+        } finally {
+            setIsEnhancing(false)
+        }
+    }
+
+    const startContinuation = ({ imageUrl, shotName }: { imageUrl: string; shotName: string }) => {
+        if (!activeShot) return
+        setContinuation({ imageUrl, shotName, shotId: activeShot.id })
+        setActiveShotId(null)
+        form.setValue("subject", "")
+        setEnhanceUndo(null)
+        requestAnimationFrame(() => {
+            composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+            composerRef.current?.querySelector("textarea")?.focus()
+        })
+    }
+
+    const selectedElementNames = availableElements.filter((el) => selectedElementIds.has(el.id)).map((el) => el.name)
 
     const handleSendToFastTrack = () => {
         const prompt = (form.getValues("subject") || "").trim() || promptPreview.trim()
@@ -542,9 +601,11 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
 
     return (
         <div className="flex flex-col gap-6 min-w-0 2xl:gap-8">
-            <Card className="studio-card rounded-2xl text-white">
+            <Card ref={composerRef} className="studio-card scroll-mt-24 rounded-2xl text-white">
                 <CardHeader className="pb-2">
-                    <CardTitle className="text-lg tracking-tight">Shot Attributes</CardTitle>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-gold-300/80">Shot {String(shots.length + 1).padStart(2, "0")}</p>
+                    <CardTitle className="font-serif text-xl tracking-tight text-[#f1ece0]">What do you want to see?</CardTitle>
+                    <p className="text-xs text-white/40">Describe it, generate images, choose one, then animate it or add it to your sequence.</p>
                 </CardHeader>
                 <CardContent className="pt-0">
                     <Form {...form}>
@@ -555,7 +616,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 render={({ field }) => (
                                     <FormItem>
                                         <div className="flex items-center justify-between">
-                                            <FormLabel className="text-white/80">Subject / Action</FormLabel>
+                                            <FormLabel className="sr-only">What do you want to see?</FormLabel>
+                                            <span className="text-[11px] text-white/40">{enhanceUndo ? "AI-enhanced. Edit freely." : "One or two sentences is plenty."}</span>
                                             <Button
                                                 type="button"
                                                 size="xs"
@@ -569,8 +631,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                         </div>
                                         <FormControl>
                                             <Textarea
-                                                placeholder="A lone astronaut on a red planet..."
-                                                className="studio-field resize-none rounded-xl text-white placeholder:text-white/35"
+                                                placeholder={continuation ? "What happens next? e.g. He raises the megaphone and shouts." : "e.g. A boy walks toward the camera as robotic pedestrians pass him."}
+                                                className="studio-field min-h-24 resize-none rounded-xl text-[13.5px] text-white placeholder:text-white/35"
                                                 {...field}
                                             />
                                         </FormControl>
@@ -579,6 +641,58 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 )}
                             />
 
+                            {continuation ? (
+                                <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-emerald-300/20 bg-emerald-400/[0.05] p-2.5 text-[12px]">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={continuation.imageUrl} alt="" className="h-10 w-16 rounded-md object-cover" />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="flex items-center gap-1.5 text-emerald-50"><Check className="h-3.5 w-3.5 text-emerald-300" />Continuing from {continuation.shotName}</p>
+                                        <p className="truncate text-[11px] text-white/50">{selectedElementNames.length ? `Continuing with ${selectedElementNames.join(" and ")}.` : "Starts from the approved image."}</p>
+                                    </div>
+                                    <button type="button" onClick={() => document.getElementById("project-references")?.scrollIntoView({ behavior: "smooth" })} className="rounded-full border border-white/10 px-2.5 py-0.5 text-[11px] text-white/70 hover:border-gold-300/40 hover:text-gold-50">Change references</button>
+                                    <button type="button" onClick={() => setContinuation(null)} className="rounded-full border border-white/10 px-2.5 py-0.5 text-[11px] text-white/70 hover:border-gold-300/40 hover:text-gold-50">Start new scene</button>
+                                </div>
+                            ) : null}
+
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="mr-0.5 text-[11px] text-white/40">Using</span>
+                                {availableElements.map((el) => {
+                                    const on = selectedElementIds.has(el.id)
+                                    return (
+                                        <button key={el.id} type="button" aria-pressed={on} onClick={() => toggleElement(el.id)}
+                                            className={`inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[11.5px] transition ${on ? "bg-emerald-400/15 text-emerald-50 ring-1 ring-emerald-300/30" : "border border-gold-400/[0.14] text-white/55 hover:text-white/90"}`}>
+                                            {on ? <Check className="h-3 w-3" /> : null}{el.name}
+                                        </button>
+                                    )
+                                })}
+                                <button type="button" onClick={() => document.getElementById("project-references")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                                    className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-gold-400/30 px-2.5 text-[11.5px] text-white/55 transition hover:border-gold-300/60 hover:text-gold-50">
+                                    <Plus className="h-3 w-3" />Add reference
+                                </button>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating} className="h-11 flex-1 px-6 text-[13px] font-semibold sm:flex-none">
+                                    {isSaving || isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                    {isGenerating ? "Generating images…" : isSaving ? "Preparing…" : "Generate image"}
+                                </Button>
+                                <Button type="button" variant="studioSecondary" onClick={() => void handleEnhance()} disabled={isEnhancing || isSaving || isGenerating} className="h-11">
+                                    {isEnhancing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                    Enhance with AI
+                                </Button>
+                                {enhanceUndo ? (
+                                    <button type="button" onClick={() => { form.setValue("subject", enhanceUndo); setEnhanceUndo(null) }} className="text-[11.5px] text-white/50 underline-offset-2 hover:text-white/85 hover:underline">
+                                        Undo enhance
+                                    </button>
+                                ) : null}
+                            </div>
+
+                            <details className="group/more studio-subcard rounded-xl">
+                                <summary className="flex cursor-pointer select-none list-none items-center justify-between px-3 py-2.5 text-[12px] text-white/60 hover:text-white/85 [&::-webkit-details-marker]:hidden">
+                                    <span>More options <span className="text-white/35">· style, camera, look, quality</span></span>
+                                    <ChevronDown className="h-3.5 w-3.5 transition group-open/more:rotate-180" />
+                                </summary>
+                                <div className="space-y-3 border-t border-gold-400/[0.1] p-3">
                             <div className="studio-subcard space-y-2 rounded-xl p-3">
                                 <div className="flex items-center justify-between">
                                     <div className="text-xs uppercase tracking-[0.16em] text-white/50">Quick Styles</div>
@@ -639,28 +753,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 />
                             )}
 
-                            {availableElements.length > 0 && (
-                                <div className="space-y-2 pt-2 border-t border-gold-400/[0.12]">
-                                    <label className="text-sm font-medium text-white/80 flex items-center">
-                                        <Layers className="h-4 w-4 mr-2" /> Reference Elements
-                                    </label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {availableElements.map(el => (
-                                            <button
-                                                key={el.id}
-                                                type="button"
-                                                onClick={() => toggleElement(el.id)}
-                                                className={`px-3 py-1.5 text-xs rounded-full border transition ${selectedElementIds.has(el.id)
-                                                    ? 'bg-gold-500/20 border-gold-500 text-gold-300'
-                                                    : 'bg-white/5 border-gold-400/[0.12] text-white/60 hover:bg-gold-400/[0.08]'
-                                                    }`}
-                                            >
-                                                {el.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+
 
                             <details
                                 className="studio-subcard rounded-xl"
@@ -884,25 +977,40 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 </div>
                             </details>
 
-                            <Button type="submit" variant="studio" disabled={isSaving} className="w-full">
-                                {isSaving ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Add Shot
-                                    </>
-                                )}
+                            <Button type="submit" variant="studioGhost" disabled={isSaving} className="h-9 w-full text-[12px]">
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                                Save as draft without generating
                             </Button>
+                                </div>
+                            </details>
                         </form>
                     </Form>
                 </CardContent>
             </Card>
 
-            <div className="space-y-5">
+            {activeShot && !continuation ? (
+                <ShotFlowPanel
+                    key={activeShot.id}
+                    shot={activeShot}
+                    shotNumber={Math.max(1, shots.findIndex((shot) => shot.id === activeShot.id) + 1)}
+                    projectId={projectId}
+                    sceneId={sceneId}
+                    sequences={sequences}
+                    referenceNames={selectedElementNames}
+                    onEdit={() => { composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); composerRef.current?.querySelector("textarea")?.focus() }}
+                    onContinue={startContinuation}
+                />
+            ) : null}
+
+            <details className="group/tools studio-card rounded-2xl text-white">
+                <summary className="flex cursor-pointer select-none list-none items-center justify-between px-5 py-4 [&::-webkit-details-marker]:hidden">
+                    <span>
+                        <span className="block text-sm font-medium uppercase tracking-wider text-white/55">Director tools</span>
+                        <span className="block text-xs text-white/40">Assistant Director variants, the full prompt, and saved looks.</span>
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-white/50 transition group-open/tools:rotate-180" />
+                </summary>
+            <div className="space-y-5 border-t border-gold-400/[0.1] p-4">
                 <StudioAdPanel
                     promptPreview={promptPreview}
                     onApplyPacket={handleApplyAdPacket}
@@ -932,18 +1040,15 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                         </div>
                     </CardContent>
                     <CardFooter className="flex flex-col items-stretch gap-2">
-                        <div ref={previewRef} className="grid gap-2 sm:grid-cols-2">
-                            <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating || !promptPreview.trim()} className="h-10">
-                                {isSaving || isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                {isGenerating ? "Generating…" : isSaving ? "Adding shot…" : "Add shot & generate"}
-                            </Button>
+                        <div ref={previewRef} className="grid gap-2">
+
                             <Button type="button" variant="studioSecondary" onClick={handleSendToFastTrack} disabled={!promptPreview.trim()} className="h-10">
                                 <Clapperboard className="mr-2 h-4 w-4" />
                                 Make video in Fast Track
                             </Button>
                         </div>
                         <p className="text-xs text-white/45">
-                            Generate creates image takes for this scene; approve one, then animate it. Fast Track turns the prompt straight into video.
+                            Prefer straight-to-video? Fast Track turns this prompt into a clip without the image step.
                         </p>
                     </CardFooter>
                 </Card>
@@ -1004,6 +1109,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                     </CardContent>
                 </Card>
             </div>
+            </details>
         </div>
     )
 }

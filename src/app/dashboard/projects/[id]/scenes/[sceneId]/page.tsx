@@ -62,15 +62,12 @@ export default async function ScenePage(props: ScenePageProps) {
                 <div className="mt-8 grid gap-8 xl:grid-cols-3 min-w-0">
                     <section data-reveal="card" className="space-y-8 xl:col-span-2 min-w-0">
                     <div>
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                            <h2 className="text-lg font-semibold">New Shot</h2>
-
-                        </div>
-                        <ShotBuilder projectId={params.id} sceneId={params.sceneId} />
+                        <ShotBuilder projectId={params.id} sceneId={params.sceneId} shots={shots} sequences={sequences} />
                     </div>
 
                     <div>
-                        <h2 className="mb-3 text-lg font-semibold">Shot List ({shots.length})</h2>
+                        <h2 className="text-lg font-semibold">Shot list <span className="text-white/40">({shots.length})</span></h2>
+                        <p className="mb-3 text-xs text-white/40">Every shot and experiment in this scene. Only what you add to a sequence goes into the final cut.</p>
                         <ShotList projectId={params.id} sceneId={params.sceneId} shots={shots} sequences={sequences} />
                     </div>
                 </section>

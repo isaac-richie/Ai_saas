@@ -102,6 +102,21 @@ export async function updateShotStatus(shotId: string, optionId: string, status:
         return { error: updateError.message };
     }
 
+    // One approved image (the shot's visual anchor) and one approved video per shot.
+    if (status === "approved") {
+        const { data: siblings } = await supabase
+            .from("shot_generations")
+            .select("id, output_url")
+            .eq("shot_id", shotId)
+            .eq("status", "approved")
+            .neq("id", optionId);
+        const { data: approved } = await supabase.from("shot_generations").select("output_url").eq("id", optionId).single();
+        const approvedIsVideo = /\.mp4($|\?)/i.test(approved?.output_url || "");
+        const demote = (siblings || []).filter((row) => /\.mp4($|\?)/i.test(row.output_url || "") === approvedIsVideo).map((row) => row.id);
+        if (demote.length) await supabase.from("shot_generations").update({ status: "completed" }).in("id", demote);
+        if (!approvedIsVideo) await supabase.from("shots").update({ approved_take_id: optionId }).eq("id", shotId);
+    }
+
     const { data: shot } = await supabase
         .from("shots")
         .select("scene_id")
