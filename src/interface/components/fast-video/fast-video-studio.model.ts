@@ -161,6 +161,7 @@ function mapContinuityColumns(row: Record<string, unknown>): Partial<StoryboardI
     enhancedPrompt: typeof row.enhanced_prompt === "string" ? row.enhanced_prompt : null,
     enhancedFrom: typeof row.enhanced_from === "string" ? row.enhanced_from : null,
     autoEnhance: row.auto_enhance !== false,
+    driftReview: row.drift_review === "ok" || row.drift_review === "flagged" ? row.drift_review : null,
   }
 }
 

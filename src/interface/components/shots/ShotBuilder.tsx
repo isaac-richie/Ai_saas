@@ -447,11 +447,9 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
         form.setValue("subject", promptOverride || packet.masterPrompt)
         form.setValue("negativePrompt", packet.negativePrompt)
 
-        if (providerTarget === "openai" || providerTarget === "kie") {
-            form.setValue("providerSlug", providerTarget)
-        } else {
-            form.setValue("providerSlug", "auto")
-        }
+        // The director's writing model is not the image model: keep Auto unless Kie was chosen,
+        // so attached references are never silently dropped.
+        form.setValue("providerSlug", providerTarget === "kie" ? "kie" : "auto")
 
         toast.success("Assistant Director prompt applied", {
             description: "Nothing is generated yet. Press Generate image when ready.",
@@ -670,6 +668,13 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                                     <Plus className="h-3 w-3" />Add reference
                                 </button>
                             </div>
+
+                            {selectedProvider === "openai" && (selectedElementIds.size > 0 || continuation) ? (
+                                <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-300/30 bg-amber-300/[0.06] px-3 py-2 text-[12px] text-amber-100">
+                                    <span className="min-w-0 flex-1">OpenAI images can&apos;t use your reference images, so the character and place may not match.</span>
+                                    <button type="button" onClick={() => form.setValue("providerSlug", "auto", { shouldDirty: true })} className="rounded-full bg-amber-200 px-3 py-0.5 text-[11.5px] font-semibold text-[#1a160e] hover:bg-amber-100">Switch to Auto</button>
+                                </div>
+                            ) : null}
 
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating} className="h-11 flex-1 px-6 text-[13px] font-semibold sm:flex-none">

@@ -26,6 +26,8 @@ export function shotReview(item: Pick<StoryboardItem, "review" | "url" | "approv
 export type ReferenceChipKind = "character" | "product" | "location" | "other"
 export type ReferenceChip = {
   id: string
+  /** The stored file; the same image can appear on several shots under different ids. */
+  assetPath: string
   label: string
   role: string
   kind: ReferenceChipKind
@@ -45,6 +47,7 @@ export function referenceChips(refs: MediaReference[] | undefined): ReferenceChi
   return (refs ?? [])
     .map((ref) => ({
       id: ref.id,
+      assetPath: ref.assetPath,
       label: ref.name.replace(/\.[a-z0-9]{2,5}$/i, "").slice(0, 32) || ref.role,
       role: ref.role,
       kind: CHIP_KINDS[ref.role] ?? "other",
@@ -105,3 +108,20 @@ export function insertAfter(items: StoryboardItem[], afterId: string, item: Stor
 export function approvedForRender<T extends Pick<StoryboardItem, "review" | "url" | "approvedTakeId" | "sourceClipId">>(items: T[]): T[] {
   return items.filter((item) => shotReview(item) === "approved" && Boolean(item.approvedTakeId || item.sourceClipId))
 }
+
+/** Later shots (in storyboard order) that use the same reference image. */
+export function laterShotsUsing(items: StoryboardItem[], fromId: string, assetPath: string): string[] {
+  const index = items.findIndex((item) => item.id === fromId)
+  if (index < 0) return []
+  return items.slice(index + 1).filter((item) => (item.mediaReferences ?? []).some((ref) => ref.assetPath === assetPath)).map((item) => item.id)
+}
+
+const PERSON_WORDS = /\b(he|she|him|her|his|man|woman|boy|girl|guy|lady|person|someone|presenter|character|actor|model|they)\b/i
+
+/** A direction that clearly features a person but has no character reference attached. */
+export function needsCharacter(direction: string, refs: MediaReference[] | undefined): boolean {
+  if (!PERSON_WORDS.test(direction)) return false
+  return !(refs ?? []).some((ref) => ref.applied && (ref.role === "character" || ref.role === "wardrobe"))
+}
+
+export type DriftReview = "ok" | "flagged"

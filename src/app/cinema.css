@@ -1101,3 +1101,23 @@
   animation: none !important;
   transition: none !important;
 }
+
+.cinema-transcript {
+  margin-top: 14px;
+  color: var(--cinema-muted);
+  font-size: 13px;
+}
+.cinema-transcript summary {
+  cursor: pointer;
+  width: fit-content;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cinema-transcript p {
+  max-width: 62ch;
+  margin-top: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+}

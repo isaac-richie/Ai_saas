@@ -120,3 +120,18 @@ test("storyboard AI routes require sign-in, own the image and never identify peo
   assert.match(studio, /toast\.message\("Using your direction as written"/, "enhancement failure falls back")
   assert.match(read("../src/infrastructure/supabase/migrations/0039_storyboard_enhanced_prompt.sql"), /add column if not exists auto_enhance boolean not null default true/)
 })
+
+test('spec follow-ups: character prompt, shared references, drift review', () => {
+  const continuity = read("../src/interface/components/fast-video/storyboard-continuity.ts")
+  assert.match(continuity, /export function needsCharacter/)
+  assert.match(continuity, /export function laterShotsUsing/)
+  const panel = read("../src/interface/components/fast-video/StoryboardPanel.tsx")
+  for (const label of ["this and later shots", "Flag drift", "Looks consistent", "Sent with the last generation"]) assert.ok(panel.includes(label), label)
+  const studio = read("../src/interface/components/fast-video/FastVideoStudio.tsx")
+  assert.match(studio, /"Who should appear in this shot\?"/)
+  assert.match(studio, /driftReview: null,/, "a new take resets the drift check")
+  assert.match(read("../src/infrastructure/supabase/migrations/0041_storyboard_drift_review.sql"), /add column if not exists drift_review text/)
+  const flow = read("../src/interface/components/shots/ShotFlowPanel.tsx")
+  assert.match(flow, /captureVideoFrame\(`\/api\/media\/proxy\?url=\$\{encodeURIComponent\(video\.output_url\)\}`, "end"\)/, "continues from the video's last frame")
+  assert.match(read("../src/interface/components/shots/ShotBuilder.tsx"), /OpenAI images can&apos;t use your reference images/)
+})

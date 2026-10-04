@@ -159,6 +159,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 onPause={() => setPlaying(false)}
                 onEnded={() => setPlaying(false)}
                 aria-label="Visiowave cinematic showcase"
+                aria-describedby="film-description"
               >
                 <source src="/landing.mp4?v=20260912-audio" type="video/mp4" />
               </video>
@@ -186,6 +187,14 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <span>IMAGINATION, GIVEN FORM.</span>
               <span>TEXT TO VIDEO / IMAGE TO VIDEO</span>
             </div>
+            <details className="cinema-transcript">
+              <summary>Film description</summary>
+              <p id="film-description">
+                A sports car&apos;s headlights cut through rain on a night road. From above, cars weave
+                across a wet highway, then stream past glowing city towers. The film ends inside a
+                lit tunnel as a single car approaches.
+              </p>
+            </details>
           </section>
           <section id="craft" className="cinema-craft cinema-wrap">
             <div className="cinema-section-heading">

@@ -10,6 +10,9 @@ import { generateShot, generateVideoShot } from "@/core/actions/generation"
 import { updateShotStatus } from "@/core/actions/shots"
 import { appendShotToSequence, createSequence } from "@/core/actions/sequences"
 import { DEFAULT_KIE_VIDEO_MODEL_FAMILY, resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
+import { createClient } from "@/infrastructure/supabase/client"
+import { REFERENCE_BUCKET } from "@/core/validation/media-reference"
+import { captureVideoFrame, uploadFrameImage } from "@/interface/components/fast-video/frame-capture"
 
 export type FlowOption = { id: string; status: string; output_url?: string | null; prompt?: string | null; created_at: string }
 export type FlowShot = { id: string; name: string; description?: string | null; options?: FlowOption[] }
@@ -102,8 +105,27 @@ export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences,
     return appendShotToSequence(sequenceId, shot.id)
   }, `Added to ${sequences[0]?.name || "Main sequence"}`)
 
-  const continueStory = () => {
+  const [continuing, setContinuing] = useState(false)
+  // From a finished video, the next shot starts where the video ends; otherwise from the approved image.
+  const continueStory = async () => {
     const anchor = approvedImage?.output_url
+    if (stage === "video" && video?.output_url) {
+      setContinuing(true)
+      try {
+        const { blob } = await captureVideoFrame(`/api/media/proxy?url=${encodeURIComponent(video.output_url)}`, "end")
+        const assetPath = await uploadFrameImage(blob)
+        // The image model fetches this itself, so it needs a URL that outlives regenerations.
+        const { data } = await createClient().storage.from(REFERENCE_BUCKET).createSignedUrl(assetPath, 60 * 60 * 24 * 7)
+        if (!data?.signedUrl) throw new Error("Could not save the last frame")
+        onContinue({ imageUrl: data.signedUrl, shotName: shot.name })
+        return
+      } catch {
+        if (!anchor) { toast.error("Couldn't read the video's last frame. Try again."); return }
+        toast.message("Continuing from the approved image instead of the video's last frame.")
+      } finally {
+        setContinuing(false)
+      }
+    }
     if (!anchor) { toast.message("Approve an image first so the next shot knows where to start."); return }
     onContinue({ imageUrl: anchor, shotName: shot.name })
   }
@@ -192,7 +214,7 @@ export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences,
             <Button type="button" variant="studioSecondary" onClick={addToSequence} disabled={Boolean(busy)} className="h-10">
               {busy === "sequence" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ListPlus className="mr-1.5 h-4 w-4" />}Add to sequence
             </Button>
-            <Button type="button" variant="studioSecondary" onClick={continueStory} disabled={Boolean(busy)} className="h-10">
+            <Button type="button" variant="studioSecondary" onClick={() => void continueStory()} disabled={Boolean(busy) || continuing} className="h-10">
               <ArrowRight className="mr-1.5 h-4 w-4" />Continue to next shot
             </Button>
             <button type="button" onClick={() => void run("approve", () => updateShotStatus(shot.id, approvedImage.id, "completed"))} disabled={Boolean(busy)} className="text-left text-[11px] text-white/40 transition hover:text-white/75">
@@ -217,8 +239,8 @@ export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences,
             <Button type="button" variant={videoApproved ? "studio" : "studioSecondary"} onClick={addToSequence} disabled={Boolean(busy)} className="h-10">
               {busy === "sequence" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ListPlus className="mr-1.5 h-4 w-4" />}Add to sequence
             </Button>
-            <Button type="button" variant="studioSecondary" onClick={continueStory} disabled={Boolean(busy)} className="h-10">
-              <ArrowRight className="mr-1.5 h-4 w-4" />Continue to next shot
+            <Button type="button" variant="studioSecondary" onClick={() => void continueStory()} disabled={Boolean(busy) || continuing} className="h-10">
+              {continuing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-1.5 h-4 w-4" />}Continue to next shot
             </Button>
             <Button type="button" variant="studioGhost" onClick={animate} disabled={Boolean(busy) || !approvedImage} className="h-9 text-[12px]">
               <RotateCcw className="mr-1.5 h-3.5 w-3.5" />Animate again

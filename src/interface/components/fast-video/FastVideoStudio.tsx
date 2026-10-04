@@ -81,7 +81,7 @@ import { CampaignReferencesPanel, type CampaignOutputSettings } from "./Campaign
 import { CampaignAssetMeta } from "./CampaignAssetMeta"
 import { FAST_TRACK_HANDOFF_KEY } from "@/core/config/handoff"
 import { captureVideoFrame, uploadFrameImage } from "./frame-capture"
-import { continueFromShot, insertAfter } from "./storyboard-continuity"
+import { continueFromShot, insertAfter, laterShotsUsing, needsCharacter } from "./storyboard-continuity"
 import { generationPrompt, needsEnhancement, referenceClassificationSchema } from "@/core/validation/storyboard-direction"
 import { EMPTY_CAMPAIGN_REFERENCES, brandSafetyReviewed, type CampaignProvenance, campaignMode, campaignPlanSummary, campaignReferenceIssues, campaignReferencesSchema, recommendedCampaignModel, type CampaignReferences } from "@/core/validation/campaign-references"
 import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
@@ -1905,6 +1905,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         mediaReferences: snapshot.mediaReferences ?? item.mediaReferences,
         review: "review" as const,
         status: "ready" as const,
+        driftReview: null,
         endFrame: null,
         approvedTakeId: null,
       } : item))
@@ -1959,9 +1960,17 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     void persistStoryboardItems(nextItems, { suppressSuccess: true })
   }
 
-  const handleGenerateStoryboardShot = async (item: StoryboardItem) => {
+  const handleGenerateStoryboardShot = async (item: StoryboardItem, skipCharacterCheck = false) => {
     const direction = (item.direction || "").trim() || item.prompt.trim()
     if (!direction) { toast.error("Describe what happens in this shot first.", { id: "storyboard-shot" }); return }
+    if (!skipCharacterCheck && needsCharacter(direction, item.mediaReferences)) {
+      toast("Who should appear in this shot?", {
+        id: "storyboard-shot",
+        description: "Drop a character image on the card to keep them the same from shot to shot.",
+        action: { label: "Generate anyway", onClick: () => void handleGenerateStoryboardShot(item, true) },
+      })
+      return
+    }
     if (isGenerating || status === "processing") { toast.message("Wait for the current generation to finish.", { id: "storyboard-shot" }); return }
     const previous = item.previousItemId ? storyboardItems.find((entry) => entry.id === item.previousItemId) : undefined
     let prompt = generationPrompt(item)
@@ -2084,6 +2093,27 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     // New references change what the shot should look like, so the full prompt is rebuilt.
     patchStoryboardItem(item.id, { mediaReferences: [...(latest.mediaReferences || []), ...added], enhancedFrom: null })
     toast.success(added.map((ref) => `${ref.name} (${ref.role})`).join(", ") + " added", { id: "storyboard-refs", description: "Tap a chip to change its role or lock." })
+  }
+
+  // Shot-level by default; "later" deliberately applies the change to later shots using the same image.
+  const updateStoryboardReference = (item: StoryboardItem, referenceId: string, scope: "this" | "later", change: "toggle-lock" | "remove") => {
+    const target = (item.mediaReferences || []).find((ref) => ref.id === referenceId)
+    if (!target) return
+    const nextLocked = !target.locked
+    const affected = new Set([item.id, ...(scope === "later" ? laterShotsUsing(storyboardItemsRef.current, item.id, target.assetPath) : [])])
+    const nextItems = normalizeStoryboardItems(storyboardItemsRef.current.map((entry) => {
+      if (!affected.has(entry.id)) return entry
+      const refs = entry.mediaReferences || []
+      const mediaReferences = change === "remove"
+        ? refs.filter((ref) => ref.assetPath !== target.assetPath)
+        : refs.map((ref) => (ref.assetPath === target.assetPath ? { ...ref, locked: nextLocked } : ref))
+      // References changed, so the full prompt is rebuilt on the next generate.
+      return { ...entry, mediaReferences, enhancedFrom: null }
+    }))
+    storyboardItemsRef.current = nextItems
+    setStoryboardItems(nextItems)
+    void persistStoryboardItems(nextItems, { suppressSuccess: true })
+    if (affected.size > 1) toast.success(`Updated ${affected.size} shots`, { id: "storyboard-refs" })
   }
 
   const handleStartNewSceneFromShot = (item: StoryboardItem) => {
@@ -3287,12 +3317,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           onApproveShot={(item) => void handleApproveStoryboardShot(item)}
           onContinueToNext={handleContinueStoryboardShot}
           onStartNewScene={handleStartNewSceneFromShot}
-          onToggleReferenceLock={(item, referenceId) => patchStoryboardItem(item.id, {
-            mediaReferences: (item.mediaReferences || []).map((ref) => (ref.id === referenceId ? { ...ref, locked: !ref.locked } : ref)),
-          })}
-          onRemoveReference={(item, referenceId) => patchStoryboardItem(item.id, {
-            mediaReferences: (item.mediaReferences || []).filter((ref) => ref.id !== referenceId),
-          })}
+          onToggleReferenceLock={(item, referenceId, scope) => updateStoryboardReference(item, referenceId, scope ?? "this", "toggle-lock")}
+          onRemoveReference={(item, referenceId, scope) => updateStoryboardReference(item, referenceId, scope ?? "this", "remove")}
           onEditShot={(item) => {
             restoreReferences(item.mediaReferences || [])
             setShotFrames({ start: item.startFrame ?? null, end: null, transitionDirection: "" })

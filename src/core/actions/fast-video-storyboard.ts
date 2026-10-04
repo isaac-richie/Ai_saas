@@ -34,6 +34,7 @@ type ReplaceFastVideoStoryboardInput = {
     enhancedPrompt?: string | null
     enhancedFrom?: string | null
     autoEnhance?: boolean
+    driftReview?: string | null
   }>
 }
 
@@ -43,6 +44,7 @@ const REVIEW_STATES = new Set(["draft", "generating", "review", "approved", "fai
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // Newest first. Older databases drop missing columns on save rather than losing the storyboard.
 const OPTIONAL_COLUMN_GROUPS = [
+  ["drift_review"], // 0041
   ["enhanced_prompt", "enhanced_from", "auto_enhance"], // 0039
   ["direction", "review_status", "start_frame", "end_frame", "previous_item_id"], // 0038
   ["campaign_provenance"], // 0036
@@ -96,6 +98,8 @@ function sanitizeStoryboardItem(
     enhanced_prompt: item.enhancedPrompt ? item.enhancedPrompt.trim().slice(0, 1200) : null,
     enhanced_from: item.enhancedFrom ? item.enhancedFrom.trim().slice(0, 1200) : null,
     auto_enhance: item.autoEnhance !== false,
+    // Migration 0041.
+    drift_review: item.driftReview === "ok" || item.driftReview === "flagged" ? item.driftReview : null,
   } as Database["public"]["Tables"]["fast_video_storyboard_items"]["Insert"]
 }
 

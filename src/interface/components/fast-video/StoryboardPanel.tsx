@@ -12,7 +12,7 @@ import type { KieVideoModelFamilyId } from "@/core/config/kie-video-models"
 import type { CampaignProvenance } from "@/core/validation/campaign-references"
 import type { MediaReference } from "@/core/validation/media-reference"
 import type { ShotFrame } from "@/core/validation/shot-frames"
-import { SHOT_REVIEW_LABELS, referenceChips, shotReview, type ReferenceChip, type ShotReview } from "./storyboard-continuity"
+import { SHOT_REVIEW_LABELS, laterShotsUsing, referenceChips, shotReview, type DriftReview, type ReferenceChip, type ShotReview } from "./storyboard-continuity"
 
 export type StoryboardItem = {
   mediaReferences?: MediaReference[]
@@ -38,6 +38,8 @@ export type StoryboardItem = {
   /** Captured from the approved take; becomes the next shot's start frame. */
   endFrame?: ShotFrame | null
   previousItemId?: string | null
+  /** Creator's consistency check on the latest take. */
+  driftReview?: DriftReview | null
   /** Full prompt the director built from the short direction. */
   enhancedPrompt?: string | null
   /** The direction text enhancedPrompt was built from; a change triggers a rebuild. */
@@ -72,8 +74,9 @@ interface StoryboardPanelProps {
   onApproveShot: (item: StoryboardItem) => void
   onContinueToNext: (item: StoryboardItem) => void
   onStartNewScene: (item: StoryboardItem) => void
-  onToggleReferenceLock: (item: StoryboardItem, referenceId: string) => void
-  onRemoveReference: (item: StoryboardItem, referenceId: string) => void
+  /** scope "later" also applies the change to later shots that use the same image. */
+  onToggleReferenceLock: (item: StoryboardItem, referenceId: string, scope?: "this" | "later") => void
+  onRemoveReference: (item: StoryboardItem, referenceId: string, scope?: "this" | "later") => void
   onEditShot?: (item: StoryboardItem) => void
   /** Images dropped or picked on a card become references for that shot. */
   onAddReferenceFiles: (item: StoryboardItem, files: File[]) => void
@@ -256,6 +259,7 @@ export function StoryboardPanel({
                 <ShotCard
                   key={item.id}
                   item={item}
+                  laterUses={(assetPath) => laterShotsUsing(items, item.id, assetPath).length}
                   shotNumber={shotNumber}
                   previousNumber={previous ? items.indexOf(previous) + 1 : null}
                   isSyncing={isSyncing}
@@ -292,8 +296,9 @@ type ShotActions = Pick<StoryboardPanelProps,
   | "onGenerateShot" | "onApproveShot" | "onContinueToNext" | "onStartNewScene" | "onToggleReferenceLock" | "onRemoveReference" | "onEditShot"
   | "onAddReferenceFiles" | "onPatchItem">
 
-function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, addingReferences, generating, dragging, dropTarget, dragHandlers, actions }: {
+function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, approving, addingReferences, generating, dragging, dropTarget, dragHandlers, actions }: {
   item: StoryboardItem
+  laterUses: (assetPath: string) => number
   shotNumber: number
   previousNumber: number | null
   isSyncing: boolean
@@ -445,15 +450,32 @@ function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, addi
                     <p className="mt-0.5 text-white/50">
                       <span className="capitalize">{openChip.role}</span> · {openChip.locked ? "Locked for this shot" : "Not locked"} · {chipTitle(openChip)}
                     </p>
+                    {openChip.binding === "guide" ? <p className="mt-1 text-[10.5px] text-amber-100/80">Only one image goes to the video model per shot. To send this one instead, set it as the main image in Shot Builder.</p> : null}
                   </div>
                   <button type="button" aria-label="Close" onClick={() => setOpenChipId(null)} className="text-white/40 hover:text-white/80"><X className="h-3.5 w-3.5" /></button>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {actions.onEditShot ? <button type="button" onClick={() => actions.onEditShot?.(item)} className="rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-white/75 hover:border-gold-300/40 hover:text-gold-50">Change</button> : null}
-                  <button type="button" onClick={() => actions.onToggleReferenceLock(item, openChip.id)} disabled={isSyncing} className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-white/75 hover:border-gold-300/40 hover:text-gold-50">
-                    {openChip.locked ? <><Unlock className="h-2.5 w-2.5" />Unlock for this shot</> : <><Lock className="h-2.5 w-2.5" />Lock for this shot</>}
-                  </button>
-                  <button type="button" onClick={() => { setOpenChipId(null); actions.onRemoveReference(item, openChip.id) }} disabled={isSyncing} className="rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-rose-200/80 hover:border-rose-300/40">Remove from this shot</button>
+                  {laterUses(openChip.assetPath) > 0 ? (
+                    <>
+                      <span className="w-full text-[10.5px] text-white/45">Also used in {laterUses(openChip.assetPath)} later shot{laterUses(openChip.assetPath) === 1 ? "" : "s"}. Apply the change to:</span>
+                      <button type="button" onClick={() => actions.onToggleReferenceLock(item, openChip.id, "this")} disabled={isSyncing} className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-white/75 hover:border-gold-300/40 hover:text-gold-50">
+                        {openChip.locked ? <Unlock className="h-2.5 w-2.5" /> : <Lock className="h-2.5 w-2.5" />}{openChip.locked ? "Unlock" : "Lock"}: this shot
+                      </button>
+                      <button type="button" onClick={() => actions.onToggleReferenceLock(item, openChip.id, "later")} disabled={isSyncing} className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-white/75 hover:border-gold-300/40 hover:text-gold-50">
+                        {openChip.locked ? "Unlock" : "Lock"}: this and later shots
+                      </button>
+                      <button type="button" onClick={() => { setOpenChipId(null); actions.onRemoveReference(item, openChip.id, "this") }} disabled={isSyncing} className="rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-rose-200/80 hover:border-rose-300/40">Remove: this shot</button>
+                      <button type="button" onClick={() => { setOpenChipId(null); actions.onRemoveReference(item, openChip.id, "later") }} disabled={isSyncing} className="rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-rose-200/80 hover:border-rose-300/40">Remove: this and later shots</button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" onClick={() => actions.onToggleReferenceLock(item, openChip.id, "this")} disabled={isSyncing} className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-white/75 hover:border-gold-300/40 hover:text-gold-50">
+                        {openChip.locked ? <><Unlock className="h-2.5 w-2.5" />Unlock for this shot</> : <><Lock className="h-2.5 w-2.5" />Lock for this shot</>}
+                      </button>
+                      <button type="button" onClick={() => { setOpenChipId(null); actions.onRemoveReference(item, openChip.id, "this") }} disabled={isSyncing} className="rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-rose-200/80 hover:border-rose-300/40">Remove from this shot</button>
+                    </>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -467,6 +489,22 @@ function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, addi
             </span>
             <span className="inline-flex min-w-0 items-center gap-1 truncate text-white/65"><Link2 className="h-3 w-3 shrink-0" />{previousNumber ? `Shot ${previousNumber} ending` : item.startFrame.sourceLabel || "Starting image"}</span>
           </div>
+        ) : null}
+
+        {hasVideo && (review === "review" || review === "approved") && item.driftReview !== "ok" ? (
+          item.driftReview === "flagged" ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-300/30 bg-amber-300/[0.06] px-2.5 py-1.5 text-[11px] text-amber-100">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">Drift flagged. Regenerate, or check the references this shot uses.</span>
+              <button type="button" onClick={() => actions.onPatchItem(item.id, { driftReview: null })} className="text-[10.5px] text-amber-100/70 hover:text-amber-50">Clear</button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-white/50">
+              <span className="mr-auto">Does this match the earlier shots?</span>
+              <button type="button" onClick={() => actions.onPatchItem(item.id, { driftReview: "ok" })} className="rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-white/70 hover:border-emerald-300/40 hover:text-emerald-50">Looks consistent</button>
+              <button type="button" onClick={() => actions.onPatchItem(item.id, { driftReview: "flagged" })} className="rounded-full border border-white/10 px-2 py-0.5 text-[10.5px] text-white/70 hover:border-amber-300/40 hover:text-amber-50">Flag drift</button>
+            </div>
+          )
         ) : null}
 
         <label className="block">
@@ -533,6 +571,21 @@ function ShotCard({ item, shotNumber, previousNumber, isSyncing, approving, addi
                   className="mt-1 min-h-20 rounded-xl border-gold-400/[0.12] bg-black/30 text-[10.5px] leading-relaxed text-white/75"
                 />
               </label>
+            ) : null}
+            {hasVideo && chips.length ? (
+              <div className="text-[10.5px] text-white/45">
+                <p>Sent with the last generation:</p>
+                <ul className="mt-1 space-y-0.5">
+                  {chips.map((chip) => (
+                    <li key={chip.id} className="flex items-center justify-between gap-2">
+                      <span className="truncate text-white/70">{chip.label}</span>
+                      <span className={chip.binding === "sent" ? "text-emerald-200/80" : chip.binding === "guide" ? "text-white/45" : "text-amber-100/80"}>
+                        {chip.binding === "sent" ? "Image" : chip.binding === "guide" ? "Written guidance" : "Not used"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : null}
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10.5px] text-white/45">Scene</span>
