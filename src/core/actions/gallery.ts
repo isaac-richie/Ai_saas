@@ -74,7 +74,7 @@ export async function moveGalleryAssetsToProject(optionIds: string[], targetProj
 
     const { data: options, error: optionsError } = await supabase
         .from("shot_generations")
-        .select("id, shot_id, prompt, status, output_url, parameters, negative_prompt, seed, cfg_scale, steps, model_version, provider_id")
+        .select("id, shot_id")
         .in("id", dedupedIds);
 
     if (optionsError || !options || options.length === 0) {
@@ -167,7 +167,7 @@ export async function moveGalleryAssetsToProject(optionIds: string[], targetProj
             .from("shots")
             .insert({
                 scene_id: targetSceneId,
-                name: `${sourceShot.name} (Moved)`,
+                name: sourceShot.name,
                 description: sourceShot.description,
                 shot_type: sourceShot.shot_type,
                 camera_movement: sourceShot.camera_movement,
@@ -184,25 +184,20 @@ export async function moveGalleryAssetsToProject(optionIds: string[], targetProj
             continue;
         }
 
-        const { error: insertGenerationError } = await supabase
+        // A real move: re-parent the existing generation instead of copying it,
+        // so the gallery never shows the same video twice.
+        await supabase.from("shots").update({ approved_take_id: null }).eq("id", sourceShot.id).eq("approved_take_id", option.id);
+        const { error: moveError } = await supabase
             .from("shot_generations")
-            .insert({
-                shot_id: createdShot.id,
-                prompt: option.prompt,
-                status: option.status,
-                output_url: option.output_url,
-                parameters: option.parameters,
-                negative_prompt: option.negative_prompt,
-                seed: option.seed,
-                cfg_scale: option.cfg_scale,
-                steps: option.steps,
-                model_version: option.model_version,
-                provider_id: option.provider_id,
-            });
+            .update({ shot_id: createdShot.id })
+            .eq("id", option.id);
 
-        if (!insertGenerationError) {
-            movedCount += 1;
+        if (moveError) {
+            await supabase.from("shots").delete().eq("id", createdShot.id);
+            continue;
         }
+        movedCount += 1;
+
     }
 
     revalidatePath(`/dashboard/projects/${targetProjectId}`);

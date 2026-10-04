@@ -119,3 +119,14 @@ test('applying a template can be undone and the model cards state real limits', 
   assert.match(pickers, /frames\.start \? "Start \+ End frames" : "No frame control"/)
   assert.match(pickers, /role="radiogroup" aria-label="Video model"/)
 })
+
+test('public test period: free plan is unlimited and Studio is open by default', () => {
+  const sql = read('../src/infrastructure/supabase/migrations/0040_free_plan_unlimited_testing.sql')
+  assert.match(sql, /'max_fast_video_generations', null/)
+  assert.match(sql, /max_studio_generations = null/)
+  assert.match(sql, /new\.max_fast_video_generations := null/)
+  assert.match(read('../src/core/config/feature-flags.ts'), /toBool\(process\.env\.NEXT_PUBLIC_STUDIO_ENABLED, true\)/)
+  const gallery = read('../src/core/actions/gallery.ts')
+  assert.match(gallery, /\.update\(\{ shot_id: createdShot\.id \}\)/, 'Move re-parents instead of copying')
+  assert.doesNotMatch(gallery, /\(Moved\)/)
+})
