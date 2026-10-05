@@ -117,7 +117,7 @@ export const Sweep: React.FC<{ rect: Rect; start: number; duration?: number; str
 export type CursorKey = { at: number; x: number; y: number }
 
 /** Smooth, eased cursor with a press and gold ripple on click frames. */
-export const Cursor: React.FC<{ path: CursorKey[]; clicks?: number[]; appear?: number; vanish?: number }> = ({ path, clicks = [], appear = 0, vanish = Infinity }) => {
+export const Cursor: React.FC<{ path: CursorKey[]; clicks?: number[]; appear?: number; vanish?: number }> = ({ path, clicks = [], appear = 0, vanish = 1e6 }) => {
   const frame = useCurrentFrame()
   if (frame < appear || frame > vanish) return null
   const at = path.map((p) => p.at)

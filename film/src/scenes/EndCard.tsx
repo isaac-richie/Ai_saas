@@ -6,7 +6,7 @@ import { BEAT, color, font } from "../theme"
 /** Final beats: a fast montage of real outputs, then the sign-off. */
 export const MONTAGE_CLIPS: { src: string; from: number }[] = [
   { src: "outputs/o01.mp4", from: 15 },
-  { src: "outputs/o05.mp4", from: 20 },
+  { src: "outputs/o05.mp4", from: 40 },
   { src: "outputs/o07.mp4", from: 10 },
   { src: "outputs/o02.mp4", from: 30 },
   { src: "outputs/o06.mp4", from: 20 },

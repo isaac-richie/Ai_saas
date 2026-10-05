@@ -8,9 +8,16 @@ const context = await chromium.launchPersistentContext(new URL("../.profile", im
   channel: "chrome", headless: false, viewport: { width: 1440, height: 900 },
 })
 const page = context.pages()[0] ?? (await context.newPage())
+page.on("framenavigated", (frame) => { if (frame === page.mainFrame()) console.log("page:", frame.url().replace(/[?#].*/, "")) })
+context.on("page", (p) => console.log("new tab:", p.url()))
 await page.goto(`${BASE}/login`)
-console.log("Sign in in the Chrome window. It closes by itself once you reach the dashboard.")
-await page.waitForURL(/\/dashboard/, { timeout: 15 * 60_000 })
+await page.bringToFront()
+console.log("Sign in in the Chrome window. It closes by itself once you are signed in.")
+// Only a real dashboard page proves the sign-in finished.
+await page.waitForURL((url) => url.pathname.startsWith("/dashboard"), { timeout: 30 * 60_000 })
+await page.waitForTimeout(4000)
+// Session cookies vanish when the window closes, so save the full session to a file.
+await context.storageState({ path: new URL("../.profile/session.json", import.meta.url).pathname })
 await page.waitForTimeout(2000)
 console.log("Signed in. Session saved.")
 await context.close()
