@@ -345,6 +345,7 @@ export async function generateShot(shotId: string) {
             const requestSeed = baseSeed !== undefined && !seedLocked ? baseSeed + i : baseSeed;
             let result: GenerationResult | null = null;
             let lastError: string | null = null;
+            const providerErrors: string[] = [];
             let successfulProviderId: string | null = null;
 
             // Try available providers in order
@@ -377,6 +378,7 @@ export async function generateShot(shotId: string) {
 
                     // If it failed, check if it's a safety rejection to justify moving to the next provider
                     const errorMsg = result.error || "Unknown error";
+                    providerErrors.push(errorMsg);
                     const { isSafetyRejection } = await import("@/core/utils/ai/error-normalization");
                     
                     if (isSafetyRejection(errorMsg)) {
@@ -392,6 +394,7 @@ export async function generateShot(shotId: string) {
                 } catch (e: unknown) {
                     submissionUncertain = true;
                     lastError = e instanceof Error ? e.message : "Provider request failed";
+                    providerErrors.push(lastError);
                     continue;
                 }
             }
@@ -400,13 +403,17 @@ export async function generateShot(shotId: string) {
                 if (quota.reservationId && !providerAccepted && !submissionUncertain) {
                     await settleUsageQuota(user.id, quota.reservationId, false);
                 }
+                // A provider out of credits explains the failure better than a fallback's own error.
+                const billingError = providerErrors.find((message) => /credit|balance|insufficient|quota|top up/i.test(message));
                 return {
                     error: submissionUncertain && !providerAccepted
                         ? `The provider response was interrupted; this job may have started. Do not submit it again yet. Request ${quota.reservationId}.`
-                        : normalizeGenerationError(
-                        result?.error || lastError || undefined,
-                        "Generation failed after all provider attempts."
-                    ),
+                        : billingError
+                            ? "Image generation is paused: the image service is out of credits. Please try again shortly."
+                            : normalizeGenerationError(
+                                providerErrors[0] || result?.error || lastError || undefined,
+                                "Generation failed after all provider attempts."
+                            ),
                 };
             }
 

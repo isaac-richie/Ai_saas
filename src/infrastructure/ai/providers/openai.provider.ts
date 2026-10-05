@@ -45,8 +45,7 @@ export class OpenAIProvider extends BaseProvider {
                 n: 1,
                 size,
             };
-            // Only DALL·E accepts response_format; newer image models always return base64.
-            if (model.startsWith("dall-e")) payload.response_format = "url";
+            // No response_format: OpenAI now rejects it. Results may come back as a URL or base64.
 
             // OpenAI image quality accepts only standard|hd for image generation.
             if (quality) {
