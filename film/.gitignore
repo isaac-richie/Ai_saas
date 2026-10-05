@@ -1,0 +1,8 @@
+node_modules/
+out/
+public/captures/
+public/outputs/
+public/music/
+.profile/
+public/landing.mp4
+capture/outputs.json
