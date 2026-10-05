@@ -146,7 +146,7 @@ test('Scene Builder prompt can be generated in place or sent to Fast Track', () 
 test('Scene Builder guided loop: references reach the image model and one image is the anchor', () => {
   const generation = read('../src/core/actions/generation.ts')
   assert.match(generation, /reference_image_urls: referenceImageUrls/, 'references are sent with image takes')
-  assert.match(generation, /reference_image_urls: referenceImageUrls,\n\s*\}/, 'and logged on the take')
+  assert.match(generation, /reference_image_urls: referenceImageUrls,\n\s*image_model:/, 'and logged on the take with its model')
   assert.match(read('../src/infrastructure/ai/providers/kie.provider.ts'), /input\.image_input = request\.reference_image_urls\.slice\(0, 8\)/)
   const shots = read('../src/core/actions/shots.ts')
   assert.match(shots, /update\(\{ approved_take_id: optionId \}\)/, 'approved image becomes the shot anchor')
