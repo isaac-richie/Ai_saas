@@ -11,6 +11,7 @@ import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
 import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing";
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance";
 import type { GenerationResult } from "@/infrastructure/ai/types";
+import { FALLBACK_KIE_IMAGE_MODEL } from "@/infrastructure/ai/providers/kie.models";
 
 /** 
  * Force server action re-validation to clear cached ReferenceErrors 
@@ -433,6 +434,7 @@ export async function generateShot(shotId: string) {
                     output_type: "image",
                     // Exactly which reference files were sent with this take.
                     reference_image_urls: referenceImageUrls,
+                    image_model: (result as { debug?: { model?: string } }).debug?.model ?? null,
                 },
             });
 
@@ -640,6 +642,7 @@ export async function pollShotStatus(shotOptionId: string) {
         .select(`
             id, 
             shot_id,
+            prompt,
             status, 
             output_url,
             parameters, 
@@ -726,6 +729,34 @@ export async function pollShotStatus(shotOptionId: string) {
 
         const shouldUpdate = result.status !== option.status || Boolean(result.url);
         const outputType = typeof parameters?.output_type === "string" ? parameters.output_type : "image";
+
+        // GPT Image can be rate-limited: retry that one take on Nano Banana Pro once, quietly.
+        const imageModel = typeof parameters?.image_model === "string" ? parameters.image_model : "";
+        if (result.status === "failed" && outputType === "image" && slug === "kie" && imageModel.startsWith("gpt-image") && !parameters?.fallback_from) {
+            const references = Array.isArray(parameters?.reference_image_urls)
+                ? (parameters.reference_image_urls as unknown[]).filter((url): url is string => typeof url === "string")
+                : [];
+            const retry = await provider.generate({
+                prompt: option.prompt || "",
+                model: FALLBACK_KIE_IMAGE_MODEL,
+                output_type: "image",
+                aspect_ratio: typeof parameters?.aspect_ratio === "string" ? parameters.aspect_ratio : undefined,
+                ...(references.length ? { reference_image_urls: references } : {}),
+            });
+            if (retry.status === "processing" && retry.provider_check_id) {
+                await supabase.from("shot_generations").update({
+                    status: "processing",
+                    parameters: {
+                        ...(parameters || {}),
+                        task_id: retry.provider_check_id,
+                        image_model: FALLBACK_KIE_IMAGE_MODEL,
+                        fallback_from: imageModel,
+                        fallback_reason: normalizeGenerationError(result.error, "GPT Image failed"),
+                    },
+                }).eq("id", option.id);
+                return { data: { status: "processing", url: null, updated: true, waitingForUrl: false } };
+            }
+        }
 
         // 4. Update Database if status changed or URL was freshly discovered
         if (shouldUpdate) {

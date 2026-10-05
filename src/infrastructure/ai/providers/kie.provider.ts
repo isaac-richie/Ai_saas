@@ -63,15 +63,21 @@ export class KieProvider extends BaseProvider {
 
     private resolveModel(request: GenerationRequest): string {
         const explicitModel = request.model?.trim();
-        if (explicitModel) return explicitModel;
+        if (explicitModel) return this.resolveImageVariant(explicitModel, request);
 
         const requestedType =
             request.output_type
             || (request.image_prompt ? "video" : undefined)
             || "image";
 
-        if (requestedType !== "video") return DEFAULT_KIE_IMAGE_MODEL;
+        if (requestedType !== "video") return this.resolveImageVariant(DEFAULT_KIE_IMAGE_MODEL, request);
         return request.image_prompt ? DEFAULT_KIE_VIDEO_MODEL_I2V : DEFAULT_KIE_VIDEO_MODEL_T2V;
+    }
+
+    /** GPT Image 1.5 is two Kie models: text-to-image, or image-to-image when references are attached. */
+    private resolveImageVariant(model: string, request: GenerationRequest): string {
+        if (model !== "gpt-image/1.5") return model;
+        return request.reference_image_urls?.length ? "gpt-image/1.5-image-to-image" : "gpt-image/1.5-text-to-image";
     }
 
     private resolveOutputType(request: GenerationRequest, model: string): "image" | "video" {
@@ -87,6 +93,18 @@ export class KieProvider extends BaseProvider {
         };
 
         const normalizedModel = model.toLowerCase();
+
+        // GPT Image 1.5 has a small schema: unknown fields (seed, negative prompt…) are not sent.
+        if (normalizedModel.startsWith("gpt-image/")) {
+            const ratio = (request.aspect_ratio || "").toLowerCase();
+            const [w, h] = ratio.match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/)?.slice(1).map(Number) ?? [0, 0];
+            input.aspect_ratio = !w || !h || Math.abs(w / h - 1) < 0.15 ? "1:1" : w > h ? "3:2" : "2:3";
+            input.quality = request.quality === "hd" || request.quality === "high" ? "high" : "medium";
+            if (normalizedModel.endsWith("image-to-image") && request.reference_image_urls?.length) {
+                input.input_urls = request.reference_image_urls.slice(0, 8);
+            }
+            return input;
+        }
 
         if (request.negative_prompt) input.negative_prompt = request.negative_prompt;
         if (request.aspect_ratio) input.aspect_ratio = request.aspect_ratio;

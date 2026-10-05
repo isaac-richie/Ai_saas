@@ -176,3 +176,15 @@ test('image generation prefers Kie, fails fast on OpenAI and never spins forever
   assert.match(read('../src/app/dashboard/projects/[id]/scenes/[sceneId]/page.tsx'), /export const maxDuration = 300;/)
   assert.match(read('../src/interface/components/shots/ShotFlowPanel.tsx'), /: "empty"/, 'no options and not generating is not shown as generating')
 })
+
+test('GPT Image 1.5 is the default image model, with a one-time Nano Banana fallback', () => {
+  const models = read('../src/infrastructure/ai/providers/kie.models.ts')
+  assert.match(models, /process\.env\.KIE_DEFAULT_IMAGE_MODEL \|\| "gpt-image\/1\.5"/)
+  assert.match(models, /FALLBACK_KIE_IMAGE_MODEL = "nano-banana-pro"/)
+  const kie = read('../src/infrastructure/ai/providers/kie.provider.ts')
+  assert.match(kie, /"gpt-image\/1\.5-image-to-image" : "gpt-image\/1\.5-text-to-image"/, 'references switch to image-to-image')
+  assert.match(kie, /input\.input_urls = request\.reference_image_urls\.slice\(0, 8\)/)
+  const generation = read('../src/core/actions/generation.ts')
+  assert.match(generation, /imageModel\.startsWith\("gpt-image"\) && !parameters\?\.fallback_from/, 'fallback runs once')
+  assert.match(generation, /fallback_from: imageModel/)
+})

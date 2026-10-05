@@ -88,6 +88,12 @@ export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
     mode: "text-to-image",
   },
   {
+    slug: "gpt-image/1.5",
+    type: "image",
+    label: "GPT Image 1.5",
+    mode: "text-to-image",
+  },
+  {
     slug: "nano-banana-pro",
     type: "image",
     label: "Nano Banana Pro",
@@ -96,7 +102,9 @@ export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
 ];
 
 export const DEFAULT_KIE_IMAGE_MODEL =
-  process.env.KIE_DEFAULT_IMAGE_MODEL || "nano-banana-pro";
+  process.env.KIE_DEFAULT_IMAGE_MODEL || "gpt-image/1.5";
+/** Used when a GPT Image take fails (e.g. rate-limited) so the creator still gets images. */
+export const FALLBACK_KIE_IMAGE_MODEL = "nano-banana-pro";
 export const DEFAULT_KIE_VIDEO_MODEL_I2V =
   process.env.KIE_DEFAULT_VIDEO_MODEL_I2V
   || process.env.KIE_DEFAULT_VIDEO_MODEL
