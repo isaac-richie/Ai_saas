@@ -14,7 +14,7 @@ const LOGO = 33.85 // the score's final hit
 
 type Live = { clip: string; at: number; to: number; from?: number; push: [number, number]; x?: [number, number]; audio?: boolean }
 const LIVE: Live[] = [
-  { clip: "v2_k1_studio", at: 0, to: 5, push: [1.0, 1.06] },
+  { clip: "v2_k1_studio_fix", at: 0, to: 5, push: [1.0, 1.04] },
   { clip: "v2_k2_desert", at: 5, to: 10, push: [1.04, 1.0], x: [-16, 16] },
   { clip: "v2_k3_snow", at: 10, to: 15, push: [1.08, 1.0] },
   { clip: "v2_k4_rain", at: 15, to: 20, push: [1.0, 1.08] },
