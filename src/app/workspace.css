@@ -1060,6 +1060,14 @@
   padding: 12px 0;
   backdrop-filter: blur(14px);
 }
+/* On phones the Create button rides just above the bottom tab bar, always within thumb reach. */
+@media (max-width: 767px) {
+  .workspace-generate-bar {
+    bottom: calc(76px + max(8px, env(safe-area-inset-bottom)));
+    /* Close the sliver between the button and the tab bar so content never peeks through. */
+    box-shadow: 0 14px 0 0 #121412, 0 -20px 40px -20px rgba(0, 0, 0, 0.95);
+  }
+}
 .workspace-session-bar {
   display: flex;
   justify-content: space-between;

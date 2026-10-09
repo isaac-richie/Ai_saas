@@ -40,29 +40,30 @@ export function CommandPalette() {
 
   const commands = useMemo<CommandItem[]>(
     () => [
-      { id: "dashboard", label: "Open Dashboard", hint: "Overview", keywords: "dashboard overview home", run: () => router.push("/dashboard") },
-      { id: "studio", label: "Open Studio", hint: "Scene workspace", keywords: "studio scene shots", run: () => router.push("/dashboard/studio") },
-      { id: "gallery", label: "Open Gallery", hint: "Assets", keywords: "gallery assets images videos", run: () => router.push("/dashboard/gallery") },
-      { id: "fast-video", label: "Open Fast Video", hint: "Direct video", keywords: "fast video kie generate", run: () => router.push("/dashboard/fast-video") },
-      { id: "exports", label: "Open Exports", hint: "Render queue", keywords: "exports queue", run: () => router.push("/dashboard/exports") },
-      { id: "projects", label: "Open Projects", hint: "All projects", keywords: "projects list", run: () => router.push("/dashboard/projects") },
+      { id: "create", label: "Create a video", hint: "Quick video", keywords: "create fast video generate new make clip", run: () => router.push("/dashboard/fast-video") },
+      { id: "film", label: "Plan a longer film", hint: "Several shots", keywords: "film story shots plan storyboard", run: () => router.push("/dashboard/fast-video?mode=film") },
+      { id: "dashboard", label: "Go home", hint: "Home", keywords: "dashboard overview home", run: () => router.push("/dashboard") },
+      { id: "studio", label: "Open Studio", hint: "Scenes and shots", keywords: "studio scene shots", run: () => router.push("/dashboard/studio") },
+      { id: "gallery", label: "Open my videos", hint: "Everything you've made", keywords: "gallery assets images videos my", run: () => router.push("/dashboard/gallery") },
+      { id: "exports", label: "Open downloads", hint: "Exports", keywords: "exports downloads queue", run: () => router.push("/dashboard/exports") },
+      { id: "projects", label: "Open projects", hint: "All projects", keywords: "projects list", run: () => router.push("/dashboard/projects") },
       {
         id: "new-project",
         label: "Create New Project",
         hint: "Jump to creation",
         keywords: "new project create",
         run: () => {
-          router.push("/dashboard")
+          router.push("/dashboard/projects")
           setTimeout(() => {
             const trigger = document.querySelector("[data-tour='create-project']") as HTMLElement | null
             trigger?.click()
-          }, 120)
+          }, 600)
         },
       },
       {
         id: "start-tour",
-        label: "Start Product Tour",
-        hint: "New user guide",
+        label: "Take the quick tour",
+        hint: "30 seconds",
         keywords: "tour onboarding guide help",
         run: () => {
           window.dispatchEvent(new CustomEvent("aisas:start-tour"))

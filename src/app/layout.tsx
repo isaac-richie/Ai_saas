@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./cinema.css";
 import "./workspace.css";
@@ -6,6 +6,9 @@ import { ThemeProvider } from "@/interface/providers/theme-provider";
 import { AppShell } from "@/interface/components/layout/AppShell";
 import { Toaster } from "@/interface/components/ui/sonner";
 import { DeploymentRecovery } from "@/interface/components/system/DeploymentRecovery";
+
+// viewport-fit=cover lets the phone tab bar sit clear of the home indicator via safe-area insets.
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#080908" }
 
 export const metadata: Metadata = {
   title: {

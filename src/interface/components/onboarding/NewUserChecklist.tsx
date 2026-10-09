@@ -22,7 +22,7 @@ export function NewUserChecklist({ projectCount, hasGeneratedAsset }: NewUserChe
         id: "generate",
         label: "Generate and save your first shot",
         done: hasGeneratedAsset,
-        href: "/dashboard/fast-video?mode=single-shot",
+        href: "/dashboard/fast-video",
       },
     ],
     [projectCount, hasGeneratedAsset]

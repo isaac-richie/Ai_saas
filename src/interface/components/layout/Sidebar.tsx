@@ -4,36 +4,17 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/core/utils"
 import { Button } from "@/interface/components/ui/button"
-import {
-    Home,
-    LayoutDashboard,
-    Settings,
-    LogOut,
-    Clapperboard,
-    Images,
-    Video,
-    Download,
-    Lock,
-} from "lucide-react"
+import { LogOut, Lock } from "lucide-react"
 import { motion } from "framer-motion"
 import { AnimatedBrandMark } from "@/interface/components/branding/AnimatedBrandMark"
 import { logout } from "@/core/actions/auth"
-import { STUDIO_ENABLED } from "@/core/config/feature-flags"
+import { NAV_ITEMS } from "./nav-items"
 
 interface SidebarProps {
     isOpen: boolean
     setIsOpen: (isOpen: boolean) => void
 }
 
-const navItems = [
-    { name: "Home", href: "/", icon: Home, tour: "nav-home", isActive: (pathname: string) => pathname === "/" },
-    { name: "Overview", href: "/dashboard", icon: LayoutDashboard, tour: "nav-overview", isActive: (pathname: string) => pathname === "/dashboard" || pathname.startsWith("/dashboard/projects") && !pathname.includes("/scenes/") },
-    { name: "Studio", href: "/dashboard/studio", icon: Clapperboard, tour: "nav-studio", disabled: !STUDIO_ENABLED, isActive: (pathname: string) => pathname.startsWith("/dashboard/studio") || pathname.includes("/scenes/") },
-    { name: "Fast Track", href: "/dashboard/fast-video", icon: Video, tour: "nav-fast-video", isActive: (pathname: string) => pathname.startsWith("/dashboard/fast-video") },
-    { name: "Gallery", href: "/dashboard/gallery", icon: Images, tour: "nav-gallery", isActive: (pathname: string) => pathname.startsWith("/dashboard/gallery") },
-    { name: "Exports", href: "/dashboard/exports", icon: Download, tour: "nav-exports", isActive: (pathname: string) => pathname.startsWith("/dashboard/exports") },
-    { name: "Settings", href: "/dashboard/settings", icon: Settings, tour: "nav-settings", isActive: (pathname: string) => pathname.startsWith("/dashboard/settings") },
-]
 
 export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     const pathname = usePathname()
@@ -57,8 +38,8 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
             <div className="flex h-[calc(100%-4rem)] flex-col justify-between py-4">
                 <nav className="space-y-1 px-2">
-                    <span className={cn("workspace-nav-label", !isOpen && "md:invisible")}>STUDIO</span>
-                    {navItems.map((item, index) => {
+                    <span className={cn("workspace-nav-label", !isOpen && "md:invisible")}>MENU</span>
+                    {NAV_ITEMS.map((item, index) => {
                         const isActive = item.isActive(pathname)
                         const isDisabled = Boolean(item.disabled)
 
@@ -126,13 +107,13 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                             className="workspace-sidebar-card lux-sheen group block"
                         >
                             <span className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-gold-300/80">
-                                <span className="lux-live-dot" /> Ready to roll
+                                <span className="lux-live-dot" /> Ready when you are
                             </span>
                             <span className="mt-2 block text-[13px] text-[#eeeae1]">
-                                Start a new <span className="lux-serif text-gold-300">production</span>
+                                Make something <span className="lux-serif text-gold-300">new</span>
                             </span>
-                            <span className="mt-1 block text-[11px] text-[#8f9086] transition-colors group-hover:text-gold-200/80">
-                                Prompt to directed shots in minutes →
+                            <span className="mt-1 block text-[11.5px] text-[#B0B8C4] transition-colors group-hover:text-gold-200/80">
+                                Describe an idea, get a video →
                             </span>
                         </Link>
                     ) : null}

@@ -16,37 +16,29 @@ const STORAGE_KEY = "aisas.tour.completed.v1"
 
 const STEPS: TourStep[] = [
   {
-    id: "overview",
-    title: "Overview",
-    description: "Track projects and open your active workspace from here.",
-    selector: "[data-tour='nav-overview']",
-  },
-  {
-    id: "create-project",
-    title: "Create your first project",
-    description: "Start by creating a project before adding scenes and shots.",
-    selector: "[data-tour='create-project']",
-    route: "/dashboard",
+    id: "create",
+    title: "Start here: Create",
+    description: "Describe an idea in a sentence, tap Create video, and get a cinematic clip in a few minutes.",
+    selector: "[data-tour='nav-create']",
   },
   {
     id: "studio",
-    title: "Studio",
-    description: "Compose shots, approve outputs, and trigger video generation.",
+    title: "Studio, for longer stories",
+    description: "Plan a film scene by scene: pick the best image for each shot, then bring it to life.",
     selector: "[data-tour='nav-studio']",
   },
   {
-    id: "fast-video",
-    title: "Fast Video",
-    description: "Generate direct video clips and promote them into scene workflows.",
-    selector: "[data-tour='nav-fast-video']",
-  },
-  {
-    id: "gallery",
-    title: "Gallery",
-    description: "Review generated assets, batch export, and move media between projects.",
-    selector: "[data-tour='nav-gallery']",
+    id: "videos",
+    title: "My videos",
+    description: "Everything you make lands here, ready to watch, download and share.",
+    selector: "[data-tour='nav-videos']",
   },
 ]
+
+/** The sidebar and the phone tab bar both carry tour targets; highlight whichever is on screen. */
+function findVisible(selector: string) {
+  return Array.from(document.querySelectorAll<HTMLElement>(selector)).find((element) => element.getClientRects().length > 0) ?? null
+}
 
 export function GuidedTour() {
   const router = useRouter()
@@ -83,7 +75,7 @@ export function GuidedTour() {
     }
 
     const sync = () => {
-      const element = document.querySelector(step.selector)
+      const element = findVisible(step.selector)
       if (element) {
         const target = element as HTMLElement
         if (activeTargetRef.current && activeTargetRef.current !== target) {
@@ -130,18 +122,18 @@ export function GuidedTour() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[70]">
-      <div className="absolute inset-0 bg-black/70" />
+      {targetRect ? null : <div className="absolute inset-0 bg-black/70" />}
       {targetRect ? (
         <div
-          className="absolute hidden rounded-2xl border border-gold-300/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] transition-all duration-300 md:block"
+          className="absolute rounded-2xl border border-gold-300/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] transition-all duration-300"
           style={spotlightStyle}
         />
       ) : null}
 
-      <div className="pointer-events-auto absolute inset-x-3 bottom-3 max-h-[68vh] overflow-y-auto rounded-2xl border border-gold-400/20 bg-obsidian-950 p-3 text-white shadow-2xl md:bottom-6 md:left-auto md:right-6 md:max-h-none md:w-[min(28rem,calc(100%-2rem))] md:overflow-visible md:p-4">
-        <div className="text-[10px] uppercase tracking-[0.2em] text-white/45 md:text-xs">Product Tour</div>
+      <div className="pointer-events-auto absolute inset-x-3 bottom-28 max-h-[68vh] overflow-y-auto rounded-2xl border border-gold-400/20 bg-obsidian-950 p-3 text-white shadow-2xl md:bottom-6 md:left-auto md:right-6 md:max-h-none md:w-[min(28rem,calc(100%-2rem))] md:overflow-visible md:p-4">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-300/80 md:text-xs">Quick tour</div>
         <h3 className="mt-1 text-sm font-semibold md:text-base">{step.title}</h3>
-        <p className="mt-1 text-xs text-white/65 md:text-sm">{step.description}</p>
+        <p className="mt-1 text-[13px] leading-relaxed text-[#B0B8C4] md:text-sm">{step.description}</p>
         <div className="mt-3 flex items-center justify-between text-[11px] text-white/45 md:text-xs">
           <span>
             Step {stepIndex + 1} of {STEPS.length}

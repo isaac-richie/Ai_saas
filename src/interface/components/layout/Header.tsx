@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/interface/components/ui/button"
 import { Menu, Sparkles, HelpCircle, Gauge } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
+import Link from "next/link"
+import { AnimatedBrandMark } from "@/interface/components/branding/AnimatedBrandMark"
 import { CommandPalette } from "./CommandPalette"
 
 interface HeaderProps {
@@ -17,22 +19,25 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
     const pathname = usePathname()
 
     const title = useMemo(() => {
-        if (pathname.includes("/settings")) return "Studio Settings"
-        if (pathname.includes("/fast-video")) return "Fast Track"
-        if (pathname.includes("/scenes/")) return "Scene Builder"
+        if (pathname.includes("/settings")) return "Settings"
+        if (pathname.includes("/fast-video")) return "Create"
+        if (pathname.includes("/scenes/")) return "Scene"
         if (pathname.includes("/studio")) return "Studio"
-        if (pathname.includes("/gallery")) return "Gallery"
-        if (pathname.includes("/exports")) return "Exports"
-        if (pathname.includes("/projects")) return "Project Workspace"
-        return "Dashboard"
+        if (pathname.includes("/gallery")) return "My videos"
+        if (pathname.includes("/exports")) return "Downloads"
+        if (pathname.includes("/projects")) return "Project"
+        return "Home"
     }, [pathname])
 
     return (
         <header className="workspace-topbar sticky top-0 z-30 flex h-16 w-full items-center border-b px-3 sm:px-4 md:px-8">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                <Button aria-label="Toggle sidebar" variant="ghost" size="icon" onClick={toggleSidebar} className="rounded-xl border border-transparent text-[#c9c5b8] hover:border-gold-400/20">
+                <Button aria-label="Toggle sidebar" variant="ghost" size="icon" onClick={toggleSidebar} className="hidden rounded-xl border border-transparent text-[#c9c5b8] hover:border-gold-400/20 md:inline-flex">
                     <Menu className="size-4" />
                 </Button>
+                <Link href="/dashboard" aria-label="Visiowave home" className="md:hidden">
+                    <AnimatedBrandMark className="h-8 w-8" />
+                </Link>
                 <div className="relative min-w-0 overflow-hidden">
                     <p className="workspace-topbar-crumb hidden whitespace-nowrap xl:block">VISIOWAVE · STUDIO</p>
                     <AnimatePresence mode="wait" initial={false}>
@@ -67,7 +72,7 @@ export function Header({ toggleSidebar, motionReduced, onToggleMotion }: HeaderP
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="workspace-topbar-pill px-2 sm:px-3"
+                    className="workspace-topbar-pill hidden px-2 sm:px-3 md:inline-flex"
                     onClick={onToggleMotion}
                     title={motionReduced ? "Enable motion effects" : "Reduce motion effects"}
                     aria-label={motionReduced ? "Enable motion effects" : "Reduce motion effects"}

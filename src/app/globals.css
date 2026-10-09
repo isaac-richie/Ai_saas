@@ -1093,3 +1093,14 @@
   transform: scale(1.08);
   filter: saturate(1.08) contrast(1.05);
 }
+
+/* Phone tab bar: frosted obsidian with a hairline of gold, clear of the home indicator. */
+.mobile-tabbar {
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  padding-top: 6px;
+  background: linear-gradient(180deg, rgba(11, 12, 11, 0.82), rgba(8, 9, 8, 0.97));
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border-top: 1px solid rgba(217, 192, 138, 0.14);
+  box-shadow: 0 -18px 40px -24px rgba(0, 0, 0, 0.9);
+}

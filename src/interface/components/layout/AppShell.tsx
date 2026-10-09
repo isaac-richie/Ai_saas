@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { Sidebar } from "./Sidebar"
 import { Header } from "./Header"
+import { MobileTabBar } from "./MobileTabBar"
 import { cn } from "@/core/utils"
 import { GuidedTour } from "@/interface/components/onboarding/GuidedTour"
 import { AnimatePresence, motion } from "framer-motion"
@@ -192,15 +193,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="ws-ambient-grain" />
             </div>
 
-            {isSidebarOpen && (
-                <button
-                    aria-label="Close sidebar"
-                    className="fixed inset-0 z-30 bg-black/60 backdrop-blur-md md:hidden"
-                    onClick={() => setIsSidebarOpen(false)}
-                />
-            )}
-
-            <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+            {/* Phones navigate with the bottom tab bar; the sidebar is desktop-only. */}
+            <div className="hidden md:block">
+                <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+            </div>
 
             <div
                 className={cn(
@@ -213,7 +209,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     motionReduced={motionReduced}
                     onToggleMotion={toggleMotion}
                 />
-                <main id="main-content" ref={mainRef} className="flex-1 overflow-y-auto px-4 pb-10 pt-6 md:px-8 lg:px-10">
+                <main id="main-content" ref={mainRef} className="flex-1 overflow-x-clip px-4 pb-32 pt-5 md:px-8 md:pb-10 md:pt-6 lg:px-10">
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.div
                             key={pathname}
@@ -226,17 +222,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         </motion.div>
                     </AnimatePresence>
                 </main>
-                <footer className="workspace-footer px-4 py-4 text-[11px] md:px-8 lg:px-10">
+                <footer className="workspace-footer hidden px-4 py-4 text-[11px] md:block md:px-8 lg:px-10">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="tracking-[0.18em] uppercase">Visiowave <span className="lux-serif normal-case tracking-normal text-gold-400/80">Studios</span></span>
                         <div className="flex items-center gap-3">
                             <a href="#main-content">Back to top</a>
                             <a href="/dashboard/settings">Help Center</a>
-                            <a href="/dashboard/exports">Export Docs</a>
+                            <a href="/dashboard/exports">Downloads</a>
                         </div>
                     </div>
                 </footer>
             </div>
+            <MobileTabBar />
             <GuidedTour />
         </div>
     )

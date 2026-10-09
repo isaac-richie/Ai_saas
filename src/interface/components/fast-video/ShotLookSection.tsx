@@ -25,12 +25,14 @@ export type PresetFamilyState<T> = {
 }
 
 /** Shot Look: quick looks, style and motion presets, and the video model. */
-export function ShotLookSection({ className, style, motion, modelFamilyId, onModelChange }: {
+export function ShotLookSection({ className, style, motion, modelFamilyId, onModelChange, showModel = true }: {
   className: string
   style: PresetFamilyState<StylePreset>
   motion: PresetFamilyState<MotionPreset>
   modelFamilyId: KieVideoModelFamilyId
   onModelChange: (id: KieVideoModelFamilyId) => void
+  /** Create keeps the model under "More options"; the default pick suits most ideas. */
+  showModel?: boolean
 }) {
   const stylePresetId = style.selectedId
   const motionPresetId = motion.selectedId
@@ -38,7 +40,7 @@ export function ShotLookSection({ className, style, motion, modelFamilyId, onMod
   const applyMotionPreset = motion.onSelect
   return (
     <div className={className}>
-      <label className="text-[11px] uppercase tracking-[0.12em] text-white/50 font-medium">Shot Look</label>
+      <label className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Pick a look <span className="font-normal text-[#B0B8C4]">(optional)</span></label>
       <div role="radiogroup" aria-label="Shot look" className="lux-stagger grid grid-cols-2 gap-2">
         {QUICK_LOOKS.map((look, index) => {
           const active = stylePresetId === look.stylePresetId && motionPresetId === look.motionPresetId
@@ -110,7 +112,7 @@ export function ShotLookSection({ className, style, motion, modelFamilyId, onMod
         onToggleExpanded={motion.onToggleExpanded}
         totalCount={motion.totalCount}
       />
-      <ModelPicker families={KIE_VIDEO_MODEL_FAMILIES} value={modelFamilyId} onChange={onModelChange} />
+      {showModel ? <ModelPicker families={KIE_VIDEO_MODEL_FAMILIES} value={modelFamilyId} onChange={onModelChange} /> : null}
     </div>
   )
 }
