@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type * as React from "react"
-import { Check, Search, Star, X } from "lucide-react"
+import { Check, Play, Search, Star, X } from "lucide-react"
 import { NoneTile } from "./preset-visuals"
 
 export type PresetOption = {
@@ -11,6 +11,8 @@ export type PresetOption = {
   description?: string
   detail?: string
   visual?: React.ReactNode
+  /** Looping MP4 example; cards with one carry a play badge. */
+  previewVideo?: string
 }
 
 type PresetPickerProps = {
@@ -43,7 +45,7 @@ export function PresetPicker({
   const selected = options.find((option) => option.id === selectedId)
   const showSearch = searchOpen || Boolean(search)
   return (
-    <section className="space-y-2.5" aria-label={label}>
+    <section className="space-y-2" aria-label={label}>
       <header className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#8f9086]">{label}</p>
@@ -97,6 +99,7 @@ export function PresetPicker({
           name={noneLabel}
           description={noneDescription}
           visual={<NoneTile />}
+          none
           active={!selectedId}
           onSelect={() => onSelect("")}
         />
@@ -109,6 +112,7 @@ export function PresetPicker({
             description={option.description}
             detail={option.detail}
             visual={option.visual}
+            previewVideo={option.previewVideo}
             active={selectedId === option.id}
             onSelect={() => onSelect(option.id)}
             pinned={pinnedIds.includes(option.id)}
@@ -126,27 +130,32 @@ export function PresetPicker({
   )
 }
 
-function PresetCard({ index, compact, name, description, detail, visual, active, onSelect, pinned, recent, onTogglePin }: {
+function PresetCard({ index, compact, name, description, detail, visual, previewVideo, none, active, onSelect, pinned, recent, onTogglePin }: {
   index: number
   compact: boolean
   name: string
   description?: string
   detail?: string
   visual?: React.ReactNode
+  previewVideo?: string
+  none?: boolean
   active: boolean
   onSelect: () => void
   pinned?: boolean
   recent?: boolean
   onTogglePin?: () => void
 }) {
+  const [playing, setPlaying] = useState(false)
+  // Rail cards share one fixed size so the rail stays aligned; titles and badges wrap instead of clipping.
+  // Chrome floors fractional borders, so the active card's half-pixel ring tops its 1px border up to 1.5px.
   return (
     <div
       data-active={active}
       style={{ "--i": Math.min(index, 10) } as React.CSSProperties}
-      className={`preset-card group relative overflow-hidden rounded-xl border transition-all duration-300 ${compact ? "w-[148px] shrink-0 snap-start" : ""} ${
+      className={`preset-card group relative overflow-hidden rounded-xl transition-all duration-300 ${compact ? "flex h-[188px] w-[140px] shrink-0 snap-start flex-col" : ""} ${
         active
-          ? "border-gold-300/70 bg-gold-400/[0.07] shadow-[0_0_0_1px_rgba(217,192,138,0.2),0_16px_32px_-20px_rgba(217,192,138,0.8)]"
-          : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40"
+          ? "border border-solid border-[#E5A93C] bg-gold-400/[0.07] shadow-[0_0_0_0.5px_#E5A93C,0_16px_32px_-20px_rgba(229,169,60,0.8)]"
+          : `border ${none ? "border-dashed border-gold-400/35" : "border-gold-400/[0.12]"} bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40`
       }`}
     >
       <button
@@ -155,24 +164,38 @@ function PresetCard({ index, compact, name, description, detail, visual, active,
         aria-checked={active}
         title={description}
         onClick={onSelect}
-        className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold-400/60"
+        className={`block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold-400/60 ${compact ? "flex-1" : ""}`}
       >
         <span className={`relative block overflow-hidden rounded-t-[11px] bg-obsidian-900 ${compact ? "h-[72px]" : "aspect-video"}`}>
-          {visual}
+          {playing && previewVideo
+            ? <video src={previewVideo} autoPlay loop muted playsInline className="absolute inset-0 h-full w-full object-cover" />
+            : visual}
           <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         </span>
         <span className="block px-2.5 pb-2.5 pt-2">
-          <span className="flex items-center gap-1.5">
-            <span className={`truncate text-[11.5px] font-medium ${active ? "text-gold-50" : "text-[#e8e2d2]"}`}>{name}</span>
-            {recent && !active ? <span className="size-1 shrink-0 rounded-full bg-gold-400/70" title="Recently used" aria-label="Recently used" /> : null}
+          <span className="flex items-start gap-1.5">
+            <span className={`line-clamp-2 text-[12.5px] font-semibold leading-[1.25] ${active ? "text-gold-50" : "text-[#ece6d6]"}`}>{name}</span>
+            {recent && !active ? <span className="mt-1.5 size-1 shrink-0 rounded-full bg-gold-400/70" title="Recently used" aria-label="Recently used" /> : null}
           </span>
-          {description ? <span className={`mt-0.5 block text-[10px] leading-snug text-[#8f9086] ${compact ? "line-clamp-1" : "line-clamp-2"}`}>{description}</span> : null}
-          {detail && !compact ? <span className="mt-1 block text-[9px] uppercase tracking-[0.14em] text-gold-300/60">{detail}</span> : null}
+          {description ? <span className="mt-1 line-clamp-2 text-[10.5px] leading-snug text-[#B0B8C4]">{description}</span> : null}
+          {detail ? <span className="mt-1 line-clamp-2 text-[9.5px] font-medium uppercase leading-[1.3] tracking-[0.08em] text-[#D49B35]">{detail}</span> : null}
         </span>
       </button>
+      {previewVideo ? (
+        <button
+          type="button"
+          onClick={() => setPlaying((value) => !value)}
+          aria-pressed={playing}
+          aria-label={playing ? `Stop ${name} preview` : `Play ${name} preview`}
+          title={playing ? "Stop preview" : "Play preview"}
+          className={`absolute top-1.5 grid size-6 place-items-center rounded-full bg-black/45 text-white/90 backdrop-blur-sm transition hover:bg-black/65 hover:text-gold-100 ${active || onTogglePin ? "right-8" : "right-1.5"}`}
+        >
+          {playing ? <span className="size-2 rounded-[1px] bg-current" /> : <Play className="ml-px h-3 w-3" fill="currentColor" />}
+        </button>
+      ) : null}
       {active ? (
-        <span className="pointer-events-none absolute right-1.5 top-1.5 grid size-4 place-items-center rounded-full bg-gold-300 text-[#1a160e] shadow-[0_0_10px_rgba(217,192,138,0.8)]">
-          <Check className="h-2.5 w-2.5" strokeWidth={3} />
+        <span className="pointer-events-none absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-[#E5A93C] text-[#1a160e] shadow-[0_0_10px_rgba(229,169,60,0.8)]">
+          <Check className="h-3 w-3" strokeWidth={3} />
         </span>
       ) : onTogglePin ? (
         <button

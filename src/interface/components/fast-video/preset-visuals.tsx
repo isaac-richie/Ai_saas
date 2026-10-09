@@ -29,6 +29,9 @@ export const STYLE_PREVIEW_IMAGES: Record<string, string> = {
   style_underwater_blue: "/presets/style_underwater_blue.jpg",
 }
 
+/** Looping MP4 examples (public/presets/<id>.mp4). Presets listed here get a play badge; the rest show a still. */
+export const PRESET_PREVIEW_VIDEOS: Record<string, string> = {}
+
 export function StyleSwatch({ id, name }: { id: string; name?: string }) {
   const [a, b, c] = STYLE_SWATCHES[id] ?? ["#e3cf9f", "#8a6c3e", "#1c1f1c"]
   const preview = STYLE_PREVIEW_IMAGES[id]

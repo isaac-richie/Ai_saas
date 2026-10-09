@@ -5,7 +5,7 @@ import { Check } from "lucide-react"
 import { KIE_VIDEO_MODEL_FAMILIES, type KieVideoModelFamilyId } from "@/core/config/kie-video-models"
 import { MOTION_PRESETS, STYLE_PRESETS, type MotionPreset, type StylePreset } from "@/core/config/fast-video-presets"
 import { PresetPicker } from "./PresetPicker"
-import { MotionGlyph, StyleSwatch } from "./preset-visuals"
+import { MotionGlyph, PRESET_PREVIEW_VIDEOS, StyleSwatch } from "./preset-visuals"
 import { ModelPicker } from "./StudioPickers"
 import { QUICK_LOOKS } from "./fast-video-studio.model"
 
@@ -60,7 +60,7 @@ export function ShotLookSection({ className, style, motion, modelFamilyId, onMod
               data-active={active}
               className={`preset-card lux-sheen overflow-hidden rounded-xl border text-left transition-all duration-300 ${
                 active
-                  ? "border-gold-300/60 bg-gold-400/[0.07] shadow-[0_12px_28px_-18px_rgba(217,192,138,0.8)]"
+                  ? "border-[1.5px] border-[#E5A93C] bg-gold-400/[0.07] shadow-[0_12px_28px_-18px_rgba(229,169,60,0.8)]"
                   : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/35"
               }`}
             >
@@ -69,10 +69,10 @@ export function ShotLookSection({ className, style, motion, modelFamilyId, onMod
                 <span className="overflow-hidden border-l border-black/40">{motion ? <MotionGlyph id={motion.id} /> : null}</span>
               </span>
               <span className="block px-3 pb-2.5 pt-2">
-                <span className={`flex items-center gap-1.5 text-[12px] font-medium ${active ? "text-gold-50" : "text-[#e8e2d2]"}`}>
-                  {active ? <Check className="h-3 w-3 text-gold-300" strokeWidth={3} /> : null}{look.label}
+                <span className={`flex items-center gap-1.5 text-[12.5px] font-semibold leading-[1.25] ${active ? "text-gold-50" : "text-[#e8e2d2]"}`}>
+                  {active ? <Check className="h-3 w-3 text-[#E5A93C]" strokeWidth={3} /> : null}{look.label}
                 </span>
-                <span className="mt-0.5 block truncate text-[10px] text-[#8f9086]">{style?.name ?? "Any style"} · {motion?.name ?? "Any motion"}</span>
+                <span className="mt-0.5 line-clamp-2 text-[10.5px] leading-snug text-[#B0B8C4]">{style?.name ?? "Any style"} · {motion?.name ?? "Any motion"}</span>
               </span>
             </button>
           )
@@ -82,7 +82,7 @@ export function ShotLookSection({ className, style, motion, modelFamilyId, onMod
         label="Style presets"
         noneLabel="No style"
         noneDescription="Your prompt alone sets the look."
-        options={style.options.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, visual: <StyleSwatch id={preset.id} name={preset.name} /> }))}
+        options={style.options.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, visual: <StyleSwatch id={preset.id} name={preset.name} />, previewVideo: PRESET_PREVIEW_VIDEOS[preset.id] }))}
         selectedId={style.selectedId}
         onSelect={style.onSelect}
         search={style.search}
@@ -98,7 +98,7 @@ export function ShotLookSection({ className, style, motion, modelFamilyId, onMod
         label="Motion presets"
         noneLabel="No motion"
         noneDescription="Camera movement comes from your prompt."
-        options={motion.options.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, detail: preset.useCase, visual: <MotionGlyph id={preset.id} /> }))}
+        options={motion.options.map((preset) => ({ id: preset.id, name: preset.name, description: preset.description, detail: preset.useCase, visual: <MotionGlyph id={preset.id} />, previewVideo: PRESET_PREVIEW_VIDEOS[preset.id] }))}
         selectedId={motion.selectedId}
         onSelect={motion.onSelect}
         search={motion.search}

@@ -2579,7 +2579,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           </div>
 
           <ShotLookSection
-            className={sectionClass}
+            className="workspace-control-section space-y-3"
             style={{
               selectedId: stylePresetId, onSelect: applyStylePreset, options: styleChipList, totalCount: filteredStyles.length,
               search: styleSearch, onSearch: setStyleSearch, pinnedIds: favoriteStyleIds, recentIds: recentStyleIds,
