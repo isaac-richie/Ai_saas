@@ -28,7 +28,7 @@ test("bulk actions live in a floating toolbar and keep every existing action", (
 })
 
 test("new users get a welcome with a way to create; filters can be cleared in one click", () => {
-  assert.match(gallery, /starts here/)
+  assert.match(gallery, /live here/)
   assert.match(gallery, /href="\/dashboard\/fast-video"/)
   assert.match(gallery, /setQuery\(""\); setFilter\("all"\)/)
 })

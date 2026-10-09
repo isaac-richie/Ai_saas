@@ -1050,11 +1050,11 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
 
                             <Button type="button" variant="studioSecondary" onClick={handleSendToFastTrack} disabled={!promptPreview.trim()} className="h-10">
                                 <Clapperboard className="mr-2 h-4 w-4" />
-                                Make video in Fast Track
+                                Make a quick video instead
                             </Button>
                         </div>
                         <p className="text-xs text-white/45">
-                            Prefer straight-to-video? Fast Track turns this prompt into a clip without the image step.
+                            Prefer straight-to-video? Quick video turns this prompt into a clip without the image step.
                         </p>
                     </CardFooter>
                 </Card>

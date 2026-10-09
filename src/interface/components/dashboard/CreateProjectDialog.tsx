@@ -39,17 +39,17 @@ export function CreateProjectDialog() {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button data-tour="create-project" className="rounded-xl border border-gold-400/[0.12] bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
+                <Button data-tour="create-project" className="min-h-11 rounded-xl border border-gold-300/40 bg-gold-400/[0.1] text-gold-50 hover:bg-gold-400/[0.18]">
                     <Plus className="mr-2 h-4 w-4" />
-                    New Project
+                    New film project
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] border-gold-400/[0.12] bg-obsidian-800 text-white">
                 <form action={onSubmit} autoComplete="off">
                     <DialogHeader>
-                        <DialogTitle>Create Project</DialogTitle>
-                        <DialogDescription className="text-white/60">
-                            Start a new cinematography project.
+                        <DialogTitle>New film project</DialogTitle>
+                        <DialogDescription className="text-[#B0B8C4]">
+                            A project holds the scenes and shots of one film. You can rename it later.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
@@ -59,18 +59,18 @@ export function CreateProjectDialog() {
                                 id="name"
                                 name="name"
                                 autoComplete="new-password"
-                                placeholder="My Feature Film"
+                                placeholder="e.g. Summer lookbook"
                                 required
                                 className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                             />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="description" className="text-white/85">Description (Optional)</Label>
+                            <Label htmlFor="description" className="text-white/85">What is it about? (optional)</Label>
                             <Textarea
                                 id="description"
                                 name="description"
                                 autoComplete="off"
-                                placeholder="A sci-fi noir thriller..."
+                                placeholder="e.g. A 30-second fashion film shot at golden hour"
                                 className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                             />
                         </div>
@@ -78,7 +78,7 @@ export function CreateProjectDialog() {
                     <DialogFooter>
                         <Button type="submit" disabled={loading} className="rounded-xl border border-gold-400/[0.12] bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Create
+                            Create project
                         </Button>
                     </DialogFooter>
                 </form>

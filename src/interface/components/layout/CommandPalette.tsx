@@ -138,7 +138,7 @@ export function CommandPalette() {
               <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><FolderKanban className="h-3 w-3" /> Projects</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Film className="h-3 w-3" /> Studio</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><GalleryHorizontalEnd className="h-3 w-3" /> Gallery</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Video className="h-3 w-3" /> Fast Video</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Video className="h-3 w-3" /> Create</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Wand2 className="h-3 w-3" /> Generate</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Sparkles className="h-3 w-3" /> Tour</span>
             </div>

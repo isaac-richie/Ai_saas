@@ -277,7 +277,7 @@ test("technical controls live only under Advanced; the default view stays simple
   }
   assert.match(panel, /<details className="group rounded-xl[^"]*">\s*<summary[^>]*>\s*Advanced/, "Advanced is collapsed by default")
   assert.match(visible, /aria-label="Campaign style"/, "Style stays visible")
-  assert.match(panel, /label="Gallery"/)
+  assert.match(panel, /label="My videos"/)
   assert.match(panel, /label="Saved"/)
   assert.match(panel, /not pixel-perfect/, "honest about consistency")
 })

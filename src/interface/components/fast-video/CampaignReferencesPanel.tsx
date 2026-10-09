@@ -217,7 +217,7 @@ function ReferenceSlot({ kind, reference, busy, disabled, onUpload, onGallery, o
       ) : (
         <div className="mt-2 flex flex-wrap gap-1.5">
           <SourceButton icon={<Upload className="h-3 w-3" />} label={`Add ${label.toLowerCase()}`} onClick={onUpload} disabled={disabled} primary />
-          <SourceButton icon={<Images className="h-3 w-3" />} label="Gallery" onClick={onGallery} disabled={disabled} />
+          <SourceButton icon={<Images className="h-3 w-3" />} label="My videos" onClick={onGallery} disabled={disabled} />
           <SourceButton icon={<History className="h-3 w-3" />} label="Saved" onClick={onSaved} disabled={disabled} />
         </div>
       )}

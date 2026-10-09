@@ -17,28 +17,40 @@ export default async function SettingsPage() {
   return (
     <div className="workspace-page workspace-settings">
       <WorkspaceHeading
-        label="04 / MAKE IT YOURS"
+        label="SETTINGS"
         title="Your studio, your way."
-        description="Fine-tune your workspace, manage connections, and keep creating."
+        description="Your plan, your preferences, and optional advanced options."
       />
       <nav className="workspace-settings-nav" aria-label="Settings sections">
+        {billing && (
+          <a href="#membership">
+            Your plan <ArrowDownRight size={14} />
+          </a>
+        )}
         <a href="#preferences">
           Preferences <ArrowDownRight size={14} />
         </a>
         <a href="#connections">
-          Connections <ArrowDownRight size={14} />
+          Advanced <ArrowDownRight size={14} />
         </a>
-        {billing && (
-          <a href="#membership">
-            Membership <ArrowDownRight size={14} />
-          </a>
-        )}
       </nav>
+      {billing && (
+        <section id="membership" className="workspace-setting-group">
+          <div className="workspace-setting-label">
+            <span className="workspace-eyebrow">YOUR PLAN</span>
+            <h2>What&apos;s included.</h2>
+            <p>What you can make, and how much you have left.</p>
+          </div>
+          <div className="workspace-setting-controls">
+            <BillingPlanCard billing={billing} checkoutUrl={process.env.NEXT_PUBLIC_CHECKOUT_URL} />
+          </div>
+        </section>
+      )}
       <section id="preferences" className="workspace-setting-group">
         <div className="workspace-setting-label">
-          <span className="workspace-eyebrow">01 / PREFERENCES</span>
-          <h2>Set the mood.</h2>
-          <p>Choose your preferred provider and the amount of motion in your workspace.</p>
+          <span className="workspace-eyebrow">PREFERENCES</span>
+          <h2>How it feels.</h2>
+          <p>Pick the AI engine (Auto works for almost everyone) and how much animation you see.</p>
         </div>
         <div className="workspace-setting-controls">
           <PreferredProviderCard />
@@ -47,11 +59,11 @@ export default async function SettingsPage() {
       </section>
       <section id="connections" className="workspace-setting-group">
         <div className="workspace-setting-label">
-          <span className="workspace-eyebrow">02 / CONNECTIONS</span>
-          <h2>Your creative tools.</h2>
+          <span className="workspace-eyebrow">ADVANCED</span>
+          <h2>Use your own AI keys.</h2>
           <p>
-            Manage the provider connections you use for generation. Assistant Director is provided
-            by Visiowave.
+            Optional. Everything works without this: only add a key if you already pay for an AI
+            provider and want to use your own account.
           </p>
           <div className="workspace-security-note">
             <ShieldCheck size={17} />
@@ -62,18 +74,6 @@ export default async function SettingsPage() {
           <ApiKeyList />
         </div>
       </section>
-      {billing && (
-        <section id="membership" className="workspace-setting-group">
-          <div className="workspace-setting-label">
-            <span className="workspace-eyebrow">03 / MEMBERSHIP</span>
-            <h2>Room to create.</h2>
-            <p>Your current plan and studio access.</p>
-          </div>
-          <div className="workspace-setting-controls">
-            <BillingPlanCard billing={billing} checkoutUrl={process.env.NEXT_PUBLIC_CHECKOUT_URL} />
-          </div>
-        </section>
-      )}
     </div>
   );
 }

@@ -2219,10 +2219,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     promptOverride?: string
   }) => {
     if (outputType === "image") {
-      toast.message("Tip: Fast Track is optimized for video prompts.")
+      toast.message("Tip: describe movement and action, since this makes a video.")
     }
     setSubject(promptOverride || packet.masterPrompt)
-    toast.success("Assistant Director prompt applied to Fast Track subject")
+    toast.success("Your idea has been rewritten. Check it, then tap Create video.")
   }
 
   const renderStatusText = () => {
@@ -2286,7 +2286,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   return (
     <div className="workspace-workbench space-y-6">
       {activeTab === "storyboard" || storyboardItems.length > 0 ? (
-      <div className="workspace-builder-tabs flex flex-wrap items-center gap-2" role="group" aria-label="Fast Track view">
+      <div className="workspace-builder-tabs flex flex-wrap items-center gap-2" role="group" aria-label="Create view">
         <Button
           type="button"
           variant={activeTab === "builder" ? "liquidMetalCyan" : "liquidMetal"}
@@ -2330,6 +2330,25 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 className="studio-field min-h-32 resize-none rounded-xl text-[15px] text-white placeholder:text-white/40 leading-relaxed md:text-sm"
               />
             </div>
+            <details className="group/helper rounded-2xl border border-gold-400/[0.14] bg-white/[0.02]">
+              <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold-400/[0.08] text-gold-300"><WandSparkles className="size-4" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-medium text-[#ece6d6]">Help me write it</span>
+                  <span className="block text-[12px] text-[#B0B8C4]">Say it in your own words; the AI director turns it into a pro prompt.</span>
+                </span>
+                <ChevronDown className="size-4 shrink-0 text-gold-300/70 transition-transform duration-300 group-open/helper:rotate-180" />
+              </summary>
+              <div className="px-1 pb-1">
+                <StudioAdPanel
+                  promptPreview={subject}
+                  onApplyPacket={handleApplyAdToFastTrack}
+                  embedded={false}
+                  showHistory={false}
+                  context={{ generationModelHint: activeModelFamily.label }}
+                />
+              </div>
+            </details>
             <TemplateGallery
               templates={PROMPT_TEMPLATES}
               activeId={PROMPT_TEMPLATES.find((template) => template.prompt === subject.trim())?.id ?? null}
@@ -3141,7 +3160,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     </button>
                   </div>
                   <p className="text-[11px] text-white/45">
-                    Fast Track keeps your source clip here and sends a production-ready copy into your project.
+                    Your clip stays here; a copy goes into the project and scene you choose.
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -3291,25 +3310,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           </div>
         </div>
 
-        <details className="group/helper rounded-2xl border border-gold-400/[0.14] bg-white/[0.02]">
-          <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold-400/[0.08] text-gold-300"><WandSparkles className="size-4" /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-medium text-[#ece6d6]">Help me write it</span>
-              <span className="block text-[12px] text-[#B0B8C4]">Say it in your own words; the AI director turns it into a pro prompt.</span>
-            </span>
-            <ChevronDown className="size-4 shrink-0 text-gold-300/70 transition-transform duration-300 group-open/helper:rotate-180" />
-          </summary>
-          <div className="px-1 pb-1">
-            <StudioAdPanel
-              promptPreview={subject}
-              onApplyPacket={handleApplyAdToFastTrack}
-              embedded={false}
-              showHistory={false}
-              context={{ generationModelHint: activeModelFamily.label }}
-            />
-          </div>
-        </details>
+
       </div>
     </div>
       ) : (

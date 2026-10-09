@@ -56,10 +56,10 @@ export function NewUserChecklist({ projectCount, hasGeneratedAsset }: NewUserChe
           </Link>
         ))}
       </div>
-      <p className="mt-3 text-xs text-white/55">After saving, review your take in Gallery and export it when it is ready.</p>
+      <p className="mt-3 text-xs text-white/55">After saving, find it in My videos to download or share.</p>
       <div className="mt-2 flex gap-4 text-xs text-gold-300">
-        <Link href="/dashboard/gallery">Open Gallery</Link>
-        <Link href="/dashboard/exports">Open Exports</Link>
+        <Link href="/dashboard/gallery">My videos</Link>
+        <Link href="/dashboard/exports">Downloads</Link>
       </div>
     </section>
   )

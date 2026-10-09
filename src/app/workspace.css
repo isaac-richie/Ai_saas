@@ -10,8 +10,8 @@
   --ws-panel-2: #171a17;
   --ws-raised: #1c1f1c;
   --ws-text: #eeeae1;
-  --ws-muted: #a7a99f;
-  --ws-faint: #7f8177;
+  --ws-muted: #b4b7b6;
+  --ws-faint: #979a96;
   --ws-line: #d9c08a17;
   --ws-line-strong: #d9c08a2e;
   --ws-accent: #d9c08a;
@@ -897,9 +897,13 @@
   color: #f3e5c0;
   box-shadow: 0 0 20px -8px #d9c08a66;
 }
+/* Two columns even on phones, like a camera roll; wider screens add more. */
 .workspace-media-grid {
-  columns: 1;
-  gap: 18px;
+  columns: 2;
+  gap: 10px;
+}
+.workspace-media-grid > .mb-4 {
+  margin-bottom: 10px;
 }
 .workspace-media-grid > * {
   animation: luxRise 0.7s var(--ws-ease) both;
@@ -934,7 +938,10 @@
 }
 @container (min-width: 480px) {
   .workspace-media-grid {
-    columns: 2;
+    gap: 18px;
+  }
+  .workspace-media-grid > .mb-4 {
+    margin-bottom: 16px;
   }
 }
 @container (min-width: 850px) {
@@ -1150,7 +1157,7 @@
 /* ─── Footer ───────────────────────────────────────────────────── */
 .workspace-footer {
   border-top: 1px solid var(--ws-line);
-  color: #8a8a7e;
+  color: #a3aab4;
 }
 .workspace-footer a {
   transition: color 0.25s;
@@ -1308,4 +1315,29 @@
 .gallery-card:focus-visible .gallery-card__check { opacity: 1; }
 @media (hover: none) {
   .gallery-card__caption, .gallery-card__check { opacity: 1; transform: none; }
+}
+
+/* ─── Readability floor ────────────────────────────────────────── */
+/* Secondary text never drops below a legible silver inside the app, whatever
+   opacity a component asked for. Layered with Tailwind's utilities so hover and
+   breakpoint variants still win. */
+@layer utilities {
+:where(.studio-workspace) :is(.text-white\/20, .text-white\/25, .text-white\/30, .text-white\/35) {
+  color: rgb(214 219 226 / 0.56);
+}
+:where(.studio-workspace) :is(.text-white\/40, .text-white\/45, .text-white\/50) {
+  color: rgb(214 219 226 / 0.7);
+}
+:where(.studio-workspace) :is(.text-\[\#77796f\], .text-\[\#8f9086\], .text-\[\#8a8a7e\]) {
+  color: #a3aab4;
+}
+:where(.studio-workspace) .text-\[\#a3a59a\] {
+  color: #b0b8c4;
+}
+@media (max-width: 767px) {
+  /* Phones: tiny labels grow to a readable minimum. */
+  :where(.studio-workspace) :is(.text-\[9px\], .text-\[9\.5px\]) { font-size: 10.5px; }
+  :where(.studio-workspace) :is(.text-\[10px\], .text-\[10\.5px\]) { font-size: 11.5px; }
+  :where(.studio-workspace) .text-xs { font-size: 12.5px; }
+}
 }

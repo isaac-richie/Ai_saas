@@ -9,7 +9,7 @@ import { ErrorStatePanel } from "@/interface/components/ui/state-panels"
 export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
-    title: "Exports | AI Cinematography Dashboard",
+    title: "Downloads",
 }
 
 interface ExportsPageProps {
@@ -27,13 +27,13 @@ export default async function ExportsPage(props: ExportsPageProps) {
     return (
         <div className="workspace-page workspace-exports">
             <WorkspaceHeading
-                label="05 / THE FINAL CUT"
-                title="Ready for the big screen."
-                description="Track queued renders, retry failed jobs, and collect your finished exports."
+                label="MY VIDEOS · DOWNLOADS"
+                title="Your finished files."
+                description="Films you've put together are prepared here. Download them when they're ready, or try again if one fails."
                 actions={
                     <>
                         <Link href="/dashboard/gallery" className="workspace-secondary-link">
-                            <Images size={16} /> Gallery
+                            <Images size={16} /> My videos
                         </Link>
                         <Link href="/dashboard/fast-video" className="workspace-primary-link">
                             Create a video <ArrowUpRight size={17} />

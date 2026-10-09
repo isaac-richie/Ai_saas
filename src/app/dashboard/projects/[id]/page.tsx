@@ -75,7 +75,7 @@ export default async function ProjectPage(props: ProjectPageProps) {
                             Open Studio
                         </Link>
                         <Link href={`/dashboard/gallery?projectId=${project.id}`} className="rounded-xl border border-gold-400/[0.12] bg-white/5 px-3.5 py-2 text-xs text-white/90 hover:bg-gold-400/[0.08]">
-                            Open Gallery
+                            My videos
                         </Link>
                         <CreateSceneDialog projectId={project.id} />
                     </div>

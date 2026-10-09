@@ -5,7 +5,7 @@ import { Card } from "@/interface/components/ui/card"
 import { Input } from "@/interface/components/ui/input"
 import { Dialog, DialogContent, DialogTitle } from "@/interface/components/ui/dialog"
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
-import { Check, CheckSquare, ChevronLeft, ChevronRight, Clapperboard, Copy, Download, FolderInput, ImageOff, Loader2, Play, Search, Trash2, X } from "lucide-react"
+import { Check, CheckSquare, ChevronLeft, ChevronRight, Clapperboard, Copy, Download, FolderInput, ImageOff, Loader2, Play, Search, Share2, Trash2, X } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
 import { deleteGalleryAssets, moveGalleryAssetsToProject, pollPendingGalleryAssets } from "@/core/actions/gallery"
@@ -132,10 +132,29 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
         return `/api/media/proxy?url=${encodeURIComponent(asset.url)}`
     }
 
+    /** Phones open the native share sheet with the file itself; elsewhere the link is copied. */
+    const shareAsset = async (asset: { url: string; type: string }, filename: string) => {
+        try {
+            if (typeof navigator.share === "function") {
+                const response = await fetch(`/api/media/proxy?url=${encodeURIComponent(asset.url)}&filename=${encodeURIComponent(filename)}`)
+                const file = new File([await response.blob()], filename, { type: asset.type === "video" ? "video/mp4" : "image/png" })
+                if (navigator.canShare?.({ files: [file] })) {
+                    await navigator.share({ files: [file], title: "Made with Visiowave" })
+                    return
+                }
+                await navigator.share({ url: asset.url, title: "Made with Visiowave" })
+                return
+            }
+            await copyUrl(asset.url)
+        } catch (error) {
+            if ((error as Error)?.name !== "AbortError") toast.error("Couldn't share this. Try Download instead.")
+        }
+    }
+
     const copyUrl = async (url: string) => {
         try {
             await navigator.clipboard.writeText(url)
-            toast.success("Copied URL to clipboard")
+            toast.success("Link copied")
         } catch {
             toast.error("Failed to copy URL")
         }
@@ -345,9 +364,9 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                 <div className="grid size-14 place-items-center rounded-2xl border border-gold-400/20 bg-gold-400/[0.06] text-gold-300 shadow-[0_0_40px_-12px_rgba(217,192,138,0.6)]">
                     <Clapperboard className="h-6 w-6" strokeWidth={1.5} />
                 </div>
-                <h3 className="mt-5 text-2xl font-light tracking-tight text-[#f3eee2]">Your <span className="lux-serif text-gold-300">collection</span> starts here</h3>
-                <p className="mt-2 max-w-sm text-sm text-[#a3a59a]">Every clip and frame you create in Fast Track lands here, ready to review, sequence and export.</p>
-                <a href="/dashboard/fast-video" className="workspace-primary-link mt-6">Create your first clip</a>
+                <h3 className="mt-5 text-2xl font-light tracking-tight text-[#f3eee2]">Your <span className="lux-serif text-gold-300">videos</span> live here</h3>
+                <p className="mt-2 max-w-sm text-[15px] text-[#B0B8C4]">Everything you create lands here, ready to watch, download and share.</p>
+                <a href="/dashboard/fast-video" className="workspace-primary-link mt-6">Create your first video</a>
             </div>
         )
     }
@@ -371,7 +390,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                         aria-label="Search gallery"
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Search prompts, shots, scenes or projects"
+                        placeholder="Search your videos"
                         className="h-10 rounded-xl pl-9 pr-10 text-sm"
                     />
                     {query ? (
@@ -417,9 +436,9 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                     <div className="grid size-14 place-items-center rounded-2xl border border-gold-400/20 bg-gold-400/[0.06] text-gold-300 shadow-[0_0_40px_-12px_rgba(217,192,138,0.6)]">
                         <Clapperboard className="h-6 w-6" strokeWidth={1.5} />
                     </div>
-                    <h3 className="mt-5 text-2xl font-light tracking-tight text-[#f3eee2]">Your <span className="lux-serif text-gold-300">collection</span> starts here</h3>
-                    <p className="mt-2 max-w-sm text-sm text-[#a3a59a]">Every clip and frame you create in Fast Track lands here, ready to review, sequence and export.</p>
-                    <a href="/dashboard/fast-video" className="workspace-primary-link mt-6">Create your first clip</a>
+                    <h3 className="mt-5 text-2xl font-light tracking-tight text-[#f3eee2]">Your <span className="lux-serif text-gold-300">videos</span> live here</h3>
+                    <p className="mt-2 max-w-sm text-[15px] text-[#B0B8C4]">Everything you create lands here, ready to watch, download and share.</p>
+                    <a href="/dashboard/fast-video" className="workspace-primary-link mt-6">Create your first video</a>
                 </div>
             ) : filteredAssets.length === 0 ? (
                 <div className="lux-fade flex flex-col items-center justify-center rounded-2xl border border-dashed border-gold-400/20 bg-[#0f110f] py-14 text-center">
@@ -574,12 +593,15 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                         </a>
                                     </div>
                                     <div className="flex items-center justify-between gap-2">
-                                        <Button size="sm" variant="studioSecondary" className="h-9" onClick={() => copyUrl(activeAsset.url)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy link</Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button size="sm" variant="studioSecondary" className="h-10" onClick={() => void shareAsset(activeAsset, downloadNames[activeAsset.id] ?? getDefaultDownloadName(activeAsset))}><Share2 className="mr-1.5 h-4 w-4" />Share</Button>
+                                            <Button size="sm" variant="ghost" className="h-10 text-[#B0B8C4]" onClick={() => copyUrl(activeAsset.url)}><Copy className="mr-1.5 h-3.5 w-3.5" />Copy link</Button>
+                                        </div>
                                         <Button size="sm" variant="ghost" className="h-9 rounded-lg text-red-200/80 hover:!bg-red-500/10 hover:!text-red-100" disabled={deletingIds.has(activeAsset.id)} onClick={() => handleDelete([activeAsset.id])}>
                                             <Trash2 className="mr-1.5 h-3.5 w-3.5" />{deletingIds.has(activeAsset.id) ? "Deleting…" : "Delete"}
                                         </Button>
                                     </div>
-                                    <p className="text-center text-[10px] text-[#77796f]"><span className="lux-kbd">←</span> <span className="lux-kbd">→</span> to browse · <span className="lux-kbd">esc</span> to close</p>
+                                    <p className="hidden text-center text-[10px] text-[#8f9086] md:block"><span className="lux-kbd">←</span> <span className="lux-kbd">→</span> to browse · <span className="lux-kbd">esc</span> to close</p>
                                 </div>
                             </div>
                         </div>
@@ -596,7 +618,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                         transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                         role="toolbar"
                         aria-label="Selection actions"
-                        className="lux-glass lux-hairline fixed bottom-5 left-1/2 z-40 flex w-[min(960px,calc(100vw-2rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-2xl px-3 py-2.5 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.9)] md:left-[calc(50%+9rem)]"
+                        className="lux-glass lux-hairline fixed bottom-[calc(88px+env(safe-area-inset-bottom))] left-1/2 z-40 md:bottom-5 flex w-[min(960px,calc(100vw-2rem))] -translate-x-1/2 flex-wrap items-center gap-2 rounded-2xl px-3 py-2.5 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.9)] md:left-[calc(50%+9rem)]"
                     >
                         <span className="flex items-center gap-2 pl-1 text-sm text-[#f3eee2]">
                             <span className="grid size-6 place-items-center rounded-full bg-gold-300 text-[11px] font-semibold tabular-nums text-[#1a160e]">{selectedIds.size}</span>
