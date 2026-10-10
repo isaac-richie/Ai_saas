@@ -439,7 +439,7 @@ export async function generateFastVideo(input: unknown) {
     if (hasShotFrames(frames)) {
       const requestedModel = payload.settings.model?.trim() || ""
       const family = KIE_VIDEO_MODEL_FAMILIES.find((item) => item.i2vModel === requestedModel)
-      if (!family) return { error: "Start and End Frames need an image-to-video model. Choose Kling or Seedance and retry; nothing was charged." }
+      if (!family) return { error: "Start and End Frames need an image-to-video model. Retry; nothing was charged." }
       const issues = frameIssues(frames, family.id)
       if (issues.length) return { error: issues.join(" ") }
       const sign = async (assetPath: string) => {
@@ -470,7 +470,7 @@ export async function generateFastVideo(input: unknown) {
       const requestedModel = payload.settings.model?.trim() || ""
       const family = KIE_VIDEO_MODEL_FAMILIES.find((item) => item.i2vModel === requestedModel || item.t2vModel === requestedModel)
       const issues = campaignReferenceIssues(campaign, family?.id)
-      if (!family) issues.push("Character and product references need Kling or Seedance.")
+      if (!family) issues.push("Character and product references need Seedance 2.5.")
       if (issues.length) return { error: `${issues.join(" ")} Nothing was charged.` }
       const signReference = async (assetPath: string) => {
         const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(assetPath, 3600)
@@ -480,7 +480,7 @@ export async function generateFastVideo(input: unknown) {
       const ordered = [campaign.character, campaign.product].filter((ref): ref is NonNullable<typeof ref> => Boolean(ref))
       if (family!.id === "seedance") {
         if (payload.prompt_inputs.reference_image || hasShotFrames(frames)) {
-          return { error: "Seedance cannot combine character / product references with a starting image or Start / End Frames. Remove the frame, or switch to Kling. Nothing was charged." }
+          return { error: "Seedance cannot combine character / product references with a starting image or Start / End Frames. Remove the frame to use them. Nothing was charged." }
         }
         referenceImageUrls = []
         for (const ref of ordered) for (const path of ref.assetPaths) referenceImageUrls.push(await signReference(path))

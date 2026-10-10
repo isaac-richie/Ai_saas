@@ -8,27 +8,26 @@ export type KieVideoModelFamily = {
   i2vModel: string;
 };
 
-export const KIE_VIDEO_MODEL_FAMILIES: KieVideoModelFamily[] = [
-  {
-    id: "kling",
-    label: "Kling",
-    description: "Balanced cinematic quality; supports multiple visual reference sets.",
-    t2vModel: "kling/v2-5-turbo-text-to-video-pro",
-    i2vModel: "kling-3.0/video",
-  },
-  {
-    id: "seedance",
-    label: "Seedance",
-    description: "Fast, punchy renders and strong stylization.",
-    t2vModel: "bytedance/seedance-2",
-    i2vModel: "bytedance/seedance-2",
-  },
-];
+/** Every video in the app (Create, Studio, campaigns, longer films) renders on Seedance 2.5 via Kie. */
+export const SEEDANCE_25_MODEL = "bytedance/seedance-2-5";
 
-export const DEFAULT_KIE_VIDEO_MODEL_FAMILY: KieVideoModelFamilyId = "kling";
+const SEEDANCE_25: KieVideoModelFamily = {
+  id: "seedance",
+  label: "Seedance 2.5",
+  description: "ByteDance's newest video model: cinematic motion, native sound, 4–15 s.",
+  t2vModel: SEEDANCE_25_MODEL,
+  i2vModel: SEEDANCE_25_MODEL,
+};
 
+/** The one family offered in pickers. "kling" stays in the type only so older saved shots still load. */
+export const KIE_VIDEO_MODEL_FAMILIES: KieVideoModelFamily[] = [SEEDANCE_25];
+
+export const DEFAULT_KIE_VIDEO_MODEL_FAMILY: KieVideoModelFamilyId = "seedance";
+
+/** Any id, including a legacy "kling" selection, resolves to Seedance 2.5. */
 export function getKieVideoModelFamily(id?: string | null): KieVideoModelFamily {
-  return KIE_VIDEO_MODEL_FAMILIES.find((family) => family.id === id) || KIE_VIDEO_MODEL_FAMILIES[0];
+  void id;
+  return SEEDANCE_25;
 }
 
 export function resolveKieVideoModelByFamily(input: {

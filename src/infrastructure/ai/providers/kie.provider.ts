@@ -120,6 +120,8 @@ export class KieProvider extends BaseProvider {
             if (normalizedModel.includes("seedance-2")) {
                 input.first_frame_url = request.image_prompt;
                 if (endFrame) input.last_frame_url = endFrame;
+                // Seedance 2.5 frame tasks only accept an adaptive ratio (it follows the image).
+                if (normalizedModel.includes("seedance-2-5")) input.aspect_ratio = "adaptive";
             } else if (normalizedModel.includes("kling-3.0")) {
                 input.image_urls = endFrame ? [request.image_prompt, endFrame] : [request.image_prompt];
             } else {
