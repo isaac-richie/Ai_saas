@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
-import { ImagePlus, Film, AudioLines, LockKeyhole, ChevronDown, Loader2 } from "lucide-react"
+import { ImagePlus, Film, AudioLines, LockKeyhole, ChevronDown, Loader2, Check } from "lucide-react"
 import { createClient } from "@/infrastructure/supabase/client"
-import { continueWithoutAnalysisTarget, MAX_REFERENCE_BYTES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, type MediaReference } from "@/core/validation/media-reference"
+import { continueWithoutAnalysisTarget, labelReferences, MAX_REFERENCE_BYTES, MAX_REFERENCES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, ROLE_CONTROLS, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, referenceRoles, withRoles, type MediaReference } from "@/core/validation/media-reference"
 import styles from "./MediaReferenceManager.module.css"
 
 async function getDuration(file: File, kind: "video" | "audio") {
@@ -100,6 +100,59 @@ function ReferencePreview({ reference }: { reference: MediaReference }) {
   </div>
 }
 
+const thumbCache = new Map<string, string>()
+
+/** Small signed thumbnail for an image reference; other media show their type icon. */
+function ReferenceThumb({ reference }: { reference: MediaReference }) {
+  const [url, setUrl] = useState(() => thumbCache.get(reference.assetPath) ?? "")
+  useEffect(() => {
+    if (reference.mediaType !== "image" || thumbCache.has(reference.assetPath)) return
+    let cancelled = false
+    void createClient().storage.from(REFERENCE_BUCKET).createSignedUrl(reference.assetPath, 3600).then(({ data }) => {
+      if (cancelled || !data) return
+      thumbCache.set(reference.assetPath, data.signedUrl)
+      setUrl(data.signedUrl)
+    })
+    return () => { cancelled = true }
+  }, [reference.assetPath, reference.mediaType])
+  const Icon = reference.mediaType === "image" ? ImagePlus : reference.mediaType === "video" ? Film : AudioLines
+  return <span className={styles.thumb} aria-hidden>
+    {/* Signed, private storage URLs must not be cached by an image optimization proxy. */}
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    {url ? <img src={url} alt="" /> : <Icon size={16} />}
+  </span>
+}
+
+/** Compact multi-select: checkboxes for every role, summarised as "character + location". */
+function RolePicker({ reference, disabled, onChange }: { reference: MediaReference; disabled: boolean; onChange: (roles: string[]) => void }) {
+  const roles = referenceRoles(reference)
+  const options = REFERENCE_ROLES[reference.mediaType] as readonly string[]
+  return <details className={styles.rolePicker}>
+    <summary aria-label={`Roles: ${roles.join(", ")}`} aria-disabled={disabled} onClick={(event) => { if (disabled) event.preventDefault() }}>
+      <span className={styles.roleSummary}>{roles.join(" + ")}</span><ChevronDown size={12} />
+    </summary>
+    <fieldset className={styles.roleList} disabled={disabled}>
+      <legend className={styles.srOnly}>Roles for {reference.name}</legend>
+      {options.map((role) => {
+        const checked = roles.includes(role)
+        return <label key={role} className={styles.roleOption}>
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={() => {
+              const next = checked ? roles.filter((item) => item !== role) : [...roles, role]
+              if (next.length) onChange(next)
+            }}
+            aria-describedby={ROLE_CONTROLS[role] && reference.mediaType === "image" ? `${reference.id}-${role}` : undefined}
+          />
+          <span><span className={styles.roleName}>{role}</span>{ROLE_CONTROLS[role] && reference.mediaType === "image" ? <span id={`${reference.id}-${role}`} className={styles.roleControls}>{ROLE_CONTROLS[role]}</span> : null}</span>
+        </label>
+      })}
+      <p className={styles.hint}>Pick every job this file should do. It will guide only these.</p>
+    </fieldset>
+  </details>
+}
+
 export function MediaReferenceManager({ references, onChange, projectId, sceneId, onBusy, disabled = false }: {
   references: MediaReference[]
   onChange: Dispatch<SetStateAction<MediaReference[]>>
@@ -114,6 +167,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
   const [error, setError] = useState("")
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [analysisErrors, setAnalysisErrors] = useState<Record<string, string>>({})
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
   const setAnalysisError = (id: string, message: string) => setAnalysisErrors((current) => ({ ...current, [id]: message }))
   useEffect(() => { onBusy(Boolean(busy)); return () => onBusy(false) }, [busy, onBusy])
   const update = (id: string, change: Partial<MediaReference>, invalidateAnalysis = false) => {
@@ -130,11 +184,23 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
       picker.current.click()
     }
   }
-  async function upload(files: File[]) {
+  async function upload(selected: File[]) {
+    let files = selected
     if (!files.length) return
     const { type, replaceId } = selection.current
-    if (files.length + references.length - (replaceId ? 1 : 0) > 6) { setError("Use up to six references in this context."); return }
+    const room = MAX_REFERENCES - references.length + (replaceId ? 1 : 0)
+    if (room <= 0) { setError(`All ${MAX_REFERENCES} slots are full. Remove a reference to free one.`); return }
+    const duplicates = files.filter((file) => references.some((ref) => ref.id !== replaceId && ref.name === file.name.slice(0, 180) && (!ref.bytes || ref.bytes === file.size)))
+    const fresh = files.filter((file) => !duplicates.includes(file))
+    const accepted = fresh.slice(0, room)
+    const notices = [
+      duplicates.length ? `${duplicates.length === 1 ? `${duplicates[0].name} is` : `${duplicates.length} files are`} already added.` : "",
+      fresh.length > room ? `Only ${room} more ${room === 1 ? "slot was" : "slots were"} free, so ${fresh.length - room} ${fresh.length - room === 1 ? "file was" : "files were"} not added.` : "",
+    ].filter(Boolean).join(" ")
+    if (!accepted.length) { setError(notices || "Nothing to add."); return }
+    files = accepted
     setBusy("upload")
+    setUploadProgress({ done: 0, total: files.length })
     setError("")
     try {
       const db = createClient()
@@ -146,12 +212,15 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
         const duration = type === "image" ? undefined : await getDuration(file, type)
         const ext = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "audio/webm": "webm", "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/wav": "wav", "audio/x-wav": "wav" } as Record<string, string>)[file.type]
         const assetPath = `${user.id}/${crypto.randomUUID()}.${ext}`
-        const { error: uploadError } = await db.storage.from(REFERENCE_BUCKET).upload(assetPath, file, { contentType: file.type, upsert: false })
-        if (uploadError) throw new Error("Upload failed. Ensure migration 0027 is applied and your session is active.")
+        // One automatic retry covers a dropped connection before asking the creator.
+        let { error: uploadError } = await db.storage.from(REFERENCE_BUCKET).upload(assetPath, file, { contentType: file.type, upsert: false })
+        if (uploadError) ({ error: uploadError } = await db.storage.from(REFERENCE_BUCKET).upload(assetPath, file, { contentType: file.type, upsert: true }))
+        if (uploadError) throw new Error(`${file.name} didn't upload. Check your connection and try again.`)
         const previous = references.find((ref) => ref.id === replaceId)
         const ref: MediaReference = {
           id: previous?.id || crypto.randomUUID(), assetPath, name: file.name.slice(0, 180), mediaType: type,
-          role: previous?.role || REFERENCE_ROLES[type][0], priority: previous?.priority || "secondary",
+          role: previous?.role || REFERENCE_ROLES[type][0], ...(previous?.roles ? { roles: previous.roles } : {}),
+          mimeType: file.type, bytes: file.size, createdAt: new Date().toISOString(), priority: previous?.priority || "secondary",
           influence: previous?.influence || "medium", scope: previous?.scope || "shot", locked: false,
           target: previous?.target || "director", projectId, sceneId, applied: false, duration,
           trimStart: 0, trimEnd: duration ? Math.min(duration, 10) : undefined, volume: previous?.volume ?? 1,
@@ -159,9 +228,11 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
         onChange((current) => previous ? current.map((item) => item.id === previous.id ? ref : item) : [...current, ref])
         setAnalysisErrors((current) => { const next = { ...current }; delete next[ref.id]; return next })
         setExpandedId(ref.id)
+        setUploadProgress((current) => current && { ...current, done: current.done + 1 })
       }
+      if (notices) setError(notices)
     } catch (err) { setError(err instanceof Error ? err.message : "Upload failed") }
-    finally { setBusy(null) }
+    finally { setBusy(null); setUploadProgress(null) }
   }
   async function analyse(ref: MediaReference) {
     const validated = mediaReferenceSchema.safeParse(ref)
@@ -170,7 +241,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
     setError("")
     onChange((current) => current.map((item) => item.id === ref.id ? { ...item, analysisUnavailable: false } : item))
     try {
-      const result = await fetch("/api/media/references/analyse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: { ...ref, analysis: undefined }, peers: references.filter((item) => item.id !== ref.id && item.applied && item.analysis).map((item) => ({ role: item.role, guidance: item.analysis!.guidance })) }), signal: AbortSignal.timeout(175000) })
+      const result = await fetch("/api/media/references/analyse", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reference: { ...ref, analysis: undefined }, peers: references.filter((item) => item.id !== ref.id && item.applied && item.analysis).map((item) => ({ role: referenceRoles(item).join(" + ").slice(0, 32), guidance: item.analysis!.guidance })) }), signal: AbortSignal.timeout(175000) })
       const body = await result.json()
       if (!result.ok) throw new Error(body.error || "Analysis failed")
       update(ref.id, { analysis: referenceAnalysisSchema.parse(body.analysis), analysisUnavailable: false })
@@ -192,26 +263,34 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
     setError("")
     onChange((current) => current.map((item) => item.id === ref.id ? result.data : item))
   }
+  function unapply(ref: MediaReference) {
+    setError("")
+    onChange((current) => current.map((item) => item.id === ref.id ? { ...item, applied: false } : item))
+  }
   /** Analysis is optional: attach the reference as-is. An unanalysed image only
    *  reaches the video when it is the starting frame, so take that slot if free. */
   function continueWithoutAnalysis(ref: MediaReference) {
     apply({ ...ref, target: continueWithoutAnalysisTarget(ref, references) })
   }
   const warnings = [...referenceCompatibility(references), ...referenceConflicts(references)]
+  const labelled = labelReferences(references)
+  const full = references.length >= MAX_REFERENCES
+  const appliedCount = references.filter((ref) => ref.applied).length
   return <section className={styles.manager} aria-label="Media references">
-    <div className={styles.header}><h3>Media references</h3><span className={styles.count}>{references.filter((ref) => ref.applied).length} applied / {references.length} added</span></div>
+    <div className={styles.header}><h3>Media references</h3><span className={styles.count} aria-live="polite">{appliedCount} applied / {references.length} added</span></div>
     <p className={styles.hint}>Give each reference one job. Review the direction, then apply it to your next shot.</p>
     <div className={styles.toolbar}>
-      <button type="button" disabled={disabled || !!busy || references.length >= 6} onClick={() => pick("image")}><ImagePlus size={14} /> Add Image</button>
-      <button type="button" disabled={disabled || !!busy || references.length >= 6} onClick={() => pick("video")}><Film size={14} /> Add Video</button>
-      <button type="button" disabled={disabled || !!busy || references.length >= 6} onClick={() => pick("audio")}><AudioLines size={14} /> Add Audio</button>
+      <button type="button" disabled={disabled || !!busy || full} onClick={() => pick("image")}><ImagePlus size={14} /> Add Image</button>
+      <button type="button" disabled={disabled || !!busy || full} onClick={() => pick("video")}><Film size={14} /> Add Video</button>
+      <button type="button" disabled={disabled || !!busy || full} onClick={() => pick("audio")}><AudioLines size={14} /> Add Audio</button>
     </div>
     <input ref={picker} type="file" hidden aria-label="Upload media references" onChange={(event) => void upload(Array.from(event.target.files || []))} />
-    {busy === "upload" && <p className={styles.hint} role="status">Uploading to your private reference library...</p>}
+    {full && <p className={styles.hint} role="status">All {MAX_REFERENCES} slots are in use. Remove a reference to add another.</p>}
+    {busy === "upload" && <p className={styles.hint} role="status">{uploadProgress && uploadProgress.total > 1 ? `Uploading ${Math.min(uploadProgress.done + 1, uploadProgress.total)} of ${uploadProgress.total}…` : "Uploading to your private reference library…"}</p>}
     {error && <p className={styles.warning} role="alert">{error}</p>}
     {warnings.map((warning) => <p key={warning} className={styles.warning}>{warning}</p>)}
-    {!references.length && <div className={styles.empty}>Identity. Movement. Sound.<br /><span className={styles.hint}>Up to 6 references, 25 MB each. Only applied references are used.</span></div>}
-    {references.map((ref) => {
+    {!references.length && <div className={styles.empty}>Identity. Movement. Sound.<br /><span className={styles.hint}>Up to {MAX_REFERENCES} references, 25 MB each. Give each one a job (character, wardrobe, location…); only applied references are used.</span></div>}
+    {labelled.map((ref) => {
       const analysisError = analysisErrors[ref.id]
       const hasManualGuidance = Boolean(ref.manualGuidance?.trim())
       const canUseImageDirectly = ref.mediaType === "image" && ref.target === "provider"
@@ -220,7 +299,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
         ? continueWithoutAnalysisTarget(ref, references) === "provider" ? "It will be used directly as the starting frame." : "It stays attached as a labelled reference; the starting frame is already taken."
         : "Your written prompt leads; the file stays attached."
       return <details className={styles.card} key={ref.id} open={expandedId === ref.id}>
-      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><span>{ref.mediaType === "image" ? <ImagePlus size={16} /> : ref.mediaType === "video" ? <Film size={16} /> : <AudioLines size={16} />}</span><div className={styles.title}><strong>{ref.name}</strong><span>{ref.role} / {ref.scope}{ref.locked ? " / locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : ref.analysis ? "Ready to apply" : ref.analysisUnavailable || analysisError ? "Analysis unavailable" : "Analysis optional"}</span><ChevronDown size={12} /></summary>
+      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><ReferenceThumb reference={ref} /><div className={styles.title}><strong><span className={styles.tag}>{ref.label}</span>{ref.name}</strong><span>{referenceRoles(ref).join(" + ")} · {ref.scope}{ref.locked ? " · locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : ref.analysis ? "Ready to apply" : ref.analysisUnavailable || analysisError ? "Analysis unavailable" : "Analysis optional"}</span><ChevronDown size={12} /></summary>
       <div className={styles.body}>
         <ReferencePreview reference={ref} />
         {(ref.analysisUnavailable || analysisError) && !ref.applied && <div className={styles.warning} role="status">
@@ -231,7 +310,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
           </div>
         </div>}
         <div className={styles.grid}>
-          <label className={styles.field}>Role<select disabled={disabled || !!busy || ref.locked} value={ref.role} onChange={(e) => update(ref.id, { role: e.target.value }, true)}>{REFERENCE_ROLES[ref.mediaType].map((role) => <option key={role}>{role}</option>)}</select></label>
+          <div className={`${styles.field} ${styles.full}`}>Roles<RolePicker reference={ref} disabled={disabled || !!busy || ref.locked} onChange={(roles) => { const next = withRoles(ref, roles); update(ref.id, { roles: next.roles, role: next.role }, true) }} /></div>
           <label className={styles.field}>Use for<select disabled={disabled || !!busy || ref.locked} value={ref.target} onChange={(e) => update(ref.id, { target: e.target.value as MediaReference["target"] })}><option value="director">Director guidance</option><option value="provider" disabled={ref.mediaType !== "image"}>Direct image-to-video</option></select></label>
           <label className={styles.field}>Priority<select disabled={disabled || !!busy || ref.locked} value={ref.priority} onChange={(e) => update(ref.id, { priority: e.target.value as MediaReference["priority"] })}>{["primary", "secondary", "supporting"].map((v) => <option key={v}>{v}</option>)}</select></label>
           <label className={styles.field}>Influence<select disabled={disabled || !!busy || ref.locked} value={ref.influence} onChange={(e) => update(ref.id, { influence: e.target.value as MediaReference["influence"] })}>{["low", "medium", "high"].map((v) => <option key={v}>{v}</option>)}</select></label>
@@ -258,7 +337,9 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
         </div>}
         <div className={styles.actions}>
           <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => void analyse(ref)}>{busy === ref.id && <Loader2 size={12} className="animate-spin" />}{ref.analysis ? "Re-analyse" : ref.analysisUnavailable || analysisError ? "Retry analysis" : "Analyse"}</button>
-          <button type="button" className={styles.apply} disabled={disabled || !!busy || ref.applied} onClick={() => ref.analysis || hasManualGuidance ? apply(ref) : continueWithoutAnalysis(ref)}>{applyLabel}</button>
+          {ref.applied
+            ? <button type="button" className={styles.applied} aria-pressed disabled={disabled || !!busy || ref.locked} onClick={() => unapply(ref)} title="Applied to your next shot. Tap to stop using it."><Check size={12} />Applied</button>
+            : <button type="button" className={styles.apply} disabled={disabled || !!busy} onClick={() => ref.analysis || hasManualGuidance ? apply(ref) : continueWithoutAnalysis(ref)}>{applyLabel}</button>}
           <button type="button" disabled={disabled || !!busy} aria-pressed={ref.locked} onClick={() => update(ref.id, { locked: !ref.locked })}><LockKeyhole size={12} />{ref.locked ? "Unlock" : "Lock"}</button>
           <button type="button" disabled={disabled || !!busy || ref.locked} onClick={() => pick(ref.mediaType, ref.id)}>Replace</button>
           <button type="button" className={styles.remove} disabled={disabled || !!busy || ref.locked} onClick={() => onChange((current) => current.filter((item) => item.id !== ref.id))}>Remove</button>

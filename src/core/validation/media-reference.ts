@@ -2,11 +2,27 @@ import { z } from "zod"
 
 export const REFERENCE_BUCKET = "media-references"
 export const MAX_REFERENCE_BYTES = 25 * 1024 * 1024
+/** Ten assets per reference panel, of any mix of types. */
+export const MAX_REFERENCES = 10
 export const REFERENCE_ROLES = {
   image: ["character", "wardrobe", "product", "location", "prop", "branding", "lighting", "style", "framing"],
   video: ["camera movement", "subject movement", "framing", "pacing", "performance", "lip-sync", "full motion"],
   audio: ["voiceover", "dialogue", "music", "effects", "ambience", "timing", "lip-sync"],
 } as const
+/** What each image role controls, so a reference can be held to that job and nothing else. */
+export const ROLE_CONTROLS: Record<string, string> = {
+  character: "face, body and anatomy",
+  wardrobe: "clothing and accessories",
+  product: "the product's exact design",
+  location: "setting and architecture",
+  prop: "the prop's design",
+  branding: "logos, brand colours and marks",
+  lighting: "lighting palette and direction",
+  style: "visual style and colour treatment",
+  framing: "composition and framing",
+}
+/** Roles that describe a subject; when chosen without "location", the reference's background is not a setting. */
+const SUBJECT_ROLES = new Set(["character", "wardrobe", "product", "prop", "branding"])
 export const REFERENCE_MIME_TYPES = {
   image: ["image/jpeg", "image/png", "image/webp"],
   video: ["video/mp4", "video/webm", "video/quicktime"],
@@ -24,7 +40,15 @@ export const mediaReferenceSchema = z.object({
   assetPath: z.string().regex(/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.[a-z0-9]{2,5}$/),
   name: z.string().min(1).max(180),
   mediaType: z.enum(["image", "video", "audio"]),
+  /** Primary role; always equals roles[0] when roles is present (kept for older readers). */
   role: z.string().max(32),
+  /** Every job this reference does; one asset may hold several (e.g. character + location). */
+  roles: z.array(z.string().max(32)).min(1).max(9).optional(),
+  /** Deterministic tag such as @image1, stamped from the full panel order before a generation. */
+  label: z.string().regex(/^@(image|video|audio)([1-9]|10)$/).optional(),
+  mimeType: z.string().max(80).optional(),
+  bytes: z.number().int().positive().max(MAX_REFERENCE_BYTES).optional(),
+  createdAt: z.string().max(40).optional(),
   priority: z.enum(["primary", "secondary", "supporting"]),
   influence: z.enum(["low", "medium", "high"]),
   scope: z.enum(["shot", "scene", "project"]),
@@ -41,16 +65,20 @@ export const mediaReferenceSchema = z.object({
   analysisUnavailable: z.boolean().optional(),
   analysis: referenceAnalysisSchema.optional(),
 }).superRefine((ref, ctx) => {
-  if (!(REFERENCE_ROLES[ref.mediaType] as readonly string[]).includes(ref.role)) {
-    ctx.addIssue({ code: "custom", path: ["role"], message: "Choose a role for this media type." })
+  const allowed = REFERENCE_ROLES[ref.mediaType] as readonly string[]
+  const roles = ref.roles?.length ? ref.roles : [ref.role]
+  if (!roles.every((role) => allowed.includes(role))) {
+    ctx.addIssue({ code: "custom", path: ["roles"], message: "Choose roles for this media type." })
   }
+  if (new Set(roles).size !== roles.length) ctx.addIssue({ code: "custom", path: ["roles"], message: "Each role can be chosen once." })
+  if (ref.roles?.length && ref.roles[0] !== ref.role) ctx.addIssue({ code: "custom", path: ["role"], message: "Primary role must match the first selected role." })
   if (ref.mediaType !== "image" && (!ref.duration || !ref.trimEnd || ref.trimEnd <= ref.trimStart || ref.trimEnd > ref.duration)) {
     ctx.addIssue({ code: "custom", path: ["trimEnd"], message: "Trim end must follow start and fit within the media duration." })
   }
   if (ref.scope !== "shot" && !ref.projectId) ctx.addIssue({ code: "custom", message: "Choose a project before using a shared reference." })
   if (ref.scope === "scene" && !ref.sceneId) ctx.addIssue({ code: "custom", message: "Choose a scene before using a scene reference." })
 })
-export const mediaReferencesSchema = z.array(mediaReferenceSchema).max(6).refine(
+export const mediaReferencesSchema = z.array(mediaReferenceSchema).max(MAX_REFERENCES).refine(
   (refs) => new Set(refs.map((ref) => ref.id)).size === refs.length,
   "Reference IDs must be unique."
 )
@@ -60,6 +88,40 @@ export const referenceLibrarySchema = z.array(mediaReferenceSchema).max(120).ref
 )
 export type MediaReference = z.infer<typeof mediaReferenceSchema>
 
+/** Every role a reference holds; older references carry a single role. */
+export function referenceRoles(ref: Pick<MediaReference, "role" | "roles">): string[] {
+  return ref.roles?.length ? ref.roles : [ref.role]
+}
+
+/** Sets a reference's roles, keeping the primary role in step. */
+export function withRoles<T extends MediaReference>(ref: T, roles: string[]): T {
+  const unique = [...new Set(roles)]
+  return { ...ref, roles: unique, role: unique[0] ?? ref.role }
+}
+
+/**
+ * Stamps @image1…, @video1…, @audio1… from the full panel order (stable IDs stay the
+ * source of truth; labels re-derive after a removal). Stamp before filtering to applied,
+ * so the tags in the prompt match the tags the creator sees.
+ */
+export function labelReferences<T extends MediaReference>(refs: T[]): T[] {
+  const counts = { image: 0, video: 0, audio: 0 }
+  return refs.map((ref) => ({ ...ref, label: `@${ref.mediaType}${++counts[ref.mediaType]}` }))
+}
+
+/**
+ * Applies continuity locks over references: when a lock names a reference for a channel,
+ * any other applied reference loses that role (an explicit lock beats an unlocked reference).
+ * References left with no role drop out of this generation.
+ */
+export function resolveLockedRoles<T extends MediaReference>(refs: T[], lockedRoleOwners: Record<string, string>): T[] {
+  return refs.map((ref) => {
+    if (!ref.applied) return ref
+    const roles = referenceRoles(ref).filter((role) => !lockedRoleOwners[role] || lockedRoleOwners[role] === ref.id)
+    if (roles.length === referenceRoles(ref).length) return ref
+    return roles.length ? withRoles(ref, roles) : { ...ref, applied: false }
+  })
+}
 export function referenceIsInContext(ref: MediaReference, projectId: string | null, sceneId: string | null) {
   if (ref.projectId !== projectId) return false
   return ref.scope === "project" || ref.sceneId === sceneId
@@ -68,7 +130,7 @@ export function referenceIsInContext(ref: MediaReference, projectId: string | nu
 export function referenceCompatibility(refs: MediaReference[]): string[] {
   const active = refs.filter((ref) => ref.applied)
   const issues: string[] = []
-  if (refs.length > 6) issues.push("Use up to six references in this context. Remove or narrow the scope of inherited references.")
+  if (refs.length > MAX_REFERENCES) issues.push(`Use up to ${MAX_REFERENCES} references in this context. Remove one or narrow the scope of inherited references.`)
   if (active.filter((ref) => ref.target === "provider").length > 1) issues.push("The current video adapter accepts only one direct image. Use Director guidance for the other references.")
   for (const ref of active) {
     if (ref.target === "provider" && ref.mediaType !== "image") issues.push(`${ref.name}: direct video/audio conditioning is not wired into this adapter. Choose Director guidance.`)
@@ -92,18 +154,32 @@ export function referenceConflicts(refs: MediaReference[]) {
   const roles = new Set<string>()
   const warnings: string[] = []
   for (const ref of refs.filter((item) => item.applied && item.priority === "primary")) {
-    if (roles.has(ref.role)) warnings.push(`Multiple primary ${ref.role} references may conflict. Choose one primary or review their guidance.`)
-    roles.add(ref.role)
+    for (const role of referenceRoles(ref)) {
+      if (roles.has(role)) warnings.push(`Multiple primary ${role} references may conflict. Choose one primary or review their guidance.`)
+      roles.add(role)
+    }
   }
   return warnings
 }
 
+/** "character (face, body and anatomy) and location (setting and architecture)" */
+function describeRoles(ref: MediaReference) {
+  const parts = referenceRoles(ref).map((role) => ROLE_CONTROLS[role] && ref.mediaType === "image" ? `${role} (${ROLE_CONTROLS[role]})` : role)
+  return parts.length <= 1 ? parts.join("") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`
+}
+
+/**
+ * The [REFERENCE ROLES] block: one line per applied director reference saying what it
+ * controls and that it controls nothing else. A subject-only image is told not to impose
+ * its background as the setting.
+ */
 export function referencePrompt(refs: MediaReference[]) {
   const rank = { primary: 0, secondary: 1, supporting: 2 }
-  return refs.filter((ref) => ref.applied && ref.target === "director" && (ref.analysis || ref.manualGuidance?.trim()))
-    .concat(refs.filter((ref) => ref.applied && ref.target === "director" && !ref.analysis && !ref.manualGuidance?.trim()))
-    .sort((a, b) => rank[a.priority] - rank[b.priority])
-    .map((ref) => {
+  const fallbackLabels = labelReferences(refs)
+  return refs.map((ref, index) => ({ ref, label: ref.label || fallbackLabels[index].label! }))
+    .filter(({ ref }) => ref.applied && ref.target === "director")
+    .sort((a, b) => Number(!(a.ref.analysis || a.ref.manualGuidance?.trim())) - Number(!(b.ref.analysis || b.ref.manualGuidance?.trim())) || rank[a.ref.priority] - rank[b.ref.priority])
+    .map(({ ref, label }) => {
       const source = ref.analysis ? "" : ref.manualGuidance?.trim() ? " (manual)" : " (unanalysed)"
       const fallback = ref.mediaType === "image"
         ? "image not analysed; no visual details inferred; follow written shot direction"
@@ -117,15 +193,18 @@ export function referencePrompt(refs: MediaReference[]) {
                   : ref.role === "timing" ? "use written timing only; no audio events inferred"
                     : "no lip-sync inferred; use a dedicated lip-sync workflow"
       const direction = ref.analysis?.guidance || ref.manualGuidance?.trim() || fallback
-      return `${ref.role}/${ref.priority}/${ref.influence}${source}: ${direction}`
-    }).join("; ")
+      const roles = referenceRoles(ref)
+      const background = ref.mediaType === "image" && !roles.includes("location") && roles.every((role) => SUBJECT_ROLES.has(role)) ? ", not its background" : ""
+      const weight = ref.priority === "primary" && ref.influence === "high" ? "" : ` [${ref.priority}, ${ref.influence}]`
+      return `${label} defines ${describeRoles(ref)} ONLY${background}${weight}${source}: ${direction}`
+    }).join(" ")
 }
 
 export function referencePromptBudget(subject: string, refs: MediaReference[]) {
   const limit = 1100
   const guidance = referencePrompt(refs)
   // Reserve room for the reference label, duration directive and separators.
-  const used = subject.replace(/\s+/g, " ").trim().length + guidance.length + (guidance ? 20 : 0) + 80
+  const used = subject.replace(/\s+/g, " ").trim().length + guidance.length + (guidance ? 30 : 0) + 80
   return { limit, used, overflow: Math.max(0, used - limit) }
 }
 

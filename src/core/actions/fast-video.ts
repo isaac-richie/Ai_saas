@@ -302,9 +302,12 @@ function assembleFastVideoPrompt(
   const subjectDirectives = buildSubjectDirectives(subject, prompt_inputs.variation_setting)
   const aspectDirective = buildAspectDirective(prompt_inputs.aspect_ratio)
 
-  const parts = [subject]
+  // Role isolation leads: each applied reference is told what it controls and nothing else.
   const guidance = referencePrompt(prompt_inputs.media_references || [])
-  if (guidance) parts.push(`Reference direction: ${guidance}`)
+  // fitReferencePrompt keeps both inside the budget; if they ever don't fit, the creator's words go first.
+  const parts = !guidance ? [subject]
+    : guidance.length + subject.length < 980 ? [`[REFERENCE ROLES] ${guidance}`, `[PROMPT] ${subject}`]
+      : [subject, `[REFERENCE ROLES] ${guidance}`]
   parts.push(`duration ${safeDuration}s with coherent start-middle-end motion arc`)
 
   if (extra?.continuity?.clause) parts.push(extra.continuity.clause)

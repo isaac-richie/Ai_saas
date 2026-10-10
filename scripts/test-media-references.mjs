@@ -10,7 +10,7 @@ const source = readFileSync(new URL("../src/core/validation/media-reference.ts",
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
 const module = { exports: {} }
 vm.runInNewContext(compiled, { module, exports: module.exports, require: createRequire(import.meta.url) })
-const { mediaReferenceSchema, mediaReferencesSchema, referenceLibrarySchema, referenceCompatibility, referenceConflicts, referenceIsInContext, referencePrompt, referencePromptBudget, referencePromptFits, validateOwnedReferences } = module.exports
+const { mediaReferenceSchema, mediaReferencesSchema, referenceLibrarySchema, referenceCompatibility, referenceConflicts, referenceIsInContext, referencePrompt, referencePromptBudget, referencePromptFits, validateOwnedReferences, labelReferences, resolveLockedRoles, referenceRoles, withRoles, MAX_REFERENCES } = module.exports
 const user = "123e4567-e89b-42d3-a456-426614174000"
 const project = "123e4567-e89b-42d3-a456-426614174001"
 const scene = "123e4567-e89b-42d3-a456-426614174002"
@@ -49,8 +49,14 @@ test("project references cross scenes but never projects", () => {
   assert.equal(referenceIsInContext({ ...base, scope: "project" }, user, scene), false)
   assert.equal(referenceIsInContext(base, project, null), false)
 })
-test("enforces six-reference limit", () => {
-  assert.equal(mediaReferencesSchema.safeParse(Array(7).fill(base)).success, false)
+const uid = (index) => `123e4567-e89b-42d3-a456-${String(index).padStart(12, "0")}`
+test("enforces the ten-reference limit: ten pass, an eleventh is refused", () => {
+  assert.equal(MAX_REFERENCES, 10)
+  const ten = Array.from({ length: 10 }, (_, index) => ({ ...base, id: uid(index) }))
+  assert.equal(mediaReferencesSchema.safeParse(ten).success, true)
+  assert.equal(mediaReferencesSchema.safeParse([...ten, { ...base, id: uid(10) }]).success, false)
+  assert.equal(referenceCompatibility(ten).length, 0)
+  assert.ok(referenceCompatibility([...ten, { ...base, id: uid(10) }]).length)
 })
 test("rejects duplicate reference IDs in shots and cloud libraries", () => {
   assert.equal(mediaReferencesSchema.safeParse([base, base]).success, false)
@@ -72,7 +78,7 @@ test("analysis is optional: unanalysed images apply, are labelled honestly, and 
   const unanalysed = { ...base, analysis: undefined, analysisUnavailable: true }
   assert.equal(mediaReferenceSchema.safeParse(unanalysed).success, true)
   assert.equal(referenceCompatibility([unanalysed]).length, 0, "no analysis or manual text is required")
-  assert.match(referencePrompt([unanalysed]), /^wardrobe\/primary\/high \(unanalysed\): image not analysed; no visual details inferred/)
+  assert.match(referencePrompt([unanalysed]), /^@image1 defines wardrobe \(clothing and accessories\) ONLY, not its background \(unanalysed\): image not analysed; no visual details inferred/)
   assert.equal(referenceCompatibility([{ ...base, analysis: undefined, manualGuidance: "Keep the red coat." }]).length, 0)
   assert.match(referencePrompt([{ ...base, analysis: undefined, manualGuidance: "Keep the red coat." }]), /\(manual\): Keep the red coat\./)
   assert.equal(referenceCompatibility([{ ...base, applied: false, analysis: undefined }]).length, 0)
@@ -110,7 +116,7 @@ test("warns about competing primary roles", () => {
 test("guidance is ordered, role-specific and does not mutate snapshots", () => {
   const refs = [{ ...base, priority: "supporting", role: "lighting" }, base]
   const before = JSON.stringify(refs)
-  assert.ok(referencePrompt(refs).startsWith("wardrobe/primary/high:"))
+  assert.ok(referencePrompt(refs).startsWith("@image2 defines wardrobe"), "primary first, tagged by panel order")
   assert.equal(JSON.stringify(refs), before)
   assert.equal(referencePrompt([{ ...base, target: "provider" }]), "")
 })
@@ -269,4 +275,56 @@ test("fit notices count each condensed reference once and keep long file names r
   assert.doesNotMatch(notice, /sp100_s50_sb75/, "long file names are shortened")
   assert.ok(notice.length < 260, "the whole notice stays toast-sized")
   assert.match(notice, /and \d+ more references?/)
+})
+
+// The module runs in its own VM realm, so compare array contents, not prototypes.
+const same = (actual, expected, message) => assert.equal(JSON.stringify(actual), JSON.stringify(expected), message)
+test("multi-role: one asset can hold several roles; they validate, save and reload", () => {
+  const both = withRoles(base, ["character", "location"])
+  same(referenceRoles(both), ["character", "location"])
+  assert.equal(both.role, "character", "primary role follows the first selection")
+  const parsed = mediaReferenceSchema.safeParse(JSON.parse(JSON.stringify(both)))
+  assert.equal(parsed.success, true)
+  same(parsed.data.roles, ["character", "location"])
+  same(referenceRoles(base), ["wardrobe"], "older single-role references still read")
+  assert.equal(mediaReferenceSchema.safeParse({ ...base, roles: ["character", "voiceover"], role: "character" }).success, false, "roles must fit the media type")
+  assert.equal(mediaReferenceSchema.safeParse({ ...base, roles: ["character", "character"], role: "character" }).success, false, "no duplicate roles")
+  assert.equal(mediaReferenceSchema.safeParse({ ...base, roles: ["character", "location"], role: "location" }).success, false, "primary must match")
+})
+test("role isolation: each reference controls only its roles; subject-only images drop their background", () => {
+  const refs = labelReferences([
+    { ...base, id: uid(1), role: "character", analysis: { ...base.analysis, guidance: "Dark-haired woman, freckles." } },
+    { ...base, id: uid(2), role: "wardrobe" },
+    withRoles({ ...base, id: uid(3), analysis: { ...base.analysis, guidance: "Neon alley." } }, ["character", "location"]),
+  ])
+  const prompt = referencePrompt(refs)
+  assert.match(prompt, /@image1 defines character \(face, body and anatomy\) ONLY, not its background: Dark-haired woman/)
+  assert.match(prompt, /@image2 defines wardrobe \(clothing and accessories\) ONLY, not its background/)
+  assert.match(prompt, /@image3 defines character \(face, body and anatomy\) and location \(setting and architecture\) ONLY: Neon alley/)
+  assert.doesNotMatch(prompt.split("@image3")[1], /not its background/, "a location role keeps the background")
+})
+test("labels follow the full panel order per type, so removing one re-derives the rest", () => {
+  const video = { ...base, id: uid(5), mediaType: "video", role: "pacing", duration: 10, trimStart: 0, trimEnd: 5 }
+  const labelled = labelReferences([{ ...base, id: uid(1) }, video, { ...base, id: uid(2), applied: false }, { ...base, id: uid(3) }])
+  same(labelled.map((ref) => ref.label), ["@image1", "@video1", "@image2", "@image3"])
+  // Filtering to applied after labelling keeps the creator's tags.
+  same(labelled.filter((ref) => ref.applied).map((ref) => ref.label), ["@image1", "@video1", "@image3"])
+  assert.ok(labelled.every((ref) => mediaReferenceSchema.safeParse(ref).success))
+})
+test("unapplied references never reach the prompt", () => {
+  const refs = labelReferences([{ ...base, id: uid(1), applied: false }, { ...base, id: uid(2) }])
+  const prompt = referencePrompt(refs.filter((ref) => ref.applied))
+  assert.doesNotMatch(prompt, /@image1/)
+  assert.match(prompt, /@image2/)
+})
+test("a continuity lock beats an unlocked reference on the same channel", () => {
+  const a = withRoles({ ...base, id: uid(1) }, ["character", "location"])
+  const b = { ...base, id: uid(2), role: "character" }
+  const c = { ...base, id: uid(3), role: "character" }
+  const resolved = resolveLockedRoles([a, b, c], { character: uid(2) })
+  same(referenceRoles(resolved[0]), ["location"], "a keeps only its unlocked role")
+  assert.equal(resolved[0].role, "location")
+  same(referenceRoles(resolved[1]), ["character"], "the locked reference keeps the role")
+  assert.equal(resolved[2].applied, false, "a reference left with no role sits this one out")
+  same(resolveLockedRoles([a], {}), [a], "no locks, no change")
 })

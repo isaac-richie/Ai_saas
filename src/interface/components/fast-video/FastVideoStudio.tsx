@@ -67,7 +67,7 @@ import {
 import { buildMediaFilename } from "@/lib/download-filename"
 import { saveFastVideoClipToGallery } from "@/core/actions/fast-video"
 import { TakesPanel, type TakeItem } from "./TakesPanel"
-import { ContinuityPanel, CONTINUITY_LOCKS, buildContinuityClauseFromState } from "./ContinuityPanel"
+import { ContinuityPanel, CONTINUITY_LOCKS, EMPTY_CONTINUITY_SOURCES, buildContinuityClauseFromState, continuityValuesForStorage, lockedRoleOwners, type ContinuitySources } from "./ContinuityPanel"
 import { StoryboardPanel } from "./StoryboardPanel"
 import { useContinuitySync } from "@/interface/hooks/useContinuitySync"
 import { ShotPreviewTimeline } from "./ShotPreviewTimeline"
@@ -89,7 +89,7 @@ import { generationPrompt, needsEnhancement, referenceClassificationSchema } fro
 import { EMPTY_CAMPAIGN_REFERENCES, brandSafetyReviewed, type CampaignProvenance, campaignMode, campaignPlanSummary, campaignReferenceIssues, campaignReferencesSchema, recommendedCampaignModel, type CampaignReferences } from "@/core/validation/campaign-references"
 import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
-import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, type MediaReference } from "@/core/validation/media-reference"
+import { MAX_REFERENCES, labelReferences, mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, resolveLockedRoles, type MediaReference } from "@/core/validation/media-reference"
 
 import {
   SceneShotOption,
@@ -154,6 +154,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     colorGrade: "",
     cameraStyle: "",
   })
+  const [continuitySources, setContinuitySources] = useState<ContinuitySources>(EMPTY_CONTINUITY_SOURCES)
   const [activeSavedClipId, setActiveSavedClipId] = useState<string | null>(null)
   const [downloadName, setDownloadName] = useState<string>("")
   const [isGenerating, setIsGenerating] = useState(false)
@@ -241,14 +242,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const hasStoryboardDestination = Boolean(selectedProjectId && selectedSceneId)
 
   const activeModelFamily = useMemo(() => getKieVideoModelFamily(modelFamilyId), [modelFamilyId])
+  // Tags (@image1…) come from the full panel order, so prompts match what the creator sees.
+  const labelledReferences = useMemo(() => labelReferences(currentReferences), [currentReferences])
   const continuityClause = useMemo(
-    () => buildContinuityClauseFromState(continuityEnabled, continuityLocks, continuityValues),
-    [continuityEnabled, continuityLocks, continuityValues]
+    () => buildContinuityClauseFromState(continuityEnabled, continuityLocks, continuityValues, continuitySources, labelledReferences),
+    [continuityEnabled, continuityLocks, continuityValues, continuitySources, labelledReferences]
   )
+  /** Only applied references go out, with locked channels taking their roles from other references. */
+  const buildGenerationReferences = useCallback(() => structuredClone(
+    resolveLockedRoles(labelledReferences, lockedRoleOwners(continuityEnabled, continuityLocks, continuitySources, labelledReferences))
+      .filter((ref) => ref.applied)
+  ), [labelledReferences, continuityEnabled, continuityLocks, continuitySources])
   const promptBudget = useMemo(() => referencePromptBudget(
     continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(),
-    currentReferences.filter((ref) => ref.applied),
-  ), [continuityClause, currentReferences, subject])
+    buildGenerationReferences(),
+  ), [continuityClause, buildGenerationReferences, subject])
 
   const pipelineStage = useMemo(() => {
     if (status === "completed") return 3
@@ -403,6 +411,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         continuityEnabled?: boolean
         continuityLocks?: Record<ContinuityKey, boolean>
         continuityValues?: Record<ContinuityKey, string>
+        continuitySources?: Partial<ContinuitySources>
         favoriteStyleIds?: string[]
         favoriteMotionIds?: string[]
         recentStyleIds?: string[]
@@ -460,6 +469,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (typeof parsed.continuityEnabled === "boolean") setContinuityEnabled(parsed.continuityEnabled)
       if (parsed.continuityLocks) setContinuityLocks((prev) => ({ ...prev, ...parsed.continuityLocks }))
       if (parsed.continuityValues) setContinuityValues((prev) => ({ ...prev, ...parsed.continuityValues }))
+      if (parsed.continuitySources) setContinuitySources((prev) => ({ ...prev, ...parsed.continuitySources }))
       if (Array.isArray(parsed.favoriteStyleIds)) setFavoriteStyleIds(parsed.favoriteStyleIds.slice(0, 20))
       if (Array.isArray(parsed.favoriteMotionIds)) setFavoriteMotionIds(parsed.favoriteMotionIds.slice(0, 20))
       if (Array.isArray(parsed.recentStyleIds)) setRecentStyleIds(parsed.recentStyleIds.slice(0, 20))
@@ -532,6 +542,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           continuityEnabled,
           continuityLocks,
           continuityValues,
+          continuitySources,
           favoriteStyleIds: favoriteStyleIds.slice(0, 20),
           favoriteMotionIds: favoriteMotionIds.slice(0, 20),
           recentStyleIds: recentStyleIds.slice(0, 20),
@@ -579,6 +590,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     continuityEnabled,
     continuityLocks,
     continuityValues,
+    continuitySources,
     favoriteStyleIds,
     favoriteMotionIds,
     recentStyleIds,
@@ -1572,7 +1584,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       toast.message("Wait for the current upload, analysis or generation to finish.")
       return
     }
-    const generationReferences = structuredClone(currentReferences.filter((ref) => ref.applied))
+    const generationReferences = buildGenerationReferences()
     const referenceIssues = referenceCompatibility(generationReferences)
     if (referenceIssues.length) { toast.error(referenceIssues.join(" ")); return }
     if (referenceImageUrl && generationReferences.some((ref) => ref.target === "provider")) { toast.error("Remove the legacy starting image before using another direct image."); return }
@@ -1798,7 +1810,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       }
 
       if (continuityEnabled && res.data.shotId) {
-        void saveContinuity(res.data.shotId, continuityLocks, continuityValues)
+        void saveContinuity(res.data.shotId, continuityLocks, continuityValuesForStorage(continuityLocks, continuityValues, continuitySources, labelledReferences))
       }
 
       toast.success(successMessage)
@@ -1987,7 +1999,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       status: "draft",
       review: "draft",
       createdAt: new Date().toISOString(),
-      mediaReferences: structuredClone(currentReferences.filter((ref) => ref.applied)),
+      mediaReferences: structuredClone(labelledReferences.filter((ref) => ref.applied)),
       startFrame: shotFrames.start ?? null,
       endFrame: null,
       previousItemId: null,
@@ -2047,6 +2059,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         setContinuityEnabled(true)
         setContinuityLocks(continuity.locks)
         setContinuityValues(continuity.values)
+        // Stored values already describe any reference a lock used; this shot's panel picks its own images.
+        setContinuitySources(EMPTY_CONTINUITY_SOURCES)
       }
     }
     storyboardTargetRef.current = item.id
@@ -2090,8 +2104,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     const images = files.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type))
     if (!images.length) { toast.error("Drop JPG, PNG or WebP images.", { id: "storyboard-refs" }); return }
     const existing = item.mediaReferences || []
-    const room = 6 - existing.length
-    if (room <= 0) { toast.error("A shot can use up to six references.", { id: "storyboard-refs" }); return }
+    const room = MAX_REFERENCES - existing.length
+    if (room <= 0) { toast.error(`A shot can use up to ${MAX_REFERENCES} references.`, { id: "storyboard-refs" }); return }
     if (images.length > room) toast.message(`Only ${room} more image${room === 1 ? "" : "s"} fit on this shot.`, { id: "storyboard-refs" })
     setAddingReferencesStoryboardId(item.id)
     const added: MediaReference[] = []
@@ -2462,6 +2476,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   onChangeValue={(key, value) =>
                     setContinuityValues((prev) => ({ ...prev, [key]: value }))
                   }
+                  sources={continuitySources}
+                  onChangeSource={(key, referenceId) =>
+                    setContinuitySources((prev) => ({ ...prev, [key]: referenceId }))
+                  }
+                  references={labelledReferences}
                 />
               </div>
             ) : null}

@@ -51,3 +51,26 @@
 
 .inlineActions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
 .detail { display:block; margin-top:4px; opacity:.75; font-size:10px; }
+
+/* ── Ten slots, multi-role ───────────────────────────────────── */
+.thumb { flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:8px; overflow:hidden; background:#0b0c0b; border:1px solid var(--ref-border); color:var(--ref-accent); }
+.thumb img { width:100%; height:100%; object-fit:cover; }
+.tag { display:inline-block; margin-right:6px; padding:1px 6px; border-radius:999px; background:#d9c08a1f; color:#f3e5c0; font-size:10px; font-weight:600; letter-spacing:.02em; vertical-align:1px; }
+.rolePicker { position:relative; }
+.rolePicker > summary { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:36px; padding:8px 10px; border:1px solid var(--ref-border); border-radius:7px; background:#0d0f0d; color:#eeeae1; font-size:12px; list-style:none; cursor:pointer; }
+.rolePicker > summary::-webkit-details-marker { display:none; }
+.rolePicker[open] > summary { border-color:#d9c08a66; }
+.roleSummary { text-transform:capitalize; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.roleList { margin-top:6px; padding:6px; border:1px solid var(--ref-border); border-radius:9px; background:#0d0f0d; display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:2px; }
+.roleOption { display:flex; align-items:flex-start; gap:8px; padding:7px 8px; border-radius:7px; cursor:pointer; color:#eeeae1; font-size:12px; }
+.roleOption:hover { background:#d9c08a12; }
+.roleOption input { margin-top:2px; accent-color:var(--ref-accent); width:15px; height:15px; flex:none; }
+.roleName { display:block; text-transform:capitalize; }
+.roleControls { display:block; color:#a3aab4; font-size:10.5px; line-height:1.4; }
+.roleList .hint { grid-column:1/-1; padding:4px 8px 2px; }
+.manager .applied { background:#2a2417; border-color:#d9c08a80; color:#f3e5c0; }
+.srOnly { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.hint { color:#b0b8c4; }
+.field { color:#b0b8c4; font-size:11px; }
+@media(max-width:640px) { .manager button { min-height:40px; font-size:12px; } .title strong { font-size:13px; } .title span { font-size:11.5px; } }
+.title .tag { text-transform:none; }
