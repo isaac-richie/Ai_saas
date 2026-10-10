@@ -350,7 +350,7 @@ function AdvancedSettings({ value, onChange, settings, onSettingsChange, effecti
             <label><span className={labelClass}>Aspect</span><select aria-label="Campaign aspect ratio" value={settings.aspectRatio} onChange={(event) => onSettingsChange({ ...settings, aspectRatio: event.target.value })} className={inputClass}>{["9:16", "1:1", "4:5", "16:9"].map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}</select></label>
             <label><span className={labelClass}>Duration</span><select aria-label="Campaign duration" value={settings.durationSeconds} onChange={(event) => onSettingsChange({ ...settings, durationSeconds: Number(event.target.value) })} className={inputClass}>{[5, 8, 10, 15].map((seconds) => <option key={seconds} value={seconds}>{seconds}s</option>)}</select></label>
             <label className="col-span-2"><span className={labelClass}>Model</span><select aria-label="Campaign model" value={settings.modelOverride ?? "auto"} onChange={(event) => onSettingsChange({ ...settings, modelOverride: event.target.value === "auto" ? null : event.target.value as "kling" | "seedance" })} className={inputClass}>
-              <option value="auto">Seedance 2.5</option>
+              <option value="auto">Auto{campaignMode(value) !== "generic" ? " (Seedance)" : ""}</option><option value="kling">Kling</option><option value="seedance">Seedance</option>
             </select></label>
           </div>
           {campaignMode(value) !== "generic" && effectiveModel === "kling" ? <p className="text-[10.5px] text-[#a3a59a]">Kling needs 2 to 4 JPG/PNG images per reference and opens on the first one.</p> : null}

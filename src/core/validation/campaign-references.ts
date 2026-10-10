@@ -260,7 +260,7 @@ export function applicableQualityChecks(refs: CampaignReferences | null | undefi
  * image per reference; Kling needs 2 to 4 JPG/PNG images each.
  */
 export function recommendedCampaignModel(refs: CampaignReferences | null | undefined, override?: string | null): string | null {
-  if (override === "kling" || override === "seedance") return "seedance"
+  if (override === "kling" || override === "seedance") return override
   return campaignMode(refs) === "generic" ? null : "seedance"
 }
 

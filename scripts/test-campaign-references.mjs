@@ -244,7 +244,7 @@ test("defaults: locks on, medium influence, mixed formats, generic model unchang
   assert.equal(parsed.character.influence, "medium")
   assert.equal(parsed.style, "mixed", "generic campaigns keep varied UGC formats")
   assert.equal(recommendedCampaignModel(refs(), null), null, "generic UGC keeps the planner's per-asset model")
-  assert.equal(recommendedCampaignModel(refs({ character: character() }), "kling"), "seedance", "a saved Kling override now runs on Seedance 2.5")
+  assert.equal(recommendedCampaignModel(refs({ character: character() }), "kling"), "kling", "Advanced override is honoured")
   assert.doesNotMatch(campaignLockDirective(refs({ product: product() })), /Style:/, "mixed adds no style constraint")
 })
 

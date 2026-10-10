@@ -385,7 +385,7 @@ test('per-shot settings reject unsupported choices and reach the review compiler
   const settings = [{ model: 'seedance', durationSeconds: 5 }, { model: 'kling', durationSeconds: 10 }, { model: 'seedance', durationSeconds: 10 }]
   assert.equal(productionShotSettingsSchema.safeParse(settings).success, true)
   assert.equal(productionShotSettingsSchema.safeParse([{ model: 'sora', durationSeconds: 5 }, ...settings.slice(1)]).success, false)
-  assert.equal(productionShotSettingsSchema.safeParse([{ model: 'seedance', durationSeconds: 3 }, ...settings.slice(1)]).success, false, 'Seedance 2.5 needs at least 4 s')
+  assert.equal(productionShotSettingsSchema.safeParse([{ model: 'kling', durationSeconds: 7 }, ...settings.slice(1)]).success, false)
   assert.equal(productionShotSettingsSchema.safeParse(settings.slice(0, 1)).success, false)
   const shots = module.exports.compileCrewShotsForReview({}, { shots: settings.map(() => ({ prompt: 'Track the runner for the selected duration.', model: 'kling', continuity: null })) }, settings)
   assert.equal(shots[0].model, 'seedance')
@@ -413,9 +413,7 @@ test('long film settings accept 12 shots and Seedance 4-15s but reject invalid m
     assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 12 }, () => ({ model: 'seedance', durationSeconds: seconds }))).success, true)
   }
   assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 13 }, () => ({ model: 'seedance', durationSeconds: 15 }))).success, false)
-  for (const seconds of [3, 16, 30]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'seedance', durationSeconds: seconds }))).success, false)
-  // Older plans saved as Kling now render on Seedance 2.5 with its 4-15 s range.
-  assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'kling', durationSeconds: 7 }))).success, true)
+  for (const seconds of [4, 7, 15]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'kling', durationSeconds: seconds }))).success, false)
 })
 
 test('Seedance duration survives action normalization and numeric provider payload without rounding', () => {
@@ -515,11 +513,11 @@ test('shot settings frontend renders twelve editable shots with model-specific d
   assert.match(seedance, /role="radio" aria-checked="true"[^>]*>15s</)
   assert.match(seedance, />4s</)
   assert.equal((seedance.match(/>\d+s</g) || []).length, 12, 'Seedance offers 4 to 15 seconds')
-  const legacy = render('kling')
-  assert.match(legacy, /role="radio" aria-checked="true"[^>]*>10s</)
-  assert.equal((legacy.match(/>\d+s</g) || []).length, 12, 'older Kling shots get Seedance 2.5 lengths')
-  assert.doesNotMatch(seedance, />Kling</, 'Kling is no longer offered')
-  assert.match(legacy, /aria-label="Add a shot" disabled=""/, 'twelve shots is the maximum')
+  const kling = render('kling')
+  assert.doesNotMatch(kling, />15s</)
+  assert.match(kling, /role="radio" aria-checked="true"[^>]*>10s</)
+  assert.equal((kling.match(/>\d+s</g) || []).length, 2, 'Kling offers 5 or 10 seconds')
+  assert.match(kling, /aria-label="Add a shot" disabled=""/, 'twelve shots is the maximum')
 })
 
 test('sequence editor preserves other shots and keeps model timing valid', async () => {
@@ -547,6 +545,10 @@ test('sequence editor preserves other shots and keeps model timing valid', async
   const text = node => [].concat(node.props?.children ?? []).filter(child => typeof child === 'string' || typeof child === 'number').join('')
   const group = label => render().find(node => node.props?.['aria-label'] === label)
   const option = (label, name) => [].concat(group(label).props.children).find(node => text(node) === name)
+  // Switching a 15 s Seedance shot to Kling snaps to Kling's nearest length instead of an invalid one.
+  option('Shot 1 model', 'Kling').props.onClick()
+  assert.equal(value[0].model, 'kling')
+  assert.equal(value[0].durationSeconds, 10)
   assert.equal(value[1].durationSeconds, 10, 'other shots are untouched')
   assert.equal(value[2].durationSeconds, 5)
   option('Shot 1 duration', '5s').props.onClick()
@@ -556,9 +558,11 @@ test('sequence editor preserves other shots and keeps model timing valid', async
   option('Shot 2 duration', '5s').props.onClick()
   assert.equal(value[1].durationSeconds, 5)
   // One click sets every shot's model and keeps every duration valid.
-  option('Model for all shots', 'Seedance 2.5').props.onClick()
+  option('Model for all shots', 'Seedance').props.onClick()
   assert.ok(value.every(shot => shot.model === 'seedance'))
   assert.equal(productionShotSettingsSchema.safeParse(value).success, true)
+  option('Model for all shots', 'Kling').props.onClick()
+  assert.ok(value.every(shot => shot.model === 'kling' && [5, 10].includes(shot.durationSeconds)))
   // Add and remove shots within 2 to 12; a new shot copies the last one.
   render().find(node => node.props?.['aria-label'] === 'Add a shot').props.onClick()
   assert.equal(value.length, 4)

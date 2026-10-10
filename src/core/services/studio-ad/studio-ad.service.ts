@@ -58,7 +58,7 @@ function buildModelOptimizationHints(input: StudioAdRequest): string[] {
 
   if (hint.includes('kling')) {
     return [
-      'Optimize for Seedance 2.5 by keeping the motion path explicit, subject-first, and visually stable.',
+      'Optimize for Kling by keeping the motion path explicit, subject-first, and visually stable.',
       'Use compact but cinematic clauses with clear camera intent and strong continuity anchors.',
     ];
   }
