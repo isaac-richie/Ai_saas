@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components
 import { Button } from "@/interface/components/ui/button"
 import { Input } from "@/interface/components/ui/input"
 import { Textarea } from "@/interface/components/ui/textarea"
+import { MentionTextarea } from "./MentionTextarea"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import {
   FAST_VIDEO_ASPECT_RATIOS,
@@ -2336,11 +2337,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 <label htmlFor="fast-video-prompt" className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Your idea</label>
                 {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite" title={promptBudget.overflow ? "Over the limit is fine: reference directions are condensed first, your prompt last." : undefined}>Prompt + references: {promptBudget.used}/{promptBudget.limit}{promptBudget.overflow ? " · will auto-fit" : ""}</span>}
               </div>
-              <Textarea
+              <MentionTextarea
                 id="fast-video-prompt"
                 value={subject}
-                onChange={(event) => setSubject(event.target.value)}
-                placeholder="e.g. A skateboarder glides through neon Tokyo at night, slow motion"
+                onChange={setSubject}
+                references={labelledReferences}
+                placeholder="e.g. A skateboarder glides through neon Tokyo at night, slow motion. Type @ to use a reference."
                 className="studio-field min-h-32 resize-none rounded-xl text-[15px] text-white placeholder:text-white/40 leading-relaxed md:text-sm"
               />
             </div>
