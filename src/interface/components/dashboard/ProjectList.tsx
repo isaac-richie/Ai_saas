@@ -8,13 +8,17 @@ import Link from "next/link"
 import Image from "next/image"
 import { Clock4, Folder, Layers, Film, Search } from "lucide-react"
 import { useMemo, useState } from "react"
+import { ArrowUpRight } from "lucide-react"
+import { DeleteProjectButton } from "./DeleteProjectButton"
 import type * as React from "react"
 
 interface ProjectListProps {
     projects: Project[]
+    /** Home shows only the most recent few, without search, plus a link to the rest. */
+    limit?: number
 }
 
-export function ProjectList({ projects }: ProjectListProps) {
+export function ProjectList({ projects, limit }: ProjectListProps) {
     const [query, setQuery] = useState("")
     const [sortBy, setSortBy] = useState<"updated_desc" | "created_desc" | "name_asc" | "name_desc" | "shots_desc">("updated_desc")
 
@@ -41,8 +45,8 @@ export function ProjectList({ projects }: ProjectListProps) {
             return bDate - aDate
         })
 
-        return sorted
-    }, [projects, query, sortBy])
+        return limit ? sorted.slice(0, limit) : sorted
+    }, [projects, query, sortBy, limit])
 
     if (projects.length === 0) {
         return (
@@ -58,7 +62,7 @@ export function ProjectList({ projects }: ProjectListProps) {
 
     return (
         <div className="space-y-4">
-            <div className="lux-glass flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3">
+            {limit ? null : <div className="lux-glass flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3">
                 <div className="relative min-w-0 basis-56 flex-1">
                     <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-gold-400/70" />
                     <Input
@@ -87,7 +91,7 @@ export function ProjectList({ projects }: ProjectListProps) {
                 <span className="rounded-full border border-gold-400/15 bg-gold-400/[0.05] px-3 py-1 text-xs text-gold-200/80">
                     Showing {filteredProjects.length}
                 </span>
-            </div>
+            </div>}
 
             {filteredProjects.length === 0 ? (
                 <div className="lux-fade flex h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-gold-400/15 bg-[#0f110f] text-center text-[#a3a59a]">
@@ -97,7 +101,11 @@ export function ProjectList({ projects }: ProjectListProps) {
             ) : (
                 <div className="lux-stagger grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     {filteredProjects.map((project, index) => (
-                <Link key={project.id} href={`/dashboard/projects/${project.id}`} className="group block h-full rounded-3xl" style={{ "--i": Math.min(index, 12) } as React.CSSProperties}>
+                <div key={project.id} className="group relative h-full" style={{ "--i": Math.min(index, 12) } as React.CSSProperties}>
+                <div className="absolute right-3 top-3 z-10 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+                    <DeleteProjectButton id={project.id} name={project.name} />
+                </div>
+                <Link href={`/dashboard/projects/${project.id}`} className="block h-full rounded-3xl">
                     <Card className="lux-lift lux-spotlight h-full gap-5 overflow-hidden rounded-3xl text-white">
                         <div className="relative aspect-[16/8] overflow-hidden border-b border-gold-400/10 bg-white/[0.02]">
                             {project.thumbnail_url ? (
@@ -123,7 +131,7 @@ export function ProjectList({ projects }: ProjectListProps) {
                                 )
                             ) : (
                                 <div className="absolute inset-0 bg-[radial-gradient(80%_100%_at_20%_0%,rgba(217,192,138,0.14),transparent_60%),linear-gradient(160deg,#171a17,#0d0f0d)]">
-                                    <Film className="absolute right-5 top-5 h-5 w-5 text-gold-400/30" strokeWidth={1.4} />
+                                    <Film className="absolute left-5 top-5 h-5 w-5 text-gold-400/30" strokeWidth={1.4} />
                                 </div>
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
@@ -163,9 +171,15 @@ export function ProjectList({ projects }: ProjectListProps) {
                         </CardFooter>
                     </Card>
                 </Link>
+                </div>
                     ))}
                 </div>
             )}
+            {limit && projects.length > limit ? (
+                <Link href="/dashboard/projects" className="mx-auto flex w-fit items-center gap-2 rounded-full border border-gold-400/25 bg-white/[0.03] px-5 py-2.5 text-[13px] text-gold-100 transition hover:border-gold-400/50 hover:bg-gold-400/[0.08]">
+                    See all {projects.length} projects <ArrowUpRight className="size-4" />
+                </Link>
+            ) : null}
         </div>
     )
 }

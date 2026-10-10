@@ -90,3 +90,18 @@ export async function getProjectById(id: string) {
         return { error: getErrorMessage(e) };
     }
 }
+
+/** Deletes one of the signed-in creator's projects; its scenes and shots go with it (FK cascade, RLS-owned). */
+export async function deleteProject(id: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: "Please sign in." };
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return { error: "Unknown project." };
+    const { error, count } = await supabase.from("projects").delete({ count: "exact" }).eq("id", id).eq("user_id", user.id);
+    if (error) return { error: "Couldn't delete that project. Please try again." };
+    if (!count) return { error: "That project no longer exists." };
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/projects");
+    revalidatePath("/dashboard/studio");
+    return { data: { id } };
+}

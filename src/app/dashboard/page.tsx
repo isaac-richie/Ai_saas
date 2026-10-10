@@ -43,7 +43,7 @@ export default async function DashboardPage() {
               </Link>
             </div>
           </div>
-          <ProjectList projects={projects} />
+          <ProjectList projects={projects} limit={6} />
         </section>
       ) : null}
       <section className="workspace-guide">
