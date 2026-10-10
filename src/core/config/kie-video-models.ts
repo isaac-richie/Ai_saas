@@ -11,17 +11,17 @@ export type KieVideoModelFamily = {
 export const KIE_VIDEO_MODEL_FAMILIES: KieVideoModelFamily[] = [
   {
     id: "kling",
-    label: "Kling",
-    description: "Balanced cinematic quality; supports multiple visual reference sets.",
-    t2vModel: "kling/v2-5-turbo-text-to-video-pro",
+    label: "Kling 3.0 Pro",
+    description: "Kling's best: steady photoreal motion, native sound, 5 or 10 s, multi-image character sets.",
+    t2vModel: "kling-3.0/video",
     i2vModel: "kling-3.0/video",
   },
   {
     id: "seedance",
-    label: "Seedance",
-    description: "Fast, punchy renders and strong stylization.",
-    t2vModel: "bytedance/seedance-2",
-    i2vModel: "bytedance/seedance-2",
+    label: "Seedance 2.5",
+    description: "ByteDance's newest: cinematic, stylised motion with native sound, 4 to 15 s.",
+    t2vModel: "bytedance/seedance-2-5",
+    i2vModel: "bytedance/seedance-2-5",
   },
 ];
 

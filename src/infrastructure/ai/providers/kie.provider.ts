@@ -120,6 +120,8 @@ export class KieProvider extends BaseProvider {
             if (normalizedModel.includes("seedance-2")) {
                 input.first_frame_url = request.image_prompt;
                 if (endFrame) input.last_frame_url = endFrame;
+                // Seedance 2.5 frame tasks only accept an adaptive ratio (it follows the image).
+                if (normalizedModel.includes("seedance-2-5")) input.aspect_ratio = "adaptive";
             } else if (normalizedModel.includes("kling-3.0")) {
                 input.image_urls = endFrame ? [request.image_prompt, endFrame] : [request.image_prompt];
             } else {
@@ -140,11 +142,9 @@ export class KieProvider extends BaseProvider {
         }
 
         if (model.toLowerCase().includes("kling-3.0")) {
-            // Kie's Kling 3.0 schema requires a resolution mode even for a
-            // single-shot image-to-video request. Keep previews in standard
-            // mode so a missing field cannot reject the task after quota use.
+            // Kie's Kling 3.0 schema requires a mode; "pro" is Kling's best quality tier.
             if (normalizedModel === "kling-3.0/video") {
-                input.mode = "std";
+                input.mode = "pro";
                 input.multi_shots = false;
             }
             // Kling 3.0 expects `sound` instead of `is_generate_audio`.
