@@ -145,8 +145,13 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
 
     if (jobs.length === 0) {
         return (
-            <section className="rounded-2xl border border-dashed border-gold-400/20 bg-obsidian-950 p-6 text-sm text-white/60">
-                No export jobs yet. Queue exports from Gallery by selecting assets and clicking `Batch Export`.
+            <section className="lux-rise flex flex-col items-center justify-center rounded-3xl border border-dashed border-gold-400/20 [background:radial-gradient(70%_120%_at_50%_0%,rgba(217,192,138,0.08),transparent_60%),#0f110f] px-6 py-16 text-center">
+                <div className="grid size-14 place-items-center rounded-2xl border border-gold-400/20 bg-gold-400/[0.06] text-gold-300 shadow-[0_0_40px_-12px_rgba(217,192,138,0.6)]">
+                    <Download className="h-6 w-6" strokeWidth={1.5} />
+                </div>
+                <h3 className="mt-5 text-2xl font-light tracking-tight text-[#f3eee2]">No <span className="lux-serif text-gold-300">downloads</span> yet</h3>
+                <p className="mt-2 max-w-sm text-[15px] text-[#B0B8C4]">In My videos, tap Select, choose a few videos, then Export. Your files get prepared here.</p>
+                <a href="/dashboard/gallery" className="workspace-primary-link mt-6">Go to My videos</a>
             </section>
         )
     }

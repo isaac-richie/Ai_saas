@@ -143,7 +143,7 @@ export function ApiKeyList() {
                         </TableRow>
                     ) : providers.length === 0 ? (
                         <TableRow>
-                            <TableCell colSpan={5} className="py-8 text-center text-white/55">No providers found.</TableCell>
+                            <TableCell colSpan={5} className="py-10 text-center"><span className="block text-[14px] text-[#ece6d6]">Nothing to set up here</span><span className="mt-1 block text-[13px] text-[#B0B8C4]">Visiowave runs on its own AI engines, so you don&rsquo;t need any keys.</span></TableCell>
                         </TableRow>
                     ) : (
                         providers.map((provider) => (

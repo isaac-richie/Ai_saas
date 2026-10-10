@@ -99,7 +99,7 @@ export function BillingPlanCard({
                 Upgrade
               </Link>
             ) : (
-              <span className="text-xs text-gold-100/80">Set `NEXT_PUBLIC_CHECKOUT_URL` to enable upgrade.</span>
+              <span className="text-xs text-gold-100/80">Upgrades open soon.</span>
             )}
           </div>
         )}

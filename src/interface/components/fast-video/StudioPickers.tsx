@@ -78,7 +78,7 @@ export function ModelPicker({ families, value, onChange }: {
   onChange: (id: KieVideoModelFamilyId) => void
 }) {
   return (
-    <div role="radiogroup" aria-label="Video model" className="grid gap-2 sm:grid-cols-2">
+    <div role="radiogroup" aria-label="Video model" className="grid gap-2">
       {families.map((family) => {
         const active = family.id === value
         const frames = frameCapability(family.id)

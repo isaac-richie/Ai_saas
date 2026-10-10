@@ -259,15 +259,6 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     buildGenerationReferences(),
   ), [continuityClause, buildGenerationReferences, subject])
 
-  const pipelineStage = useMemo(() => {
-    if (status === "completed") return 3
-    const normalized = statusMessage.toLowerCase()
-    if (normalized.includes("final")) return 3
-    if (normalized.includes("sample")) return 2
-    if (status === "processing") return 1
-    return 0
-  }, [status, statusMessage])
-
   const activeStyle = useMemo(
     () => STYLE_PRESETS.find((preset) => preset.id === stylePresetId) || null,
     [stylePresetId]
@@ -2954,20 +2945,6 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             />
 
 
-            {showAdvanced ? (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-xs text-white/55">
-                <p className="mb-1.5 text-[10px] uppercase tracking-[0.14em] text-white/35">Pipeline</p>
-                <p className="text-white/50">{status === "processing" ? "Initializing → Sampling → Finalizing" : "Ready"}</p>
-                <div className="mt-3 space-y-2">
-                  <div className={status === "processing" ? "generation-track" : "generation-track opacity-20"} />
-                  <div className="grid grid-cols-3 gap-2 text-[10px] uppercase tracking-[0.14em]">
-                    <span className={pipelineStage >= 1 ? "text-gold-300" : "text-white/25"}>Init</span>
-                    <span className={pipelineStage >= 2 ? "text-gold-300" : "text-white/25"}>Sampling</span>
-                    <span className={pipelineStage >= 3 ? "text-gold-300" : "text-white/25"}>Finalizing</span>
-                  </div>
-                </div>
-              </div>
-            ) : null}
 
             {videoUrl ? (
               <div className="lux-rise rounded-2xl border border-gold-400/[0.14] bg-white/[0.02] p-4">

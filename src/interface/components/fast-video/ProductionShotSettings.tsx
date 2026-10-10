@@ -5,8 +5,9 @@ import { productionShotSettingsSchema, type ProductionShotSettings as Settings }
 import styles from "./ProductionShotSettings.module.css"
 
 export type ShotSettingDraft = { model: string; durationSeconds: number }
-export const emptyShotSettings = (): ShotSettingDraft[] => Array.from({ length: 3 }, () => ({ model: "", durationSeconds: 0 }))
-const modelName = (model: string) => model === "seedance" ? "Seedance" : model === "kling" ? "Kling" : "Choose model"
+// New films start ready to go: Kling 3.0 Pro at 5 s per shot; every shot can be changed.
+export const emptyShotSettings = (): ShotSettingDraft[] => Array.from({ length: 3 }, () => ({ model: "kling", durationSeconds: 5 }))
+const modelName = (model: string) => model === "seedance" ? "Seedance 2.5" : model === "kling" ? "Kling 3.0 Pro" : "Pick a model"
 const runtime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
 const MODELS = ["kling", "seedance"] as const
 const MODEL_NOTES: Record<string, string> = { kling: "Steady realism · 5 or 10 s", seedance: "Punchy, stylised · 4 to 15 s" }

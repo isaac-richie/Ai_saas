@@ -546,7 +546,7 @@ test('sequence editor preserves other shots and keeps model timing valid', async
   const group = label => render().find(node => node.props?.['aria-label'] === label)
   const option = (label, name) => [].concat(group(label).props.children).find(node => text(node) === name)
   // Switching a 15 s Seedance shot to Kling snaps to Kling's nearest length instead of an invalid one.
-  option('Shot 1 model', 'Kling').props.onClick()
+  option('Shot 1 model', 'Kling 3.0 Pro').props.onClick()
   assert.equal(value[0].model, 'kling')
   assert.equal(value[0].durationSeconds, 10)
   assert.equal(value[1].durationSeconds, 10, 'other shots are untouched')
@@ -558,10 +558,10 @@ test('sequence editor preserves other shots and keeps model timing valid', async
   option('Shot 2 duration', '5s').props.onClick()
   assert.equal(value[1].durationSeconds, 5)
   // One click sets every shot's model and keeps every duration valid.
-  option('Model for all shots', 'Seedance').props.onClick()
+  option('Model for all shots', 'Seedance 2.5').props.onClick()
   assert.ok(value.every(shot => shot.model === 'seedance'))
   assert.equal(productionShotSettingsSchema.safeParse(value).success, true)
-  option('Model for all shots', 'Kling').props.onClick()
+  option('Model for all shots', 'Kling 3.0 Pro').props.onClick()
   assert.ok(value.every(shot => shot.model === 'kling' && [5, 10].includes(shot.durationSeconds)))
   // Add and remove shots within 2 to 12; a new shot copies the last one.
   render().find(node => node.props?.['aria-label'] === 'Add a shot').props.onClick()
