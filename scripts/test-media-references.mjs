@@ -328,3 +328,9 @@ test("a continuity lock beats an unlocked reference on the same channel", () => 
   assert.equal(resolved[2].applied, false, "a reference left with no role sits this one out")
   same(resolveLockedRoles([a], {}), [a], "no locks, no change")
 })
+
+test("a lock settles competing primary roles, so no conflict warning", () => {
+  const a = { ...base, id: uid(1), role: "character" }, b = { ...base, id: uid(2), role: "character" }
+  assert.equal(referenceConflicts([a, b]).length, 1)
+  assert.equal(referenceConflicts([a, b], { character: uid(1) }).length, 0)
+})

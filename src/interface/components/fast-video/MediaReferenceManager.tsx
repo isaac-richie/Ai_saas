@@ -153,13 +153,15 @@ function RolePicker({ reference, disabled, onChange }: { reference: MediaReferen
   </details>
 }
 
-export function MediaReferenceManager({ references, onChange, projectId, sceneId, onBusy, disabled = false }: {
+export function MediaReferenceManager({ references, onChange, projectId, sceneId, onBusy, disabled = false, lockedRoles = {} }: {
   references: MediaReference[]
   onChange: Dispatch<SetStateAction<MediaReference[]>>
   projectId: string | null
   sceneId: string | null
   onBusy: (busy: boolean) => void
   disabled?: boolean
+  /** Roles held by active continuity locks (role → reference id); those conflicts are already settled. */
+  lockedRoles?: Record<string, string>
 }) {
   const picker = useRef<HTMLInputElement>(null)
   const selection = useRef<{ type: MediaReference["mediaType"]; replaceId?: string }>({ type: "image" })
@@ -272,7 +274,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
   function continueWithoutAnalysis(ref: MediaReference) {
     apply({ ...ref, target: continueWithoutAnalysisTarget(ref, references) })
   }
-  const warnings = [...referenceCompatibility(references), ...referenceConflicts(references)]
+  const warnings = [...referenceCompatibility(references), ...referenceConflicts(references, lockedRoles)]
   const labelled = labelReferences(references)
   const full = references.length >= MAX_REFERENCES
   const appliedCount = references.filter((ref) => ref.applied).length

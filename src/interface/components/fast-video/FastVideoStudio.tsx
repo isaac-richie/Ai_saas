@@ -2434,6 +2434,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   key={`${selectedProjectId}:${selectedSceneId}`}
                   references={currentReferences}
                   onChange={updateCurrentReferences}
+                  lockedRoles={lockedRoleOwners(continuityEnabled, continuityLocks, continuitySources, labelledReferences)}
                   projectId={selectedProjectId || null}
                   sceneId={selectedSceneId || null}
                   onBusy={setIsUploading}

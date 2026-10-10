@@ -150,11 +150,13 @@ export function continueWithoutAnalysisTarget(ref: MediaReference, refs: MediaRe
   return startingFrameTaken ? "director" : "provider"
 }
 
-export function referenceConflicts(refs: MediaReference[]) {
+/** Competing primary roles; a role a continuity lock already owns is settled and not reported. */
+export function referenceConflicts(refs: MediaReference[], lockedRoleOwners: Record<string, string> = {}) {
   const roles = new Set<string>()
   const warnings: string[] = []
   for (const ref of refs.filter((item) => item.applied && item.priority === "primary")) {
     for (const role of referenceRoles(ref)) {
+      if (lockedRoleOwners[role]) continue
       if (roles.has(role)) warnings.push(`Multiple primary ${role} references may conflict. Choose one primary or review their guidance.`)
       roles.add(role)
     }
