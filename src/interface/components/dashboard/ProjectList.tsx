@@ -6,7 +6,7 @@ import { Badge } from "@/interface/components/ui/badge"
 import { Input } from "@/interface/components/ui/input"
 import Link from "next/link"
 import Image from "next/image"
-import { Clock4, Folder, Layers, Film, Search } from "lucide-react"
+import { Clock4, Folder, Layers, Search } from "lucide-react"
 import { useMemo, useState } from "react"
 import { ArrowUpRight } from "lucide-react"
 import { DeleteProjectButton } from "./DeleteProjectButton"
@@ -106,8 +106,8 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                     <DeleteProjectButton id={project.id} name={project.name} />
                 </div>
                 <Link href={`/dashboard/projects/${project.id}`} className="block h-full rounded-3xl">
-                    <Card className="lux-lift lux-spotlight h-full gap-5 overflow-hidden rounded-3xl text-white">
-                        <div className="relative aspect-[16/8] overflow-hidden border-b border-gold-400/10 bg-white/[0.02]">
+                    <Card className="lux-lift lux-spotlight h-full gap-3 overflow-hidden rounded-3xl py-0 pb-4 text-white transition-colors group-hover:border-gold-400/35">
+                        <div className="relative aspect-[16/7] overflow-hidden border-b border-gold-400/10 bg-white/[0.02]">
                             {project.thumbnail_url ? (
                                 project.thumbnail_url.endsWith(".mp4") ? (
                                     <video
@@ -130,18 +130,13 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                                     />
                                 )
                             ) : (
-                                <div className="absolute inset-0 bg-[radial-gradient(80%_100%_at_20%_0%,rgba(217,192,138,0.14),transparent_60%),linear-gradient(160deg,#171a17,#0d0f0d)]">
-                                    <Film className="absolute left-5 top-5 h-5 w-5 text-gold-400/30" strokeWidth={1.4} />
-                                </div>
+                                <ProjectPoster name={project.name} seed={project.id} />
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                             <div className="absolute inset-0 flex items-end justify-between p-4">
                                 <Badge className={project.status === "active" ? "border border-[#b6ddd3]/35 bg-[#b6ddd3]/10 capitalize text-[#d6efe8] backdrop-blur-md" : "border border-gold-400/[0.12] bg-black/40 capitalize text-white/80 backdrop-blur-md"}>
                                     {project.status}
                                 </Badge>
-                                <span className="rounded-full border border-gold-400/20 bg-black/40 px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-gold-100/80 backdrop-blur-md">
-                                    Shots {project.shot_count ?? 0}
-                                </span>
                             </div>
                         </div>
                         <CardHeader className="pb-1">
@@ -149,25 +144,13 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                         </CardHeader>
                         <CardContent className="pb-4">
                             <p className="line-clamp-2 text-sm leading-relaxed text-[#a3a59a]">
-                                {project.description || "No description provided yet."}
+                                {project.description || `${project.scene_count ? `${project.scene_count} scene${project.scene_count === 1 ? "" : "s"}` : "Empty so far"}. Open it to ${project.shot_count ? "keep building" : "add your first scene"}.`}
                             </p>
                         </CardContent>
-                        <CardFooter className="flex flex-wrap items-center gap-2.5 text-[11px] text-[#8f9086]">
-                            <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-white/[0.03] px-2.5 py-1">
-                                <Layers className="h-3.5 w-3.5" />
-                                Scenes {project.scene_count ?? 0}
-                            </span>
-                            <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-white/[0.03] px-2.5 py-1">
-                                <Film className="h-3.5 w-3.5" />
-                                Shots {project.shot_count ?? 0}
-                            </span>
-                            <span className="inline-flex items-center gap-1">
-                                <Clock4 className="h-3.5 w-3.5" />
-                                Updated {(() => {
-                                    const timestamp = project.updated_at || project.created_at;
-                                    return timestamp ? new Date(timestamp).toLocaleDateString() : "Unknown";
-                                })()}
-                            </span>
+                        <CardFooter className="flex items-center gap-1.5 text-[12px] text-[#a3aab4]">
+                            <Layers className="h-3.5 w-3.5 text-gold-300/70" />
+                            {project.scene_count ?? 0} scene{project.scene_count === 1 ? "" : "s"} · {project.shot_count ?? 0} shot{project.shot_count === 1 ? "" : "s"}
+                            <span className="ml-auto inline-flex items-center gap-1"><Clock4 className="h-3.5 w-3.5" />{new Date(project.updated_at || project.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span>
                         </CardFooter>
                     </Card>
                 </Link>
@@ -180,6 +163,26 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                     See all {projects.length} projects <ArrowUpRight className="size-4" />
                 </Link>
             ) : null}
+        </div>
+    )
+}
+
+const POSTER_TONES = [
+    ["#3a2a14", "#d9c08a"], ["#13252a", "#8fd3d0"], ["#2a1424", "#e3a1c4"],
+    ["#1a1f33", "#a9b8ff"], ["#2b1d12", "#f0a96b"], ["#14261a", "#9fd9a8"],
+] as const
+
+/** A project without footage gets its own poster: a tinted gradient keyed to the project and its initials. */
+function ProjectPoster({ name, seed }: { name: string; seed: string }) {
+    const hash = [...seed].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7)
+    const [deep, glow] = POSTER_TONES[hash % POSTER_TONES.length]
+    const initials = name.trim().split(/\s+/).slice(0, 2).map((word) => word[0]?.toUpperCase() ?? "").join("") || "V"
+    return (
+        <div
+            className="absolute inset-0 grid place-items-center transition-transform duration-[1400ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
+            style={{ background: `radial-gradient(70% 90% at ${20 + (hash % 60)}% 10%, ${glow}33, transparent 60%), radial-gradient(60% 80% at 90% 100%, ${glow}1f, transparent 70%), linear-gradient(160deg, ${deep}, #0b0c0b 75%)` }}
+        >
+            <span className="lux-serif select-none text-[64px] leading-none tracking-tight opacity-80" style={{ color: glow, textShadow: `0 0 40px ${glow}55` }}>{initials}</span>
         </div>
     )
 }
