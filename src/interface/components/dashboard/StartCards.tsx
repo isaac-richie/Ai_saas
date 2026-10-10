@@ -1,4 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import Image from 'next/image';
+import { CardClip } from './CardClip';
 import Link from 'next/link';
 import { ArrowRight, Clapperboard, Images, Sparkles } from 'lucide-react';
 
@@ -9,6 +12,7 @@ const STARTS = [
     body: 'Type an idea, get a cinematic clip in minutes.',
     cta: 'Start creating',
     image: '/presets/style_cyberpunk_neon.jpg',
+    clip: '/home/quick.mp4',
     icon: Sparkles,
     featured: true,
   },
@@ -18,6 +22,7 @@ const STARTS = [
     body: 'Plan a few shots that tell one story.',
     cta: 'Plan a film',
     image: '/studio-plate-2.webp',
+    clip: '/home/film.mp4',
     icon: Clapperboard,
   },
   {
@@ -26,15 +31,19 @@ const STARTS = [
     body: "Watch, download and share what you've made.",
     cta: 'Open my videos',
     image: '/presets/style_golden_hour_film.jpg',
+    clip: '/home/videos.mp4',
     icon: Images,
   },
 ];
+
+/** A card plays its clip only once the file has been generated (film/gen/40-home-cards.mjs). */
+const hasClip = (clip: string) => fs.existsSync(path.join(process.cwd(), 'public', clip));
 
 /** Home's first question: what do you want to make? Three big, plain starting points. */
 export function StartCards() {
   return (
     <section aria-label="Start something" className="grid gap-3 md:grid-cols-[1.35fr_1fr_1fr] md:gap-4">
-      {STARTS.map(({ href, title, body, cta, image, icon: Icon, featured }) => (
+      {STARTS.map(({ href, title, body, cta, image, clip, icon: Icon, featured }) => (
         <Link
           key={title}
           href={href}
@@ -44,7 +53,11 @@ export function StartCards() {
               : 'min-h-[132px] border-gold-400/[0.14] hover:border-gold-400/40 md:min-h-[300px]'
           }`}
         >
-          <Image src={image} alt="" fill sizes="(max-width: 768px) 100vw, 40vw" className="-z-20 object-cover transition-transform duration-[1.4s] ease-out group-hover:scale-105" />
+          {hasClip(clip) ? (
+            <CardClip src={clip} poster={image} />
+          ) : (
+            <Image src={image} alt="" fill sizes="(max-width: 768px) 100vw, 40vw" className="-z-20 object-cover transition-transform duration-[1.4s] ease-out group-hover:scale-105" />
+          )}
           <span className="absolute inset-0 -z-10 bg-gradient-to-t from-[#070807] via-[#070807]/75 to-[#070807]/20" />
           <span className="mt-auto flex w-full flex-wrap items-end justify-between gap-4 p-5 md:p-6">
             <span className="min-w-0 flex-1 basis-[210px]">
