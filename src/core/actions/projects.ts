@@ -98,7 +98,15 @@ export async function deleteProject(id: string) {
     if (!user) return { error: "Please sign in." };
     if (!/^[0-9a-f-]{36}$/i.test(id)) return { error: "Unknown project." };
     const { error, count } = await supabase.from("projects").delete({ count: "exact" }).eq("id", id).eq("user_id", user.id);
-    if (error) return { error: "Couldn't delete that project. Please try again." };
+    if (error) {
+        console.error("deleteProject failed", { id, code: error.code, message: error.message, details: error.details, hint: error.hint });
+        // A foreign key that still points at this project (or its scenes/shots) blocks the delete.
+        if (error.code === "23503") {
+            const table = /on table "([^"]+)"/.exec(`${error.message} ${error.details ?? ""}`)?.[1];
+            return { error: `Couldn't delete: this project is still linked to ${table ? `"${table}"` : "other saved work"}. (code 23503)` };
+        }
+        return { error: `Couldn't delete that project: ${error.message} (code ${error.code ?? "unknown"})` };
+    }
     if (!count) return { error: "That project no longer exists." };
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/projects");
