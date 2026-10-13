@@ -339,6 +339,9 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
           </div>
           <div className="cinema-footer-bottom">
             <span>© {new Date().getFullYear()} Visiowave Studios</span>
+            <span>
+              <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link>
+            </span>
             <span>IMAGINE. DIRECT. CREATE.</span>
           </div>
         </footer>
