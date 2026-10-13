@@ -5,7 +5,7 @@ import { color, font } from "../theme"
 
 /**
  * Director's cut (~45s). The Seedance shots edited in the "Every Frame" manner: each world named by
- * the prompt that made it, titles on the musical beats, cuts on the score. No rain street, no cyberpunk.
+ * the prompt that made it, titles on the musical beats, cuts on the score. No rain street, no cyberpunk, no comic-book take-off.
  * Score: v3 take 1, spliced at 29.93s (music 49.04s) so its breath sits under his line and its swell is the logo.
  */
 const s = (seconds: number) => Math.round(seconds * 30)
@@ -14,18 +14,18 @@ const LOGO = 39.4
 export const FEATURE4 = s(45.5)
 
 type Shot = { clip: string; at: number; to: number; from: number; push?: [number, number]; x?: [number, number]; whipIn?: boolean; volume?: number }
-const STYLE = (12.2 + 0) // style section starts here; six stories share 12.2s → 29.93s
-const per = (SPLICE - STYLE) / 6
+const STYLE = 12.2 // style section starts here; five stories share 12.2s → 29.93s
+const per = (SPLICE - STYLE) / 5
 const SHOTS: Shot[] = [
   { clip: "sd01_studio", at: 0, to: 5, from: 0, push: [1.0, 1.04] },
   { clip: "sd02_desert", at: 5, to: 8.6, from: 0.5, push: [1.02, 1.08], x: [-10, 10] },
   { clip: "sd03_snow", at: 8.6, to: 12.2, from: 0.5, push: [1.08, 1.02] },
-  { clip: "sd06_origami", at: STYLE, to: STYLE + per, from: 2.0 },
-  { clip: "sd07_pixel", at: STYLE + per, to: STYLE + per * 2, from: 1.6 },
+  // Each style clip is 5 s long; the start points keep every 3.5 s window inside it.
+  { clip: "sd06_origami", at: STYLE, to: STYLE + per, from: 1.4 },
+  { clip: "sd07_pixel", at: STYLE + per, to: STYLE + per * 2, from: 1.3 },
   { clip: "sd08_clay", at: STYLE + per * 2, to: STYLE + per * 3, from: 0.6 },
   { clip: "sd09_ink", at: STYLE + per * 3, to: STYLE + per * 4, from: 0.6 },
-  { clip: "sd10_comic", at: STYLE + per * 4, to: STYLE + per * 5, from: 1.0 },
-  { clip: "sd11_bbq", at: STYLE + per * 5, to: SPLICE, from: 2.0 },
+  { clip: "sd11_bbq", at: STYLE + per * 4, to: SPLICE, from: 1.4 },
   { clip: "sd12_return", at: SPLICE, to: 34.0, from: 0.4, push: [1.04, 1.0], whipIn: true },
   { clip: "sd13_dialogue", at: 34.0, to: 38.2, from: 1.8, push: [1.0, 1.04], volume: 1.0 },
 ]
@@ -37,7 +37,6 @@ const PROMPTS: { text: string; shot: string }[] = [
   { text: "an 8-bit detective in a gothic library", shot: "sd07_pixel" },
   { text: "a claymation walk into a British pub", shot: "sd08_clay" },
   { text: "an ink-sketch music video", shot: "sd09_ink" },
-  { text: "a comic-book hero takes off", shot: "sd10_comic" },
   { text: "a Pixar-style family barbecue", shot: "sd11_bbq" },
 ]
 
