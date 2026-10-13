@@ -926,9 +926,20 @@
     font-size: 34px;
   }
   .cinema-play {
-    top: 16px;
-    right: 16px;
-    padding: 10px 14px;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+  }
+  .cinema-play svg {
+    width: 16px;
+    height: 16px;
+  }
+  .cinema-play span {
+    display: none;
   }
   .cinema-frame-label {
     display: none;
