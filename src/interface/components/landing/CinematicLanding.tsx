@@ -7,8 +7,8 @@ import { MotionConfig } from 'framer-motion';
 import {
   ArrowDown,
   ArrowUpRight,
-  Play,
-  Pause,
+  Volume2,
+  VolumeX,
   Menu,
   X,
   Aperture,
@@ -21,6 +21,8 @@ import { AnimatedBrandMark } from '@/interface/components/branding/AnimatedBrand
 export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const reducedChecked = useRef(false);
   const video = useRef<HTMLVideoElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const destination = isAuthenticated ? '/dashboard/fast-video' : '/signup';
@@ -65,6 +67,12 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
         setPlaying(false);
       }
     } else video.current.pause();
+  }
+
+  function toggleSound() {
+    if (!video.current) return;
+    video.current.muted = !video.current.muted;
+    if (!video.current.muted && video.current.paused) void video.current.play().catch(() => null);
   }
 
   return (
@@ -154,13 +162,21 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <video
                 ref={video}
                 poster="/landing-poster.webp?v=20260912"
-                preload="metadata"
-                // Before it plays there are no controls, so a tap anywhere on the film starts it.
-                onClick={() => { if (!playing) void toggleFilm() }}
-                style={{ cursor: playing ? undefined : "pointer" }}
+                preload="auto"
+                // Starts on its own (browsers only allow that muted); native controls let anyone
+                // unmute, pause, scrub, rewind or go fullscreen. Reduced-motion visitors start paused.
+                autoPlay
+                muted
                 playsInline
                 loop
-                controls={playing}
+                controls
+                onClick={() => { if (!playing) void toggleFilm() }}
+                onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
+                onCanPlay={(event) => {
+                  // Reduced-motion visitors get the poster; the film waits for them to press play.
+                  if (!reducedChecked.current && window.matchMedia('(prefers-reduced-motion: reduce)').matches) event.currentTarget.pause();
+                  reducedChecked.current = true;
+                }}
                 onPlay={() => setPlaying(true)}
                 onPause={() => setPlaying(false)}
                 onEnded={() => setPlaying(false)}
@@ -181,11 +197,12 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               )}
               <button
                 className="cinema-play"
-                onClick={toggleFilm}
-                aria-label={playing ? 'Pause showcase' : 'Play showcase'}
+                onClick={toggleSound}
+                aria-label={muted ? 'Turn the film sound on' : 'Mute the film'}
+                aria-pressed={!muted}
               >
-                {playing ? <Pause size={20} /> : <Play size={20} />}
-                <span>{playing ? 'Pause film' : 'Play the film'}</span>
+                {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                <span>{muted ? 'Turn sound on' : 'Sound on'}</span>
               </button>
               <span className="cinema-frame-label">01 / AFTER HOURS</span>
             </div>
