@@ -46,12 +46,8 @@ export default async function DashboardPage() {
           <ProjectList projects={projects} limit={6} />
         </section>
       ) : null}
-      <section className="workspace-guide">
-        <div>
-          <span className="workspace-eyebrow">NEW HERE?</span>
-          <h2>Take the 30-second tour.</h2>
-          <p>See where to create, where your longer films live, and where your videos land.</p>
-        </div>
+      <section className="workspace-guide workspace-guide--slim">
+        <p><span className="text-[#ece6d6]">New here?</span> A 30-second tour shows where to create and where your videos land.</p>
         <StartTourButton />
       </section>
     </div>

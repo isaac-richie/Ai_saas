@@ -100,23 +100,6 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 </nav>
 
                 <div className="px-2">
-                    {isOpen ? (
-                        <Link
-                            href="/dashboard/fast-video"
-                            onClick={() => setIsOpen(false)}
-                            className="workspace-sidebar-card lux-sheen group block"
-                        >
-                            <span className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-gold-300/80">
-                                <span className="lux-live-dot" /> Ready when you are
-                            </span>
-                            <span className="mt-2 block text-[13px] text-[#eeeae1]">
-                                Make something <span className="lux-serif text-gold-300">new</span>
-                            </span>
-                            <span className="mt-1 block text-[11.5px] text-[#B0B8C4] transition-colors group-hover:text-gold-200/80">
-                                Describe an idea, get a video →
-                            </span>
-                        </Link>
-                    ) : null}
                     <Button
                         variant="ghost"
                         className={cn(

@@ -68,7 +68,7 @@ import {
 import { buildMediaFilename } from "@/lib/download-filename"
 import { saveFastVideoClipToGallery } from "@/core/actions/fast-video"
 import { TakesPanel, type TakeItem } from "./TakesPanel"
-import { ContinuityPanel, CONTINUITY_LOCKS, EMPTY_CONTINUITY_SOURCES, buildContinuityClauseFromState, continuityValuesForStorage, lockedRoleOwners, type ContinuitySources } from "./ContinuityPanel"
+import { ContinuityPanel, EMPTY_CONTINUITY_SOURCES, buildContinuityClauseFromState, continuityValuesForStorage, lockedRoleOwners, type ContinuitySources } from "./ContinuityPanel"
 import { StoryboardPanel } from "./StoryboardPanel"
 import { useContinuitySync } from "@/interface/hooks/useContinuitySync"
 import { ShotPreviewTimeline } from "./ShotPreviewTimeline"
@@ -258,16 +258,6 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(),
     buildGenerationReferences(),
   ), [continuityClause, buildGenerationReferences, subject])
-
-  const activeStyle = useMemo(
-    () => STYLE_PRESETS.find((preset) => preset.id === stylePresetId) || null,
-    [stylePresetId]
-  )
-
-  const activeMotion = useMemo(
-    () => MOTION_PRESETS.find((preset) => preset.id === motionPresetId) || null,
-    [motionPresetId]
-  )
 
   const filteredStyles = useMemo(() => {
     const q = styleSearch.trim().toLowerCase()
@@ -2317,11 +2307,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       {activeTab === "builder" ? (
     <div className="workspace-builder-grid">
       <Card className={setupCardClass}>
-        <CardHeader className="hidden px-5 pt-5 pb-2 md:block">
-          <CardTitle className="text-2xl font-light tracking-[-0.03em]">Describe your <span className="lux-serif text-gold-300">video</span></CardTitle>
-          <p className="mt-1 text-sm text-[#B0B8C4]">One or two sentences is plenty: who, where, and what happens.</p>
-        </CardHeader>
-        <CardContent className="space-y-5 px-5 pb-5">
+        <CardContent className="space-y-5 px-4 pb-5 pt-0 sm:px-5">
           <div className={sectionClass}>
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
@@ -3283,32 +3269,6 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             ) : null}
           </CardContent>
         </Card>
-
-        {/* Direction Stack — inline summary bar */}
-        <div className="hidden rounded-2xl border border-white/[0.06] bg-obsidian-950/60 p-4 backdrop-blur-sm lg:block">
-          <div className="flex items-center gap-2 mb-3">
-            <WandSparkles className="h-4 w-4 text-gold-300/70" />
-            <span className="text-xs font-medium text-white/60 uppercase tracking-[0.12em]">Active Direction</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-lg border border-gold-400/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Style</span> {activeStyle?.name || (stylePresetId ? "Custom" : "None")}
-            </span>
-            <span className="rounded-lg border border-gold-400/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Motion</span> {activeMotion?.name || (motionPresetId ? "Custom" : "None")}
-            </span>
-            <span className="rounded-lg border border-gold-400/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Model</span> {activeModelFamily.label}
-            </span>
-            <span className="rounded-lg border border-gold-400/10 bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Continuity</span>{" "}
-              {continuityEnabled
-                ? `${CONTINUITY_LOCKS.filter((item) => continuityLocks[item.key]).length} lock(s)`
-                : "Off"}
-            </span>
-          </div>
-        </div>
-
 
       </div>
     </div>

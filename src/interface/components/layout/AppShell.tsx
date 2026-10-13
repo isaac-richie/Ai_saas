@@ -34,19 +34,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
     }, [])
 
-    const toggleMotion = () => {
-        setMotionReduced((prev) => {
-            const next = !prev
-            try {
-                window.localStorage.setItem(REDUCE_MOTION_STORAGE_KEY, next ? "1" : "0")
-            } catch {
-                // no-op
-            }
-            document.documentElement.classList.toggle("motion-reduce-user", next)
-            return next
-        })
-    }
-
     useEffect(() => {
         let active = true
         let revert: (() => void) | undefined
@@ -168,10 +155,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.div
                             key={pathname}
-                            initial={motionReduced ? false : { opacity: 0, y: 14, filter: "blur(8px)" }}
-                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
-                            exit={motionReduced ? { opacity: 1 } : { opacity: 0, y: -8, filter: "blur(5px)" }}
-                            transition={{ duration: motionReduced ? 0 : 0.45, ease: [0.22, 1, 0.36, 1] }}
+                            initial={motionReduced ? false : { opacity: 0, y: 8 }}
+                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                            exit={motionReduced ? { opacity: 1 } : { opacity: 0, y: -4 }}
+                            transition={{ duration: motionReduced ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
                         >
                             {children}
                         </motion.div>
@@ -206,17 +193,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
                 <Header
                     toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                    motionReduced={motionReduced}
-                    onToggleMotion={toggleMotion}
                 />
                 <main id="main-content" ref={mainRef} className="flex-1 overflow-x-clip px-4 pb-32 pt-5 md:px-8 md:pb-10 md:pt-6 lg:px-10">
                     <AnimatePresence mode="wait" initial={false}>
                         <motion.div
                             key={pathname}
-                            initial={motionReduced ? false : { opacity: 0, y: 14, filter: "blur(8px)" }}
-                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)", transitionEnd: { filter: "none" } }}
-                            exit={motionReduced ? { opacity: 1 } : { opacity: 0, y: -8, filter: "blur(5px)" }}
-                            transition={{ duration: motionReduced ? 0 : 0.45, ease: [0.22, 1, 0.36, 1] }}
+                            initial={motionReduced ? false : { opacity: 0, y: 8 }}
+                            animate={motionReduced ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                            exit={motionReduced ? { opacity: 1 } : { opacity: 0, y: -4 }}
+                            transition={{ duration: motionReduced ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
                         >
                             {children}
                         </motion.div>
