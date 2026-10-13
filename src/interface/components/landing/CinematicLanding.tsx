@@ -125,7 +125,10 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <br />
               <em>In motion.</em>
               <span className="cinema-title-star" aria-hidden="true">
-                ✳
+                {/* Drawn, not the ✳ character: Safari and iOS render that as a green emoji. */}
+                <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round">
+                  <path d="M12 2.5v19M2.5 12h19M5.3 5.3l13.4 13.4M18.7 5.3 5.3 18.7" />
+                </svg>
               </span>
             </h1>
             <div className="cinema-hero-bottom">
@@ -151,7 +154,10 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <video
                 ref={video}
                 poster="/landing-poster.webp?v=20260912"
-                preload="none"
+                preload="metadata"
+                // Before it plays there are no controls, so a tap anywhere on the film starts it.
+                onClick={() => { if (!playing) void toggleFilm() }}
+                style={{ cursor: playing ? undefined : "pointer" }}
                 playsInline
                 loop
                 controls={playing}
