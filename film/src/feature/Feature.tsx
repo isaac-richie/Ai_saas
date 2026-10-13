@@ -14,24 +14,22 @@ export const FEATURE = s(39)
 type Shot = { clip: string; at: number; to: number; from: number; push?: [number, number]; x?: [number, number]; rate?: number }
 
 // Times are seconds on the score; `from` is where in the 5s clip to start.
-// Every clip appears once: no underwater ballroom, no neon rooftop, no rainy street, no repeated montage.
+// Every clip appears once: no underwater ballroom, no neon rooftop, no rainy street, no computer or keyboard shots, no repeats.
 const SHOTS: Shot[] = [
-  { clip: "k01_eye", at: 0, to: 2.6, from: 0.6, push: [1.12, 1.0], rate: 0.6 },
-  { clip: "k02_studio", at: 2.6, to: 5.3, from: 0.4, push: [1.0, 1.08] },
-  { clip: "k03_hands", at: 5.3, to: 7.7, from: 0.8, push: [1.05, 1.12] },
-  // Two worlds, six seconds each (slowed slightly), each named by the prompt that made it.
-  { clip: "k05_desert", at: 7.7, to: 13.7, from: 0, push: [1.0, 1.08], x: [20, -20], rate: 0.82 },
-  { clip: "k08_snow", at: 13.7, to: 19.7, from: 0, push: [1.12, 1.02], rate: 0.82 },
+  { clip: "k01_eye", at: 0, to: 4, from: 0.6, push: [1.12, 1.0], rate: 0.6 },
+  // Two worlds, each named by the prompt that made it (slowed to hold 7.5 s).
+  { clip: "k05_desert", at: 4, to: 11.5, from: 0, push: [1.0, 1.1], x: [24, -24], rate: 0.66 },
+  { clip: "k08_snow", at: 11.5, to: 19, from: 0, push: [1.14, 1.02], rate: 0.66 },
   // Her close-up holds through the build, then the breakdown goes to black.
-  { clip: "k09_desert_close", at: 19.7, to: 24.5, from: 0.1, push: [1.0, 1.1] },
+  { clip: "k09_desert_close", at: 19, to: 24.5, from: 0, push: [1.0, 1.1], rate: 0.9 },
   // Climax: back in the studio, slowed to carry the swell to the logo.
   { clip: "k10_return", at: 26.9, to: 35.35, from: 0, push: [1.02, 1.14], rate: 0.59 },
 ]
 
 /** The sentence that "made" each world, typed like a prompt. */
 const PROMPTS: { text: string; at: number; to: number }[] = [
-  { text: "a dune at golden hour, wind in her coat", at: 7.8, to: 13.6 },
-  { text: "alone in a field of snow", at: 13.8, to: 19.6 },
+  { text: "a dune at golden hour, wind in her coat", at: 4.1, to: 11.4 },
+  { text: "alone in a field of snow", at: 11.6, to: 18.9 },
 ]
 
 /** Keyframes not yet animated (out of credits): shown as living stills. Delete a name once its .mp4 exists. */
@@ -161,7 +159,7 @@ export const Feature: React.FC = () => {
       </Sequence>
 
       {/* Hits: exposure kicks on the big cuts, light leaks on world changes. */}
-      <AbsoluteFill style={{ backgroundColor: "#fff2d8", mixBlendMode: "screen", opacity: Math.max(flash(5.3), flash(26.9), flash(35.35)) }} />
+      <AbsoluteFill style={{ backgroundColor: "#fff2d8", mixBlendMode: "screen", opacity: Math.max(flash(4), flash(26.9), flash(35.35)) }} />
       {[7.7, 11.7, 15.7, 19.7].map((t) => <LightLeak key={t} start={s(t) - 6} duration={14} />)}
       <Grade />
       <Vignette strength={0.55} />
