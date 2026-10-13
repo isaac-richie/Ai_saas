@@ -1,6 +1,8 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { useForm, useWatch, Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -26,11 +28,16 @@ import { Checkbox } from "@/interface/components/ui/checkbox"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/interface/components/ui/card"
 import { assemblePrompt, PROMPT_ORDER, PromptCategory, PromptPreset } from "@/core/utils/prompts/builder"
 import { createShot } from "@/core/actions/shots"
+import { generateShot } from "@/core/actions/generation"
 import { attachElementToShot } from "@/core/actions/elements"
 import { createPreset, deletePreset, getPresets } from "@/core/actions/presets"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
-import { Loader2, Plus, Sparkles, Layers, Copy } from "lucide-react"
+import { LookBuilder } from "@/interface/components/shots/LookBuilder"
+import { Loader2, Plus, Sparkles, Copy, Check, Wand2, Clapperboard, X, ChevronDown } from "lucide-react"
+import { ShotFlowPanel, type FlowSequence, type FlowShot } from "@/interface/components/shots/ShotFlowPanel"
+import { StyleSwatch } from "@/interface/components/fast-video/preset-visuals"
 import { toast } from "sonner"
+import { FAST_TRACK_HANDOFF_KEY } from "@/core/config/handoff"
 
 const numericOptionalZod = z.coerce.number().optional()
 
@@ -95,12 +102,19 @@ interface ShotBuilderProps {
     projectId: string
     sceneId: string
     onShotCreated?: () => void
+    /** Shots in this scene; the newest one drives the guided Choose / Animate / Continue panel. */
+    shots?: FlowShot[]
+    sequences?: FlowSequence[]
 }
 
 type AvailableElement = {
     id: string
     name: string
+    type?: string | null
+    description?: string | null
 }
+
+type Continuation = { imageUrl: string; shotName: string; shotId: string }
 
 type PresetOption = {
     id: string
@@ -125,6 +139,12 @@ const CATEGORY_LABELS: Record<PromptCategory, string> = {
     depthOfField: "Depth of Field",
     aspectRatio: "Aspect Ratio",
     genreMood: "Genre / Mood",
+}
+
+/** Example stills for quick styles that match a Fast Track style image. */
+const QUICK_STYLE_PREVIEWS: Record<string, string> = {
+    noir: "style_classic_noir_bw",
+    "golden-hour": "style_golden_hour_film",
 }
 
 const QUICK_STYLE_PRESETS: Array<{
@@ -171,16 +191,26 @@ const QUICK_STYLE_PRESETS: Array<{
         }
     }
 
-export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderProps) {
+export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], sequences = [] }: ShotBuilderProps) {
     const [isSaving, setIsSaving] = useState(false)
+    const [isGenerating, setIsGenerating] = useState(false)
+    const router = useRouter()
+    const previewRef = useRef<HTMLDivElement>(null)
+    const composerRef = useRef<HTMLDivElement>(null)
+    const [activeShotId, setActiveShotId] = useState<string | null>(null)
+    const [continuation, setContinuation] = useState<Continuation | null>(null)
+    const [enhanceUndo, setEnhanceUndo] = useState<string | null>(null)
+    const [isEnhancing, setIsEnhancing] = useState(false)
+    // The shot being worked on: the one just created here, otherwise the newest in the scene.
+    const activeShot = (activeShotId ? shots.find((shot) => shot.id === activeShotId) : undefined) ?? (activeShotId ? undefined : shots[shots.length - 1])
     const [availableElements, setAvailableElements] = useState<AvailableElement[]>([])
     const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set())
     const [isMounted, setIsMounted] = useState(false)
+    const [appliedQuickStyle, setAppliedQuickStyle] = useState<string | null>(null)
     const [presets, setPresets] = useState<ShotPreset[]>([])
     const [isLoadingPresets, setIsLoadingPresets] = useState(true)
     const [isSavingPreset, setIsSavingPreset] = useState(false)
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
-    const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false)
     const [newPresetName, setNewPresetName] = useState("")
     const [newPresetDescription, setNewPresetDescription] = useState("")
     const [presetOptions, setPresetOptions] = useState<PresetMap | null>(null)
@@ -255,13 +285,9 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             providerSlug: "auto",
             quality: "standard",
             seedLocked: true,
-            variations: 1,
+            variations: 2,
         },
     })
-
-    const handleOptionalSelect = (value: string, onChange: (value: string | undefined) => void) => {
-        onChange(value === "__none__" ? undefined : value)
-    }
 
     const applyQuickStyle = (styleId: string) => {
         if (!presetOptions) {
@@ -289,6 +315,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
     }
 
     const clearAllFields = () => {
+        setAppliedQuickStyle(null)
         const resetValues: ShotFormValues = {
             subject: "",
             shot: undefined,
@@ -310,7 +337,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             seedLocked: true,
             cfgScale: undefined,
             steps: undefined,
-            variations: 1,
+            variations: 2,
         }
         form.reset(resetValues)
         setSelectedElementIds(new Set())
@@ -420,16 +447,23 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         form.setValue("subject", promptOverride || packet.masterPrompt)
         form.setValue("negativePrompt", packet.negativePrompt)
 
-        if (providerTarget === "openai" || providerTarget === "kie") {
-            form.setValue("providerSlug", providerTarget)
-        } else {
-            form.setValue("providerSlug", "auto")
-        }
+        // The director's writing model is not the image model: keep Auto unless Kie was chosen,
+        // so attached references are never silently dropped.
+        form.setValue("providerSlug", providerTarget === "kie" ? "kie" : "auto")
 
-        toast.success("Assistant Director prompt applied to builder")
+        toast.success("Assistant Director prompt applied", {
+            description: "Nothing is generated yet. Press Generate image when ready.",
+            action: { label: "Generate image", onClick: () => void handleAddAndGenerate() },
+        })
+        requestAnimationFrame(() => composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))
     }
 
     async function onSubmit(data: ShotFormValues) {
+        await saveShot(data)
+    }
+
+    /** Creates the shot from the current builder state; returns its id on success. */
+    async function saveShot(data: ShotFormValues): Promise<string | null> {
         setIsSaving(true)
 
         const shotLabel = selections.shot?.label || "Shot"
@@ -451,6 +485,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
             cfg_scale: data.cfgScale !== undefined ? Number(data.cfgScale) : undefined,
             steps: data.steps !== undefined ? Number(data.steps) : undefined,
             variations: data.variations !== undefined ? Number(data.variations) : undefined,
+            // A continued shot starts from the previous shot's approved image.
+            ...(continuation ? { continuity_image_url: continuation.imageUrl, previous_shot_id: continuation.shotId } : {}),
         }
 
         const formData = new FormData()
@@ -476,28 +512,98 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
         if (res.error) {
             toast.error(`Error creating shot: ${res.error}`)
         } else {
-            toast.success("Shot created successfully!")
+            toast.success("Shot added to your shot list")
             // Keep the current prompt/choices until user manually clears or refreshes.
             form.setValue("subject", data.subject)
             setSelectedElementIds(new Set())
             onShotCreated?.()
         }
+        if (!res.error && res.data?.id) setActiveShotId(res.data.id)
+        return res.error ? null : res.data?.id ?? null
+    }
+
+    // One step from a finished prompt to a generated shot.
+    const handleAddAndGenerate = form.handleSubmit(async (data) => {
+        const shotId = await saveShot(data)
+        if (!shotId) return
+        setIsGenerating(true)
+        toast.loading("Generating your shot…", { id: "shot-generate" })
+        try {
+            const res = await generateShot(shotId)
+            if (res.error) toast.error(res.error, { id: "shot-generate" })
+            else {
+                toast.success("Your images are ready. Choose one below.", { id: "shot-generate" })
+                setContinuation(null)
+                setEnhanceUndo(null)
+            }
+        } catch {
+            toast.error("Generation failed. Try Generate on the shot card.", { id: "shot-generate" })
+        } finally {
+            setIsGenerating(false)
+            router.refresh()
+        }
+    }, () => toast.error("Describe what you want to see first."))
+
+    // Optional helper: turns a short idea into a fuller prompt, with Undo.
+    const handleEnhance = async () => {
+        const current = (form.getValues("subject") || "").trim()
+        if (current.length < 2) { toast.error("Write a short idea first."); return }
+        setIsEnhancing(true)
+        try {
+            const references = availableElements.filter((el) => selectedElementIds.has(el.id)).map((el) => ({ role: el.type || "reference", name: el.name.slice(0, 180), guidance: el.description?.slice(0, 240) || undefined }))
+            const response = await fetch("/api/storyboard/enhance-direction", {
+                method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(45_000),
+                body: JSON.stringify({ direction: current.slice(0, 1200), references, startsFromPreviousShot: Boolean(continuation) }),
+            })
+            const body = await response.json().catch(() => ({}))
+            if (!response.ok || typeof body.prompt !== "string") throw new Error(body.error || "Couldn't enhance right now")
+            setEnhanceUndo(current)
+            form.setValue("subject", body.prompt, { shouldDirty: true })
+            toast.success("AI-enhanced prompt ready", { description: "Nothing is generated until you press Generate image.", action: { label: "Undo", onClick: () => { form.setValue("subject", current); setEnhanceUndo(null) } } })
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Couldn't enhance right now")
+        } finally {
+            setIsEnhancing(false)
+        }
+    }
+
+    const startContinuation = ({ imageUrl, shotName }: { imageUrl: string; shotName: string }) => {
+        if (!activeShot) return
+        setContinuation({ imageUrl, shotName, shotId: activeShot.id })
+        setActiveShotId(null)
+        form.setValue("subject", "")
+        setEnhanceUndo(null)
+        requestAnimationFrame(() => {
+            composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+            composerRef.current?.querySelector("textarea")?.focus()
+        })
+    }
+
+    const selectedElementNames = availableElements.filter((el) => selectedElementIds.has(el.id)).map((el) => el.name)
+
+    const handleSendToFastTrack = () => {
+        const prompt = (form.getValues("subject") || "").trim() || promptPreview.trim()
+        if (!prompt) { toast.error("Build a prompt first."); return }
+        try { sessionStorage.setItem(FAST_TRACK_HANDOFF_KEY, prompt.slice(0, 4000)) } catch { /* storage blocked: Fast Track opens empty */ }
+        router.push("/dashboard/fast-video")
     }
 
     if (!isMounted) {
         return (
             <div className="flex flex-col gap-5 min-w-0">
-                <div className="min-h-[400px] rounded-2xl border border-white/10 bg-[#0b0b0d] animate-pulse" />
-                <div className="min-h-[150px] rounded-2xl border border-white/10 bg-[#0b0b0d] animate-pulse" />
+                <div className="min-h-[400px] rounded-2xl border border-gold-400/[0.12] lux-shimmer" />
+                <div className="min-h-[150px] rounded-2xl border border-gold-400/[0.12] lux-shimmer" />
             </div>
         )
     }
 
     return (
         <div className="flex flex-col gap-6 min-w-0 2xl:gap-8">
-            <Card className="studio-card rounded-2xl text-white">
+            <Card ref={composerRef} className="studio-card scroll-mt-24 rounded-2xl text-white">
                 <CardHeader className="pb-2">
-                    <CardTitle className="text-lg tracking-tight">Shot Attributes</CardTitle>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-gold-300/80">Shot {String(shots.length + 1).padStart(2, "0")}</p>
+                    <CardTitle className="font-serif text-xl tracking-tight text-[#f1ece0]">What do you want to see?</CardTitle>
+                    <p className="text-xs text-white/40">Describe it, generate images, choose one, then animate it or add it to your sequence.</p>
                 </CardHeader>
                 <CardContent className="pt-0">
                     <Form {...form}>
@@ -508,7 +614,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 render={({ field }) => (
                                     <FormItem>
                                         <div className="flex items-center justify-between">
-                                            <FormLabel className="text-white/80">Subject / Action</FormLabel>
+                                            <FormLabel className="sr-only">What do you want to see?</FormLabel>
+                                            <span className="text-[11px] text-white/40">{enhanceUndo ? "AI-enhanced. Edit freely." : "One or two sentences is plenty."}</span>
                                             <Button
                                                 type="button"
                                                 size="xs"
@@ -522,8 +629,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                         </div>
                                         <FormControl>
                                             <Textarea
-                                                placeholder="A lone astronaut on a red planet..."
-                                                className="studio-field resize-none rounded-xl text-white placeholder:text-white/35"
+                                                placeholder={continuation ? "What happens next? e.g. He raises the megaphone and shouts." : "e.g. A boy walks toward the camera as robotic pedestrians pass him."}
+                                                className="studio-field min-h-24 resize-none rounded-xl text-[13.5px] text-white placeholder:text-white/35"
                                                 {...field}
                                             />
                                         </FormControl>
@@ -532,6 +639,65 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 )}
                             />
 
+                            {continuation ? (
+                                <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-emerald-300/20 bg-emerald-400/[0.05] p-2.5 text-[12px]">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={continuation.imageUrl} alt="" className="h-10 w-16 rounded-md object-cover" />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="flex items-center gap-1.5 text-emerald-50"><Check className="h-3.5 w-3.5 text-emerald-300" />Continuing from {continuation.shotName}</p>
+                                        <p className="truncate text-[11px] text-white/50">{selectedElementNames.length ? `Continuing with ${selectedElementNames.join(" and ")}.` : "Starts from the approved image."}</p>
+                                    </div>
+                                    <button type="button" onClick={() => document.getElementById("project-references")?.scrollIntoView({ behavior: "smooth" })} className="rounded-full border border-white/10 px-2.5 py-0.5 text-[11px] text-white/70 hover:border-gold-300/40 hover:text-gold-50">Change references</button>
+                                    <button type="button" onClick={() => setContinuation(null)} className="rounded-full border border-white/10 px-2.5 py-0.5 text-[11px] text-white/70 hover:border-gold-300/40 hover:text-gold-50">Start new scene</button>
+                                </div>
+                            ) : null}
+
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="mr-0.5 text-[11px] text-white/40">Using</span>
+                                {availableElements.map((el) => {
+                                    const on = selectedElementIds.has(el.id)
+                                    return (
+                                        <button key={el.id} type="button" aria-pressed={on} onClick={() => toggleElement(el.id)}
+                                            className={`inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[11.5px] transition ${on ? "bg-emerald-400/15 text-emerald-50 ring-1 ring-emerald-300/30" : "border border-gold-400/[0.14] text-white/55 hover:text-white/90"}`}>
+                                            {on ? <Check className="h-3 w-3" /> : null}{el.name}
+                                        </button>
+                                    )
+                                })}
+                                <button type="button" onClick={() => document.getElementById("project-references")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                                    className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-gold-400/30 px-2.5 text-[11.5px] text-white/55 transition hover:border-gold-300/60 hover:text-gold-50">
+                                    <Plus className="h-3 w-3" />Add reference
+                                </button>
+                            </div>
+
+                            {selectedProvider === "openai" && (selectedElementIds.size > 0 || continuation) ? (
+                                <div role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-300/30 bg-amber-300/[0.06] px-3 py-2 text-[12px] text-amber-100">
+                                    <span className="min-w-0 flex-1">OpenAI images can&apos;t use your reference images, so the character and place may not match.</span>
+                                    <button type="button" onClick={() => form.setValue("providerSlug", "auto", { shouldDirty: true })} className="rounded-full bg-amber-200 px-3 py-0.5 text-[11.5px] font-semibold text-[#1a160e] hover:bg-amber-100">Switch to Auto</button>
+                                </div>
+                            ) : null}
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating} className="h-11 flex-1 px-6 text-[13px] font-semibold sm:flex-none">
+                                    {isSaving || isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                                    {isGenerating ? "Generating images…" : isSaving ? "Preparing…" : "Generate image"}
+                                </Button>
+                                <Button type="button" variant="studioSecondary" onClick={() => void handleEnhance()} disabled={isEnhancing || isSaving || isGenerating} className="h-11">
+                                    {isEnhancing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                    Enhance with AI
+                                </Button>
+                                {enhanceUndo ? (
+                                    <button type="button" onClick={() => { form.setValue("subject", enhanceUndo); setEnhanceUndo(null) }} className="text-[11.5px] text-white/50 underline-offset-2 hover:text-white/85 hover:underline">
+                                        Undo enhance
+                                    </button>
+                                ) : null}
+                            </div>
+
+                            <details className="group/more studio-subcard rounded-xl">
+                                <summary className="flex cursor-pointer select-none list-none items-center justify-between px-3 py-2.5 text-[12px] text-white/60 hover:text-white/85 [&::-webkit-details-marker]:hidden">
+                                    <span>More options <span className="text-white/35">· style, camera, look, quality</span></span>
+                                    <ChevronDown className="h-3.5 w-3.5 transition group-open/more:rotate-180" />
+                                </summary>
+                                <div className="space-y-3 border-t border-gold-400/[0.1] p-3">
                             <div className="studio-subcard space-y-2 rounded-xl p-3">
                                 <div className="flex items-center justify-between">
                                     <div className="text-xs uppercase tracking-[0.16em] text-white/50">Quick Styles</div>
@@ -545,81 +711,54 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                         Clear All
                                     </Button>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {QUICK_STYLE_PRESETS.map((style) => (
-                                        <button
-                                            key={style.id}
-                                            type="button"
-                                            onClick={() => applyQuickStyle(style.id)}
-                                            className="studio-chip rounded-full px-3 py-1.5 text-xs"
-                                        >
-                                            {style.name}
-                                        </button>
-                                    ))}
+                                <div className="grid grid-cols-3 gap-2">
+                                    {QUICK_STYLE_PRESETS.map((style) => {
+                                        const applied = appliedQuickStyle === style.id
+                                        const preview = QUICK_STYLE_PREVIEWS[style.id]
+                                        return (
+                                            <button
+                                                key={style.id}
+                                                type="button"
+                                                aria-pressed={applied}
+                                                data-active={applied}
+                                                onClick={() => { applyQuickStyle(style.id); setAppliedQuickStyle(style.id) }}
+                                                className={`preset-card group relative overflow-hidden rounded-xl border text-left transition-all duration-300 ${applied ? "border-gold-300/70 shadow-[0_14px_30px_-20px_rgba(217,192,138,0.8)]" : "border-gold-400/[0.14] hover:-translate-y-0.5 hover:border-gold-400/45"}`}
+                                            >
+                                                <span className="relative block h-16 overflow-hidden bg-obsidian-900">
+                                                    {preview ? <StyleSwatch id={preview} name={style.name} /> : (
+                                                        // Anamorphic is a lens format: a widescreen still with its signature streak flares.
+                                                        <Image src="/presets/style_anamorphic_flare.jpg" alt="Example of the Anamorphic look" fill sizes="220px" className="preset-image object-cover" />
+                                                    )}
+                                                    <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 to-transparent" />
+                                                    <span className="absolute bottom-1.5 left-2 flex items-center gap-1 text-[12px] font-medium text-white">{applied ? <Check className="h-3 w-3 text-gold-300" strokeWidth={3} /> : null}{style.name}</span>
+                                                </span>
+                                            </button>
+                                        )
+                                    })}
                                 </div>
                             </div>
 
                             {loadingOptions ? (
-                                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-white/50">
-                                    Loading presets...
+                                <div className="grid gap-2" aria-label="Loading presets">
+                                    <div className="lux-shimmer h-10 rounded-xl" />
+                                    <div className="lux-shimmer h-24 rounded-xl" />
                                 </div>
                             ) : (
-                                <div className="grid gap-3">
-                                    {PROMPT_ORDER.map((category) => (
-                                        <FormField
-                                            key={category}
-                                            control={form.control}
-                                            name={category}
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-white/80">{CATEGORY_LABELS[category]}</FormLabel>
-                                                    <Select
-                                                        onValueChange={(value) => handleOptionalSelect(value, field.onChange)}
-                                                        value={field.value ?? undefined}
-                                                    >
-                                                        <FormControl>
-                                                            <SelectTrigger className="studio-field rounded-xl text-white">
-                                                                <SelectValue placeholder={`Select ${CATEGORY_LABELS[category].toLowerCase()}`} />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent className="border-white/10 bg-[#111114] text-white">
-                                                            <SelectItem value="__none__">Clear</SelectItem>
-                                                            {(presetOptions?.[category] || []).map((option) => (
-                                                                <SelectItem key={option.id} value={option.key}>
-                                                                    {option.label}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </FormItem>
-                                            )}
-                                        />
-                                    ))}
-                                </div>
+                                <LookBuilder
+                                    options={presetOptions ?? {}}
+                                    values={Object.fromEntries(PROMPT_ORDER.map((category) => {
+                                        const raw = watchedValues[category as keyof ShotFormValues]
+                                        return [category, typeof raw === "string" ? raw : undefined]
+                                    }))}
+                                    labels={CATEGORY_LABELS}
+                                    onChange={(category, key) => {
+                                        form.setValue(category, key, { shouldDirty: true })
+                                        setAppliedQuickStyle(null)
+                                    }}
+                                />
                             )}
 
-                            {availableElements.length > 0 && (
-                                <div className="space-y-2 pt-2 border-t border-white/10">
-                                    <label className="text-sm font-medium text-white/80 flex items-center">
-                                        <Layers className="h-4 w-4 mr-2" /> Reference Elements
-                                    </label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {availableElements.map(el => (
-                                            <button
-                                                key={el.id}
-                                                type="button"
-                                                onClick={() => toggleElement(el.id)}
-                                                className={`px-3 py-1.5 text-xs rounded-full border transition ${selectedElementIds.has(el.id)
-                                                    ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300'
-                                                    : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'
-                                                    }`}
-                                            >
-                                                {el.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+
 
                             <details
                                 className="studio-subcard rounded-xl"
@@ -638,7 +777,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                     </div>
                                 </summary>
 
-                                <div className="space-y-3 border-t border-white/10 px-3 pb-3 pt-3">
+                                <div className="space-y-3 border-t border-gold-400/[0.12] px-3 pb-3 pt-3">
                                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:items-end">
                                         <FormField
                                             control={form.control}
@@ -655,7 +794,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                                                 <SelectValue placeholder="Auto" />
                                                             </SelectTrigger>
                                                         </FormControl>
-                                                        <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                        <SelectContent className="border-gold-400/[0.12] bg-obsidian-800 text-white">
                                                             <SelectItem value="auto">Auto</SelectItem>
                                                             <SelectItem value="openai">OpenAI</SelectItem>
                                                             <SelectItem value="kie">Kie.ai</SelectItem>
@@ -679,7 +818,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                                                 <SelectValue placeholder="standard" />
                                                             </SelectTrigger>
                                                         </FormControl>
-                                                        <SelectContent className="border-white/10 bg-[#111114] text-white">
+                                                        <SelectContent className="border-gold-400/[0.12] bg-obsidian-800 text-white">
                                                             <SelectItem value="standard">Standard</SelectItem>
                                                             <SelectItem value="hd">HD</SelectItem>
                                                             <SelectItem value="high">High</SelectItem>
@@ -843,25 +982,41 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                                 </div>
                             </details>
 
-                            <Button type="submit" variant="studio" disabled={isSaving} className="w-full">
-                                {isSaving ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Add Shot
-                                    </>
-                                )}
+                            <Button type="submit" variant="studioGhost" disabled={isSaving} className="h-9 w-full text-[12px]">
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                                Save as draft without generating
                             </Button>
+                                </div>
+                            </details>
                         </form>
                     </Form>
                 </CardContent>
             </Card>
 
-            <div className="space-y-5">
+            {activeShot && !continuation ? (
+                <ShotFlowPanel
+                    key={activeShot.id}
+                    shot={activeShot}
+                    shotNumber={Math.max(1, shots.findIndex((shot) => shot.id === activeShot.id) + 1)}
+                    projectId={projectId}
+                    sceneId={sceneId}
+                    sequences={sequences}
+                    referenceNames={selectedElementNames}
+                    generating={isGenerating && activeShot.id === activeShotId}
+                    onEdit={() => { composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); composerRef.current?.querySelector("textarea")?.focus() }}
+                    onContinue={startContinuation}
+                />
+            ) : null}
+
+            <details className="group/tools studio-card rounded-2xl text-white">
+                <summary className="flex cursor-pointer select-none list-none items-center justify-between px-5 py-4 [&::-webkit-details-marker]:hidden">
+                    <span>
+                        <span className="block text-sm font-medium uppercase tracking-wider text-white/55">Director tools</span>
+                        <span className="block text-xs text-white/40">Assistant Director variants, the full prompt, and saved looks.</span>
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-white/50 transition group-open/tools:rotate-180" />
+                </summary>
+            <div className="space-y-5 border-t border-gold-400/[0.1] p-4">
                 <StudioAdPanel
                     promptPreview={promptPreview}
                     onApplyPacket={handleApplyAdPacket}
@@ -879,122 +1034,88 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated }: ShotBuilderPr
                             size="xs"
                             variant="studioGhost"
                             onClick={() => copyToClipboard(promptPreview, "Full prompt")}
-                            className="h-7 gap-1.5 rounded-lg border border-white/5 bg-white/5 px-2.5 text-[11px] text-white/60 hover:bg-white/10 hover:text-white"
+                            className="h-7 gap-1.5 rounded-lg border border-white/5 bg-white/5 px-2.5 text-[11px] text-white/60 hover:bg-gold-400/[0.08] hover:text-white"
                         >
                             <Copy className="h-3.5 w-3.5" />
                             Copy Full Prompt
                         </Button>
                     </CardHeader>
                     <CardContent>
-                        <div className="studio-subcard max-h-56 overflow-y-auto rounded-xl p-4 font-mono text-sm leading-relaxed text-white/80">
+                        <div className="studio-subcard max-h-56 overflow-y-auto rounded-xl p-4 text-[13px] leading-relaxed text-white/80">
                             {promptPreview || <span className="italic text-white/45">Start building your shot...</span>}
                         </div>
                     </CardContent>
-                    <CardFooter>
-                        <p className="text-xs text-white/50">
-                            Descriptors are assembled in the exact order required for cinematic prompts.
+                    <CardFooter className="flex flex-col items-stretch gap-2">
+                        <div ref={previewRef} className="grid gap-2">
+
+                            <Button type="button" variant="studioSecondary" onClick={handleSendToFastTrack} disabled={!promptPreview.trim()} className="h-10">
+                                <Clapperboard className="mr-2 h-4 w-4" />
+                                Make a quick video instead
+                            </Button>
+                        </div>
+                        <p className="text-xs text-white/45">
+                            Prefer straight-to-video? Quick video turns this prompt into a clip without the image step.
                         </p>
                     </CardFooter>
                 </Card>
 
-                <details
-                    className="studio-card rounded-2xl text-white"
-                    open={isPresetManagerOpen}
-                    onToggle={(event) => setIsPresetManagerOpen(event.currentTarget.open)}
-                >
-                    <summary className="cursor-pointer list-none px-6 py-5">
-                        <div className="flex items-center justify-between gap-3">
-                            <CardTitle className="text-sm font-medium uppercase tracking-wider text-white/55">
-                                Shot Presets
-                            </CardTitle>
-                            <span className="text-[11px] uppercase tracking-[0.14em] text-white/45">
-                                {isPresetManagerOpen ? "Hide" : "Manage"}
-                            </span>
+                <Card className="studio-card rounded-2xl text-white">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium uppercase tracking-wider text-white/55">My looks</CardTitle>
+                        <p className="text-xs text-white/40">Save the current look and apply it to any shot in one tap.</p>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <div className="flex flex-wrap gap-1.5">
+                            {isLoadingPresets ? (
+                                <span className="h-8 w-40 rounded-full lux-shimmer" />
+                            ) : presets.length === 0 ? (
+                                <span className="text-xs text-white/40">No saved looks yet.</span>
+                            ) : (
+                                presets.map((preset) => (
+                                    <span key={preset.id} className="group/look inline-flex items-center rounded-full border border-gold-400/20 bg-white/[0.04] transition hover:border-gold-300/45">
+                                        <button
+                                            type="button"
+                                            onClick={() => applyPreset(preset)}
+                                            title={preset.description || `Apply ${preset.name}`}
+                                            className="h-8 max-w-[14rem] truncate pl-3 pr-1.5 text-xs text-white/85 hover:text-gold-50"
+                                        >
+                                            {preset.name}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeletePreset(preset.id)}
+                                            aria-label={`Delete ${preset.name}`}
+                                            className="grid size-7 place-items-center rounded-full text-white/30 transition hover:text-rose-200"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </span>
+                                ))
+                            )}
                         </div>
-                    </summary>
-                    <div className="space-y-3 border-t border-white/10 px-6 pb-5 pt-4">
-                        <div className="grid gap-2">
+                        <div className="flex gap-2">
                             <Input
                                 value={newPresetName}
                                 onChange={(e) => setNewPresetName(e.target.value)}
-                                placeholder="Preset name"
-                                className="studio-field rounded-xl text-white placeholder:text-white/35"
-                            />
-                            <Input
-                                value={newPresetDescription}
-                                onChange={(e) => setNewPresetDescription(e.target.value)}
-                                placeholder="Description (optional)"
-                                className="studio-field rounded-xl text-white placeholder:text-white/35"
+                                onKeyDown={(e) => { if (e.key === "Enter" && newPresetName.trim()) { e.preventDefault(); void handleSavePreset() } }}
+                                placeholder="Name this look, e.g. Moody night street"
+                                className="studio-field h-9 rounded-xl text-white placeholder:text-white/35"
                             />
                             <Button
                                 type="button"
                                 onClick={handleSavePreset}
                                 disabled={isSavingPreset || !newPresetName.trim()}
                                 variant="studioSecondary"
-                                className="w-full disabled:cursor-not-allowed disabled:opacity-60"
+                                className="h-9 shrink-0 rounded-xl"
                             >
-                                {isSavingPreset ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Save Current Preset
-                                    </>
-                                )}
+                                {isSavingPreset ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plus className="mr-1.5 h-4 w-4" />}
+                                Save look
                             </Button>
                         </div>
-
-                        <div className="space-y-2">
-                            {isLoadingPresets && (
-                                <div className="studio-subcard rounded-xl p-3 text-xs text-white/50">
-                                    Loading presets...
-                                </div>
-                            )}
-                            {!isLoadingPresets && presets.length === 0 && (
-                                <div className="studio-subcard rounded-xl p-3 text-xs text-white/50">
-                                    No presets yet. Save your first setup.
-                                </div>
-                            )}
-                            {presets.map((preset) => (
-                                <div
-                                    key={preset.id}
-                                    className="studio-subcard flex items-center justify-between gap-3 rounded-xl px-3 py-2"
-                                >
-                                    <div>
-                                        <div className="text-sm text-white/90">{preset.name}</div>
-                                        {preset.description && (
-                                            <div className="text-xs text-white/45">{preset.description}</div>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => applyPreset(preset)}
-                                            variant="studioSecondary"
-                                            className="rounded-full px-3 text-xs"
-                                        >
-                                            Apply
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => handleDeletePreset(preset.id)}
-                                            variant="studioGhost"
-                                            className="rounded-full text-xs"
-                                        >
-                                            Delete
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </details>
+                    </CardContent>
+                </Card>
             </div>
+            </details>
         </div>
     )
 }

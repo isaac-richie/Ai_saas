@@ -1,23 +1,34 @@
-.drawer { margin-top: 20px; border: 1px solid #d6ede726; border-radius: 16px; padding: 16px; background: linear-gradient(135deg,#d6ede708,transparent); min-width: 0; }
-.drawer summary { display: flex; justify-content: space-between; cursor: pointer; color: #d6ede7; font-size: 14px; }
+.drawer { margin-top: 20px; border: 1px solid #e3cf9f26; border-radius: 16px; padding: 16px; background: linear-gradient(135deg,#e3cf9f08,transparent); min-width: 0; }
+.drawer summary { display: flex; justify-content: space-between; cursor: pointer; color: #e3cf9f; font-size: 14px; }
 .drawer summary span { display: flex; gap: 9px; align-items: center; }
 .drawer small { color: #ffffff70; }
 .help { font-size: 12px; line-height: 1.6; color: #ffffff80; margin: 12px 0; }
 .controls { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
 .controls label { flex: 1; min-width: 140px; font-size: 12px; color: #ffffff99; }
-.controls select { display: block; width: 100%; margin-top: 6px; background: #141c17; border: 1px solid #ffffff26; border-radius: 9px; padding: 11px; color: white; text-transform: capitalize; }
-.controls button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 10px; background: #d6ede7; color: #152019; padding: 10px 16px; font-size: 13px; }
+.controls select { display: block; width: 100%; margin-top: 6px; background: #151715; border: 1px solid #ffffff26; border-radius: 9px; padding: 11px; color: white; text-transform: capitalize; }
+.controls button { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: 10px; background: #e3cf9f; color: #1a160e; padding: 10px 16px; font-size: 13px; }
 .drawer button:disabled { opacity: .45; cursor: not-allowed; }
-.drawer :focus-visible { outline: 2px solid #d6ede7; outline-offset: 3px; }
+.drawer :focus-visible { outline: 2px solid #e3cf9f; outline-offset: 3px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 12px; margin-top: 16px; }
-.grid figure { margin: 0; min-width: 0; position: relative; border: 1px solid #ffffff1a; border-radius: 12px; overflow: hidden; background: #0d1210; }
-.grid img { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #080b09; }
-.grid video { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #080b09; }
+.grid figure { margin: 0; min-width: 0; position: relative; border: 1px solid #ffffff1a; border-radius: 12px; overflow: hidden; background: #101210; }
+.grid img { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #090a09; }
+.grid video { width: 100%; aspect-ratio: 4/3; object-fit: contain; background: #090a09; }
 .grid figcaption { padding: 10px; display: grid; gap: 4px; font-size: 11px; }
-.grid strong { color: #d6ede7; text-transform: capitalize; }
+.grid strong { color: #e3cf9f; text-transform: capitalize; }
 .grid figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ffffff80; }
 .assetActions { position: absolute; right: 6px; top: 6px; display: flex; gap: 6px; opacity: 0; transition: opacity .16s ease; }
 .grid figure:hover .assetActions, .grid figure:focus-within .assetActions { opacity: 1; }
 .replace, .remove { width: 32px; height: 32px; display: grid; place-items: center; background: #000c; color: white; border-radius: 50%; }
 .error { color: #ffd39d; font-size: 12px; margin-top: 12px; }
 @media(max-width:480px) { .controls button { width: 100%; } .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+
+/* ── Luxury motion layer ─────────────────────────────────────── */
+.drawer { transition: border-color .3s; }
+.drawer:hover { border-color: #e3cf9f40; }
+.controls button { transition: transform .3s cubic-bezier(.22, 1, .36, 1), box-shadow .35s; box-shadow: inset 0 1px 0 #ffffff80, 0 10px 26px -14px #d9c08a99; background: linear-gradient(135deg, #f3e5c0, #d9c08a 55%, #c3a265); }
+.controls button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: inset 0 1px 0 #ffffffa0, 0 16px 34px -14px #d9c08ab3; }
+.grid figure { transition: transform .45s cubic-bezier(.22, 1, .36, 1), border-color .3s, box-shadow .45s; }
+.grid figure:hover { transform: translateY(-3px); border-color: #d9c08a4d; box-shadow: 0 20px 40px -26px #d9c08a59; }
+.replace, .remove { backdrop-filter: blur(8px); border: 1px solid #d9c08a33; transition: transform .25s, background .25s; }
+.replace:hover, .remove:hover { transform: scale(1.08); background: #1a160ecc; }
+

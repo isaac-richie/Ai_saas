@@ -71,11 +71,11 @@ export function InnerCircleCTA() {
       className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.05] to-transparent"
     >
       {/* Background glow */}
-      <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-cyan-400/[0.08] blur-[80px]" />
+      <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-gold-400/[0.08] blur-[80px]" />
       <div className="pointer-events-none absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-orange-400/[0.06] blur-[80px]" />
 
       <div className="relative z-10 p-8 md:p-10">
-        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-cyan-300">
+        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gold-400/20 bg-gold-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-gold-300">
           <Sparkles className="h-3 w-3" />
           Inner Circle
         </div>
@@ -91,8 +91,8 @@ export function InnerCircleCTA() {
           </div>
 
           {status === "success" ? (
-            <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/[0.08] p-6 text-center">
-              <Sparkles className="mx-auto mb-2 h-6 w-6 text-cyan-300" />
+            <div className="rounded-xl border border-gold-400/20 bg-gold-400/[0.08] p-6 text-center">
+              <Sparkles className="mx-auto mb-2 h-6 w-6 text-gold-300" />
               <p className="text-sm font-medium text-white/80">You&apos;re in. We&apos;ll be in touch.</p>
               {referralLink && (
                 <div className="mt-4 space-y-2 text-left">
@@ -104,7 +104,7 @@ export function InnerCircleCTA() {
                       onClick={handleCopy}
                       className="flex shrink-0 items-center gap-1 rounded-md border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-medium text-white/70 transition hover:bg-white/10"
                     >
-                      {copied ? <Check className="h-3 w-3 text-cyan-300" /> : <Copy className="h-3 w-3" />}
+                      {copied ? <Check className="h-3 w-3 text-gold-300" /> : <Copy className="h-3 w-3" />}
                       {copied ? "Copied" : "Copy"}
                     </button>
                   </div>
@@ -121,7 +121,7 @@ export function InnerCircleCTA() {
                 placeholder="Name (optional)"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none placeholder:text-white/30 transition focus:border-cyan-400/30"
+                className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none placeholder:text-white/30 transition focus:border-gold-400/30"
               />
               <input
                 type="email"
@@ -129,12 +129,12 @@ export function InnerCircleCTA() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none placeholder:text-white/30 transition focus:border-cyan-400/30"
+                className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none placeholder:text-white/30 transition focus:border-gold-400/30"
               />
               <button
                 type="submit"
                 disabled={status === "loading"}
-                className="beam-button inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#00E5FF] via-[#35A6FF] to-[#FF7A59] text-sm font-semibold text-black transition hover:opacity-90 disabled:opacity-60"
+                className="beam-button inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#f3e5c0] via-[#d9c08a] to-[#b08d52] text-sm font-semibold text-black transition hover:opacity-90 disabled:opacity-60"
               >
                 {status === "loading" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

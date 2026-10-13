@@ -14,7 +14,7 @@ export function WorkspaceHeading({
   return (
     <header className="workspace-heading">
       <div>
-        <p className="workspace-eyebrow">{label}</p>
+        <p className="sr-only">{label}</p>
         <h1>{title}</h1>
         <p className="workspace-description">{description}</p>
       </div>

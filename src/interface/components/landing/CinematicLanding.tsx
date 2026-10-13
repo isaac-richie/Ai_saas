@@ -7,9 +7,8 @@ import { MotionConfig } from 'framer-motion';
 import {
   ArrowDown,
   ArrowUpRight,
-  ArrowRight,
-  Play,
-  Pause,
+  Volume2,
+  VolumeX,
   Menu,
   X,
   Aperture,
@@ -22,6 +21,8 @@ import { AnimatedBrandMark } from '@/interface/components/branding/AnimatedBrand
 export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const reducedChecked = useRef(false);
   const video = useRef<HTMLVideoElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const destination = isAuthenticated ? '/dashboard/fast-video' : '/signup';
@@ -68,6 +69,12 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
     } else video.current.pause();
   }
 
+  function toggleSound() {
+    if (!video.current) return;
+    video.current.muted = !video.current.muted;
+    if (!video.current.muted && video.current.paused) void video.current.play().catch(() => null);
+  }
+
   return (
     <MotionConfig reducedMotion="user">
       <div ref={root} className="cinema-site">
@@ -89,7 +96,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
             ))}
           </nav>
           <Link href={destination} className="cinema-nav-cta">
-            {isAuthenticated ? 'Enter studio' : 'Start creating'}
+            Enter the studio
             <ArrowUpRight size={16} />
           </Link>
           <button
@@ -110,9 +117,9 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 <ArrowUpRight size={18} />
               </a>
             ))}
-            <Link href="/login">
-              Sign in
-              <ArrowRight size={18} />
+            <Link href={destination}>
+              Enter the studio
+              <ArrowUpRight size={18} />
             </Link>
           </nav>
         )}
@@ -126,19 +133,18 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <br />
               <em>In motion.</em>
               <span className="cinema-title-star" aria-hidden="true">
-                ✳
+                {/* Drawn, not the ✳ character: Safari and iOS render that as a green emoji. */}
+                <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round">
+                  <path d="M12 2.5v19M2.5 12h19M5.3 5.3l13.4 13.4M18.7 5.3 5.3 18.7" />
+                </svg>
               </span>
             </h1>
             <div className="cinema-hero-bottom">
               <p>
-                A cinematic AI studio for the stories only you can tell.
+                A cinematic AI studio for stories only you can tell.
                 <br className="cinema-desktop-break" /> Direct the feeling. Shape the frame. Make
                 your film.
               </p>
-              <Link href={destination} className="cinema-button cinema-primary">
-                {isAuthenticated ? 'Enter your studio' : 'Create your first frame'}
-                <ArrowUpRight size={19} />
-              </Link>
             </div>
             <div className="cinema-reel-heading">
               <span>VISIOWAVE / MOTION STUDY 001</span>
@@ -156,14 +162,26 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <video
                 ref={video}
                 poster="/landing-poster.webp?v=20260912"
-                preload="none"
+                preload="auto"
+                // Starts on its own (browsers only allow that muted); native controls let anyone
+                // unmute, pause, scrub, rewind or go fullscreen. Reduced-motion visitors start paused.
+                autoPlay
+                muted
                 playsInline
                 loop
-                controls={playing}
+                controls
+                onClick={() => { if (!playing) void toggleFilm() }}
+                onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
+                onCanPlay={(event) => {
+                  // Reduced-motion visitors get the poster; the film waits for them to press play.
+                  if (!reducedChecked.current && window.matchMedia('(prefers-reduced-motion: reduce)').matches) event.currentTarget.pause();
+                  reducedChecked.current = true;
+                }}
                 onPlay={() => setPlaying(true)}
                 onPause={() => setPlaying(false)}
                 onEnded={() => setPlaying(false)}
                 aria-label="Visiowave cinematic showcase"
+                aria-describedby="film-description"
               >
                 <source src="/landing.mp4?v=20260912-audio" type="video/mp4" />
               </video>
@@ -179,11 +197,12 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               )}
               <button
                 className="cinema-play"
-                onClick={toggleFilm}
-                aria-label={playing ? 'Pause showcase' : 'Play showcase'}
+                onClick={toggleSound}
+                aria-label={muted ? 'Turn the film sound on' : 'Mute the film'}
+                aria-pressed={!muted}
               >
-                {playing ? <Pause size={20} /> : <Play size={20} />}
-                <span>{playing ? 'Pause film' : 'Play the film'}</span>
+                {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+                <span>{muted ? 'Turn sound on' : 'Sound on'}</span>
               </button>
               <span className="cinema-frame-label">01 / AFTER HOURS</span>
             </div>
@@ -191,6 +210,14 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <span>IMAGINATION, GIVEN FORM.</span>
               <span>TEXT TO VIDEO / IMAGE TO VIDEO</span>
             </div>
+            <details className="cinema-transcript">
+              <summary>Film description</summary>
+              <p id="film-description">
+                A sports car&apos;s headlights cut through rain on a night road. From above, cars weave
+                across a wet highway, then stream past glowing city towers. The film ends inside a
+                lit tunnel as a single car approaches.
+              </p>
+            </details>
           </section>
           <section id="craft" className="cinema-craft cinema-wrap">
             <div className="cinema-section-heading">
@@ -201,28 +228,28 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 We bring <em>the possibilities.</em>
               </h2>
               <p>
-                From a passing thought to a carefully directed shot. A workspace that speaks your
-                creative language.
+                Turn a simple idea into a carefully directed shot. Create in a workspace that works
+                the way you think.
               </p>
             </div>
             <div className="cinema-features">
               {[
                 {
                   icon: WandSparkles,
-                  title: 'An instinct for direction.',
-                  body: 'Work with your AI Director to turn an idea into a detailed prompt, with intention behind the subject, lighting, and camera movement.',
+                  title: 'Direct every detail.',
+                  body: 'Turn an idea into a detailed shot with help from your AI Director. Set the subject, lighting and camera movement.',
                   number: '01',
                 },
                 {
                   icon: Aperture,
-                  title: 'The details make the scene.',
-                  body: 'Explore lens, framing, style, and motion controls. Start with words or a reference image, then shape the shot around your vision.',
+                  title: 'Shape every detail.',
+                  body: 'Choose the lens, framing, style and motion. Start with a sentence or a reference image, then shape the shot your way.',
                   number: '02',
                 },
                 {
                   icon: Layers,
-                  title: 'Room to find your cut.',
-                  body: 'Generate variations, save your favourites to the gallery, and bring your shots together. Keep the creative process in one place.',
+                  title: 'Room to find the right cut.',
+                  body: 'Create variations, save your favourites and bring your shots together. Keep everything in one place.',
                   number: '03',
                 },
               ].map(({ icon: Icon, title, body, number }) => (
@@ -258,7 +285,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 it, without getting lost in the setup.
               </p>
               <Link href={destination} className="cinema-text-link">
-                Find your next scene
+                Try Fast Track
                 <ArrowUpRight size={20} />
               </Link>
               <div className="cinema-editorial-note">
@@ -270,13 +297,13 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
             <div className="cinema-section-heading">
               <span className="cinema-eyebrow">02 / YOUR CREATIVE TOOLKIT</span>
               <h2>
-                Three models.
+                Two models.
                 <br />
                 <em>Your signature.</em>
               </h2>
               <p>
-                Explore Kling and Seedance from the same workspace. Choose your model and
-                direct the result.
+                Explore Kling and Seedance video models in the same workspace. Choose your model
+                and direct the result.
               </p>
             </div>
             <div className="cinema-model-list">
@@ -284,7 +311,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 <Link href={destination} key={model}>
                   <span className="cinema-model-index">0{i + 1}</span>
                   <h3>{model}</h3>
-                  <span className="cinema-model-type">VIDEO GENERATION</span>
+                  <span className="cinema-model-type">Video generation</span>
                   <ArrowUpRight strokeWidth={1} />
                 </Link>
               ))}
@@ -298,7 +325,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <em>worth feeling.</em>
             </h2>
             <Link href={destination} className="cinema-button cinema-primary">
-              Start your story
+              Enter the studio
               <ArrowUpRight size={20} />
             </Link>
           </section>
@@ -317,7 +344,6 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               Limitless frames.
             </p>
             <nav aria-label="Footer navigation">
-              <Link href="/login">Sign in</Link>
               <a href="https://x.com/visiowavestudio" target="_blank" rel="noopener noreferrer" aria-label="Visiowave on X">
                 X <ArrowUpRight size={13} />
               </a>
@@ -331,6 +357,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 href="https://www.instagram.com/visiowavestudios"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="Visiowave on Instagram"
               >
                 Instagram
                 <ArrowUpRight size={13} />

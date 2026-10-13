@@ -11,6 +11,7 @@ import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
 import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing";
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance";
 import type { GenerationResult } from "@/infrastructure/ai/types";
+import { FALLBACK_KIE_IMAGE_MODEL } from "@/infrastructure/ai/providers/kie.models";
 
 /** 
  * Force server action re-validation to clear cached ReferenceErrors 
@@ -19,7 +20,8 @@ export async function __REVALIDATION_TRIGGER() {
     return "c6a6de80-6ed4-4894-8c12-a274c1a77eba";
 }
 
-const SUPPORTED_PROVIDER_PRIORITY = ["openai", "kie"] as const;
+// Kie first: its image model (Nano Banana Pro) accepts reference images; OpenAI (DALL·E 3) does not.
+const SUPPORTED_PROVIDER_PRIORITY = ["kie", "openai"] as const;
 
 type SupportedProviderSlug = typeof SUPPORTED_PROVIDER_PRIORITY[number];
 type ProviderRow = { id: string; slug: string };
@@ -247,6 +249,30 @@ export async function checkAIStatus() {
     return { statuses };
 }
 
+const HTTP_URL = /^https:\/\/[^\s]+$/i
+
+/** Attached project references, then the continuity image, de-duplicated and capped. */
+async function shotReferenceImageUrls(
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    shotId: string,
+    settings: Record<string, unknown>,
+): Promise<string[]> {
+    const urls: string[] = []
+    if (typeof settings.continuity_image_url === "string" && HTTP_URL.test(settings.continuity_image_url)) {
+        urls.push(settings.continuity_image_url)
+    }
+    const { data } = await supabase
+        .from("shot_elements")
+        .select("elements ( image_url )")
+        .eq("shot_id", shotId)
+    for (const row of (data || []) as Array<{ elements: { image_url?: string | null } | { image_url?: string | null }[] | null }>) {
+        const element = Array.isArray(row.elements) ? row.elements[0] : row.elements
+        const url = element?.image_url
+        if (url && HTTP_URL.test(url) && !urls.includes(url)) urls.push(url)
+    }
+    return urls.slice(0, 8)
+}
+
 export async function generateShot(shotId: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -296,6 +322,9 @@ export async function generateShot(shotId: string) {
         return { error: compliance.reason || "Prompt blocked by safety guardrails. Revise and retry." };
     }
 
+    // Reference images: attached project references plus the approved image this shot continues from.
+    const referenceImageUrls = await shotReferenceImageUrls(supabase, shotId, settings);
+
     const quota = await reserveUsageQuota(supabase, user.id, "studio");
     if (!quota.allowed) {
         return { error: quota.message || "Studio limit reached for your current plan." };
@@ -316,6 +345,7 @@ export async function generateShot(shotId: string) {
             const requestSeed = baseSeed !== undefined && !seedLocked ? baseSeed + i : baseSeed;
             let result: GenerationResult | null = null;
             let lastError: string | null = null;
+            const providerErrors: string[] = [];
             let successfulProviderId: string | null = null;
 
             // Try available providers in order
@@ -333,6 +363,7 @@ export async function generateShot(shotId: string) {
                         duration_seconds: typeof settings.duration_seconds === "number" ? settings.duration_seconds : undefined,
                         quality: typeof settings.quality === "string" ? settings.quality : undefined,
                         variations,
+                        ...(referenceImageUrls.length ? { reference_image_urls: referenceImageUrls } : {}),
                     });
 
                     if (result.status === 'completed' || result.status === 'processing') {
@@ -347,6 +378,7 @@ export async function generateShot(shotId: string) {
 
                     // If it failed, check if it's a safety rejection to justify moving to the next provider
                     const errorMsg = result.error || "Unknown error";
+                    providerErrors.push(errorMsg);
                     const { isSafetyRejection } = await import("@/core/utils/ai/error-normalization");
                     
                     if (isSafetyRejection(errorMsg)) {
@@ -362,6 +394,7 @@ export async function generateShot(shotId: string) {
                 } catch (e: unknown) {
                     submissionUncertain = true;
                     lastError = e instanceof Error ? e.message : "Provider request failed";
+                    providerErrors.push(lastError);
                     continue;
                 }
             }
@@ -370,13 +403,17 @@ export async function generateShot(shotId: string) {
                 if (quota.reservationId && !providerAccepted && !submissionUncertain) {
                     await settleUsageQuota(user.id, quota.reservationId, false);
                 }
+                // A provider out of credits explains the failure better than a fallback's own error.
+                const billingError = providerErrors.find((message) => /credit|balance|insufficient|quota|top up/i.test(message));
                 return {
                     error: submissionUncertain && !providerAccepted
                         ? `The provider response was interrupted; this job may have started. Do not submit it again yet. Request ${quota.reservationId}.`
-                        : normalizeGenerationError(
-                        result?.error || lastError || undefined,
-                        "Generation failed after all provider attempts."
-                    ),
+                        : billingError
+                            ? "Image generation is paused: the image service is out of credits. Please try again shortly."
+                            : normalizeGenerationError(
+                                providerErrors[0] || result?.error || lastError || undefined,
+                                "Generation failed after all provider attempts."
+                            ),
                 };
             }
 
@@ -402,6 +439,9 @@ export async function generateShot(shotId: string) {
                     ...settings,
                     task_id: result.provider_check_id || null,
                     output_type: "image",
+                    // Exactly which reference files were sent with this take.
+                    reference_image_urls: referenceImageUrls,
+                    image_model: (result as { debug?: { model?: string } }).debug?.model ?? null,
                 },
             });
 
@@ -609,6 +649,7 @@ export async function pollShotStatus(shotOptionId: string) {
         .select(`
             id, 
             shot_id,
+            prompt,
             status, 
             output_url,
             parameters, 
@@ -695,6 +736,34 @@ export async function pollShotStatus(shotOptionId: string) {
 
         const shouldUpdate = result.status !== option.status || Boolean(result.url);
         const outputType = typeof parameters?.output_type === "string" ? parameters.output_type : "image";
+
+        // GPT Image can be rate-limited: retry that one take on Nano Banana Pro once, quietly.
+        const imageModel = typeof parameters?.image_model === "string" ? parameters.image_model : "";
+        if (result.status === "failed" && outputType === "image" && slug === "kie" && imageModel.startsWith("gpt-image") && !parameters?.fallback_from) {
+            const references = Array.isArray(parameters?.reference_image_urls)
+                ? (parameters.reference_image_urls as unknown[]).filter((url): url is string => typeof url === "string")
+                : [];
+            const retry = await provider.generate({
+                prompt: option.prompt || "",
+                model: FALLBACK_KIE_IMAGE_MODEL,
+                output_type: "image",
+                aspect_ratio: typeof parameters?.aspect_ratio === "string" ? parameters.aspect_ratio : undefined,
+                ...(references.length ? { reference_image_urls: references } : {}),
+            });
+            if (retry.status === "processing" && retry.provider_check_id) {
+                await supabase.from("shot_generations").update({
+                    status: "processing",
+                    parameters: {
+                        ...(parameters || {}),
+                        task_id: retry.provider_check_id,
+                        image_model: FALLBACK_KIE_IMAGE_MODEL,
+                        fallback_from: imageModel,
+                        fallback_reason: normalizeGenerationError(result.error, "GPT Image failed"),
+                    },
+                }).eq("id", option.id);
+                return { data: { status: "processing", url: null, updated: true, waitingForUrl: false } };
+            }
+        }
 
         // 4. Update Database if status changed or URL was freshly discovered
         if (shouldUpdate) {

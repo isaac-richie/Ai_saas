@@ -63,8 +63,8 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
         <button type="button" className={styles.remove} disabled={disabled || uploading} aria-label={`Remove ${asset.name}`} onClick={() => onChange?.(assets.filter(item => item.id !== asset.id))}><X size={14} /></button>
       </div>}
     </figure>)}</div>}
-    <p className={styles.help}>Images guide the visual world. Video references guide motion and pacing; the crew samples their frames when media processing is available. The current render adapter uses one opening image-to-video source frame; all other references guide the crew’s prompts and continuity plan.</p>
-    {!locked && <p className={styles.help}>JPG or PNG images up to 10 MB · MP4, WebM or MOV videos up to 25 MB. You can remove or replace an individual item until the first video generation begins.</p>}
+    <p className={styles.help}>Images set the look: people, places, products. Videos show the movement and pace you want. The first image opens your film; the rest guide every shot.</p>
+    {!locked && <p className={styles.help}>JPG or PNG up to 10 MB, MP4 / WebM / MOV up to 25 MB. You can swap them until the first video starts.</p>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
   </details>
 }

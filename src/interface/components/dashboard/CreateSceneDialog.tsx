@@ -42,12 +42,12 @@ export function CreateSceneDialog({ projectId }: CreateSceneDialogProps) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button size="sm" className="rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                <Button size="sm" className="rounded-xl border border-gold-400/[0.12] bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
                     <Plus className="mr-2 h-4 w-4" />
                     Add Scene
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] border-white/10 bg-[#111114] text-white">
+            <DialogContent className="sm:max-w-[425px] border-gold-400/[0.12] bg-obsidian-800 text-white">
                 <form action={onSubmit} autoComplete="off">
                     <DialogHeader>
                         <DialogTitle>Add Scene</DialogTitle>
@@ -64,7 +64,7 @@ export function CreateSceneDialog({ projectId }: CreateSceneDialogProps) {
                                 autoComplete="new-password"
                                 placeholder="INT. DINER - NIGHT"
                                 required
-                                className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                             />
                         </div>
                         <div className="grid gap-2">
@@ -76,7 +76,7 @@ export function CreateSceneDialog({ projectId }: CreateSceneDialogProps) {
                                 type="number"
                                 defaultValue="1"
                                 required
-                                className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                             />
                         </div>
                         <div className="grid gap-2">
@@ -86,12 +86,12 @@ export function CreateSceneDialog({ projectId }: CreateSceneDialogProps) {
                                 name="description"
                                 autoComplete="off"
                                 placeholder="Characters discuss the heist plan..."
-                                className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                             />
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button type="submit" disabled={loading} className="rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                        <Button type="submit" disabled={loading} className="rounded-xl border border-gold-400/[0.12] bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Create Scene
                         </Button>

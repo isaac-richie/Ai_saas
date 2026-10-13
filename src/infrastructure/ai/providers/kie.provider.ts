@@ -63,15 +63,21 @@ export class KieProvider extends BaseProvider {
 
     private resolveModel(request: GenerationRequest): string {
         const explicitModel = request.model?.trim();
-        if (explicitModel) return explicitModel;
+        if (explicitModel) return this.resolveImageVariant(explicitModel, request);
 
         const requestedType =
             request.output_type
             || (request.image_prompt ? "video" : undefined)
             || "image";
 
-        if (requestedType !== "video") return DEFAULT_KIE_IMAGE_MODEL;
+        if (requestedType !== "video") return this.resolveImageVariant(DEFAULT_KIE_IMAGE_MODEL, request);
         return request.image_prompt ? DEFAULT_KIE_VIDEO_MODEL_I2V : DEFAULT_KIE_VIDEO_MODEL_T2V;
+    }
+
+    /** GPT Image 1.5 is two Kie models: text-to-image, or image-to-image when references are attached. */
+    private resolveImageVariant(model: string, request: GenerationRequest): string {
+        if (model !== "gpt-image/1.5") return model;
+        return request.reference_image_urls?.length ? "gpt-image/1.5-image-to-image" : "gpt-image/1.5-text-to-image";
     }
 
     private resolveOutputType(request: GenerationRequest, model: string): "image" | "video" {
@@ -88,6 +94,18 @@ export class KieProvider extends BaseProvider {
 
         const normalizedModel = model.toLowerCase();
 
+        // GPT Image 1.5 has a small schema: unknown fields (seed, negative prompt…) are not sent.
+        if (normalizedModel.startsWith("gpt-image/")) {
+            const ratio = (request.aspect_ratio || "").toLowerCase();
+            const [w, h] = ratio.match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/)?.slice(1).map(Number) ?? [0, 0];
+            input.aspect_ratio = !w || !h || Math.abs(w / h - 1) < 0.15 ? "1:1" : w > h ? "3:2" : "2:3";
+            input.quality = request.quality === "hd" || request.quality === "high" ? "high" : "medium";
+            if (normalizedModel.endsWith("image-to-image") && request.reference_image_urls?.length) {
+                input.input_urls = request.reference_image_urls.slice(0, 8);
+            }
+            return input;
+        }
+
         if (request.negative_prompt) input.negative_prompt = request.negative_prompt;
         if (request.aspect_ratio) input.aspect_ratio = request.aspect_ratio;
         if (request.quality) input.quality = request.quality;
@@ -96,21 +114,37 @@ export class KieProvider extends BaseProvider {
         if (typeof request.cfg_scale === "number") input.cfg_scale = request.cfg_scale;
 
         if (request.image_prompt) {
+            // End frames are only sent alongside a start frame: Kling 3.0 reads
+            // image_urls as [first, last]; Seedance 2 takes last_frame_url.
+            const endFrame = request.end_image_prompt || undefined;
             if (normalizedModel.includes("seedance-2")) {
                 input.first_frame_url = request.image_prompt;
+                if (endFrame) input.last_frame_url = endFrame;
+                // Seedance 2.5 frame tasks only accept an adaptive ratio (it follows the image).
+                if (normalizedModel.includes("seedance-2-5")) input.aspect_ratio = "adaptive";
             } else if (normalizedModel.includes("kling-3.0")) {
-                input.image_urls = [request.image_prompt];
+                input.image_urls = endFrame ? [request.image_prompt, endFrame] : [request.image_prompt];
             } else {
                 input.image_url = request.image_prompt;
             }
         }
 
+        // Image models (Nano Banana) take reference images as image_input, keeping the
+        // character, product and location consistent with the creator's references.
+        if (normalizedModel.includes("nano-banana") && request.reference_image_urls?.length) {
+            input.image_input = request.reference_image_urls.slice(0, 8);
+        }
+
+        // Seedance's multimodal reference mode is mutually exclusive with first/last
+        // frames, so references are only sent when no frame image is present.
+        if (normalizedModel.includes("seedance-2") && !request.image_prompt && request.reference_image_urls?.length) {
+            input.reference_image_urls = request.reference_image_urls.slice(0, 9);
+        }
+
         if (model.toLowerCase().includes("kling-3.0")) {
-            // Kie's Kling 3.0 schema requires a resolution mode even for a
-            // single-shot image-to-video request. Keep previews in standard
-            // mode so a missing field cannot reject the task after quota use.
+            // Kie's Kling 3.0 schema requires a mode; "pro" is Kling's best quality tier.
             if (normalizedModel === "kling-3.0/video") {
-                input.mode = "std";
+                input.mode = "pro";
                 input.multi_shots = false;
             }
             // Kling 3.0 expects `sound` instead of `is_generate_audio`.
@@ -187,6 +221,7 @@ export class KieProvider extends BaseProvider {
         const prepared = {
             ...request,
             image_prompt: request.image_prompt ? uploaded.get(request.image_prompt) || request.image_prompt : undefined,
+            end_image_prompt: request.end_image_prompt ? uploaded.get(request.end_image_prompt) || request.end_image_prompt : undefined,
             reference_elements: request.reference_elements.map(element => ({ ...element, image_urls: element.image_urls.map(url => uploaded.get(url) || url) })),
         };
         // The same in-memory request is passed to generate after quota is

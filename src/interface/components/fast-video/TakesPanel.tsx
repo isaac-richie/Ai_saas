@@ -90,7 +90,7 @@ export function TakesPanel({
               key={take.id}
               className={`min-w-[200px] snap-start rounded-xl border p-3 transition-all duration-200 ${
                 isActive
-                  ? "border-cyan-400/30 bg-cyan-500/[0.08] shadow-[0_12px_28px_-18px_rgba(34,211,238,0.5)]"
+                  ? "border-gold-400/30 bg-gold-500/[0.08] shadow-[0_12px_28px_-18px_rgba(217,192,138,0.5)]"
                   : isApproved
                     ? "border-emerald-400/25 bg-emerald-500/[0.06]"
                     : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]"
@@ -118,7 +118,7 @@ export function TakesPanel({
                           ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300/70"
                           : isFailed
                             ? "border-rose-400/20 bg-rose-500/10 text-rose-300/70"
-                            : "border-cyan-400/20 bg-cyan-500/10 text-cyan-300/70"
+                            : "border-gold-400/20 bg-gold-500/10 text-gold-300/70"
                       }`}
                     >
                       {take.status}

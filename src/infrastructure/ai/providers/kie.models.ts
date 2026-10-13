@@ -46,6 +46,12 @@ export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
     mode: "image-to-video",
   },
   {
+    slug: "bytedance/seedance-2-5",
+    type: "video",
+    label: "Bytedance Seedance 2.5",
+    mode: "text-to-video",
+  },
+  {
     slug: "bytedance/seedance-2",
     type: "video",
     label: "Bytedance Seedance 2.0",
@@ -88,6 +94,12 @@ export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
     mode: "text-to-image",
   },
   {
+    slug: "gpt-image/1.5",
+    type: "image",
+    label: "GPT Image 1.5",
+    mode: "text-to-image",
+  },
+  {
     slug: "nano-banana-pro",
     type: "image",
     label: "Nano Banana Pro",
@@ -96,14 +108,16 @@ export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
 ];
 
 export const DEFAULT_KIE_IMAGE_MODEL =
-  process.env.KIE_DEFAULT_IMAGE_MODEL || "nano-banana-pro";
+  process.env.KIE_DEFAULT_IMAGE_MODEL || "gpt-image/1.5";
+/** Used when a GPT Image take fails (e.g. rate-limited) so the creator still gets images. */
+export const FALLBACK_KIE_IMAGE_MODEL = "nano-banana-pro";
 export const DEFAULT_KIE_VIDEO_MODEL_I2V =
   process.env.KIE_DEFAULT_VIDEO_MODEL_I2V
   || process.env.KIE_DEFAULT_VIDEO_MODEL
-  || "kling/v2-5-turbo-image-to-video-pro";
+  || "kling-3.0/video";
 export const DEFAULT_KIE_VIDEO_MODEL_T2V =
   process.env.KIE_DEFAULT_VIDEO_MODEL_T2V
-  || "kling/v2-5-turbo-text-to-video-pro";
+  || "kling-3.0/video";
 
 export function inferKieOutputType(model?: string): KieMediaType | null {
   if (!model) return null;

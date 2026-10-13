@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { WandSparkles, Loader2, Copy, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { WandSparkles, Loader2, Copy, ShieldCheck, AlertTriangle, Sparkles, Wand2 } from 'lucide-react';
 import { Button } from '@/interface/components/ui/button';
 import { Textarea } from '@/interface/components/ui/textarea';
 import {
@@ -221,10 +221,10 @@ export function StudioAdPanel({
   const readinessState =
     readiness >= 90 ? 'excellent' : readiness >= 80 ? 'good' : readiness >= 65 ? 'fair' : 'weak';
   const rootClassName = embedded
-    ? 'space-y-3 rounded-xl border border-white/10 bg-black/20 p-3'
+    ? 'space-y-3 rounded-xl border border-gold-400/[0.12] bg-black/20 p-3'
     : 'studio-card rounded-2xl p-5 text-white';
   const blockClassName = embedded
-    ? 'rounded-lg border border-white/10 bg-black/20 p-3'
+    ? 'rounded-lg border border-gold-400/[0.12] bg-black/20 p-3'
     : 'studio-subcard rounded-xl p-3';
 
   return (
@@ -251,28 +251,40 @@ export function StudioAdPanel({
             )}
           </div>
         </div>
-        <span className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/75">Studio AD</span>
+        <span className="text-[10px] uppercase tracking-[0.16em] text-gold-300/75">Studio AD</span>
       </div>
 
-      {engineModel ? (
-        <div className="mb-3 rounded-xl border border-cyan-300/15 bg-cyan-500/5 px-3 py-2 text-[11px] text-cyan-100/85">
-          Prompt engine: {engineModel}
-        </div>
-      ) : null}
+      <div className="space-y-2.5">
+        <Textarea
+          value={intent}
+          onChange={(event) => setIntent(event.target.value)}
+          placeholder="Describe the shot in your words: who, what happens, the feel..."
+          className="studio-field min-h-28 rounded-xl text-white placeholder:text-white/35"
+        />
+        {promptPreview.trim() && promptPreview.trim() !== intent.trim() ? (
+          <button
+            type="button"
+            onClick={() => setIntent(promptPreview)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-gold-400/20 px-3 py-1 text-[11px] text-white/65 transition hover:border-gold-300/45 hover:text-gold-50"
+          >
+            <Sparkles className="h-3 w-3" />Start from my builder prompt
+          </button>
+        ) : null}
+      </div>
 
-      <div className={embedded ? "grid gap-3 grid-cols-1" : "grid gap-3 grid-cols-1 sm:grid-cols-2"}>
+      <div className={embedded ? "mt-3 grid gap-3 grid-cols-1" : "mt-3 grid gap-3 grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"}>
         <div className="space-y-1.5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">Direction Mode</p>
           <Select value={mode} onValueChange={(value) => setMode(value as (typeof MODES)[number]['value'])}>
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
               <SelectValue placeholder="Mode" />
             </SelectTrigger>
-            <SelectContent className="border-white/10 bg-[#0b0f14] text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
+            <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
               {MODES.map((item) => (
                 <SelectItem
                   key={item.value}
                   value={item.value}
-                  className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100"
+                  className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100"
                 >
                   {item.label}
                 </SelectItem>
@@ -281,6 +293,34 @@ export function StudioAdPanel({
           </Select>
         </div>
 
+        <Button
+          type="button"
+          variant="studio"
+          onClick={() => void runDirector()}
+          disabled={!canSubmit}
+          title={canSubmit ? undefined : "Describe the shot first"}
+          className="h-10 rounded-xl px-5 font-semibold"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Directing...
+            </>
+          ) : (
+            <>
+              <Wand2 className="mr-2 h-4 w-4" />
+              Direct this shot
+            </>
+          )}
+        </Button>
+      </div>
+
+      <details className="group/adv mt-3 rounded-xl border border-gold-400/[0.1] bg-black/20">
+        <summary className="flex cursor-pointer select-none list-none items-center justify-between px-3 py-2 text-[11px] text-white/50 hover:text-white/80 [&::-webkit-details-marker]:hidden">
+          <span>Advanced</span>
+          <span className="text-white/35">{PROVIDERS.find((item) => item.value === providerTarget)?.label ?? providerTarget} · {outputType === "video" ? "Video" : "Image"}</span>
+        </summary>
+        <div className="grid gap-3 border-t border-gold-400/[0.08] p-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">Target Provider</p>
           <Select
@@ -290,12 +330,12 @@ export function StudioAdPanel({
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
               <SelectValue placeholder="Provider" />
             </SelectTrigger>
-            <SelectContent className="border-white/10 bg-[#0b0f14] text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
+            <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
               {PROVIDERS.map((item) => (
                 <SelectItem
                   key={item.value}
                   value={item.value}
-                  className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100"
+                  className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100"
                 >
                   {item.label}
                 </SelectItem>
@@ -304,59 +344,25 @@ export function StudioAdPanel({
           </Select>
         </div>
 
-        <div className="space-y-1.5 sm:col-span-2">
+        <div className="space-y-1.5 ">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/45">Output Type</p>
           <Select value={outputType} onValueChange={(value) => setOutputType(value as 'image' | 'video')}>
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
               <SelectValue placeholder="Output" />
             </SelectTrigger>
-            <SelectContent className="border-white/10 bg-[#0b0f14] text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
-              <SelectItem value="image" className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100">
+            <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
+              <SelectItem value="image" className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
                 Image
               </SelectItem>
-              <SelectItem value="video" className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100">
+              <SelectItem value="video" className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
                 Video
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="mt-4 space-y-2.5">
-        <Textarea
-          value={intent}
-          onChange={(event) => setIntent(event.target.value)}
-          placeholder="Describe the shot vibe, subject, camera feel, and mood..."
-          className="studio-field min-h-28 rounded-xl text-white placeholder:text-white/35"
-        />
-        <div className={embedded ? "flex flex-col gap-2" : "flex flex-wrap items-center gap-2"}>
-          <Button
-            type="button"
-            size="sm"
-            variant="studioGhost"
-            onClick={() => setIntent(promptPreview || intent)}
-            className={embedded ? "w-full rounded-full text-xs" : "rounded-full text-xs"}
-          >
-            Use Prompt Preview
-          </Button>
-          <Button
-            type="button"
-            variant="studio"
-            onClick={() => void runDirector()}
-            disabled={!canSubmit}
-            className={embedded ? "w-full rounded-xl" : "rounded-xl"}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Directing...
-              </>
-            ) : (
-              'Direct This Shot'
-            )}
-          </Button>
+          {engineModel ? <p className="text-[10.5px] text-white/35 sm:col-span-2">Prompt engine: {engineModel}</p> : null}
         </div>
-      </div>
+      </details>
 
       {error ? (
         <div className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 p-3 text-xs text-red-200">
@@ -365,7 +371,7 @@ export function StudioAdPanel({
       ) : null}
 
       {!error && promptPreview?.trim() ? (
-        <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-500/5 p-3 text-[11px] text-cyan-100/85">
+        <div className="mt-3 rounded-xl border border-gold-300/15 bg-gold-500/5 p-3 text-[11px] text-gold-100/85">
           Assistant Director is using your current on-screen prompt as reference context to improve continuity and prompt precision.
         </div>
       ) : null}
@@ -376,16 +382,16 @@ export function StudioAdPanel({
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Production Readiness</p>
-                <p className="mt-1 text-2xl font-semibold text-cyan-300">{packet.score.productionReadiness}%</p>
+                <p className="mt-1 text-2xl font-semibold text-gold-300">{packet.score.productionReadiness}%</p>
                 <p className="mt-1 text-xs text-white/60">Strategy: {packet.strategy}</p>
               </div>
               <ReadinessGauge value={packet.score.productionReadiness} />
             </div>
             <div className={embedded ? "mt-3 grid grid-cols-1 gap-2 text-xs text-white/70" : "mt-3 grid grid-cols-2 gap-2 text-xs text-white/70"}>
-              <div className="rounded-lg border border-white/10 bg-black/25 p-2">
+              <div className="rounded-lg border border-gold-400/[0.12] bg-black/25 p-2">
                 Continuity: {packet.score.continuityConfidence}%
               </div>
-              <div className="rounded-lg border border-white/10 bg-black/25 p-2">
+              <div className="rounded-lg border border-gold-400/[0.12] bg-black/25 p-2">
                 Technical: {packet.score.technicalClarity}%
               </div>
             </div>
@@ -461,7 +467,7 @@ export function StudioAdPanel({
             <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Variants</p>
             <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto pr-1 text-xs text-white/75">
               {packet.variants.map((variant, index) => (
-                <li key={`${index}-${variant.slice(0, 20)}`} className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <li key={`${index}-${variant.slice(0, 20)}`} className="rounded-lg border border-gold-400/[0.12] bg-black/20 p-2">
                   <div className="flex items-start justify-between gap-3">
                     <p className="flex-1">{variant}</p>
                     <Button
@@ -510,7 +516,7 @@ export function StudioAdPanel({
       ) : null}
 
       {showHistory ? (
-        <div className="mt-4 rounded-xl border border-white/10 bg-white/5 p-3">
+        <div className="mt-4 rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Recent Directs</p>
             {historyLoading ? <span className="text-[10px] text-white/45">Loading...</span> : null}
@@ -522,11 +528,11 @@ export function StudioAdPanel({
               {history.map((item) => (
                 <li
                   key={item.id}
-                  className="rounded-lg border border-white/10 bg-black/25 px-2.5 py-2 text-xs text-white/75"
+                  className="rounded-lg border border-gold-400/[0.12] bg-black/25 px-2.5 py-2 text-xs text-white/75"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate pr-2">{item.user_intent}</span>
-                    <span className="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-[10px] text-cyan-200">
+                    <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2 py-0.5 text-[10px] text-gold-200">
                       {item.production_readiness}%
                     </span>
                   </div>
@@ -582,13 +588,13 @@ function ReadinessGauge({ value }: { value: number }) {
           cx="24"
           cy="24"
           r="18"
-          stroke="rgba(103,232,249,0.95)"
+          stroke="rgba(217,192,138,0.95)"
           strokeWidth="4"
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circumference - dash}`}
         />
       </svg>
-      <span className="absolute inset-0 grid place-items-center text-[10px] font-semibold text-cyan-200">
+      <span className="absolute inset-0 grid place-items-center text-[10px] font-semibold text-gold-200">
         {clamped}%
       </span>
     </div>

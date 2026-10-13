@@ -17,8 +17,10 @@ import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
-import { REFERENCE_BUCKET, referenceCompatibility, referenceIsInContext, referencePrompt, referencePromptFits, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
+import { REFERENCE_BUCKET, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
 import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
+import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
+import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
@@ -300,9 +302,12 @@ function assembleFastVideoPrompt(
   const subjectDirectives = buildSubjectDirectives(subject, prompt_inputs.variation_setting)
   const aspectDirective = buildAspectDirective(prompt_inputs.aspect_ratio)
 
-  const parts = [subject]
+  // Role isolation leads: each applied reference is told what it controls and nothing else.
   const guidance = referencePrompt(prompt_inputs.media_references || [])
-  if (guidance) parts.push(`Reference direction: ${guidance}`)
+  // fitReferencePrompt keeps both inside the budget; if they ever don't fit, the creator's words go first.
+  const parts = !guidance ? [subject]
+    : guidance.length + subject.length < 980 ? [`[REFERENCE ROLES] ${guidance}`, `[PROMPT] ${subject}`]
+      : [subject, `[REFERENCE ROLES] ${guidance}`]
   parts.push(`duration ${safeDuration}s with coherent start-middle-end motion arc`)
 
   if (extra?.continuity?.clause) parts.push(extra.continuity.clause)
@@ -407,6 +412,10 @@ export async function generateFastVideo(input: unknown) {
   debug.push("session.resolved", { userId: user.id })
 
   // Reject unsupported inputs before consuming quota or calling the provider.
+  let endFramePrompt: string | undefined
+  let shotFrames: ShotFrames | null = null
+  let referenceImageUrls: string[] | undefined
+  let campaignRefs: CampaignReferences | null = null
   try {
     const refs = validateOwnedReferences(payload.prompt_inputs.media_references, user.id)
     const issues = referenceCompatibility(refs)
@@ -424,7 +433,77 @@ export async function generateFastVideo(input: unknown) {
       if (error || !data) return { error: "Direct reference unavailable. Check the file and storage configuration." }
       payload.prompt_inputs.reference_image = data.signedUrl
     }
-    if (!referencePromptFits(payload.prompt_inputs.text_subject, refs)) return { error: "The prompt and reference directions exceed this adapter's prompt budget. Shorten the subject or approved directions before generating." }
+    // Start / End Frames: validated, capability-checked and signed before any
+    // allowance is reserved, so an invalid frame never costs a generation.
+    const frames: ShotFrames = validateOwnedFrames(payload.prompt_inputs.shot_frames, user.id)
+    if (hasShotFrames(frames)) {
+      const requestedModel = payload.settings.model?.trim() || ""
+      const family = KIE_VIDEO_MODEL_FAMILIES.find((item) => item.i2vModel === requestedModel)
+      if (!family) return { error: "Start and End Frames need an image-to-video model. Choose Kling or Seedance and retry; nothing was charged." }
+      const issues = frameIssues(frames, family.id)
+      if (issues.length) return { error: issues.join(" ") }
+      const sign = async (assetPath: string) => {
+        const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(assetPath, 3600)
+        if (error || !data) throw new Error("A Start or End Frame file is unavailable. Re-add it, then retry; nothing was charged.")
+        return data.signedUrl
+      }
+      if (frames.start) {
+        // The Start Frame owns the opening image. A direct-image reference keeps
+        // working as director guidance instead of competing for the same slot.
+        payload.prompt_inputs.reference_image = await sign(frames.start.assetPath)
+        if (direct) {
+          payload.prompt_inputs.media_references = refs.map((ref) => ref.id === direct.id ? { ...ref, target: "director" as const } : ref)
+          debug.push("frames.direct_reference_as_guidance", { referenceId: direct.id })
+        }
+      }
+      if (frames.end) endFramePrompt = await sign(frames.end.assetPath)
+      payload.prompt_inputs.text_subject = `${frameDirective(frames)}. ${payload.prompt_inputs.text_subject}`
+      shotFrames = frames
+      debug.push("frames.validated", { start: frames.start?.id || null, end: frames.end?.id || null, family: family.id })
+    }
+    // Campaign character / product references: validated, rights-checked and
+    // signed before any allowance is reserved. They are never dropped silently.
+    const campaign = payload.prompt_inputs.campaign_references
+      ? validateOwnedCampaignReferences(payload.prompt_inputs.campaign_references, user.id)
+      : null
+    if (campaign && campaignMode(campaign) !== "generic") {
+      const requestedModel = payload.settings.model?.trim() || ""
+      const family = KIE_VIDEO_MODEL_FAMILIES.find((item) => item.i2vModel === requestedModel || item.t2vModel === requestedModel)
+      const issues = campaignReferenceIssues(campaign, family?.id)
+      if (!family) issues.push("Character and product references need Kling or Seedance.")
+      if (issues.length) return { error: `${issues.join(" ")} Nothing was charged.` }
+      const signReference = async (assetPath: string) => {
+        const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(assetPath, 3600)
+        if (error || !data) throw new Error("A campaign reference image is unavailable. Re-add it, then retry; nothing was charged.")
+        return data.signedUrl
+      }
+      const ordered = [campaign.character, campaign.product].filter((ref): ref is NonNullable<typeof ref> => Boolean(ref))
+      if (family!.id === "seedance") {
+        if (payload.prompt_inputs.reference_image || hasShotFrames(frames)) {
+          return { error: "Seedance cannot combine character / product references with a starting image or Start / End Frames. Remove the frame, or switch to Kling. Nothing was charged." }
+        }
+        referenceImageUrls = []
+        for (const ref of ordered) for (const path of ref.assetPaths) referenceImageUrls.push(await signReference(path))
+      } else {
+        if (requestedModel !== family!.i2vModel) return { error: "Kling references need its image-to-video model. Retry; nothing was charged." }
+        payload.prompt_inputs.reference_elements = await Promise.all(ordered.map(async (ref, index) => ({
+          name: `reference_set_${index + 1}`,
+          description: `${ref.type}: ${ref.name}`.slice(0, 500),
+          image_urls: await Promise.all(ref.assetPaths.map(signReference)),
+        })))
+        // Kling elements require an opening image: keep a Start Frame, else open on the lead reference.
+        if (!payload.prompt_inputs.reference_image) payload.prompt_inputs.reference_image = payload.prompt_inputs.reference_elements[0].image_urls[0]
+      }
+      payload.prompt_inputs.text_subject = `${campaignLockDirective(campaign)}. ${payload.prompt_inputs.text_subject}`
+      campaignRefs = campaign
+      debug.push("campaign.references", { mode: campaignMode(campaign), family: family!.id, images: ordered.reduce((sum, ref) => sum + ref.assetPaths.length, 0) })
+    }
+    // Fit instead of refusing: condense directions first, the creator's prompt last.
+    // Only the provider text changes; saved takes keep every attached reference.
+    const fit = fitReferencePrompt(payload.prompt_inputs.text_subject, payload.prompt_inputs.media_references ? validateOwnedReferences(payload.prompt_inputs.media_references, user.id) : refs)
+    if (fit.notes.length) debug.push("prompt.fitted", { notes: fit.notes })
+    payload.prompt_inputs.text_subject = fit.subject
+    payload.prompt_inputs.media_references = fit.references
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Invalid media references" }
   }
@@ -443,9 +522,10 @@ export async function generateFastVideo(input: unknown) {
   })
 
   const composed = assembleFastVideoPrompt(payload, safeDuration, { scene: sceneCtx, continuity: continuityCtx })
+  const lockNegatives = campaignLockNegatives(campaignRefs)
   const compliance = enforcePromptCompliance({
     prompt: composed.prompt,
-    negativePrompt: composed.negativePrompt,
+    negativePrompt: lockNegatives.length ? `${composed.negativePrompt}, ${lockNegatives.join(", ")}` : composed.negativePrompt,
     outputType: "video",
   })
   if (compliance.blocked) {
@@ -465,6 +545,8 @@ export async function generateFastVideo(input: unknown) {
       prompt: compliance.prompt,
       negative_prompt: compliance.negativePrompt,
       image_prompt: payload.prompt_inputs.reference_image || undefined,
+      end_image_prompt: endFramePrompt,
+      reference_image_urls: referenceImageUrls,
       reference_elements: payload.prompt_inputs.reference_elements,
       output_type: "video" as const,
       aspect_ratio: payload.prompt_inputs.aspect_ratio,
@@ -534,6 +616,11 @@ export async function generateFastVideo(input: unknown) {
         durationSeconds: safeDuration,
         requestedDurationSeconds: requestedDuration,
         model: payload.settings.model?.trim() || null,
+        // Frame IDs are reported separately from media references.
+        startFrameId: shotFrames?.start?.id || null,
+        endFrameId: shotFrames?.end?.id || null,
+        characterReferenceId: campaignRefs?.character?.id || null,
+        productReferenceId: campaignRefs?.product?.id || null,
         debug: {
           traceId: debug.traceId,
           events: debug.events,
@@ -919,6 +1006,42 @@ export async function routeFastVideoToScene(input: {
  * Save a FastVideo clip to the gallery without requiring a project/scene.
  * Creates a temporary scene if needed to store the clip.
  */
+/**
+ * Frame records live beside the generation log (migration 0034). The clip is
+ * already saved with its frames in parameters, so a missing migration only
+ * skips these typed rows instead of failing the save.
+ */
+async function recordShotFrames(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  shotId: string,
+  generationId: string,
+  frames: ShotFrames,
+  modelFamilyId?: string | null,
+) {
+  const rows = (["start", "end"] as const).flatMap((frameType) => {
+    const frame = frames[frameType]
+    return frame ? [{
+      user_id: userId, frame_id: frame.id, shot_id: shotId, frame_type: frameType, asset_path: frame.assetPath,
+      source_type: frame.sourceType, source_shot_id: frame.sourceShotId || null,
+      source_timestamp_ms: frame.sourceTimestampMs ?? null, influence_strength: frame.influence,
+    }] : []
+  })
+  const { data, error } = await supabase.from("shot_frame_refs").insert(rows).select("id,frame_type")
+  if (error || !data) {
+    console.warn("Shot frame records skipped; apply migration 0034.", { code: error?.code })
+    return
+  }
+  const idFor = (type: "start" | "end") => data.find((row) => row.frame_type === type)?.id ?? null
+  const { error: updateError } = await supabase.from("shot_generations").update({
+    start_frame_ref_id: idFor("start"),
+    end_frame_ref_id: idFor("end"),
+    transition_direction: frames.transitionDirection?.trim() || null,
+    capability_snapshot: { modelFamily: modelFamilyId ?? null, ...frameCapability(modelFamilyId) },
+  }).eq("id", generationId)
+  if (updateError) console.warn("Generation frame columns skipped; apply migration 0034.", { code: updateError.code })
+}
+
 export async function saveFastVideoClipToGallery(input: {
   url: string
   prompt: string
@@ -926,6 +1049,8 @@ export async function saveFastVideoClipToGallery(input: {
   durationSeconds: number
   projectId?: string | null
   mediaReferences?: MediaReference[]
+  shotFrames?: ShotFrames | null
+  modelFamilyId?: string | null
 }) {
   const supabase = await createClient()
   const {
@@ -937,6 +1062,9 @@ export async function saveFastVideoClipToGallery(input: {
   let mediaReferences: MediaReference[]
   try { mediaReferences = validateOwnedReferences(input.mediaReferences, user.id) }
   catch { return { error: "Invalid media references." } }
+  let shotFrames: ShotFrames
+  try { shotFrames = validateOwnedFrames(input.shotFrames, user.id) }
+  catch { return { error: "Invalid Start or End Frame." } }
 
   const durableUrl = await persistRemoteMedia(supabase, {
     url: input.url,
@@ -1015,7 +1143,7 @@ export async function saveFastVideoClipToGallery(input: {
       shot_type: "fast_video",
       estimated_duration: input.durationSeconds,
       prompt_text: input.prompt,
-      generation_settings: { media_references: mediaReferences },
+      generation_settings: { media_references: mediaReferences, ...(hasShotFrames(shotFrames) ? { shot_frames: shotFrames } : {}) },
       sequence_order: 1,
     })
     .select("id")
@@ -1038,6 +1166,7 @@ export async function saveFastVideoClipToGallery(input: {
         duration_seconds: input.durationSeconds,
         source: "fast_video",
         media_references: mediaReferences,
+        ...(hasShotFrames(shotFrames) ? { shot_frames: shotFrames } : {}),
       },
     })
     .select("id")
@@ -1046,6 +1175,8 @@ export async function saveFastVideoClipToGallery(input: {
   if (genError || !generation?.id) {
     return { error: genError?.message || "Failed to save to gallery" }
   }
+
+  if (hasShotFrames(shotFrames)) await recordShotFrames(supabase, user.id, shot.id, generation.id, shotFrames, input.modelFamilyId)
 
   revalidatePath("/dashboard/gallery")
   return { data: { generationId: generation.id, shotId: shot.id, projectId } }

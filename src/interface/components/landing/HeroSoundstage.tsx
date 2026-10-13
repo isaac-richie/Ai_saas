@@ -51,10 +51,10 @@ function StudioPlate() {
 
       {/* Global density — the single biggest lever on text legibility. Kept
           just light enough that the rig and crew still read as a real set. */}
-      <div className="absolute inset-0 bg-[#050505]/58" />
+      <div className="absolute inset-0 bg-obsidian-950/58" />
 
       {/* Cool grade in the shadows, warm bloom where the practicals are. */}
-      <div className="absolute inset-0 mix-blend-color bg-gradient-to-br from-cyan-500/25 via-transparent to-amber-400/15" />
+      <div className="absolute inset-0 mix-blend-color bg-gradient-to-br from-gold-500/25 via-transparent to-amber-400/15" />
 
       {/* Centre scrim — sits directly behind the headline so the copy always
           has contrast regardless of what the photograph is doing underneath. */}
@@ -67,11 +67,11 @@ function StudioPlate() {
       />
 
       {/* Top falloff so the navbar always has something dark to sit on. */}
-      <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-[#050505] via-[#050505]/70 to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-obsidian-950 via-obsidian-950/70 to-transparent" />
 
       {/* Bottom falloff — dissolves the plate into the page background so there
           is never a visible seam where the hero ends. */}
-      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#050505] via-[#050505]/85 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-obsidian-950 via-obsidian-950/85 to-transparent" />
     </div>
   )
 }

@@ -8,6 +8,7 @@ import {
   studioAdPacketSchema,
 } from '@/core/validation/studio-ad';
 import { enforcePromptCompliance } from '@/core/utils/ai/prompt-compliance';
+import { CAMPAIGN_MODE_LABELS, campaignLockDirective, campaignLockNegatives, campaignMode } from '@/core/validation/campaign-references';
 
 const MODEL = process.env.STUDIO_AD_MODEL || 'gpt-5.5';
 const REFINER_MODEL = process.env.STUDIO_AD_REFINER_MODEL || MODEL;
@@ -239,12 +240,53 @@ function buildUserPrompt(input: StudioAdRequest): string {
   );
 }
 
+/** Reference metadata for the planner. Image paths never leave the server. */
+function campaignReferenceBrief(input: StudioAdCampaignRequest) {
+  const refs = input.references
+  if (!refs || campaignMode(refs) === 'generic') return null
+  const character = refs.character ? {
+    name: refs.character.name, role: refs.character.role, ageRange: refs.character.ageRange || null,
+    appearance: refs.character.appearance || null, wardrobe: refs.character.wardrobe || null,
+    voice: refs.character.voice || null, expressionAction: refs.character.expressionAction || null,
+    locks: refs.character.locks, influence: refs.character.influence,
+  } : null
+  const product = refs.product ? {
+    name: refs.product.name, variant: refs.product.variant || null, logoText: refs.product.logoText || null,
+    colourMaterial: refs.product.colourMaterial || null, packaging: refs.product.packaging || null,
+    keyFeatures: refs.product.keyFeatures || null, forbiddenChanges: refs.product.forbiddenChanges,
+    locks: refs.product.locks, influence: refs.product.influence,
+  } : null
+  return {
+    mode: CAMPAIGN_MODE_LABELS[campaignMode(refs)],
+    character,
+    product,
+    style: refs.style,
+    relationship: refs.relationship,
+    lockDirective: campaignLockDirective(refs),
+    negativeConstraints: campaignLockNegatives(refs),
+    rules: [
+      'The same character and the same product must appear in every deliverable; the video model receives their reference images.',
+      'Describe the character and product by their locked attributes; never redesign the face, wardrobe, logo, label text, colour, shape or packaging.',
+      'Keep the product clearly visible during the chosen interaction; hands must not hide the label.',
+      'Vary hook, setting and camera across deliverables, not the identities.',
+      'Do not invent product claims (medical, financial or performance) or on-screen captions beyond the brief.',
+      'Fill productInteraction, shotSequence and callToAction for every deliverable.',
+    ],
+  }
+}
+
 function buildCampaignUserPrompt(input: StudioAdCampaignRequest): string {
+  const referenceBrief = campaignReferenceBrief(input)
   return JSON.stringify(
     {
       task: 'Create a reviewable multi-video campaign plan for batch video generation.',
       qualityBar: 'state_of_the_art_campaign_director',
-      input,
+      input: { ...input, references: undefined },
+      campaignReferences: referenceBrief,
+      // Only an explicit style narrows the formats; "mixed" keeps generic variety.
+      campaignStyle: input.campaignStyle && input.campaignStyle !== 'mixed'
+        ? `Every deliverable uses the ${input.campaignStyle.replace(/_/g, ' ')} format.`
+        : null,
       campaignRules: {
         assetCount: input.assetCount,
         outputType: 'video',
@@ -288,8 +330,14 @@ function buildCampaignUserPrompt(input: StudioAdCampaignRequest): string {
             motionPresetId: null,
             continuityAnchors: [],
             productionNotes: ['short note'],
+            productInteraction: 'how the character handles the product (references only)',
+            shotSequence: 'beat-by-beat sequence in one line (references only)',
+            callToAction: 'closing call to action (references only)',
           },
         ],
+        campaignGoal: 'one-line campaign goal',
+        platform: input.platform || 'TikTok / Reels',
+        negativeConstraints: referenceBrief ? referenceBrief.negativeConstraints : [],
         score: {
           campaignReadiness: '0-100 int',
           varietyStrength: '0-100 int',
@@ -506,7 +554,16 @@ function normalizeCampaignPlan(input: StudioAdCampaignRequest, plan: StudioAdCam
       motionPresetId: item.motionPresetId || null,
       continuityAnchors: uniqueTokens([...(item.continuityAnchors || []), ...(input.continuityAnchors || [])].map(cleanText)).slice(0, 12),
       productionNotes: uniqueTokens((item.productionNotes || []).map(cleanText)).slice(0, 5),
+      ...(item.productInteraction ? { productInteraction: cleanText(item.productInteraction).slice(0, 220) } : {}),
+      ...(item.shotSequence ? { shotSequence: cleanText(item.shotSequence).slice(0, 400) } : {}),
+      ...(item.callToAction ? { callToAction: cleanText(item.callToAction).slice(0, 160) } : {}),
     };
+  }).map((item) => {
+    // Locked references always carry their negatives, whatever the planner wrote.
+    const lockNegatives = campaignLockNegatives(input.references)
+    return lockNegatives.length
+      ? { ...item, negativePrompt: uniqueTokens([...tokenizeCsv(item.negativePrompt), ...lockNegatives]).join(', ').slice(0, 700) }
+      : item;
   });
 
   while (deliverables.length < targetCount) {
@@ -540,6 +597,11 @@ function normalizeCampaignPlan(input: StudioAdCampaignRequest, plan: StudioAdCam
       promptClarity: clampScore(plan.score.promptClarity),
     },
     suggestions: uniqueTokens((plan.suggestions || []).map(cleanText)).slice(0, 6),
+    ...(plan.campaignGoal ? { campaignGoal: cleanText(plan.campaignGoal).slice(0, 220) } : {}),
+    ...(plan.platform || input.platform ? { platform: cleanText(plan.platform || input.platform || '').slice(0, 60) } : {}),
+    ...(campaignLockNegatives(input.references).length || plan.negativeConstraints?.length
+      ? { negativeConstraints: uniqueTokens([...(plan.negativeConstraints || []), ...campaignLockNegatives(input.references)].map(cleanText)).slice(0, 16) }
+      : {}),
   };
 }
 
@@ -689,7 +751,56 @@ export class StudioAdService {
       buildCampaignUserPrompt(input),
       MODEL_REASONING_EFFORT
     );
-    const parsed = studioAdCampaignPlanSchema.parse(rawPlan);
-    return normalizeCampaignPlan(input, parsed);
+    const fitted = fitCampaignPlan(rawPlan);
+    const result = studioAdCampaignPlanSchema.safeParse(fitted);
+    if (!result.success) {
+      throw new Error('The Assistant Director returned an incomplete plan. Please try Plan again.');
+    }
+    return normalizeCampaignPlan(input, result.data);
   }
+}
+
+const CAMPAIGN_TEXT_LIMITS: Record<string, number> = {
+  campaignSummary: 600, audience: 220, creativeStrategy: 500,
+};
+const DELIVERABLE_TEXT_LIMITS: Record<string, number> = {
+  id: 80, title: 120, conceptType: 80, hook: 220, creatorDirection: 500,
+  masterPrompt: 1200, negativePrompt: 700, aspectRatio: 20,
+  stylePresetId: 120, motionPresetId: 120, continuityStartState: 300,
+  continuityEndState: 300, productInteraction: 220, shotSequence: 400, callToAction: 160,
+};
+const DELIVERABLE_LIST_LIMITS: Record<string, [number, number]> = {
+  continuityAnchors: [12, 240], productionNotes: [5, 220], intentionalChanges: [4, 160],
+};
+
+function clip(value: unknown, max: number): unknown {
+  if (typeof value !== 'string' || value.length <= max) return value;
+  const cut = value.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max * 0.7 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+function clipList(value: unknown, count: number, max: number): unknown {
+  return Array.isArray(value) ? value.slice(0, count).map((item) => clip(item, max)) : value;
+}
+
+/** Detailed briefs make the model overshoot field limits; trim rather than reject. */
+export function fitCampaignPlan(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw;
+  const plan = { ...(raw as Record<string, unknown>) };
+  for (const [key, max] of Object.entries(CAMPAIGN_TEXT_LIMITS)) plan[key] = clip(plan[key], max);
+  plan.suggestions = clipList(plan.suggestions, 6, 220);
+  if (Array.isArray(plan.deliverables)) {
+    plan.deliverables = plan.deliverables.slice(0, 5).map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      const deliverable = { ...(item as Record<string, unknown>) };
+      for (const [key, max] of Object.entries(DELIVERABLE_TEXT_LIMITS)) deliverable[key] = clip(deliverable[key], max);
+      for (const [key, [count, max]] of Object.entries(DELIVERABLE_LIST_LIMITS)) deliverable[key] = clipList(deliverable[key], count, max);
+      if (typeof deliverable.durationSeconds === 'number') {
+        deliverable.durationSeconds = Math.min(15, Math.max(5, Math.round(deliverable.durationSeconds)));
+      }
+      return deliverable;
+    });
+  }
+  return plan;
 }

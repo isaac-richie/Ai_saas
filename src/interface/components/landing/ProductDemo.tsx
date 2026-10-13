@@ -22,12 +22,12 @@ export function ProductDemo() {
           whileInView={fadeUpAnimate}
           transition={fadeUpTransition}
           viewport={{ once: true, amount: 0.2 }}
-          className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent p-6 transition-all duration-300 hover:border-cyan-400/20"
+          className="group relative overflow-hidden rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.04] to-transparent p-6 transition-all duration-300 hover:border-gold-400/20"
         >
-          <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-cyan-400/[0.06] blur-3xl" />
+          <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gold-400/[0.06] blur-3xl" />
 
           <div className="relative z-10">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-cyan-300">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-gold-400/20 bg-gold-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-gold-300">
               <Zap className="h-3 w-3" />
               Fast Track
             </div>
@@ -41,15 +41,15 @@ export function ProductDemo() {
 
             <div className="space-y-2">
               <div className="flex items-center gap-3 text-[12px] text-white/55">
-                <span className="flex h-5 w-5 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-[10px] text-cyan-300">1</span>
+                <span className="flex h-5 w-5 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-[10px] text-gold-300">1</span>
                 Choose model + write prompt
               </div>
               <div className="flex items-center gap-3 text-[12px] text-white/55">
-                <span className="flex h-5 w-5 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-[10px] text-cyan-300">2</span>
+                <span className="flex h-5 w-5 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-[10px] text-gold-300">2</span>
                 Set aspect ratio, motion, style
               </div>
               <div className="flex items-center gap-3 text-[12px] text-white/55">
-                <span className="flex h-5 w-5 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-[10px] text-cyan-300">3</span>
+                <span className="flex h-5 w-5 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-[10px] text-gold-300">3</span>
                 Generate + save to gallery
               </div>
             </div>

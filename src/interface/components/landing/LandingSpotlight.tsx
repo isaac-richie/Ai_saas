@@ -53,7 +53,7 @@ export function LandingSpotlight() {
             className="pointer-events-none absolute inset-0 z-0"
             style={{
                 background: [
-                    "radial-gradient(680px circle at var(--spotlight-x, 50%) var(--spotlight-y, 24%), rgba(34,211,238,0.18), rgba(53,166,255,0.06) 34%, rgba(5,5,5,0) 68%)",
+                    "radial-gradient(680px circle at var(--spotlight-x, 50%) var(--spotlight-y, 24%), rgba(217,192,138,0.18), rgba(200,167,106,0.06) 34%, rgba(5,5,5,0) 68%)",
                     "radial-gradient(480px circle at calc(var(--spotlight-x, 50%) + 6%) calc(var(--spotlight-y, 24%) - 4%), rgba(255,255,255,0.06), rgba(5,5,5,0) 70%)",
                 ].join(","),
                 willChange: "background",

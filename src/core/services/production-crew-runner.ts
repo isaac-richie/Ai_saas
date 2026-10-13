@@ -1,7 +1,7 @@
 import { z } from "zod"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { compileCrewShotsForReview, compileProductionPlan, createCrewRunner, safeCrewError } from "@/core/services/production-crew"
-import { crewReviewSchema, crewShotsSchema, departmentDirectionSchema, productionBibleSchema } from "@/core/validation/production-crew"
+import { continuityLedgerSchema, crewReviewSchema, crewShotsSchema, departmentDirectionSchema, productionBibleSchema } from "@/core/validation/production-crew"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
@@ -23,6 +23,7 @@ const stageContextSchema = z.object({
   editor: crewShotsSchema.optional(),
   previousEditor: crewShotsSchema.optional(),
   referenceSnapshot: z.string().optional(),
+  findingsRepairUsed: z.boolean().optional(),
   stages: z.array(z.object({ role: z.string(), responseId: z.string(), model: z.string().optional() })).default([]),
 })
 
@@ -106,7 +107,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       // Previously paid department outputs may describe different source images.
       // A new reference set must not be mixed with those saved checkpoints.
       await saveCheckpoint(client, job.id, claimUntil, job.planning_stage, "brief", {
-        model, shotSettings: context.shotSettings, revision: context.revision, referenceSnapshot, stages: [],
+        model, shotSettings: context.shotSettings, revision: context.revision, findingsRepairUsed: context.findingsRepairUsed, referenceSnapshot, stages: [],
       })
       return { data: { complete: false, stage: "story", message: "References changed; restarting visual direction with the new sources" } }
     }
@@ -116,12 +117,19 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       role, instruction,
       { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: context.shotSettings ?? null }, schema,
     )
-    let workingStage = job.planning_stage
     if (job.planning_stage === "brief") {
-      context.story = productionBibleSchema.parse(seedProductionBible(planningBrief, references, context.shotSettings?.length ?? 3))
-      workingStage = "story"
-      failedStage = "visual direction"
+      const seeded = productionBibleSchema.parse(seedProductionBible(planningBrief, references, context.shotSettings?.length ?? 3))
+      failedStage = "continuity extraction"
+      const extraction = await extractContinuityLedger(run, planningBrief, seeded)
+      const nextContext = {
+        ...context,
+        story: { ...seeded, continuityLedger: extraction?.ledger ?? null },
+        stages: extraction ? [{ role: CONTINUITY_EXTRACTOR, responseId: extraction.responseId, model: extraction.model }] : [],
+      }
+      await saveCheckpoint(client, job.id, claimUntil, "brief", "story", nextContext)
+      return { data: { complete: false, stage: "story", message: extraction ? "Continuity contract extracted from your brief" : "Continuity anchors prepared from your brief" } }
     }
+    const workingStage = job.planning_stage
     // Save one department per request so a failed colleague never discards paid work.
     if (["story", "departments", "shots"].includes(workingStage) && context.story && (!context.camera || !context.lighting || !context.productionDesign || !context.performance)) {
       const departments = [
@@ -177,6 +185,34 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     return { error: `The crew could not finish ${failedStage}. Its last completed checkpoint is safe; retry to resume.` }
   }
 }
+
+const CONTINUITY_EXTRACTOR = "continuity-extractor"
+const EXTRACTION_INSTRUCTION = [
+  "Extract a continuity contract using only facts stated in the brief or clearly visible in the references.",
+  "Never invent identity, wardrobe, props, materials, palette, locations, weather, or camera style.",
+  "When the brief and references do not establish a field, write exactly: Not specified in the brief; keep consistent across shots.",
+  "heroObjects lists only objects the brief or references name or show; return an empty list when there are none.",
+  "invariants restate the stated facts as concrete rules every shot must keep.",
+].join(" ")
+
+/**
+ * One economy call turns the brief into concrete continuity facts so every
+ * department and the reviewer share the same contract. It never blocks the
+ * film: apart from exhausted credits, a failure keeps the generic anchors.
+ */
+async function extractContinuityLedger(run: CrewRunnerFn, brief: string, bible: z.infer<typeof productionBibleSchema>) {
+  try {
+    const result = await run(CONTINUITY_EXTRACTOR, EXTRACTION_INSTRUCTION, { brief, bible }, continuityLedgerSchema)
+    return { ledger: result.value, responseId: result.responseId, model: result.model }
+  } catch (cause) {
+    const message = safeCrewError(cause)
+    if (message.startsWith("AI planning credits are exhausted")) throw cause
+    console.warn("Continuity extraction skipped", { error: message })
+    return null
+  }
+}
+
+type CrewRunnerFn = ReturnType<typeof createCrewRunner>
 
 async function saveCheckpoint(client: SupabaseClient, jobId: string, claimUntil: string, expectedStage: string, nextStage: string, context: unknown) {
   const { data, error } = await client.from("production_jobs").update({ planning_stage: nextStage, planning_context: context, planning_claimed_until: null, planning_updated_at: new Date().toISOString() }).eq("id", jobId).eq("planning_stage", expectedStage).eq("planning_claimed_until", claimUntil).select("id").maybeSingle()

@@ -123,3 +123,18 @@ export function canApproveProduction(plan: unknown): boolean {
   }
   return true
 }
+
+export type CrewFinding = z.infer<typeof crewReviewSchema>["findings"][number]
+
+/** Reviewer findings the crew marked as blocking. Advisory: they never gate approval alone. */
+export function blockingFindings(plan: unknown): CrewFinding[] {
+  const parsed = productionPlanSchema.safeParse(plan)
+  if (!parsed.success) return []
+  return parsed.data.crew?.review.findings.filter(finding => finding.severity === "blocking") ?? []
+}
+
+/** A lineage may spend one crew repair on advisory findings; later findings are approve-anyway only. */
+export function findingsRepairUsed(planningContext: unknown): boolean {
+  return Boolean(planningContext && typeof planningContext === "object"
+    && (planningContext as { findingsRepairUsed?: unknown }).findingsRepairUsed === true)
+}

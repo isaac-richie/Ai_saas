@@ -161,6 +161,8 @@ test('revision action saves a 4000-character brief unchanged with large repair n
     productionPlanSchema: { safeParse: value => ({ success: true, data: value || { crew: { review: { findings } } } }) },
     productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), productionAssetsSchema: z.array(z.any()),
     canApproveProduction: () => false, buildRevisionContext, revisionSaveError,
+    blockingFindings: plan => (plan?.crew?.review?.findings || []).filter(finding => finding.severity === 'blocking'),
+    findingsRepairUsed: context => context?.findingsRepairUsed === true,
   })
   const result = await actionModule.exports.createProductionRevision({ productionId: sourceJob.id, direction: 'Repair the blocked shot.', repair: true })
   assert.equal(result.data.id, 'saved')
@@ -249,7 +251,7 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
-      if (name.endsWith('/validation/production-crew')) return { productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
+      if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
       if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
@@ -269,9 +271,10 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
     if (result.data.complete) { completed = true; break }
   }
   assert.equal(completed, true)
-  assert.equal(received.length, failedRole ? 7 : 6)
+  assert.equal(received.length, failedRole ? 8 : 7)
+  assert.equal(received[0].role, 'continuity-extractor', 'continuity is extracted before any department')
   assert.equal(received.some(call => call.role === 'story-director'), false)
-  for (const role of ['cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) {
+  for (const role of ['continuity-extractor', 'cinematographer', 'lighting-director', 'production-designer', 'performance-director', 'shot-editor', 'continuity-reviewer']) {
     assert.equal(received.filter(call => call.role === role).length, role === failedRole ? 2 : 1)
   }
   for (const call of received) {
@@ -326,7 +329,7 @@ test('repair checkpoint runs only shot editor and continuity reviewer', async ()
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
-      if (name.endsWith('/validation/production-crew')) return { productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
+      if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
       if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
@@ -363,7 +366,7 @@ test('complete editorial repair notes survive crew and saved-plan validation wit
     })
     return result.exports
   }
-  const studio = loadSchema('../src/core/validation/studio-ad.ts')
+  const studio = loadSchema('../src/core/validation/studio-ad.ts', { './campaign-references': loadSchema('../src/core/validation/campaign-references.ts') })
   const crew = loadSchema('../src/core/validation/production-crew.ts', { './studio-ad': studio })
   const note = 'Cut at right toe-off into shot 2, matching the advancing left knee and preserving forward motion. Assumption: runner and styling are proposed specifications, not approved assets. If supported and available, use an approved identity reference and shot 1 selected end frame as reference controls; these do not guarantee continuity.'
   assert.ok(note.length > 220)
@@ -507,14 +510,17 @@ test('shot settings frontend renders twelve editable shots with model-specific d
   const seedance = render('seedance')
   assert.equal((seedance.match(/role="tab"/g) || []).length, 12)
   assert.equal((seedance.match(/aria-label="Shot \d+ duration"/g) || []).length, 1)
-  assert.match(seedance, /value="15" selected=""/)
-  assert.match(seedance, /value="4"/)
+  assert.match(seedance, /role="radio" aria-checked="true"[^>]*>15s</)
+  assert.match(seedance, />4s</)
+  assert.equal((seedance.match(/>\d+s</g) || []).length, 12, 'Seedance offers 4 to 15 seconds')
   const kling = render('kling')
-  assert.doesNotMatch(kling, /value="15"/)
-  assert.match(kling, /value="10" selected=""/)
+  assert.doesNotMatch(kling, />15s</)
+  assert.match(kling, /role="radio" aria-checked="true"[^>]*>10s</)
+  assert.equal((kling.match(/>\d+s</g) || []).length, 2, 'Kling offers 5 or 10 seconds')
+  assert.match(kling, /aria-label="Add a shot" disabled=""/, 'twelve shots is the maximum')
 })
 
-test('sequence editor preserves other shots and clears unsupported model timing', async () => {
+test('sequence editor preserves other shots and keeps model timing valid', async () => {
   const jsxRuntime = await import('react/jsx-runtime')
   let selection = 0
   const result = { exports: {} }
@@ -536,24 +542,44 @@ test('sequence editor preserves other shots and clears unsupported model timing'
     walk(tree)
     return nodes
   }
-  render().find(node => node.type === 'button' && node.props.children === 'Kling').props.onClick()
+  const text = node => [].concat(node.props?.children ?? []).filter(child => typeof child === 'string' || typeof child === 'number').join('')
+  const group = label => render().find(node => node.props?.['aria-label'] === label)
+  const option = (label, name) => [].concat(group(label).props.children).find(node => text(node) === name)
+  // Switching a 15 s Seedance shot to Kling snaps to Kling's nearest length instead of an invalid one.
+  option('Shot 1 model', 'Kling 3.0 Pro').props.onClick()
   assert.equal(value[0].model, 'kling')
-  assert.equal(value[0].durationSeconds, 0)
-  assert.equal(value[1].durationSeconds, 10)
-  render().find(node => node.props?.['aria-label'] === 'Increase shot duration').props.onClick()
+  assert.equal(value[0].durationSeconds, 10)
+  assert.equal(value[1].durationSeconds, 10, 'other shots are untouched')
+  assert.equal(value[2].durationSeconds, 5)
+  option('Shot 1 duration', '5s').props.onClick()
   assert.equal(value[0].durationSeconds, 5)
   render().filter(node => node.props?.role === 'tab')[1].props.onClick()
   assert.equal(selection, 1)
-  render().find(node => node.props?.['aria-label'] === 'Shot 2 duration').props.onChange({ target: { value: '5' } })
+  option('Shot 2 duration', '5s').props.onClick()
   assert.equal(value[1].durationSeconds, 5)
-  render().find(node => node.type === 'button' && node.props.children === '2 min').props.onClick()
+  // One click sets every shot's model and keeps every duration valid.
+  option('Model for all shots', 'Seedance 2.5').props.onClick()
+  assert.ok(value.every(shot => shot.model === 'seedance'))
+  assert.equal(productionShotSettingsSchema.safeParse(value).success, true)
+  option('Model for all shots', 'Kling 3.0 Pro').props.onClick()
+  assert.ok(value.every(shot => shot.model === 'kling' && [5, 10].includes(shot.durationSeconds)))
+  // Add and remove shots within 2 to 12; a new shot copies the last one.
+  render().find(node => node.props?.['aria-label'] === 'Add a shot').props.onClick()
+  assert.equal(value.length, 4)
+  assert.equal(JSON.stringify(value[3]), JSON.stringify(value[2]))
+  render().find(node => node.props?.['aria-label'] === 'Remove a shot').props.onClick()
+  render().find(node => node.props?.['aria-label'] === 'Remove a shot').props.onClick()
+  assert.equal(value.length, 2)
+  render().find(node => node.props?.['aria-label'] === 'Remove a shot').props.onClick()
+  assert.equal(value.length, 2, 'never fewer than two shots')
+  option('Film length presets', '2 min').props.onClick()
   assert.equal(value.length, 12)
   assert.equal(value.reduce((sum, shot) => sum + shot.durationSeconds, 0), 120)
   assert.equal(selection, 0)
   assert.equal(productionShotSettingsSchema.safeParse(value).success, true)
   render().filter(node => node.props?.role === 'tab')[0].props.onKeyDown({ key: 'End', preventDefault() {} })
   assert.equal(selection, 11)
-  render().find(node => node.type === 'button' && node.props.children === '30 sec').props.onClick()
+  option('Film length presets', '30 sec').props.onClick()
   assert.equal(value.length, 3)
   assert.equal(selection, 0)
 })
@@ -582,7 +608,7 @@ test('provider structured output contract requires exact shot count for 2 throug
     vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports, require: name => name === 'zod' ? { z } : dependencies[name] })
     return module.exports
   }
-  const studio = load('../src/core/validation/studio-ad.ts')
+  const studio = load('../src/core/validation/studio-ad.ts', { './campaign-references': load('../src/core/validation/campaign-references.ts') })
   const schemas = load('../src/core/validation/production-crew.ts', { './studio-ad': studio })
   const fn = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'createCrewRunner').getText(tree)
   let request
@@ -632,4 +658,70 @@ for (const scenario of ['completed', 'lookup-error', 'active', 'active-error', '
   if (scenario === 'active') assert.equal(result.data.id, 'existing')
   else assert.ok(result.error)
   assert.equal(calls, 0)
+})
+
+// Real schemas, not pass-through mocks: the final plan parse is where the
+// fallback-ledger limits failed after every paid crew call.
+function loadCrewWithRealSchemas() {
+  const load = (path, requireMap) => {
+    const loaded = { exports: {} }
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports, require: name => requireMap[name] })
+    return loaded.exports
+  }
+  const studioAd = load('../src/core/validation/studio-ad.ts', { zod: { z: settingsZod }, './campaign-references': load('../src/core/validation/campaign-references.ts', { zod: { z: settingsZod } }) })
+  const schemas = load('../src/core/validation/production-crew.ts', { zod: { z: settingsZod }, './studio-ad': studioAd })
+  const fnNames = new Set(['fallbackLedger', 'clip', 'compileContinuityPrompt', 'compileContinuityNegativePrompt', 'normalizeCrewShots', 'compileProductionPlan'])
+  const body = tree.statements.filter(node => ts.isFunctionDeclaration(node) && fnNames.has(node.name?.text)).map(node => node.getText(tree)).join('\n')
+  const crew = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(`${body}\nmodule.exports = { compileProductionPlan }`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: crew, exports: crew.exports, productionPlanSchema: schemas.productionPlanSchema, Set })
+  return { schemas, compileProductionPlan: crew.exports.compileProductionPlan }
+}
+
+function seededPlanInput(referenceNames) {
+  const anchors = [
+    ...referenceNames.map(name => `Preserve character details shown in ${name}.`),
+    'Preserve the subject, action, and visual details specified in the original brief.',
+    'Keep locations, wardrobe, objects, palette, and screen direction consistent unless the brief changes them.',
+    'Do not add story facts or visual elements that conflict with the brief or references.',
+  ].slice(0, 8)
+  const direction = { approach: 'Approach text here.', shotDirections: ['One.', 'Two.', 'Three.'], constraints: ['Keep it.'] }
+  const shot = index => ({ title: `Shot ${index}`, intent: 'Reveal the hero.', action: 'The hero walks forward slowly.', prompt: 'A cinematic wide shot of the hero walking forward slowly at dusk in warm light.', negativePrompt: 'blurry, warped', model: 'kling', editNote: 'Cut on action.', continuity: { startState: 'Hero at door.', endState: 'Hero at table.', carriedDetails: ['red coat', 'brass lamp', 'wet street'], intentionalChanges: [] } })
+  return {
+    shotSettings: [1, 2, 3].map(() => ({ model: 'kling', durationSeconds: 10 })), model: 'test',
+    story: { title: 'Courier', treatment: 'A courier crosses the city.', audienceEmotion: 'Hope.', world: 'Use only the setting described in the brief.', continuityAnchors: anchors, continuityLedger: null, beats: ['One.', 'Two.', 'Three.'], assumptions: [] },
+    camera: direction, lighting: direction, productionDesign: direction, performance: direction,
+    editor: { shots: [1, 2, 3].map(shot) }, review: { summary: 'All good here.', findings: [] },
+    stages: Array.from({ length: 6 }, (_, index) => ({ role: `role-${index}`, responseId: `id-${index}` })),
+  }
+}
+
+test('seeded bibles with long reference names still compile a valid plan', () => {
+  const { compileProductionPlan } = loadCrewWithRealSchemas()
+  for (const names of [['a'.repeat(160)], ['b'.repeat(130), 'c'.repeat(130), 'd'.repeat(130)]]) {
+    const plan = compileProductionPlan(seededPlanInput(names))
+    assert.equal(plan.deliverables.length, 3)
+    assert.ok(plan.crew.bible.continuityLedger.invariants.every(item => item.length <= 180))
+    assert.ok(plan.crew.bible.continuityLedger.heroObjects.every(item => item.length <= 160))
+  }
+})
+
+test('deliverable continuity anchors are not duplicated by the fallback ledger', () => {
+  const { compileProductionPlan } = loadCrewWithRealSchemas()
+  const plan = compileProductionPlan(seededPlanInput(['hero.png']))
+  for (const deliverable of plan.deliverables) {
+    assert.equal(new Set(deliverable.continuityAnchors).size, deliverable.continuityAnchors.length)
+  }
+})
+
+test('crew model calls stay inside the planning lease and route duration', () => {
+  const read = (pattern, text) => Number(text.match(pattern)?.[1].replaceAll('_', ''))
+  const route = readFileSync(new URL('../src/app/api/ad/production-crew/route.ts', import.meta.url), 'utf8')
+  const runner = readFileSync(new URL('../src/core/services/production-crew-runner.ts', import.meta.url), 'utf8')
+  const budget = read(/CREW_STAGE_BUDGET_MS = ([\d_]+)/, source)
+  const minimumAttempt = read(/CREW_MIN_ATTEMPT_MS = ([\d_]+)/, source)
+  const routeLimitMs = read(/maxDuration = (\d+)/, route) * 1000
+  const leaseMs = read(/Date\.now\(\) \+ (\d+) \* 60_000/, runner) * 60_000
+  assert.ok(budget < routeLimitMs && budget < leaseMs, 'stage budget must end before the route limit and lease')
+  assert.ok(minimumAttempt > 0 && minimumAttempt < budget)
+  assert.match(source, /responses\.parse\(\{[\s\S]*?\}, \{ timeout: Math\.min\(CREW_CALL_TIMEOUT_MS, remaining\) \}\)/)
 })

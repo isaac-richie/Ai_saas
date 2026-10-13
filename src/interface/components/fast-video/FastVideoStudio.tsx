@@ -1,5 +1,7 @@
 "use client"
 
+import type * as React from "react"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -7,13 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components
 import { Button } from "@/interface/components/ui/button"
 import { Input } from "@/interface/components/ui/input"
 import { Textarea } from "@/interface/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/interface/components/ui/select"
+import { MentionTextarea } from "./MentionTextarea"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import {
   FAST_VIDEO_ASPECT_RATIOS,
@@ -34,7 +30,6 @@ import { generateFastVideo, pollFastVideoStatus, routeFastVideoToScene, persistF
 import {
   getFastVideoStoryboard,
   replaceFastVideoStoryboard,
-  type FastVideoStoryboardRow,
 } from "@/core/actions/fast-video-storyboard"
 import {
   createStudioAdCampaign,
@@ -44,7 +39,7 @@ import {
   type StudioAdCampaignWithItems,
 } from "@/core/actions/studio-ad-campaigns"
 import { getShots } from "@/core/actions/shots"
-import type { StudioAdCampaignDeliverable, StudioAdCampaignPlan } from "@/core/validation/studio-ad"
+import type { StudioAdCampaignPlan } from "@/core/validation/studio-ad"
 import {
   Loader2,
   Sparkles,
@@ -52,6 +47,7 @@ import {
   Clapperboard,
   Trash2,
   Download,
+  Share2,
   RotateCcw,
   Save,
   WandSparkles,
@@ -62,6 +58,7 @@ import {
   Maximize2,
   ArrowRightLeft,
   ListChecks,
+  ChevronDown,
   Send,
   Copy,
   Pencil,
@@ -71,229 +68,46 @@ import {
 import { buildMediaFilename } from "@/lib/download-filename"
 import { saveFastVideoClipToGallery } from "@/core/actions/fast-video"
 import { TakesPanel, type TakeItem } from "./TakesPanel"
-import { ContinuityPanel, type ContinuityKey as ContinuityKeyExtracted, CONTINUITY_LOCKS, buildContinuityClauseFromState } from "./ContinuityPanel"
-import { StoryboardPanel, type StoryboardItem as StoryboardItemImported } from "./StoryboardPanel"
+import { ContinuityPanel, EMPTY_CONTINUITY_SOURCES, buildContinuityClauseFromState, continuityValuesForStorage, lockedRoleOwners, type ContinuitySources } from "./ContinuityPanel"
+import { StoryboardPanel } from "./StoryboardPanel"
 import { useContinuitySync } from "@/interface/hooks/useContinuitySync"
 import { ShotPreviewTimeline } from "./ShotPreviewTimeline"
 import { GenerationJobsPanel } from "./GenerationJobsPanel"
 import { StoryboardExportPanel } from "./StoryboardExportPanel"
 import { MediaReferenceManager } from "./MediaReferenceManager"
+import { AspectGlyph, SegmentedPreset } from "./PresetPicker"
+import { orderPresets } from "./preset-order"
+import { ModelPicker, TemplateGallery } from "./StudioPickers"
+import { ShotLookSection } from "./ShotLookSection"
+import { PROMPT_TEMPLATES, type PromptTemplate } from "@/core/config/fast-video-templates"
+import { ShotFramesPanel } from "./ShotFramesPanel"
+import { CampaignReferencesPanel, type CampaignOutputSettings } from "./CampaignReferencesPanel"
+import { CampaignAssetMeta } from "./CampaignAssetMeta"
+import { FAST_TRACK_HANDOFF_KEY } from "@/core/config/handoff"
+import { captureVideoFrame, uploadFrameImage } from "./frame-capture"
+import { continueFromShot, insertAfter, laterShotsUsing, needsCharacter } from "./storyboard-continuity"
+import { generationPrompt, needsEnhancement, referenceClassificationSchema } from "@/core/validation/storyboard-direction"
+import { EMPTY_CAMPAIGN_REFERENCES, brandSafetyReviewed, type CampaignProvenance, campaignMode, campaignPlanSummary, campaignReferenceIssues, campaignReferencesSchema, recommendedCampaignModel, type CampaignReferences } from "@/core/validation/campaign-references"
+import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
-import { mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, referencePromptFits, type MediaReference } from "@/core/validation/media-reference"
+import { MAX_REFERENCES, labelReferences, mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, resolveLockedRoles, type MediaReference } from "@/core/validation/media-reference"
 
-type SceneOption = {
-  id: string
-  name: string
-}
-
-type SceneShotOption = {
-  id: string
-  name: string
-}
-
-type ProjectOption = {
-  id: string
-  name: string
-  scenes: SceneOption[]
-}
-
-interface FastVideoStudioProps {
-  projects: ProjectOption[]
-}
-
-type FastVideoDebugEvent = {
-  at: string
-  step: string
-  details?: Record<string, unknown>
-}
-
-type GenerationSnapshot = {
-  mediaReferences?: MediaReference[]
-  projectId?: string | null
-  subject: string
-  prompt: string
-  aspectRatio: FastVideoAspectRatio
-  variation: FastVideoVariation
-  durationSeconds: number
-  modelFamilyId: KieVideoModelFamilyId
-}
-
-type SavedFastClip = {
-  mediaReferences?: MediaReference[]
-  projectId?: string | null
-  id: string
-  taskId: string | null
-  url: string
-  subject: string
-  prompt: string
-  aspectRatio: FastVideoAspectRatio
-  variation: FastVideoVariation
-  durationSeconds: number
-  modelFamilyId?: KieVideoModelFamilyId
-  createdAt: string
-}
-
-type StoryboardItem = StoryboardItemImported
-
-type CampaignBatchItem = StudioAdCampaignDeliverable & {
-  dbId?: string
-  status: "planned" | "queued" | "processing" | "completed" | "failed"
-  taskId: string | null
-  traceId: string | null
-  url: string | null
-  error: string | null
-}
-
-type ContinuityKey = ContinuityKeyExtracted
-
-type PromptTemplate = {
-  id: string
-  label: string
-  prompt: string
-}
-
-type QuickLook = {
-  id: string
-  label: string
-  stylePresetId: string
-  motionPresetId: string
-}
-
-const PROMPT_TEMPLATES: PromptTemplate[] = [
-  {
-    id: "neo-noir",
-    label: "Neo-noir alley",
-    prompt:
-      "A lone detective walks through a rain-soaked neon alley at night, cinematic realism, subtle fog, reflective asphalt, slow dolly tracking shot",
-  },
-  {
-    id: "fashion-commercial",
-    label: "Fashion commercial",
-    prompt:
-      "A high-end fashion model exits a black car in golden-hour city light, elegant camera glide, premium ad look, clean depth and polished textures",
-  },
-  {
-    id: "documentary-intro",
-    label: "Documentary intro",
-    prompt:
-      "A confident founder steps onto a rooftop at sunrise, medium close-up, natural wind movement, grounded documentary tone, smooth cinematic motion",
-  },
-]
-
-const QUICK_LOOKS: QuickLook[] = [
-  {
-    id: "look_cinematic_close",
-    label: "Cinematic Close-Up",
-    stylePresetId: "style_golden_hour_film",
-    motionPresetId: "motion_dolly_in",
-  },
-  {
-    id: "look_documentary",
-    label: "Documentary Natural",
-    stylePresetId: "style_hyperreal_studio",
-    motionPresetId: "motion_handheld_gentle",
-  },
-  {
-    id: "look_neon_drive",
-    label: "Neon Night Drive",
-    stylePresetId: "style_cyberpunk_neon",
-    motionPresetId: "motion_fast_action_tracking",
-  },
-]
-
-const FAST_VIDEO_STORAGE_KEY = "aisas.fast-video.v1"
-
-function normalizeStoryboardItems(items: StoryboardItem[]): StoryboardItem[] {
-  return items.slice(0, 60).map((item) => ({
-    ...item,
-    subject: item.subject?.trim() || "Storyboard shot",
-    prompt: item.prompt?.trim() || "",
-    durationSeconds: Math.max(1, Math.min(30, Math.round(item.durationSeconds || 5))),
-    sceneGroup: item.sceneGroup || "Scene A",
-    note: item.note || "",
-    status: item.status || "ready",
-  }))
-}
-
-function mapRemoteStoryboardItem(row: FastVideoStoryboardRow): StoryboardItem {
-  return {
-    mediaReferences: mediaReferencesSchema.safeParse(row.media_references).data || [],
-    id: row.id,
-    sourceClipId: row.source_clip_id,
-    url: row.url,
-    subject: row.subject || "Storyboard shot",
-    prompt: row.prompt || "",
-    durationSeconds: row.duration_seconds || 5,
-    modelFamilyId: (row.model_family_id as KieVideoModelFamilyId | null) || undefined,
-    sceneGroup: (row.scene_group as StoryboardItem["sceneGroup"]) || "Scene A",
-    note: row.note || "",
-    status: (row.status as StoryboardItem["status"]) || "ready",
-    createdAt: row.created_at,
-  }
-}
-
-function jsonStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
-}
-
-function mapCampaignRowToPlan(row: StudioAdCampaignWithItems): StudioAdCampaignPlan {
-  const score = row.score && typeof row.score === "object" && !Array.isArray(row.score)
-    ? row.score as Record<string, unknown>
-    : {}
-
-  return {
-    campaignSummary: row.campaign_summary,
-    audience: row.audience,
-    creativeStrategy: row.creative_strategy,
-    deliverables: row.items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      conceptType: item.concept_type,
-      hook: item.hook,
-      creatorDirection: item.creator_direction,
-      masterPrompt: item.master_prompt,
-      negativePrompt: item.negative_prompt,
-      durationSeconds: item.duration_seconds,
-      aspectRatio: item.aspect_ratio,
-      modelFamilyId: getKieVideoModelFamily(item.model_family_id).id,
-      stylePresetId: item.style_preset_id,
-      motionPresetId: item.motion_preset_id,
-      continuityAnchors: jsonStringArray(item.continuity_anchors),
-      productionNotes: jsonStringArray(item.production_notes),
-    })),
-    score: {
-      campaignReadiness: typeof score.campaignReadiness === "number" ? score.campaignReadiness : 0,
-      varietyStrength: typeof score.varietyStrength === "number" ? score.varietyStrength : 0,
-      promptClarity: typeof score.promptClarity === "number" ? score.promptClarity : 0,
-    },
-    suggestions: jsonStringArray(row.suggestions),
-  }
-}
-
-function mapCampaignRowToItems(row: StudioAdCampaignWithItems): CampaignBatchItem[] {
-  return row.items.map((item) => ({
-    id: item.id,
-    dbId: item.id,
-    title: item.title,
-    conceptType: item.concept_type,
-    hook: item.hook,
-    creatorDirection: item.creator_direction,
-    masterPrompt: item.master_prompt,
-    negativePrompt: item.negative_prompt,
-    durationSeconds: item.duration_seconds,
-    aspectRatio: item.aspect_ratio,
-    modelFamilyId: getKieVideoModelFamily(item.model_family_id).id,
-    stylePresetId: item.style_preset_id,
-    motionPresetId: item.motion_preset_id,
-    continuityAnchors: jsonStringArray(item.continuity_anchors),
-    productionNotes: jsonStringArray(item.production_notes),
-    status: item.status as CampaignBatchItem["status"],
-    taskId: item.task_id,
-    traceId: item.trace_id,
-    url: item.output_url,
-    error: item.error,
-  }))
-}
+import {
+  SceneShotOption,
+  FastVideoStudioProps,
+  FastVideoDebugEvent,
+  GenerationSnapshot,
+  SavedFastClip,
+  StoryboardItem,
+  CampaignBatchItem,
+  ContinuityKey,
+  FAST_VIDEO_STORAGE_KEY,
+  normalizeStoryboardItems,
+  mapRemoteStoryboardItem,
+  mapCampaignRowToPlan,
+  mapCampaignRowToItems,
+  campaignRowReferences,
+} from "./fast-video-studio.model"
 
 export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const router = useRouter()
@@ -301,8 +115,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   const [subject, setSubject] = useState("")
   const [templateId, setTemplateId] = useState<string>(PROMPT_TEMPLATES[0]?.id || "")
-  const [stylePresetId, setStylePresetId] = useState<string>(STYLE_PRESETS[0]?.id || "")
-  const [motionPresetId, setMotionPresetId] = useState<string>(MOTION_PRESETS[1]?.id || "")
+  const [stylePresetId, setStylePresetId] = useState<string>("")
+  const [motionPresetId, setMotionPresetId] = useState<string>("")
   const [modelFamilyId, setModelFamilyId] = useState<KieVideoModelFamilyId>(DEFAULT_KIE_VIDEO_MODEL_FAMILY)
   const [aspectRatio, setAspectRatio] = useState<FastVideoAspectRatio>("16:9")
   const [variation, setVariation] = useState<FastVideoVariation>("balanced")
@@ -341,6 +155,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     colorGrade: "",
     cameraStyle: "",
   })
+  const [continuitySources, setContinuitySources] = useState<ContinuitySources>(EMPTY_CONTINUITY_SOURCES)
   const [activeSavedClipId, setActiveSavedClipId] = useState<string | null>(null)
   const [downloadName, setDownloadName] = useState<string>("")
   const [isGenerating, setIsGenerating] = useState(false)
@@ -349,6 +164,15 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const generationSnapshotRef = useRef<GenerationSnapshot | null>(null)
+  // Storyboard card the next builder generation fills in; consumed by handleGenerate.
+  const storyboardTargetRef = useRef<string | null>(null)
+  const [generatingStoryboardId, setGeneratingStoryboardId] = useState<string | null>(null)
+  const [approvingStoryboardId, setApprovingStoryboardId] = useState<string | null>(null)
+  const [addingReferencesStoryboardId, setAddingReferencesStoryboardId] = useState<string | null>(null)
+  const [storyboardGenerateRequest, setStoryboardGenerateRequest] = useState(0)
+  // Temporal Start / End Frames: kept apart from the media reference library.
+  const [shotFrames, setShotFrames] = useState<ShotFrames>(EMPTY_SHOT_FRAMES)
+  const [isFrameBusy, setIsFrameBusy] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [volume, setVolume] = useState(1)
@@ -370,6 +194,15 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [isSceneShotsLoading, setIsSceneShotsLoading] = useState(false)
   const [isRoutingOutput, setIsRoutingOutput] = useState(false)
   const [campaignBrief, setCampaignBrief] = useState("")
+  // Optional Character / Product references; empty keeps generic UGC unchanged.
+  const [campaignReferences, setCampaignReferences] = useState<CampaignReferences>(EMPTY_CAMPAIGN_REFERENCES)
+  const [isCampaignReferenceBusy, setIsCampaignReferenceBusy] = useState(false)
+  // Campaign output defaults from the spec: vertical 9:16, 5 s, automatic model.
+  const [campaignSettings, setCampaignSettings] = useState<CampaignOutputSettings>({ aspectRatio: "9:16", durationSeconds: 5, modelOverride: null })
+  const [planDetailsOpen, setPlanDetailsOpen] = useState(false)
+  const campaignHasReferences = campaignMode(campaignReferences) !== "generic"
+  // Reference campaigns default to Seedance (works with one image); generic keeps the planner's choice.
+  const campaignModel = recommendedCampaignModel(campaignReferences, campaignSettings.modelOverride)
   const [campaignAssetCount, setCampaignAssetCount] = useState(3)
   const [campaignPlan, setCampaignPlan] = useState<StudioAdCampaignPlan | null>(null)
   const [campaignItems, setCampaignItems] = useState<CampaignBatchItem[]>([])
@@ -410,29 +243,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const hasStoryboardDestination = Boolean(selectedProjectId && selectedSceneId)
 
   const activeModelFamily = useMemo(() => getKieVideoModelFamily(modelFamilyId), [modelFamilyId])
+  // Tags (@image1…) come from the full panel order, so prompts match what the creator sees.
+  const labelledReferences = useMemo(() => labelReferences(currentReferences), [currentReferences])
   const continuityClause = useMemo(
-    () => buildContinuityClauseFromState(continuityEnabled, continuityLocks, continuityValues),
-    [continuityEnabled, continuityLocks, continuityValues]
+    () => buildContinuityClauseFromState(continuityEnabled, continuityLocks, continuityValues, continuitySources, labelledReferences),
+    [continuityEnabled, continuityLocks, continuityValues, continuitySources, labelledReferences]
   )
-
-  const pipelineStage = useMemo(() => {
-    if (status === "completed") return 3
-    const normalized = statusMessage.toLowerCase()
-    if (normalized.includes("final")) return 3
-    if (normalized.includes("sample")) return 2
-    if (status === "processing") return 1
-    return 0
-  }, [status, statusMessage])
-
-  const activeStyle = useMemo(
-    () => STYLE_PRESETS.find((preset) => preset.id === stylePresetId) || null,
-    [stylePresetId]
-  )
-
-  const activeMotion = useMemo(
-    () => MOTION_PRESETS.find((preset) => preset.id === motionPresetId) || null,
-    [motionPresetId]
-  )
+  /** Only applied references go out, with locked channels taking their roles from other references. */
+  const buildGenerationReferences = useCallback(() => structuredClone(
+    resolveLockedRoles(labelledReferences, lockedRoleOwners(continuityEnabled, continuityLocks, continuitySources, labelledReferences))
+      .filter((ref) => ref.applied)
+  ), [labelledReferences, continuityEnabled, continuityLocks, continuitySources])
+  const promptBudget = useMemo(() => referencePromptBudget(
+    continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(),
+    buildGenerationReferences(),
+  ), [continuityClause, buildGenerationReferences, subject])
 
   const filteredStyles = useMemo(() => {
     const q = styleSearch.trim().toLowerCase()
@@ -446,21 +271,15 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     return MOTION_PRESETS.filter((preset) => preset.name.toLowerCase().includes(q))
   }, [motionSearch])
 
-  const styleChipList = useMemo(() => {
-    const recent = filteredStyles.filter((preset) => recentStyleIds.includes(preset.id))
-    const favorites = filteredStyles.filter((preset) => favoriteStyleIds.includes(preset.id) && !recentStyleIds.includes(preset.id))
-    const rest = filteredStyles.filter((preset) => !recentStyleIds.includes(preset.id) && !favoriteStyleIds.includes(preset.id))
-    const merged = [...recent, ...favorites, ...rest]
-    return showAllStyleChips ? merged : merged.slice(0, 5)
-  }, [favoriteStyleIds, filteredStyles, recentStyleIds, showAllStyleChips])
+  const styleChipList = useMemo(() => orderPresets(filteredStyles, {
+    pinnedIds: favoriteStyleIds, recentIds: recentStyleIds, selectedId: stylePresetId,
+    expanded: true, searching: Boolean(styleSearch.trim()),
+  }), [favoriteStyleIds, filteredStyles, recentStyleIds, styleSearch, stylePresetId])
 
-  const motionChipList = useMemo(() => {
-    const recent = filteredMotions.filter((preset) => recentMotionIds.includes(preset.id))
-    const favorites = filteredMotions.filter((preset) => favoriteMotionIds.includes(preset.id) && !recentMotionIds.includes(preset.id))
-    const rest = filteredMotions.filter((preset) => !recentMotionIds.includes(preset.id) && !favoriteMotionIds.includes(preset.id))
-    const merged = [...recent, ...favorites, ...rest]
-    return showAllMotionChips ? merged : merged.slice(0, 5)
-  }, [favoriteMotionIds, filteredMotions, recentMotionIds, showAllMotionChips])
+  const motionChipList = useMemo(() => orderPresets(filteredMotions, {
+    pinnedIds: favoriteMotionIds, recentIds: recentMotionIds, selectedId: motionPresetId,
+    expanded: true, searching: Boolean(motionSearch.trim()),
+  }), [favoriteMotionIds, filteredMotions, recentMotionIds, motionSearch, motionPresetId])
 
 
   const handleLoadClip = (clip: SavedFastClip) => {
@@ -490,14 +309,36 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     })))
   }
 
+  const applyTemplate = (template: PromptTemplate) => {
+    const before = { subject, stylePresetId, motionPresetId, templateId }
+    setSubject(template.prompt)
+    setTemplateId(template.id)
+    if (template.stylePresetId) applyStylePreset(template.stylePresetId)
+    if (template.motionPresetId) applyMotionPreset(template.motionPresetId)
+    // Templates replace the prompt, so the previous draft is always one click away.
+    toast.message(`${template.label} template applied`, {
+      id: "fast-video-template",
+      description: "Prompt, style and motion updated. Everything stays editable.",
+      action: before.subject.trim() && before.subject.trim() !== template.prompt ? {
+        label: "Undo",
+        onClick: () => {
+          setSubject(before.subject)
+          setStylePresetId(before.stylePresetId)
+          setMotionPresetId(before.motionPresetId)
+          setTemplateId(before.templateId)
+        },
+      } : undefined,
+    })
+  }
+
   const applyStylePreset = (id: string) => {
     setStylePresetId(id)
-    setRecentStyleIds((prev) => [id, ...prev.filter((entry) => entry !== id)].slice(0, 20))
+    if (id) setRecentStyleIds((prev) => [id, ...prev.filter((entry) => entry !== id)].slice(0, 20))
   }
 
   const applyMotionPreset = (id: string) => {
     setMotionPresetId(id)
-    setRecentMotionIds((prev) => [id, ...prev.filter((entry) => entry !== id)].slice(0, 20))
+    if (id) setRecentMotionIds((prev) => [id, ...prev.filter((entry) => entry !== id)].slice(0, 20))
   }
 
   const toggleFavoriteStyle = (id: string) => {
@@ -535,6 +376,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         durationSeconds?: number
         referenceImageUrl?: string
         referenceLibrary?: MediaReference[]
+        shotFrames?: unknown
+        campaignReferences?: unknown
+        campaignSettings?: CampaignOutputSettings
         status?: "idle" | "processing" | "completed" | "failed"
         statusMessage?: string
         taskId?: string | null
@@ -549,6 +393,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         continuityEnabled?: boolean
         continuityLocks?: Record<ContinuityKey, boolean>
         continuityValues?: Record<ContinuityKey, string>
+        continuitySources?: Partial<ContinuitySources>
         favoriteStyleIds?: string[]
         favoriteMotionIds?: string[]
         recentStyleIds?: string[]
@@ -578,6 +423,17 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         const result = mediaReferenceSchema.safeParse(ref)
         return result.success ? [result.data] : []
       }))
+      if (parsed.campaignSettings && typeof parsed.campaignSettings.aspectRatio === "string" && typeof parsed.campaignSettings.durationSeconds === "number") {
+        setCampaignSettings({ aspectRatio: parsed.campaignSettings.aspectRatio, durationSeconds: parsed.campaignSettings.durationSeconds, modelOverride: parsed.campaignSettings.modelOverride === "kling" || parsed.campaignSettings.modelOverride === "seedance" ? parsed.campaignSettings.modelOverride : null })
+      }
+      if (parsed.campaignReferences) {
+        const refs = campaignReferencesSchema.safeParse(parsed.campaignReferences)
+        if (refs.success) setCampaignReferences(refs.data)
+      }
+      if (parsed.shotFrames) {
+        const frames = shotFramesSchema.safeParse(parsed.shotFrames)
+        if (frames.success) setShotFrames(frames.data)
+      }
       if (parsed.status) setStatus(parsed.status)
       if (typeof parsed.statusMessage === "string") setStatusMessage(parsed.statusMessage)
       if (typeof parsed.taskId === "string" || parsed.taskId === null) setTaskId(parsed.taskId ?? null)
@@ -595,6 +451,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (typeof parsed.continuityEnabled === "boolean") setContinuityEnabled(parsed.continuityEnabled)
       if (parsed.continuityLocks) setContinuityLocks((prev) => ({ ...prev, ...parsed.continuityLocks }))
       if (parsed.continuityValues) setContinuityValues((prev) => ({ ...prev, ...parsed.continuityValues }))
+      if (parsed.continuitySources) setContinuitySources((prev) => ({ ...prev, ...parsed.continuitySources }))
       if (Array.isArray(parsed.favoriteStyleIds)) setFavoriteStyleIds(parsed.favoriteStyleIds.slice(0, 20))
       if (Array.isArray(parsed.favoriteMotionIds)) setFavoriteMotionIds(parsed.favoriteMotionIds.slice(0, 20))
       if (Array.isArray(parsed.recentStyleIds)) setRecentStyleIds(parsed.recentStyleIds.slice(0, 20))
@@ -650,6 +507,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           durationSeconds,
           referenceImageUrl,
           referenceLibrary,
+          shotFrames,
+          campaignReferences,
+          campaignSettings,
           status,
           statusMessage,
           taskId,
@@ -664,6 +524,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           continuityEnabled,
           continuityLocks,
           continuityValues,
+          continuitySources,
           favoriteStyleIds: favoriteStyleIds.slice(0, 20),
           favoriteMotionIds: favoriteMotionIds.slice(0, 20),
           recentStyleIds: recentStyleIds.slice(0, 20),
@@ -688,6 +549,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     templateId,
     stylePresetId,
     motionPresetId,
+    shotFrames,
+    campaignReferences,
+    campaignSettings,
     modelFamilyId,
     aspectRatio,
     variation,
@@ -708,6 +572,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     continuityEnabled,
     continuityLocks,
     continuityValues,
+    continuitySources,
     favoriteStyleIds,
     favoriteMotionIds,
     recentStyleIds,
@@ -843,6 +708,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           durationSeconds: clip.durationSeconds,
           projectId: clip.projectId ?? (selectedProjectId || null),
           mediaReferences: clip.mediaReferences,
+          shotFrames: clip.shotFrames ?? null,
+          modelFamilyId: clip.modelFamilyId,
         })
         if (result.error) toast.error(`Clip kept locally. Gallery save failed: ${result.error}`)
       } catch {
@@ -874,6 +741,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     prompt: string
     durationSeconds: number
     modelFamilyId?: KieVideoModelFamilyId
+    campaignProvenance?: CampaignProvenance | null
   }) => {
     if (!input.url) {
       toast.error("No media available to add")
@@ -893,6 +761,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       createdAt: new Date().toISOString(),
       mediaReferences: savedClips.find((clip) => clip.id === input.sourceClipId || clip.url === input.url)?.mediaReferences
         || (input.url === videoUrl ? generationSnapshotRef.current?.mediaReferences : undefined),
+      ...(input.campaignProvenance ? { campaignProvenance: input.campaignProvenance } : {}),
     }
     const nextItems = normalizeStoryboardItems([item, ...storyboardItems])
     setStoryboardItems(nextItems)
@@ -1049,6 +918,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       error: "error" in updates ? updates.error ?? null : undefined,
       masterPrompt: updates.masterPrompt,
       durationSeconds: updates.durationSeconds,
+      qualityFlags: updates.qualityFlags,
+      generationModel: updates.generationModel,
     })
     if (res.error) {
       toast.error(res.error)
@@ -1081,6 +952,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setCampaignAssetCount(campaign.asset_count)
     setCampaignPlan(mapCampaignRowToPlan(campaign))
     setCampaignItems(mapCampaignRowToItems(campaign))
+    setCampaignReferences(campaignRowReferences(campaign))
     setCampaignEngineModel(campaign.engine_model)
     setAspectRatio(
       FAST_VIDEO_ASPECT_RATIOS.includes(campaign.aspect_ratio as FastVideoAspectRatio)
@@ -1098,6 +970,14 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       return
     }
 
+    const activeReferences = campaignMode(campaignReferences) === "generic" ? null : campaignReferences
+    if (activeReferences) {
+      // Explain rights or model limits before planning, never drop a reference silently.
+      const issues = campaignReferenceIssues(activeReferences, campaignModel)
+      if (issues.length) { toast.error(issues.join(" "), { id: "campaign-references" }); return }
+    }
+    if (isCampaignReferenceBusy) { toast.message("Wait for the reference images to finish uploading."); return }
+
     setIsPlanningCampaign(true)
     try {
       const response = await fetch("/api/ad/direct-campaign", {
@@ -1109,15 +989,17 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           outputType: "video",
           providerTarget: "kie",
           campaignType: "ugc",
-          aspectRatio,
-          durationSeconds,
+          aspectRatio: campaignSettings.aspectRatio,
+          durationSeconds: campaignSettings.durationSeconds,
+          campaignStyle: campaignReferences.style,
           context: {
             projectId: selectedProjectId || undefined,
             sceneId: selectedSceneId || undefined,
-            generationModelHint: activeModelFamily.label,
+            generationModelHint: campaignModel ? getKieVideoModelFamily(campaignModel).label : activeModelFamily.label,
           },
           currentPromptContext: subject.trim() || undefined,
           continuityAnchors: continuityClause ? [continuityClause] : [],
+          ...(activeReferences ? { references: activeReferences } : {}),
         }),
       })
       const payload = (await response.json().catch(() => null)) as
@@ -1149,9 +1031,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         brief,
         plan: payload.data,
         assetCount: campaignAssetCount,
-        aspectRatio,
-        durationSeconds,
+        aspectRatio: campaignSettings.aspectRatio,
+        durationSeconds: campaignSettings.durationSeconds,
         engineModel: payload.engine?.model || null,
+        references: activeReferences,
       })
 
       if (saved.error || !saved.data) {
@@ -1171,23 +1054,49 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
   }
 
+  const provenanceFor = (item: CampaignBatchItem): CampaignProvenance | null => campaignHasReferences ? {
+    campaignId, campaignItemId: item.dbId || item.id,
+    characterReferenceId: campaignReferences.character?.id ?? null, productReferenceId: campaignReferences.product?.id ?? null,
+    style: campaignReferences.style, relationship: campaignReferences.character && campaignReferences.product ? campaignReferences.relationship : null,
+    model: item.generationModel ?? campaignModel,
+  } : null
+
+  /** Reference campaigns need a human brand-safety review before an asset is used. */
+  const needsBrandSafetyReview = (item: CampaignBatchItem) => campaignHasReferences && item.status === "completed" && !brandSafetyReviewed(item.qualityFlags)
+
   const handleUseCampaignItem = (item: CampaignBatchItem) => {
+    if (needsBrandSafetyReview(item)) {
+      toast.error("Review brand safety first", { id: "brand-safety", description: "Confirm there are no competitor logos or unapproved claims in this asset, then use it." })
+      return
+    }
     const safeAspectRatio = FAST_VIDEO_ASPECT_RATIOS.includes(item.aspectRatio as FastVideoAspectRatio)
       ? (item.aspectRatio as FastVideoAspectRatio)
       : aspectRatio
     setSubject(item.masterPrompt)
     setDurationSeconds(item.durationSeconds)
     setAspectRatio(safeAspectRatio)
-    setModelFamilyId(item.modelFamilyId)
-    toast.success("Campaign prompt loaded into Shot Builder")
+    if (campaignMode(campaignReferences) === "generic") setModelFamilyId(item.modelFamilyId)
+    toast.success("Campaign prompt loaded into Shot Builder", {
+      description: "Review likeness, product details and any claims before publishing an ad.",
+    })
   }
 
   const startCampaignItemGeneration = async (item: CampaignBatchItem) => {
+    const activeReferences = campaignMode(campaignReferences) === "generic" ? null : campaignReferences
+    // With references, every asset uses the chosen model so the identity lock is consistent.
+    const itemFamily = (activeReferences ? recommendedCampaignModel(activeReferences, campaignSettings.modelOverride) : campaignSettings.modelOverride) ?? item.modelFamilyId
+    if (activeReferences) {
+      const issues = campaignReferenceIssues(activeReferences, itemFamily)
+      if (issues.length) {
+        updateCampaignItem(item.id, { status: "failed", error: issues.join(" ") })
+        return
+      }
+    }
     updateCampaignItem(item.id, { status: "queued", error: null })
     void persistCampaignItem(item, { status: "queued", error: null })
     const selectedModel = resolveKieVideoModelByFamily({
-      familyId: item.modelFamilyId,
-      useImageToVideo: Boolean(referenceImageUrl),
+      familyId: itemFamily,
+      useImageToVideo: Boolean(referenceImageUrl) || (Boolean(activeReferences) && itemFamily === "kling"),
     })
     const safeAspectRatio = FAST_VIDEO_ASPECT_RATIOS.includes(item.aspectRatio as FastVideoAspectRatio)
       ? (item.aspectRatio as FastVideoAspectRatio)
@@ -1202,6 +1111,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         motion_preset_id: item.motionPresetId || motionPresetId || null,
         aspect_ratio: safeAspectRatio,
         reference_image: referenceImageUrl || null,
+        ...(activeReferences ? { campaign_references: activeReferences } : {}),
         variation_setting: variation,
       },
       settings: {
@@ -1242,6 +1152,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         error: null,
         masterPrompt: resolvedPrompt,
         durationSeconds: appliedDuration,
+        generationModel: selectedModel,
       })
       return
     }
@@ -1253,6 +1164,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
 
     const processingUpdate: Partial<CampaignBatchItem> = {
+      generationModel: selectedModel,
       status: "processing",
       taskId: res.data.taskId,
       traceId: initialDebug?.traceId || null,
@@ -1295,8 +1207,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   const handleCopyCampaignPrompt = async (item: CampaignBatchItem) => {
     try {
-      await navigator.clipboard.writeText(item.masterPrompt)
-      toast.success("Campaign prompt copied")
+      const refs = campaignMode(campaignReferences) === "generic" ? null : campaignReferences
+      // Copy the prompt plus the structured campaign settings (spec: Copy).
+      const settings = {
+        title: item.title, hook: item.hook, durationSeconds: item.durationSeconds, aspectRatio: item.aspectRatio,
+        model: campaignModel ?? item.modelFamilyId, negativePrompt: item.negativePrompt,
+        ...(item.productInteraction ? { productInteraction: item.productInteraction } : {}),
+        ...(item.callToAction ? { callToAction: item.callToAction } : {}),
+        ...(refs ? {
+          style: refs.style, relationship: refs.character && refs.product ? refs.relationship : null,
+          character: refs.character ? { id: refs.character.id, name: refs.character.name, role: refs.character.role, locks: refs.character.locks } : null,
+          product: refs.product ? { id: refs.product.id, name: refs.product.name, variant: refs.product.variant ?? null, locks: refs.product.locks } : null,
+        } : {}),
+      }
+      await navigator.clipboard.writeText(`${item.masterPrompt}\n\n${JSON.stringify(settings, null, 2)}`)
+      toast.success("Prompt and campaign settings copied")
     } catch {
       toast.error("Failed to copy prompt")
     }
@@ -1330,6 +1255,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       toast.error("Generate this campaign video first")
       return
     }
+    if (needsBrandSafetyReview(item)) {
+      toast.error("Review brand safety first", { id: "brand-safety", description: "Confirm there are no competitor logos or unapproved claims in this asset, then add it." })
+      return
+    }
     addToStoryboard({
       sourceClipId: item.taskId || item.id,
       url: item.url,
@@ -1337,15 +1266,19 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       prompt: item.masterPrompt,
       durationSeconds: item.durationSeconds,
       modelFamilyId: item.modelFamilyId,
+      campaignProvenance: provenanceFor(item),
     })
   }
 
   const handleAddCampaignToStoryboard = async () => {
-    const completed = campaignItems.filter((item) => item.status === "completed" && item.url)
+    const finished = campaignItems.filter((item) => item.status === "completed" && item.url)
+    const completed = finished.filter((item) => !needsBrandSafetyReview(item))
+    const awaitingReview = finished.length - completed.length
     if (completed.length === 0) {
-      toast.error("No completed campaign videos to add")
+      toast.error(awaitingReview ? "Review brand safety first" : "No completed campaign videos to add", awaitingReview ? { description: `${awaitingReview} asset${awaitingReview === 1 ? " needs" : "s need"} a brand-safety review before adding.` } : undefined)
       return
     }
+    if (awaitingReview) toast.message(`${awaitingReview} asset${awaitingReview === 1 ? " was" : "s were"} skipped until reviewed for brand safety.`)
 
     setIsAddingCampaignToStoryboard(true)
     try {
@@ -1357,6 +1290,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         prompt: item.masterPrompt,
         durationSeconds: item.durationSeconds,
         modelFamilyId: item.modelFamilyId,
+        campaignProvenance: provenanceFor(item),
         sceneGroup: (["Scene A", "Scene B", "Scene C"] as const)[index % 3],
         note: item.hook,
         status: "ready",
@@ -1564,6 +1498,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             durationSeconds: snapshot.durationSeconds,
             modelFamilyId: snapshot.modelFamilyId,
             mediaReferences: snapshot.mediaReferences,
+            shotFrames: snapshot.shotFrames ?? null,
             projectId: snapshot.projectId,
             createdAt: new Date().toISOString(),
           })
@@ -1593,22 +1528,64 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     return () => window.clearInterval(interval)
   }, [taskId, status, traceId, persistClipMedia, saveClip])
 
+  const downloadFilename = videoUrl
+    ? (downloadName || buildMediaFilename({ base: subject || "fast-video", kind: "video", url: videoUrl }))
+    : undefined
+  const downloadHref = videoUrl && downloadFilename
+    ? `/api/media/proxy?url=${encodeURIComponent(videoUrl)}&filename=${encodeURIComponent(downloadFilename)}`
+    : "#"
+
+  /** Phones get the native share sheet (TikTok, Instagram, WhatsApp…); elsewhere the link is copied. */
+  const handleShareVideo = async () => {
+    if (!videoUrl) return
+    try {
+      if (typeof navigator.share === "function") {
+        const response = await fetch(downloadHref)
+        const file = new File([await response.blob()], downloadFilename ?? "visiowave.mp4", { type: "video/mp4" })
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: "Made with Visiowave" })
+          return
+        }
+        await navigator.share({ url: videoUrl, title: "Made with Visiowave" })
+        return
+      }
+      await navigator.clipboard.writeText(videoUrl)
+      toast.success("Video link copied")
+    } catch (error) {
+      if ((error as Error)?.name !== "AbortError") toast.error("Couldn't share this video. Try Download instead.")
+    }
+  }
+
   const handleGenerate = async () => {
     if (!subject.trim()) {
-      toast.error("Please add a subject prompt")
+      toast.error("Describe your idea first, even one sentence works.")
+      document.getElementById("fast-video-prompt")?.focus()
       return
     }
-    if (isUploading || isReferenceSyncing || isGenerating || status === "processing") {
+    if (isUploading || isFrameBusy || isReferenceSyncing || isGenerating || status === "processing") {
       toast.message("Wait for the current upload, analysis or generation to finish.")
       return
     }
-    const generationReferences = structuredClone(currentReferences.filter((ref) => ref.applied))
+    const generationReferences = buildGenerationReferences()
     const referenceIssues = referenceCompatibility(generationReferences)
     if (referenceIssues.length) { toast.error(referenceIssues.join(" ")); return }
     if (referenceImageUrl && generationReferences.some((ref) => ref.target === "provider")) { toast.error("Remove the legacy starting image before using another direct image."); return }
-    if (!referencePromptFits(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), generationReferences)) {
-      toast.error("Shorten the prompt or approved reference directions to fit the video adapter's prompt budget.")
-      return
+    // Never block on length: the server applies this same fit; tell the user what it condensed.
+    const generationFrames = hasShotFrames(shotFrames) ? structuredClone(shotFrames) : null
+    const frameProblems = frameIssues(generationFrames, modelFamilyId)
+    if (frameProblems.length) { toast.error(frameProblems.join(" "), { id: "fast-video-generate" }); return }
+    if (generationFrames?.start && referenceImageUrl) { toast.error("Remove the legacy starting image; your Start Frame now sets the opening image.", { id: "fast-video-generate" }); return }
+    // Shown only once the job is accepted, so a refused request never claims it was fitted.
+    const fitSubject = continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim()
+    const promptFit = fitReferencePrompt(generationFrames ? `${frameDirective(generationFrames)}. ${fitSubject}` : fitSubject, generationReferences)
+
+    const storyboardTargetId = storyboardTargetRef.current
+    storyboardTargetRef.current = null
+    setGeneratingStoryboardId(storyboardTargetId)
+    // On a phone the preview sits below the form; bring it into view so progress is visible.
+    const preview = document.getElementById("create-preview")
+    if (preview && preview.getBoundingClientRect().top > window.innerHeight * 0.6) {
+      preview.scrollIntoView({ behavior: "smooth", block: "start" })
     }
 
     setIsGenerating(true)
@@ -1623,7 +1600,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
     const selectedModel = resolveKieVideoModelByFamily({
       familyId: modelFamilyId,
-      useImageToVideo: Boolean(referenceImageUrl) || generationReferences.some((ref) => ref.target === "provider"),
+      useImageToVideo: Boolean(referenceImageUrl) || Boolean(generationFrames?.start) || generationReferences.some((ref) => ref.target === "provider"),
     })
 
     const subjectWithContinuity = continuityClause
@@ -1631,7 +1608,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       : subject.trim()
 
     generationSnapshotRef.current = {
+      storyboardTargetId,
       mediaReferences: generationReferences,
+      shotFrames: generationFrames,
       projectId: selectedProjectId || null,
       subject: subject.trim(),
       prompt: subjectWithContinuity,
@@ -1653,6 +1632,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           aspect_ratio: aspectRatio,
           reference_image: referenceImageUrl || null,
           media_references: generationReferences,
+          ...(generationFrames ? { shot_frames: generationFrames } : {}),
           variation_setting: variation,
         },
         settings: {
@@ -1664,8 +1644,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (res.error || !res.data) {
         setStatus("failed")
         setStatusMessage(res.error || "Generation failed")
-        toast.error(res.error || "Generation failed")
+        toast.error(res.error || "Generation failed", { id: "fast-video-generate" })
         return
+      }
+      if (promptFit.notes.length) {
+        toast.message("Fitted to the video model's prompt limit", { id: "fast-video-fit", description: promptFit.notes.join(" ") })
       }
 
       const appliedDuration =
@@ -1673,7 +1656,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       const resolvedPrompt = res.data.prompt || subjectWithContinuity
 
       generationSnapshotRef.current = {
+        storyboardTargetId,
         mediaReferences: generationReferences,
+        shotFrames: generationFrames,
         projectId: selectedProjectId || null,
         subject: subject.trim(),
         prompt: resolvedPrompt,
@@ -1705,6 +1690,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         saveClip({
           id: completedClipId,
           mediaReferences: generationReferences,
+          shotFrames: generationFrames,
           projectId: selectedProjectId || null,
           taskId: res.data.taskId || null,
           url: res.data.url,
@@ -1806,7 +1792,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       }
 
       if (continuityEnabled && res.data.shotId) {
-        void saveContinuity(res.data.shotId, continuityLocks, continuityValues)
+        void saveContinuity(res.data.shotId, continuityLocks, continuityValuesForStorage(continuityLocks, continuityValues, continuitySources, labelledReferences))
       }
 
       toast.success(successMessage)
@@ -1910,6 +1896,266 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     generationSnapshotRef.current = null
   }
 
+  // Prompt handed over from Scene Builder ("Make video in Fast Track").
+  useEffect(() => {
+    let prompt: string | null = null
+    try {
+      prompt = sessionStorage.getItem(FAST_TRACK_HANDOFF_KEY)
+      sessionStorage.removeItem(FAST_TRACK_HANDOFF_KEY)
+    } catch { prompt = null }
+    if (!prompt?.trim()) return
+    setActiveTab("builder")
+    setSubject(prompt.trim())
+    toast.success("Prompt brought over from Scene Builder", { id: "fast-track-handoff", description: "Pick a model and press Generate." })
+  }, [])
+
+  const handleGenerateRef = useRef(handleGenerate)
+  useEffect(() => { handleGenerateRef.current = handleGenerate })
+  // "Generate shot" on a storyboard card loads the builder first; generate once that state has rendered.
+  useEffect(() => {
+    if (!storyboardGenerateRequest) return
+    void handleGenerateRef.current().finally(() => { storyboardTargetRef.current = null })
+  }, [storyboardGenerateRequest])
+
+  // A generation started from a storyboard card lands back on that card.
+  useEffect(() => {
+    const snapshot = generationSnapshotRef.current
+    const target = snapshot?.storyboardTargetId
+    if (!snapshot || !target) return
+    if (status === "completed" && videoUrl) {
+      snapshot.storyboardTargetId = null
+      setGeneratingStoryboardId(null)
+      const nextItems = normalizeStoryboardItems(storyboardItems.map((item) => item.id === target ? {
+        ...item,
+        url: videoUrl,
+        sourceClipId: taskId ?? item.sourceClipId,
+        prompt: snapshot.prompt,
+        subject: item.subject === "New shot" || item.subject === "Next shot" ? ((item.direction || "").trim() || snapshot.subject).slice(0, 60) : item.subject,
+        durationSeconds: snapshot.durationSeconds,
+        modelFamilyId: snapshot.modelFamilyId,
+        mediaReferences: snapshot.mediaReferences ?? item.mediaReferences,
+        review: "review" as const,
+        status: "ready" as const,
+        driftReview: null,
+        endFrame: null,
+        approvedTakeId: null,
+      } : item))
+      setStoryboardItems(nextItems)
+      void persistStoryboardItems(nextItems, { suppressSuccess: true })
+      toast.success("Shot ready for review", { id: "storyboard-shot", action: { label: "Open storyboard", onClick: () => setActiveTab("storyboard") } })
+    } else if (status === "failed") {
+      snapshot.storyboardTargetId = null
+      setGeneratingStoryboardId(null)
+      const nextItems = storyboardItems.map((item) => item.id === target ? { ...item, review: "failed" as const } : item)
+      setStoryboardItems(nextItems)
+      void persistStoryboardItems(nextItems, { suppressSuccess: true })
+    }
+    // Runs on generation status changes only; the card list is read at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, videoUrl])
+
+  // Async card actions (uploads, frame capture, enhancement) patch the latest list, not the one they started with.
+  const storyboardItemsRef = useRef(storyboardItems)
+  useEffect(() => { storyboardItemsRef.current = storyboardItems }, [storyboardItems])
+  const patchStoryboardItem = (id: string, patch: Partial<StoryboardItem>, persist = true) => {
+    const nextItems = normalizeStoryboardItems(storyboardItemsRef.current.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+    storyboardItemsRef.current = nextItems
+    setStoryboardItems(nextItems)
+    if (persist) void persistStoryboardItems(nextItems, { suppressSuccess: true })
+    return nextItems
+  }
+
+  const handleNewStoryboardShot = () => {
+    const last = storyboardItems[storyboardItems.length - 1]
+    const item: StoryboardItem = {
+      id: crypto.randomUUID(),
+      sourceClipId: null,
+      url: "",
+      subject: "New shot",
+      prompt: "",
+      direction: "",
+      durationSeconds,
+      modelFamilyId,
+      sceneGroup: last?.sceneGroup ?? "Scene A",
+      note: "",
+      status: "draft",
+      review: "draft",
+      createdAt: new Date().toISOString(),
+      mediaReferences: structuredClone(labelledReferences.filter((ref) => ref.applied)),
+      startFrame: shotFrames.start ?? null,
+      endFrame: null,
+      previousItemId: null,
+    }
+    const nextItems = normalizeStoryboardItems([...storyboardItems, item])
+    setStoryboardItems(nextItems)
+    void persistStoryboardItems(nextItems, { suppressSuccess: true })
+  }
+
+  const handleGenerateStoryboardShot = async (item: StoryboardItem, skipCharacterCheck = false) => {
+    const direction = (item.direction || "").trim() || item.prompt.trim()
+    if (!direction) { toast.error("Describe what happens in this shot first.", { id: "storyboard-shot" }); return }
+    if (!skipCharacterCheck && needsCharacter(direction, item.mediaReferences)) {
+      toast("Who should appear in this shot?", {
+        id: "storyboard-shot",
+        description: "Drop a character image on the card to keep them the same from shot to shot.",
+        action: { label: "Generate anyway", onClick: () => void handleGenerateStoryboardShot(item, true) },
+      })
+      return
+    }
+    if (isGenerating || status === "processing") { toast.message("Wait for the current generation to finish.", { id: "storyboard-shot" }); return }
+    const previous = item.previousItemId ? storyboardItems.find((entry) => entry.id === item.previousItemId) : undefined
+    let prompt = generationPrompt(item)
+    if (needsEnhancement(item)) {
+      // A short direction becomes a full, consistent prompt. Any failure falls back to the creator's words.
+      toast.loading("Polishing your direction…", { id: "storyboard-shot" })
+      try {
+        const response = await fetch("/api/storyboard/enhance-direction", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(45_000),
+          body: JSON.stringify({
+            direction,
+            durationSeconds: item.durationSeconds,
+            startsFromPreviousShot: Boolean(item.startFrame && item.previousItemId),
+            references: (item.mediaReferences || []).filter((ref) => ref.applied).map((ref) => ({ role: ref.role, name: ref.name.slice(0, 180), guidance: ref.analysis?.guidance })),
+            previous: previous ? { direction: (previous.direction || "").slice(0, 1200), prompt: (previous.enhancedPrompt || previous.prompt || "").slice(0, 4000) } : null,
+          }),
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok || typeof body.prompt !== "string") throw new Error(body.error || "Enhancement failed")
+        prompt = body.prompt
+        patchStoryboardItem(item.id, { enhancedPrompt: body.prompt, enhancedFrom: direction })
+      } catch {
+        toast.message("Using your direction as written", { id: "storyboard-shot" })
+      }
+    }
+    restoreReferences(item.mediaReferences || [])
+    setShotFrames({ start: item.startFrame ?? null, end: null, transitionDirection: "" })
+    setSubject(prompt)
+    setDurationSeconds(item.durationSeconds)
+    if (item.modelFamilyId) setModelFamilyId(item.modelFamilyId)
+    // A continued shot also inherits the previous shot's wardrobe / location continuity locks.
+    if (previous?.sourceClipId) {
+      const continuity = await loadContinuity(previous.sourceClipId)
+      if (continuity) {
+        setContinuityEnabled(true)
+        setContinuityLocks(continuity.locks)
+        setContinuityValues(continuity.values)
+        // Stored values already describe any reference a lock used; this shot's panel picks its own images.
+        setContinuitySources(EMPTY_CONTINUITY_SOURCES)
+      }
+    }
+    storyboardTargetRef.current = item.id
+    setStoryboardGenerateRequest((n) => n + 1)
+    toast.message(`Generating Shot ${storyboardItems.indexOf(item) + 1}`, { id: "storyboard-shot", description: "It comes back to this card when it's ready." })
+  }
+
+  const handleApproveStoryboardShot = async (item: StoryboardItem) => {
+    if (!item.url) return
+    setApprovingStoryboardId(item.id)
+    try {
+      // The approved take's last frame becomes the next shot's starting image.
+      const { blob, timestampMs } = await captureVideoFrame(`/api/media/proxy?url=${encodeURIComponent(item.url)}`, "end")
+      const assetPath = await uploadFrameImage(blob)
+      patchStoryboardItem(item.id, {
+        review: "approved",
+        endFrame: {
+          id: crypto.randomUUID(), assetPath, name: `${item.subject.slice(0, 150) || "Shot"} end.jpg`,
+          sourceType: "capture", sourceShotId: item.id, sourceTimestampMs: timestampMs,
+          sourceLabel: item.subject.slice(0, 120), influence: "medium",
+        },
+      })
+      toast.success("Take approved", { id: "storyboard-shot", description: "Its last frame is saved. Continue to the next shot when you're ready." })
+    } catch (error) {
+      toast.error(error instanceof Error ? `Couldn't save the end frame: ${error.message}` : "Couldn't save the end frame.", { id: "storyboard-shot" })
+    } finally {
+      setApprovingStoryboardId(null)
+    }
+  }
+
+  const handleContinueStoryboardShot = (item: StoryboardItem) => {
+    const result = continueFromShot(item, { itemId: crypto.randomUUID(), frameId: crypto.randomUUID() }, new Date().toISOString())
+    if (!result.ok) { toast.error(result.reason, { id: "storyboard-shot" }); return }
+    const nextItems = normalizeStoryboardItems(insertAfter(storyboardItems, item.id, result.item))
+    setStoryboardItems(nextItems)
+    void persistStoryboardItems(nextItems, { suppressSuccess: true })
+    toast.success(`Shot ${nextItems.findIndex((entry) => entry.id === result.item.id) + 1} starts where this one ends`, { id: "storyboard-shot", description: "Write what happens next, then generate." })
+  }
+
+  const handleAddStoryboardReferenceFiles = async (item: StoryboardItem, files: File[]) => {
+    const images = files.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type))
+    if (!images.length) { toast.error("Drop JPG, PNG or WebP images.", { id: "storyboard-refs" }); return }
+    const existing = item.mediaReferences || []
+    const room = MAX_REFERENCES - existing.length
+    if (room <= 0) { toast.error(`A shot can use up to ${MAX_REFERENCES} references.`, { id: "storyboard-refs" }); return }
+    if (images.length > room) toast.message(`Only ${room} more image${room === 1 ? "" : "s"} fit on this shot.`, { id: "storyboard-refs" })
+    setAddingReferencesStoryboardId(item.id)
+    const added: MediaReference[] = []
+    try {
+      for (const file of images.slice(0, room)) {
+        const assetPath = await uploadFrameImage(file)
+        let classification: { role: string; label: string; description: string } | null = null
+        try {
+          const response = await fetch("/api/storyboard/classify-reference", {
+            method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(50_000),
+            body: JSON.stringify({ assetPath, fileName: file.name.slice(0, 180) }),
+          })
+          const body = await response.json().catch(() => ({}))
+          classification = response.ok ? referenceClassificationSchema.safeParse(body.classification).data ?? null : null
+        } catch { classification = null }
+        // One direct image at most, and none when the shot already opens on a start frame.
+        const providerTaken = Boolean(item.startFrame) || [...existing, ...added].some((ref) => ref.applied && ref.target === "provider")
+        const role = classification?.role ?? "character"
+        added.push({
+          id: crypto.randomUUID(), assetPath, name: (classification?.label || file.name.replace(/\.[a-z0-9]+$/i, "")).slice(0, 180) || "Reference",
+          mediaType: "image", role, priority: "primary", influence: "high", scope: "shot", projectId: null, sceneId: null,
+          locked: role === "character" || role === "product" || role === "wardrobe", target: !providerTaken && (role === "character" || role === "product") ? "provider" : "director",
+          applied: true, trimStart: 0, volume: 1,
+          ...(classification
+            ? { analysis: { guidance: classification.description, observations: [], warnings: [], limitations: "Tagged automatically when added to the storyboard.", transcript: null } }
+            : { analysisUnavailable: true }),
+        })
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't add that image.", { id: "storyboard-refs" })
+    } finally {
+      setAddingReferencesStoryboardId(null)
+    }
+    if (!added.length) return
+    const latest = storyboardItemsRef.current.find((entry) => entry.id === item.id) ?? item
+    // New references change what the shot should look like, so the full prompt is rebuilt.
+    patchStoryboardItem(item.id, { mediaReferences: [...(latest.mediaReferences || []), ...added], enhancedFrom: null })
+    toast.success(added.map((ref) => `${ref.name} (${ref.role})`).join(", ") + " added", { id: "storyboard-refs", description: "Tap a chip to change its role or lock." })
+  }
+
+  // Shot-level by default; "later" deliberately applies the change to later shots using the same image.
+  const updateStoryboardReference = (item: StoryboardItem, referenceId: string, scope: "this" | "later", change: "toggle-lock" | "remove") => {
+    const target = (item.mediaReferences || []).find((ref) => ref.id === referenceId)
+    if (!target) return
+    const nextLocked = !target.locked
+    const affected = new Set([item.id, ...(scope === "later" ? laterShotsUsing(storyboardItemsRef.current, item.id, target.assetPath) : [])])
+    const nextItems = normalizeStoryboardItems(storyboardItemsRef.current.map((entry) => {
+      if (!affected.has(entry.id)) return entry
+      const refs = entry.mediaReferences || []
+      const mediaReferences = change === "remove"
+        ? refs.filter((ref) => ref.assetPath !== target.assetPath)
+        : refs.map((ref) => (ref.assetPath === target.assetPath ? { ...ref, locked: nextLocked } : ref))
+      // References changed, so the full prompt is rebuilt on the next generate.
+      return { ...entry, mediaReferences, enhancedFrom: null }
+    }))
+    storyboardItemsRef.current = nextItems
+    setStoryboardItems(nextItems)
+    void persistStoryboardItems(nextItems, { suppressSuccess: true })
+    if (affected.size > 1) toast.success(`Updated ${affected.size} shots`, { id: "storyboard-refs" })
+  }
+
+  const handleStartNewSceneFromShot = (item: StoryboardItem) => {
+    const order = ["Scene A", "Scene B", "Scene C"] as const
+    const nextGroup = order[Math.min(order.indexOf(item.sceneGroup) + 1, order.length - 1)]
+    patchStoryboardItem(item.id, { startFrame: null, previousItemId: null, sceneGroup: nextGroup })
+    toast.message(`Moved to ${nextGroup} with a fresh start`, { id: "storyboard-shot" })
+  }
+
   const handleSelectTake = (take: TakeItem) => {
     setActiveTakeId(take.id)
     if (take.outputUrl) {
@@ -1969,17 +2215,17 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     promptOverride?: string
   }) => {
     if (outputType === "image") {
-      toast.message("Tip: Fast Track is optimized for video prompts.")
+      toast.message("Tip: describe movement and action, since this makes a video.")
     }
     setSubject(promptOverride || packet.masterPrompt)
-    toast.success("Assistant Director prompt applied to Fast Track subject")
+    toast.success("Your idea has been rewritten. Check it, then tap Create video.")
   }
 
   const renderStatusText = () => {
     if (status === "processing") return statusMessage
-    if (status === "failed") return "Generation failed"
-    if (status === "completed") return "Clip ready"
-    return "Ready"
+    if (status === "failed") return "Didn't work, try again"
+    if (status === "completed") return "Video ready"
+    return "Waiting for your idea"
   }
 
   const togglePlayback = () => {
@@ -2028,14 +2274,15 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const optionClass = (active: boolean) =>
     `${optionBaseClass} ${
       active
-        ? "border border-cyan-300/40 bg-cyan-400/12 text-cyan-100 shadow-[inset_0_1px_0_rgba(34,211,238,0.15),0_8px_24px_-10px_rgba(34,211,238,0.25)] ring-1 ring-cyan-400/20"
-        : "border border-white/[0.08] bg-white/[0.04] text-white/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:border-white/15 hover:bg-white/[0.07] hover:text-white/80"
+        ? "border border-gold-300/40 bg-gold-400/12 text-gold-100 shadow-[inset_0_1px_0_rgba(217,192,138,0.15),0_8px_24px_-10px_rgba(217,192,138,0.25)] ring-1 ring-gold-400/20"
+        : "border border-gold-400/10 bg-white/[0.04] text-white/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:border-gold-400/20 hover:bg-white/[0.07] hover:text-white/80"
     }`
   const subtlePanelClass = "rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
 
   return (
     <div className="workspace-workbench space-y-6">
-      <div className="workspace-builder-tabs flex flex-wrap items-center gap-2" role="group" aria-label="Fast Track view">
+      {activeTab === "storyboard" || storyboardItems.length > 0 ? (
+      <div className="workspace-builder-tabs flex flex-wrap items-center gap-2" role="group" aria-label="Create view">
         <Button
           type="button"
           variant={activeTab === "builder" ? "liquidMetalCyan" : "liquidMetal"}
@@ -2043,7 +2290,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           aria-pressed={activeTab === "builder"}
           className="h-9 px-5 text-xs font-medium transition-all duration-200"
         >
-          Shot Builder
+          Create
         </Button>
         <Button
           type="button"
@@ -2055,71 +2302,194 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           Storyboard ({storyboardItems.length})
         </Button>
       </div>
+      ) : null}
 
       {activeTab === "builder" ? (
     <div className="workspace-builder-grid">
       <Card className={setupCardClass}>
-        <CardHeader className="px-5 pt-5 pb-2">
-          <CardTitle className="text-lg font-semibold tracking-tight">Compose your shot</CardTitle>
-          <p className="mt-1 text-sm text-white/60">Your idea, shaped into a scene.</p>
-        </CardHeader>
-        <CardContent className="space-y-5 px-5 pb-5">
+        <CardContent className="space-y-5 px-4 pb-5 pt-0 sm:px-5">
           <div className={sectionClass}>
             <div className="space-y-2.5">
-              <label htmlFor="fast-video-prompt" className="text-[11px] uppercase tracking-[0.14em] text-white/50 font-medium">Prompt</label>
-              <Textarea
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="fast-video-prompt" className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Your idea</label>
+                {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite" title={promptBudget.overflow ? "Over the limit is fine: reference directions are condensed first, your prompt last." : undefined}>Prompt + references: {promptBudget.used}/{promptBudget.limit}{promptBudget.overflow ? " · will auto-fit" : ""}</span>}
+              </div>
+              <MentionTextarea
                 id="fast-video-prompt"
                 value={subject}
-                onChange={(event) => setSubject(event.target.value)}
-                placeholder="Describe your shot — be cinematic..."
-                className="studio-field min-h-32 resize-none rounded-xl text-sm text-white placeholder:text-white/30 leading-relaxed"
+                onChange={setSubject}
+                references={labelledReferences}
+                placeholder="e.g. A skateboarder glides through neon Tokyo at night, slow motion. Type @ to use a reference."
+                className="studio-field min-h-32 resize-none rounded-xl text-[15px] text-white placeholder:text-white/40 leading-relaxed md:text-sm"
               />
             </div>
-            <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
-              <div className="space-y-1.5">
-                <label className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Template</label>
-                <Select value={templateId} onValueChange={setTemplateId}>
-                  <SelectTrigger className="studio-field rounded-xl text-white">
-                    <SelectValue placeholder="Use Template" />
-                  </SelectTrigger>
-                  <SelectContent className="border-white/10 bg-[#0b0f14] text-white">
-                    {PROMPT_TEMPLATES.map((template) => (
-                      <SelectItem key={template.id} value={template.id} className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100">
-                        {template.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <details className="group/helper rounded-2xl border border-gold-400/[0.14] bg-white/[0.02]">
+              <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold-400/[0.08] text-gold-300"><WandSparkles className="size-4" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[14px] font-medium text-[#ece6d6]">Help me write it</span>
+                  <span className="block text-[12px] text-[#B0B8C4]">Say it in your own words; the AI director turns it into a pro prompt.</span>
+                </span>
+                <ChevronDown className="size-4 shrink-0 text-gold-300/70 transition-transform duration-300 group-open/helper:rotate-180" />
+              </summary>
+              <div className="px-1 pb-1">
+                <StudioAdPanel
+                  promptPreview={subject}
+                  onApplyPacket={handleApplyAdToFastTrack}
+                  embedded={false}
+                  showHistory={false}
+                  context={{ generationModelHint: activeModelFamily.label }}
+                />
               </div>
-              <Button
-                type="button"
-                variant="liquidMetal"
-                size="sm"
-                className="h-11 px-4"
-                onClick={() => {
-                  const selected = PROMPT_TEMPLATES.find((item) => item.id === templateId)
-                  if (selected) setSubject(selected.prompt)
-                }}
-              >
-                Use
-              </Button>
-            </div>
+            </details>
+            <TemplateGallery
+              templates={PROMPT_TEMPLATES}
+              activeId={PROMPT_TEMPLATES.find((template) => template.prompt === subject.trim())?.id ?? null}
+              onApply={applyTemplate}
+            />
           </div>
 
+          <ShotLookSection
+            className="workspace-control-section space-y-3"
+            style={{
+              selectedId: stylePresetId, onSelect: applyStylePreset, options: styleChipList, totalCount: filteredStyles.length,
+              search: styleSearch, onSearch: setStyleSearch, pinnedIds: favoriteStyleIds, recentIds: recentStyleIds,
+              onTogglePin: toggleFavoriteStyle, expanded: showAllStyleChips, onToggleExpanded: () => setShowAllStyleChips((prev) => !prev),
+            }}
+            motion={{
+              selectedId: motionPresetId, onSelect: applyMotionPreset, options: motionChipList, totalCount: filteredMotions.length,
+              search: motionSearch, onSearch: setMotionSearch, pinnedIds: favoriteMotionIds, recentIds: recentMotionIds,
+              onTogglePin: toggleFavoriteMotion, expanded: showAllMotionChips, onToggleExpanded: () => setShowAllMotionChips((prev) => !prev),
+            }}
+            modelFamilyId={modelFamilyId}
+            onModelChange={setModelFamilyId}
+            showModel={false}
+          />
+
           <div className={sectionClass}>
+            <label className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Length</label>
+            <div className={`${subtlePanelClass} space-y-2`}>
+              <div className="flex items-center justify-between text-xs text-white/65">
+                <span>Video length</span>
+                <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2 py-0.5 text-white/80">{durationSeconds}s</span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={15}
+                step={1}
+                value={durationSeconds}
+                onChange={(event) => setDurationSeconds(Number(event.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-gold-300"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="liquidMetal"
+              size="sm"
+              onClick={() => setShowAdvanced((prev) => !prev)}
+              className="h-10 w-full text-xs"
+            >
+              {showAdvanced ? "Hide options" : "More options: size, AI model, references"}
+            </Button>
+            {showAdvanced ? (
+              <div className={`${subtlePanelClass} space-y-3`}>
+                <p className="text-[12px] font-medium text-[#d6d0c0]">More options</p>
+                <ModelPicker families={KIE_VIDEO_MODEL_FAMILIES} value={modelFamilyId} onChange={setModelFamilyId} />
+                <SegmentedPreset
+                  label="Video shape"
+                  options={FAST_VIDEO_ASPECT_RATIOS}
+                  value={aspectRatio}
+                  onChange={setAspectRatio}
+                  render={(ratio, active) => <><AspectGlyph ratio={ratio} active={active} />{ratio}</>}
+                />
+                <SegmentedPreset
+                  label="How creative should it get?"
+                  options={FAST_VIDEO_VARIATIONS}
+                  value={variation}
+                  onChange={setVariation}
+                />
+                <MediaReferenceManager
+                  key={`${selectedProjectId}:${selectedSceneId}`}
+                  references={currentReferences}
+                  onChange={updateCurrentReferences}
+                  lockedRoles={lockedRoleOwners(continuityEnabled, continuityLocks, continuitySources, labelledReferences)}
+                  projectId={selectedProjectId || null}
+                  sceneId={selectedSceneId || null}
+                  onBusy={setIsUploading}
+                  disabled={isReferenceSyncing || isGenerating || status === "processing"}
+                />
+                <ShotFramesPanel
+                  frames={shotFrames}
+                  onChange={setShotFrames}
+                  modelFamilyId={modelFamilyId}
+                  modelLabel={activeModelFamily.label}
+                  captureSource={videoUrl ? {
+                    url: useDirectVideoUrl ? videoUrl : `/api/media/proxy?url=${encodeURIComponent(videoUrl)}`,
+                    currentTime: () => videoRef.current?.currentTime ?? 0,
+                    shotId: activeSavedClipId || taskId,
+                    label: "Current clip",
+                  } : null}
+                  onBusy={setIsFrameBusy}
+                  disabled={isReferenceSyncing || isGenerating || status === "processing"}
+                />
+                <ReferenceLibrarySync
+                  references={referenceLibrary}
+                  onLoad={setReferenceLibrary}
+                  frames={shotFrames}
+                  onLoadFrames={setShotFrames}
+                  onBusy={setIsReferenceSyncing}
+                  disabled={isUploading || isFrameBusy || isGenerating || status === "processing"}
+                />
+                {referenceImageUrl && <div className="rounded-xl border border-amber-300/20 p-3 text-xs text-amber-100">
+                  A legacy starting image is still attached.
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setReferenceImageUrl("")}>Remove legacy image</Button>
+                </div>}
+                <ContinuityPanel
+                  enabled={continuityEnabled}
+                  onToggleEnabled={() => setContinuityEnabled((prev) => !prev)}
+                  locks={continuityLocks}
+                  onToggleLock={(key) =>
+                    setContinuityLocks((prev) => ({ ...prev, [key]: !prev[key] }))
+                  }
+                  values={continuityValues}
+                  onChangeValue={(key, value) =>
+                    setContinuityValues((prev) => ({ ...prev, [key]: value }))
+                  }
+                  sources={continuitySources}
+                  onChangeSource={(key, referenceId) =>
+                    setContinuitySources((prev) => ({ ...prev, [key]: referenceId }))
+                  }
+                  references={labelledReferences}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <details className="group/campaign rounded-2xl border border-gold-400/[0.12] bg-white/[0.02]">
+            <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold-400/[0.08] text-gold-300"><ListChecks className="size-4" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[14px] font-medium text-[#ece6d6]">Make a set of ads</span>
+                <span className="block text-[12px] text-[#B0B8C4]">Describe your product and get 2–5 social ad videos at once.</span>
+              </span>
+              <ChevronDown className="size-4 shrink-0 text-gold-300/70 transition-transform duration-300 group-open/campaign:rotate-180" />
+            </summary>
+            <div className="space-y-4 px-4 pb-4">
+          <div className="space-y-4">
             <div className="flex items-center justify-between gap-2">
-              <label className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Campaign Director</label>
+              <label className="text-[12px] font-medium text-[#B0B8C4]">Your product or brief</label>
               <div className="flex items-center gap-1.5">
                 {isCampaignHistoryLoading ? <Loader2 className="h-3 w-3 animate-spin text-white/45" /> : null}
                 {campaignEngineModel ? (
-                  <span className="rounded-full border border-cyan-300/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-100">
+                  <span className="rounded-full border border-gold-300/20 bg-gold-500/10 px-2 py-0.5 text-[10px] text-gold-100">
                     {campaignEngineModel}
                   </span>
                 ) : null}
               </div>
             </div>
             {campaignHistory.length > 0 ? (
-              <div className="space-y-1.5 rounded-xl border border-white/10 bg-white/[0.03] p-2">
+              <div className="space-y-1.5 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Recent Campaigns</p>
                   <span className="text-[10px] text-white/40">{campaignHistory.length}</span>
@@ -2130,8 +2500,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       key={campaign.id}
                       className={`min-w-[190px] rounded-lg border p-2 ${
                         campaignId === campaign.id
-                          ? "border-cyan-300/35 bg-cyan-500/10"
-                          : "border-white/10 bg-black/20"
+                          ? "border-gold-300/35 bg-gold-500/10"
+                          : "border-gold-400/[0.12] bg-black/20"
                       }`}
                     >
                       <button type="button" onClick={() => openCampaign(campaign)} className="block w-full text-left">
@@ -2159,6 +2529,17 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               placeholder="Create 3 UGC videos for..."
               className="studio-field min-h-20 resize-none rounded-xl text-white placeholder:text-white/35"
             />
+            <CampaignReferencesPanel
+              value={campaignReferences}
+              onChange={setCampaignReferences}
+              settings={campaignSettings}
+              onSettingsChange={setCampaignSettings}
+              effectiveModel={campaignModel ?? modelFamilyId}
+              modelLabel={campaignModel ? getKieVideoModelFamily(campaignModel).label : "Auto"}
+              prompt={campaignBrief || subject}
+              onBusy={setIsCampaignReferenceBusy}
+              disabled={isPlanningCampaign || isGeneratingCampaign}
+            />
             <div className="grid grid-cols-[1fr_auto] items-end gap-2">
               <div className="space-y-1.5">
                 <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Assets</p>
@@ -2170,8 +2551,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       onClick={() => setCampaignAssetCount(count)}
                       className={`h-9 rounded-lg border text-xs transition ${
                         campaignAssetCount === count
-                          ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
-                          : "border-white/12 bg-white/5 text-white/75 hover:bg-white/10"
+                          ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
+                          : "border-gold-400/[0.12] bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
                       }`}
                     >
                       {count}
@@ -2191,149 +2572,164 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </Button>
             </div>
             {campaignPlan ? (
-              <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs font-medium text-white/85">{campaignPlan.campaignSummary}</p>
-                    <p className="mt-1 text-[11px] text-white/45">{campaignPlan.creativeStrategy}</p>
-                  </div>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/65">
-                    {campaignPlan.score.campaignReadiness}%
-                  </span>
+              <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2.5">
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
+                  {campaignPlanSummary({
+                    title: campaignPlan.campaignSummary.split(/(?<=[.!?])\s/)[0].slice(0, 90),
+                    refs: campaignReferences,
+                    assetCount: campaignItems.length,
+                    aspectRatio: campaignItems[0]?.aspectRatio ?? campaignSettings.aspectRatio,
+                  }).map((row) => (
+                    <div key={row.label} className="contents">
+                      <dt className="text-[#8f9086]">{row.label}</dt>
+                      <dd className={`min-w-0 truncate ${row.value === "Attached" ? "text-gold-100" : "text-[#e8e2d2]"}`}>{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setPlanDetailsOpen((open) => !open)} aria-expanded={planDetailsOpen} className="rounded-lg border border-gold-400/20 px-3 py-1.5 text-[11.5px] text-[#d4cfc0] transition hover:border-gold-400/45 hover:text-gold-50">{planDetailsOpen ? "Hide plan details" : "Edit plan"}</button>
+                  <Button type="button" variant="studio" size="sm" className="h-8 text-[11.5px]" onClick={handleGenerateCampaign} disabled={isGeneratingCampaign || campaignItems.every((item) => item.status === "completed")}>
+                    {isGeneratingCampaign ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}Generate campaign
+                  </Button>
                 </div>
-                <div className="space-y-2">
+                {planDetailsOpen ? <p className="text-[11px] leading-relaxed text-white/50">{campaignPlan.creativeStrategy}</p> : null}
+                <div className="space-y-3">
                   {campaignItems.map((item, index) => (
-                    <div key={item.id} className="rounded-lg border border-white/10 bg-black/20 p-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-white/85">
-                            {index + 1}. {item.title}
-                          </p>
-                          <p className="mt-1 text-[11px] text-cyan-100/75">{item.conceptType}</p>
+                    <article key={item.id} className="group/ugc overflow-hidden rounded-2xl border border-gold-400/[0.14] bg-gradient-to-b from-white/[0.035] to-black/30 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] transition hover:border-gold-300/30">
+                      <header className="flex items-center gap-2.5 px-3 pt-3">
+                        <span className="grid size-7 shrink-0 place-items-center rounded-full border border-gold-300/35 bg-gold-400/10 font-serif text-[12px] text-gold-100">{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[12.5px] font-medium tracking-tight text-[#f1ece0]">{item.title}</p>
+                          <p className="truncate text-[10.5px] uppercase tracking-[0.12em] text-gold-200/60">{item.conceptType}</p>
                         </div>
-                        <span
-                          className={`rounded-full border px-2 py-0.5 text-[10px] ${
-                            item.status === "completed"
-                              ? "border-emerald-300/25 bg-emerald-500/10 text-emerald-100"
-                              : item.status === "failed"
-                                ? "border-rose-300/25 bg-rose-500/10 text-rose-100"
-                                : item.status === "processing" || item.status === "queued"
-                                  ? "border-cyan-300/25 bg-cyan-500/10 text-cyan-100"
-                                  : "border-white/10 bg-white/5 text-white/60"
-                          }`}
-                        >
+                        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] capitalize ${
+                          item.status === "completed" ? "bg-emerald-400/10 text-emerald-100"
+                            : item.status === "failed" ? "bg-rose-400/10 text-rose-100"
+                              : item.status === "processing" || item.status === "queued" ? "bg-gold-400/10 text-gold-100"
+                                : "bg-white/5 text-white/55"
+                        }`}>
+                          <span className={`size-1.5 rounded-full ${
+                            item.status === "completed" ? "bg-emerald-300"
+                              : item.status === "failed" ? "bg-rose-300"
+                                : item.status === "processing" || item.status === "queued" ? "animate-pulse bg-gold-300"
+                                  : "bg-white/35"
+                          }`} />
                           {item.status}
                         </span>
-                      </div>
-                      <p className="mt-2 line-clamp-2 text-[11px] text-white/55">{item.hook}</p>
-
-                      {/* Editable prompt */}
-                      {editingCampaignItemId === item.id ? (
-                        <div className="mt-2 space-y-1.5">
-                          <Textarea
-                            value={editingPromptValue}
-                            onChange={(e) => setEditingPromptValue(e.target.value)}
-                            className="min-h-[80px] rounded-lg border-cyan-400/25 bg-black/40 text-[11px] leading-relaxed text-white/85 placeholder:text-white/30"
-                            placeholder="Edit your prompt..."
-                          />
-                          <div className="flex items-center gap-1.5">
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => void handleSaveEditPrompt(item)}
-                              className="h-6 rounded-md border border-emerald-400/30 bg-emerald-500/15 px-2 text-[10px] text-emerald-100 hover:bg-emerald-500/25"
-                            >
-                              <Check className="mr-1 h-3 w-3" />
-                              Save
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={handleCancelEditPrompt}
-                              className="h-6 rounded-md border border-white/10 bg-white/5 px-2 text-[10px] text-white/60 hover:bg-white/12"
-                            >
-                              <X className="mr-1 h-3 w-3" />
-                              Cancel
-                            </Button>
+                      </header>
+                      <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-gold-400/[0.12] bg-black/50">
+                        {item.url ? (
+                          <video src={`/api/media/proxy?url=${encodeURIComponent(item.url)}`} className="aspect-[4/5] w-full object-cover" controls playsInline preload="metadata" />
+                        ) : (
+                          <div className={`grid aspect-[4/5] w-full place-items-center text-center ${item.status === "processing" || item.status === "queued" ? "animate-pulse bg-gradient-to-br from-gold-400/[0.08] via-transparent to-gold-400/[0.05]" : ""}`}>
+                            <div className="space-y-1.5 px-6">
+                              {item.status === "processing" || item.status === "queued"
+                                ? <Loader2 className="mx-auto h-5 w-5 animate-spin text-gold-300/70" />
+                                : <Clapperboard className="mx-auto h-5 w-5 text-gold-300/40" />}
+                              <p className="text-[11px] text-white/45">{item.status === "processing" || item.status === "queued" ? "Rendering your ad…" : item.status === "failed" ? "Generation failed. Retry below." : "Ready to generate"}</p>
+                            </div>
                           </div>
+                        )}
+                        <div className="pointer-events-none absolute left-2 top-2 flex gap-1">
+                          <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/80 backdrop-blur">{getKieVideoModelFamily(item.generationModel ? (item.generationModel.includes("seedance") ? "seedance" : "kling") : campaignModel ?? item.modelFamilyId).label}</span>
+                          <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/80 backdrop-blur">{item.durationSeconds}s · {item.aspectRatio}</span>
                         </div>
-                      ) : (
-                        <p
-                          className="mt-2 line-clamp-3 cursor-pointer rounded-md border border-transparent px-1.5 py-1 text-[11px] text-white/50 transition hover:border-white/10 hover:bg-white/[0.03] hover:text-white/65"
-                          onClick={() => handleStartEditPrompt(item)}
-                          title="Click to edit prompt"
-                        >
-                          {item.masterPrompt}
-                        </p>
-                      )}
+                      </div>
+                      <div className="px-3 pb-3">
+                        {planDetailsOpen ? <>
+                          <p className="mt-2 line-clamp-2 text-[11px] text-white/55">{item.hook}</p>
+                          {item.productInteraction ? <p className="mt-1 line-clamp-2 text-[10.5px] text-gold-100/70">Interaction: {item.productInteraction}</p> : null}
+                        </> : null}
+                        <CampaignAssetMeta
+                          references={campaignReferences}
+                          characterReferenceId={item.characterReferenceId}
+                          productReferenceId={item.productReferenceId}
+                          completed={item.status === "completed"}
+                          flags={item.qualityFlags ?? {}}
+                          requireBrandSafety={campaignHasReferences}
+                          onApproveBrandSafety={() => {
+                            const qualityFlags = { ...(item.qualityFlags ?? {}), no_competitor_logos: "pass" as const, no_unapproved_claims: "pass" as const }
+                            updateCampaignItem(item.id, { qualityFlags })
+                            void persistCampaignItem(item, { qualityFlags })
+                          }}
+                          onFlag={(checkId, value) => {
+                            const qualityFlags = { ...(item.qualityFlags ?? {}), [checkId]: value }
+                            updateCampaignItem(item.id, { qualityFlags })
+                            void persistCampaignItem(item, { qualityFlags })
+                          }}
+                        />
 
-                      {item.error ? <p className="mt-1 text-[11px] text-rose-200">{item.error}</p> : null}
-                      {item.url ? (
-                        <div className="mt-2 overflow-hidden rounded-md border border-white/10 bg-black/35">
-                          <video src={`/api/media/proxy?url=${encodeURIComponent(item.url)}`} className="aspect-video w-full object-cover" muted playsInline />
-                        </div>
-                      ) : null}
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/55">
-                          {getKieVideoModelFamily(item.modelFamilyId).label}
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/55">
-                          {item.durationSeconds}s
-                        </span>
+                        {/* Editable prompt */}
+                        {editingCampaignItemId === item.id ? (
+                          <div className="mt-2 space-y-1.5">
+                            <Textarea
+                              value={editingPromptValue}
+                              onChange={(e) => setEditingPromptValue(e.target.value)}
+                              className="min-h-[80px] rounded-lg border-gold-400/25 bg-black/40 text-[11px] leading-relaxed text-white/85 placeholder:text-white/30"
+                              placeholder="Edit your prompt..."
+                            />
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => void handleSaveEditPrompt(item)}
+                                className="h-6 rounded-md border border-emerald-400/30 bg-emerald-500/15 px-2 text-[10px] text-emerald-100 hover:bg-emerald-500/25"
+                              >
+                                <Check className="mr-1 h-3 w-3" />
+                                Save
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleCancelEditPrompt}
+                                className="h-6 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/60 hover:bg-gold-400/[0.1]"
+                              >
+                                <X className="mr-1 h-3 w-3" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p
+                            className="mt-2 line-clamp-2 cursor-text rounded-lg border border-transparent px-2 py-1.5 text-[11px] leading-relaxed text-white/45 transition hover:border-gold-400/[0.12] hover:bg-white/[0.03] hover:text-white/65"
+                            onClick={() => handleStartEditPrompt(item)}
+                            title="Click to edit prompt"
+                          >
+                            {item.masterPrompt}
+                          </p>
+                        )}
+                        {item.error ? <p className="mt-1 text-[11px] text-rose-200">{item.error}</p> : null}
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleStartEditPrompt(item)}
-                          className="ml-auto h-7 rounded-md border border-white/10 bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
-                        >
-                          <Pencil className="mr-1 h-3 w-3" />
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleUseCampaignItem(item)}
-                          className="h-7 rounded-md border border-white/10 bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
-                        >
-                          Use
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void handleCopyCampaignPrompt(item)}
-                          className="h-7 rounded-md border border-white/10 bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
-                        >
-                          <Copy className="mr-1 h-3 w-3" />
-                          Copy
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void handleRetryCampaignItem(item)}
-                          disabled={isGeneratingCampaign || item.status === "processing" || item.status === "queued"}
-                          className="h-7 rounded-md border border-white/10 bg-white/5 px-2 text-[10px] text-white/75 hover:bg-white/12"
-                        >
-                          <RotateCcw className="mr-1 h-3 w-3" />
-                          Retry
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
                           onClick={() => handleAddCampaignItemToStoryboard(item)}
                           disabled={!item.url}
-                          className="h-7 rounded-md border border-cyan-300/20 bg-cyan-500/10 px-2 text-[10px] text-cyan-100 hover:bg-cyan-500/20"
+                          className="mt-2.5 h-9 w-full rounded-xl border border-gold-300/35 bg-gold-400/15 text-[11.5px] font-medium text-gold-50 hover:bg-gold-400/25"
                         >
-                          <Clapperboard className="mr-1 h-3 w-3" />
-                          Add
+                          <Clapperboard className="mr-1.5 h-3.5 w-3.5" />
+                          Add to storyboard
                         </Button>
+                        <div className="mt-1.5 grid grid-cols-4 gap-1">
+                          {([
+                            { label: "Use", icon: Send, onClick: () => handleUseCampaignItem(item), disabled: false },
+                            { label: "Edit", icon: Pencil, onClick: () => handleStartEditPrompt(item), disabled: false },
+                            { label: "Copy", icon: Copy, onClick: () => void handleCopyCampaignPrompt(item), disabled: false },
+                            { label: "Retry", icon: RotateCcw, onClick: () => void handleRetryCampaignItem(item), disabled: isGeneratingCampaign || item.status === "processing" || item.status === "queued" },
+                          ] as const).map(({ label, icon: Icon, onClick, disabled }) => (
+                            <button
+                              key={label}
+                              type="button"
+                              onClick={onClick}
+                              disabled={disabled}
+                              className="flex min-w-0 flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] text-white/60 transition hover:bg-gold-400/[0.08] hover:text-gold-50 disabled:pointer-events-none disabled:opacity-35"
+                            >
+                              <Icon className="h-3.5 w-3.5" />
+                              {label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    </article>
                   ))}
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -2341,7 +2737,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     type="button"
                     onClick={handleGenerateCampaign}
                     disabled={isGeneratingCampaign || campaignItems.every((item) => item.status !== "planned" && item.status !== "failed")}
-                    className="h-10 rounded-xl border border-cyan-300/35 bg-cyan-500/12 text-xs text-cyan-100 hover:bg-cyan-500/20 truncate"
+                    className="h-10 rounded-xl border border-gold-300/35 bg-gold-500/12 text-xs text-gold-100 hover:bg-gold-500/20 truncate"
                   >
                     {isGeneratingCampaign ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <Send className="mr-2 h-4 w-4 shrink-0" />}
                     <span className="truncate">Generate Campaign</span>
@@ -2350,7 +2746,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     type="button"
                     onClick={() => void handleAddCampaignToStoryboard()}
                     disabled={isAddingCampaignToStoryboard || campaignItems.every((item) => !item.url)}
-                    className="h-10 rounded-xl border border-white/12 bg-white/5 text-xs text-white/80 hover:bg-white/12"
+                    className="h-10 rounded-xl border border-gold-400/[0.12] bg-white/5 text-xs text-white/80 hover:bg-gold-400/[0.1]"
                   >
                     {isAddingCampaignToStoryboard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clapperboard className="mr-2 h-4 w-4" />}
                     Add All
@@ -2359,311 +2755,47 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </div>
             ) : null}
           </div>
+            </div>
+          </details>
 
-          <div className={sectionClass}>
-            <label className="text-[11px] uppercase tracking-[0.12em] text-white/50 font-medium">Shot Look</label>
-            <div className="flex flex-wrap gap-2">
-              {QUICK_LOOKS.map((look) => {
-                const active = stylePresetId === look.stylePresetId && motionPresetId === look.motionPresetId
-                return (
-                  <button
-                    key={look.id}
-                    type="button"
-                    onClick={() => {
-                      applyStylePreset(look.stylePresetId)
-                      applyMotionPreset(look.motionPresetId)
-                    }}
-                    className={`h-8 rounded-full border px-3 text-[11px] font-medium transition ${
-                      active
-                        ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
-                        : "border-white/12 bg-white/5 text-white/75 hover:border-white/25 hover:bg-white/10 hover:text-white"
-                    }`}
-                  >
-                    {look.label}
-                  </button>
-                )
-              })}
-            </div>
-            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] text-white/65">Style presets</p>
-                <button
-                  type="button"
-                  onClick={() => setShowAllStyleChips((prev) => !prev)}
-                  className="text-[10px] text-cyan-200/80 hover:text-cyan-100"
-                >
-                  {showAllStyleChips ? "Show less" : "See more"}
-                </button>
-              </div>
-              <Input
-                value={styleSearch}
-                onChange={(event) => setStyleSearch(event.target.value)}
-                placeholder="Search styles..."
-                className="h-8 rounded-lg border-white/10 bg-white/5 text-[11px] text-white placeholder:text-white/35"
-              />
-              <div className="flex flex-wrap gap-1.5">
-                {styleChipList.map((preset) => (
-                  <div key={preset.id} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-1 py-1">
-                    <button
-                      type="button"
-                      onClick={() => applyStylePreset(preset.id)}
-                      className={`h-7 rounded-full border px-2.5 text-[10px] transition ${
-                        stylePresetId === preset.id
-                          ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
-                          : "border-white/12 bg-white/5 text-white/75 hover:bg-white/10"
-                      }`}
-                    >
-                      {preset.name}
-                    </button>
-                    {recentStyleIds.includes(preset.id) ? (
-                      <span className="rounded-full border border-cyan-300/25 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-cyan-100">
-                        Recent
-                      </span>
-                    ) : null}
-                    {favoriteStyleIds.includes(preset.id) ? (
-                      <span className="rounded-full border border-white/15 bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-white/80">
-                        Pinned
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => toggleFavoriteStyle(preset.id)}
-                      className={`h-7 rounded-full border px-2 text-[10px] transition ${
-                        favoriteStyleIds.includes(preset.id)
-                          ? "border-cyan-300/40 bg-cyan-500/12 text-cyan-100"
-                          : "border-white/12 bg-white/5 text-white/60 hover:bg-white/10"
-                      }`}
-                    >
-                      {favoriteStyleIds.includes(preset.id) ? "Pinned" : "Pin"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] text-white/65">Motion presets</p>
-                <button
-                  type="button"
-                  onClick={() => setShowAllMotionChips((prev) => !prev)}
-                  className="text-[10px] text-cyan-200/80 hover:text-cyan-100"
-                >
-                  {showAllMotionChips ? "Show less" : "See more"}
-                </button>
-              </div>
-              <Input
-                value={motionSearch}
-                onChange={(event) => setMotionSearch(event.target.value)}
-                placeholder="Search motion..."
-                className="h-8 rounded-lg border-white/10 bg-white/5 text-[11px] text-white placeholder:text-white/35"
-              />
-              <div className="flex flex-wrap gap-1.5">
-                {motionChipList.map((preset) => (
-                  <div key={preset.id} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-1 py-1">
-                    <button
-                      type="button"
-                      onClick={() => applyMotionPreset(preset.id)}
-                      className={`h-7 rounded-full border px-2.5 text-[10px] transition ${
-                        motionPresetId === preset.id
-                          ? "border-cyan-300/45 bg-cyan-500/15 text-cyan-100"
-                          : "border-white/12 bg-white/5 text-white/75 hover:bg-white/10"
-                      }`}
-                    >
-                      {preset.name}
-                    </button>
-                    {recentMotionIds.includes(preset.id) ? (
-                      <span className="rounded-full border border-cyan-300/25 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-cyan-100">
-                        Recent
-                      </span>
-                    ) : null}
-                    {favoriteMotionIds.includes(preset.id) ? (
-                      <span className="rounded-full border border-white/15 bg-white/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-white/80">
-                        Pinned
-                      </span>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => toggleFavoriteMotion(preset.id)}
-                      className={`h-7 rounded-full border px-2 text-[10px] transition ${
-                        favoriteMotionIds.includes(preset.id)
-                          ? "border-cyan-300/40 bg-cyan-500/12 text-cyan-100"
-                          : "border-white/12 bg-white/5 text-white/60 hover:bg-white/10"
-                      }`}
-                    >
-                      {favoriteMotionIds.includes(preset.id) ? "Pinned" : "Pin"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Select value={stylePresetId} onValueChange={applyStylePreset}>
-                <SelectTrigger className="studio-field rounded-xl text-white">
-                  <SelectValue placeholder="Visual style" />
-                </SelectTrigger>
-                <SelectContent className="border-white/10 bg-[#0b0f14] text-white">
-                  {STYLE_PRESETS.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id} className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100">
-                      {preset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={motionPresetId} onValueChange={applyMotionPreset}>
-                <SelectTrigger className="studio-field rounded-xl text-white">
-                  <SelectValue placeholder="Camera movement" />
-                </SelectTrigger>
-                <SelectContent className="border-white/10 bg-[#0b0f14] text-white">
-                  {MOTION_PRESETS.map((preset) => (
-                    <SelectItem key={preset.id} value={preset.id} className="text-white/85 focus:bg-cyan-300/15 focus:text-cyan-100">
-                      {preset.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
-              {KIE_VIDEO_MODEL_FAMILIES.map((family) => (
-                <button
-                  key={family.id}
-                  type="button"
-                  onClick={() => setModelFamilyId(family.id)}
-                  className={optionClass(modelFamilyId === family.id)}
-                >
-                  <div className="text-xs font-medium text-white">{family.label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className={sectionClass}>
-            <label className="text-[11px] uppercase tracking-[0.12em] text-white/50 font-medium">Model & Duration</label>
-            <div className={`${subtlePanelClass} space-y-2`}>
-              <div className="flex items-center justify-between text-xs text-white/65">
-                <span>Duration</span>
-                <span className="rounded-full border border-white/10 bg-white/10 px-2 py-0.5 text-white/80">{durationSeconds}s</span>
-              </div>
-              <input
-                type="range"
-                min={5}
-                max={15}
-                step={1}
-                value={durationSeconds}
-                onChange={(event) => setDurationSeconds(Number(event.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-cyan-300"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="liquidMetal"
-              size="sm"
-              onClick={() => setShowAdvanced((prev) => !prev)}
-              className="h-10 w-full text-xs"
-            >
-              {showAdvanced ? "Hide Advanced Controls" : "Show Advanced Controls"}
-            </Button>
-            {showAdvanced ? (
-              <div className={`${subtlePanelClass} space-y-3`}>
-                <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Advanced</p>
-                <div className="grid gap-2 grid-cols-3">
-                  {FAST_VIDEO_ASPECT_RATIOS.map((ratio) => (
-                    <button
-                      key={ratio}
-                      type="button"
-                      onClick={() => setAspectRatio(ratio)}
-                      className={optionClass(aspectRatio === ratio)}
-                    >
-                      {ratio}
-                    </button>
-                  ))}
-                </div>
-                <div className="space-y-1.5">
-                  <p className="text-[11px] text-white/55">Creative style intensity</p>
-                  <div className="grid gap-2 grid-cols-3">
-                    {FAST_VIDEO_VARIATIONS.map((item) => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => setVariation(item)}
-                        className={`${optionClass(variation === item)} capitalize`}
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <MediaReferenceManager
-                  key={`${selectedProjectId}:${selectedSceneId}`}
-                  references={currentReferences}
-                  onChange={updateCurrentReferences}
-                  projectId={selectedProjectId || null}
-                  sceneId={selectedSceneId || null}
-                  onBusy={setIsUploading}
-                  disabled={isReferenceSyncing || isGenerating || status === "processing"}
-                />
-                <ReferenceLibrarySync
-                  references={referenceLibrary}
-                  onLoad={setReferenceLibrary}
-                  onBusy={setIsReferenceSyncing}
-                  disabled={isUploading || isGenerating || status === "processing"}
-                />
-                {referenceImageUrl && <div className="rounded-xl border border-amber-300/20 p-3 text-xs text-amber-100">
-                  A legacy starting image is still attached.
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setReferenceImageUrl("")}>Remove legacy image</Button>
-                </div>}
-                <ContinuityPanel
-                  enabled={continuityEnabled}
-                  onToggleEnabled={() => setContinuityEnabled((prev) => !prev)}
-                  locks={continuityLocks}
-                  onToggleLock={(key) =>
-                    setContinuityLocks((prev) => ({ ...prev, [key]: !prev[key] }))
-                  }
-                  values={continuityValues}
-                  onChangeValue={(key, value) =>
-                    setContinuityValues((prev) => ({ ...prev, [key]: value }))
-                  }
-                />
-              </div>
-            ) : null}
-          </div>
-
-          <div className="workspace-generate-bar sticky bottom-0 z-10 rounded-2xl bg-[#0c0c0e]/95 p-4 shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.95)] backdrop-blur-xl">
-            <Button
-              type="button"
-              variant="liquidMetalPrimary"
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="h-14 w-full text-sm"
-            >
-              {isGenerating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
-              Generate Shot
-            </Button>
+          <div className="workspace-generate-bar sticky bottom-0 z-10 rounded-2xl bg-obsidian-950/95 p-4 shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.95)] backdrop-blur-xl">
+            <span className={`block rounded-2xl ${isGenerating ? "" : "lux-ring-glow"}`}>
+              <Button
+                type="button"
+                variant="liquidMetalPrimary"
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                className="h-14 w-full rounded-2xl text-sm tracking-wide"
+              >
+                {isGenerating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
+                Create video
+              </Button>
+            </span>
           </div>
         </CardContent>
       </Card>
 
       <div className="space-y-6">
-        <Card className="workspace-preview-panel min-w-0 overflow-hidden">
+        <Card id="create-preview" className="workspace-preview-panel min-w-0 scroll-mt-20 overflow-hidden">
           <CardHeader className="px-6 pt-6 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-xl font-semibold tracking-tight">The screening room</CardTitle>
-                <p className="mt-1.5 text-sm text-white/40">Generate, preview, and send your best takes into storyboard.</p>
+                <CardTitle className="text-2xl font-light tracking-[-0.03em]">Your <span className="lux-serif text-gold-300">video</span></CardTitle>
+                <p className="mt-1.5 text-sm text-[#B0B8C4]">It plays here when it&rsquo;s ready. Usually 2–5 minutes.</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-full border border-cyan-400/15 bg-cyan-400/[0.06] px-3 py-1 text-[11px] text-cyan-200/80">{activeModelFamily.label}</span>
                 <span className={`rounded-full border px-3 py-1 text-[11px] ${
                   status === "completed" ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200/80" :
-                  status === "processing" ? "border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200/80" :
+                  status === "processing" ? "border-gold-400/20 bg-gold-400/[0.08] text-gold-200/80" :
                   status === "failed" ? "border-rose-400/20 bg-rose-400/[0.08] text-rose-200/80" :
-                  "border-white/[0.08] bg-white/[0.04] text-white/60"
+                  "border-gold-400/10 bg-white/[0.04] text-white/60"
                 }`}>{renderStatusText()}</span>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-5 px-6 pb-6">
-            <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-black shadow-[0_0_0_0.5px_rgba(103,232,249,0.06),0_32px_80px_-30px_rgba(0,0,0,0.95)]">
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.06),transparent_50%)]" />
+            <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-black shadow-[0_0_0_0.5px_rgba(217,192,138,0.06),0_32px_80px_-30px_rgba(0,0,0,0.95)]">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(217,192,138,0.12),transparent_55%)]" />
               <div className="aspect-video">
                 {videoUrl ? (
                   <video
@@ -2673,11 +2805,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     className="h-full w-full object-contain"
                     controls
                     autoPlay
-                    loop
                     playsInline
                     preload="auto"
                     onPlay={() => setIsPlaying(true)}
                     onPause={() => setIsPlaying(false)}
+                    onEnded={() => setIsPlaying(false)}
                     onVolumeChange={() => {
                       const node = videoRef.current
                       if (!node) return
@@ -2700,19 +2832,34 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 ) : (
                   <div className="flex h-full items-center justify-center px-4 text-center text-sm text-white/45">
                     {status === "processing" ? (
-                      <div className="w-full max-w-md space-y-4">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-100">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <div className="lux-fade flex w-full max-w-md flex-col items-center gap-5">
+                        <div className="relative grid size-20 place-items-center">
+                          <span className="absolute inset-0 rounded-full border border-gold-400/15" />
+                          <span className="absolute inset-0 animate-spin rounded-full border border-transparent border-t-gold-300 [animation-duration:1.6s] [box-shadow:0_0_30px_-8px_rgba(217,192,138,0.6)]" />
+                          <span className="absolute inset-3 animate-spin rounded-full border border-transparent border-b-gold-500/70 [animation-direction:reverse] [animation-duration:2.4s]" />
+                          <Sparkles className="h-5 w-5 text-gold-300" />
+                        </div>
+                        <div className="inline-flex items-center gap-2 rounded-full border border-gold-300/30 bg-gold-500/10 px-3.5 py-1.5 text-xs text-gold-100">
+                          <span className="lux-live-dot" />
                           {statusMessage}
                         </div>
-                        <div className="relative h-28 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]">
-                          <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent [animation:skeletonSweep_1.4s_ease-in-out_infinite]" />
-                        </div>
+                        <div className="lux-shimmer h-1.5 w-full rounded-full border border-gold-400/[0.12]" />
                       </div>
                     ) : (
-                      <div>
-                        <p className="text-base text-white/70">Your cinematic preview appears here</p>
-                        <p className="mt-1 text-xs text-white/45">Tune the setup panel and generate your first clip.</p>
+                      <div className="lux-fade relative flex h-full w-full items-center justify-center">
+                        <span className="pointer-events-none absolute left-5 top-5 h-7 w-7 border-l border-t border-gold-400/30" />
+                        <span className="pointer-events-none absolute right-5 top-5 h-7 w-7 border-r border-t border-gold-400/30" />
+                        <span className="pointer-events-none absolute bottom-5 left-5 h-7 w-7 border-b border-l border-gold-400/30" />
+                        <span className="pointer-events-none absolute bottom-5 right-5 h-7 w-7 border-b border-r border-gold-400/30" />
+                        <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-10 -translate-x-1/2 bg-gold-400/25" />
+                        <span className="pointer-events-none absolute left-1/2 top-1/2 h-10 w-px -translate-y-1/2 bg-gold-400/25" />
+                        <span className="absolute left-6 top-6 hidden items-center gap-1.5 pl-9 text-[9px] uppercase tracking-[0.24em] text-gold-200/60 sm:flex">
+                          <span className="size-1.5 rounded-full bg-[#e0574a] shadow-[0_0_8px_#e0574a]" /> Standby
+                        </span>
+                        <div className="relative mt-24">
+                          <p className="text-lg font-light tracking-tight text-[#eeeae1]">Your <span className="lux-serif text-gold-300">video</span> appears here</p>
+                          <p className="mt-1.5 text-[13px] text-[#B0B8C4]">Describe your idea, then tap Create video.</p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2743,7 +2890,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     {isMuted ? <VolumeX className="mr-1.5 h-3.5 w-3.5" /> : <Volume2 className="mr-1.5 h-3.5 w-3.5" />}
                     {isMuted ? "Muted" : "Sound"}
                   </Button>
-                  <div className="flex min-w-[130px] flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5">
+                  <div className="flex min-w-[130px] flex-1 items-center gap-2 rounded-lg border border-gold-400/10 bg-white/[0.03] px-2.5 py-1.5">
                     <span className="text-[11px] text-white/45">Vol</span>
                     <input
                       type="range"
@@ -2752,7 +2899,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       step={0.05}
                       value={volume}
                       onChange={(event) => handleVolumeChange(Number(event.target.value))}
-                      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-cyan-300"
+                      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-gold-300"
                     />
                   </div>
                   <Button
@@ -2783,142 +2930,95 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               storyboardUrls={storyboardItems.filter((i) => i.url).map((i) => i.url)}
             />
 
-            <div className="flex flex-wrap gap-1.5 text-[11px]">
-              <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-white/50">{durationSeconds}s</span>
-              <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-white/50">{activeModelFamily.label}</span>
-              <span className={`rounded-md border px-2.5 py-1 ${
-                status === "completed" ? "border-emerald-400/15 bg-emerald-400/[0.06] text-emerald-300/70" :
-                status === "processing" ? "border-cyan-400/15 bg-cyan-400/[0.06] text-cyan-300/70" :
-                status === "failed" ? "border-rose-400/15 bg-rose-400/[0.06] text-rose-300/70" :
-                "border-white/[0.08] bg-white/[0.04] text-white/50"
-              }`}>{status}</span>
-            </div>
 
-            {showAdvanced ? (
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-xs text-white/55">
-                <p className="mb-1.5 text-[10px] uppercase tracking-[0.14em] text-white/35">Pipeline</p>
-                <p className="text-white/50">{status === "processing" ? "Initializing → Sampling → Finalizing" : "Ready"}</p>
-                <div className="mt-3 space-y-2">
-                  <div className={status === "processing" ? "generation-track" : "generation-track opacity-20"} />
-                  <div className="grid grid-cols-3 gap-2 text-[10px] uppercase tracking-[0.14em]">
-                    <span className={pipelineStage >= 1 ? "text-cyan-300" : "text-white/25"}>Init</span>
-                    <span className={pipelineStage >= 2 ? "text-cyan-300" : "text-white/25"}>Sampling</span>
-                    <span className={pipelineStage >= 3 ? "text-cyan-300" : "text-white/25"}>Finalizing</span>
-                  </div>
+
+            {videoUrl ? (
+              <div className="lux-rise rounded-2xl border border-gold-400/[0.14] bg-white/[0.02] p-4">
+                <p className="mb-3 text-[13px] font-medium text-[#ece6d6]">Your video is ready</p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <a
+                    href={downloadHref}
+                    download={downloadFilename}
+                    className="inline-flex h-12 items-center justify-center rounded-xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a)] px-4 text-[14px] font-semibold text-[#1a160e] shadow-[0_10px_26px_-14px_rgba(217,192,138,0.9)] transition hover:brightness-105"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                  </a>
+                  <Button
+                    type="button"
+                    variant="liquidMetal"
+                    onClick={() => void handleShareVideo()}
+                    className="h-12 rounded-xl text-[14px]"
+                  >
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Share
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="liquidMetalCyan"
+                    onClick={() => void handleSaveOutput()}
+                    disabled={isSavingOutput}
+                    className="h-11 rounded-xl text-[13px]"
+                  >
+                    <Save className="mr-2 h-4 w-4" />
+                    {isSavingOutput ? "Saving…" : "Save to my videos"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="liquidMetal"
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                    className="h-11 rounded-xl text-[13px]"
+                  >
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Try another take
+                  </Button>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12.5px]">
+                  <button
+                    type="button"
+                    onClick={() => addToStoryboard({
+                      sourceClipId: taskId,
+                      url: videoUrl,
+                      subject: subject.trim(),
+                      prompt: finalPrompt || subject.trim(),
+                      durationSeconds,
+                      modelFamilyId,
+                    })}
+                    className="inline-flex items-center gap-1.5 text-gold-200/90 transition hover:text-gold-50"
+                  >
+                    <Clapperboard className="h-3.5 w-3.5" /> Add to a longer film
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(finalPrompt || subject.trim())
+                        toast.success("Prompt copied")
+                      } catch {
+                        toast.error("Failed to copy prompt")
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 text-[#B0B8C4] transition hover:text-white"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" /> Copy prompt
+                  </button>
+                  <button type="button" onClick={handleClearSession} className="ml-auto text-[#B0B8C4] transition hover:text-rose-200">
+                    Start over
+                  </button>
                 </div>
               </div>
             ) : null}
 
-            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
-              <p className="mb-3 text-[10px] uppercase tracking-[0.14em] text-white/35">Output Actions</p>
-              <div className="flex flex-wrap items-center gap-2.5">
-              <div className="flex min-w-0 basis-full flex-1 items-center gap-2.5">
-                <Input
-                  value={downloadName}
-                  onChange={(event) => setDownloadName(event.target.value)}
-                  placeholder="File name"
-                  className="h-10 rounded-lg border-white/[0.08] bg-white/[0.04] text-xs text-white placeholder:text-white/30"
-                />
-                <a
-                  href={
-                    videoUrl
-                      ? `/api/media/proxy?url=${encodeURIComponent(videoUrl)}&filename=${encodeURIComponent(downloadName || buildMediaFilename({
-                          base: subject || "fast-video",
-                          kind: "video",
-                          url: videoUrl,
-                        }))}`
-                      : "#"
-                  }
-                  download={
-                    videoUrl
-                      ? (downloadName || buildMediaFilename({
-                          base: subject || "fast-video",
-                          kind: "video",
-                          url: videoUrl,
-                        }))
-                      : undefined
-                  }
-                  className={`inline-flex h-10 items-center rounded-lg px-3.5 text-xs font-medium transition ${
-                    videoUrl
-                      ? "liquid-metal text-white/85"
-                      : "pointer-events-none border border-white/[0.06] bg-white/[0.03] text-white/30"
-                  }`}
-                >
-                  <Download className="mr-1.5 h-3.5 w-3.5" />
-                  Download
-                </a>
-              </div>
-              <Button
-                type="button"
-                variant="liquidMetal"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(finalPrompt || subject.trim())
-                    toast.success("Prompt copied")
-                  } catch {
-                    toast.error("Failed to copy prompt")
-                  }
-                }}
-                disabled={!finalPrompt && !subject.trim()}
-                className="h-10 px-3.5 text-xs"
-              >
-                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                Copy Prompt
-              </Button>
-              <Button
-                type="button"
-                variant="liquidMetal"
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className="h-10 px-3.5 text-xs"
-              >
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                Regenerate
-              </Button>
-              <Button
-                type="button"
-                variant="liquidMetalCyan"
-                onClick={() => void handleSaveOutput()}
-                disabled={!videoUrl || isSavingOutput}
-                className="h-10 px-3.5 text-xs font-medium"
-              >
-                <Save className="mr-1.5 h-3.5 w-3.5" />
-                {isSavingOutput ? "Saving..." : "Save"}
-              </Button>
-              <Button
-                type="button"
-                variant="liquidMetalCyan"
-                onClick={() => {
-                  if (!videoUrl) {
-                    toast.error("Generate a clip first")
-                    return
-                  }
-                  addToStoryboard({
-                    sourceClipId: taskId,
-                    url: videoUrl,
-                    subject: subject.trim(),
-                    prompt: finalPrompt || subject.trim(),
-                    durationSeconds,
-                    modelFamilyId,
-                  })
-                }}
-                disabled={!videoUrl}
-                className="h-10 px-3.5 text-xs"
-              >
-                <Clapperboard className="mr-1.5 h-3.5 w-3.5" />
-                Storyboard
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleClearSession}
-                className="h-10 rounded-lg border border-rose-400/15 bg-rose-500/[0.06] px-3.5 text-xs text-rose-200/70 transition hover:bg-rose-500/[0.12]"
-              >
-                Clear
-              </Button>
-            </div>
-            </div>
-
+            <details className="group/pro rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+              <summary className="flex min-h-[52px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                <span className="flex-1">
+                  <span className="block text-[13.5px] font-medium text-[#ece6d6]">More tools</span>
+                  <span className="block text-[12px] text-[#B0B8C4]">All takes, saved clips, and sending to a project</span>
+                </span>
+                <ChevronDown className="size-4 shrink-0 text-gold-300/70 transition-transform duration-300 group-open/pro:rotate-180" />
+              </summary>
+              <div className="space-y-4 px-3 pb-3">
             <TakesPanel
               takes={takes}
               approvedTakeId={approvedTakeId}
@@ -2957,7 +3057,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       key={clip.id}
                       className={`min-w-[260px] snap-start rounded-lg border p-2.5 transition-all duration-200 ${
                         activeSavedClipId === clip.id
-                          ? "border-cyan-400/30 bg-cyan-500/[0.08] shadow-[0_12px_28px_-18px_rgba(34,211,238,0.5)]"
+                          ? "border-gold-400/30 bg-gold-500/[0.08] shadow-[0_12px_28px_-18px_rgba(217,192,138,0.5)]"
                           : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12]"
                       }`}
                     >
@@ -2970,7 +3070,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                         <p className="mt-1 text-[10px] text-white/35">{new Date(clip.createdAt).toLocaleString()}</p>
                       </button>
                       <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[10px] text-cyan-300/60">{getKieVideoModelFamily(clip.modelFamilyId).label}</span>
+                        <span className="text-[10px] text-gold-300/60">{getKieVideoModelFamily(clip.modelFamilyId).label}</span>
                         <div className="flex items-center gap-1">
                           <Button
                             type="button"
@@ -3007,9 +3107,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               )}
             </div>
 
-            <details className="group rounded-2xl border border-white/[0.06] bg-[#0c0c0e]/60 text-white shadow-none backdrop-blur-sm">
+            <details className="group rounded-2xl border border-white/[0.06] bg-obsidian-950/60 text-white shadow-none backdrop-blur-sm">
               <summary className="flex cursor-pointer select-none items-center gap-2 px-5 py-4 text-sm font-medium text-white/80 hover:text-white transition [&::-webkit-details-marker]:hidden">
-                <Film className="h-4 w-4 text-cyan-300/60" />
+                <Film className="h-4 w-4 text-gold-300/60" />
                 <span className="flex-1">Storyboard Destination</span>
                 <span className="text-[11px] text-white/40">
                   {hasStoryboardDestination && selectedScene
@@ -3045,7 +3145,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     </button>
                   </div>
                   <p className="text-[11px] text-white/45">
-                    Fast Track keeps your source clip here and sends a production-ready copy into your project.
+                    Your clip stays here; a copy goes into the project and scene you choose.
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -3054,10 +3154,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={selectedProjectId}
                       onChange={(event) => setSelectedProjectId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-white/12 bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
                     >
                       {projects.map((project) => (
-                        <option key={project.id} value={project.id} className="bg-[#0f1012]">
+                        <option key={project.id} value={project.id} className="bg-obsidian-900">
                           {project.name}
                         </option>
                       ))}
@@ -3069,11 +3169,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={selectedSceneId}
                       onChange={(event) => setSelectedSceneId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-white/12 bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
                       disabled={destinationMode === "create_scene"}
                     >
                       {(selectedProject?.scenes || []).map((scene) => (
-                        <option key={scene.id} value={scene.id} className="bg-[#0f1012]">
+                        <option key={scene.id} value={scene.id} className="bg-obsidian-900">
                           {scene.name}
                         </option>
                       ))}
@@ -3088,7 +3188,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       value={newSceneName}
                       onChange={(event) => setNewSceneName(event.target.value)}
                       placeholder="INT. SHOWROOM - GOLDEN HOUR"
-                      className="h-11 rounded-xl border-white/12 bg-white/5 text-white placeholder:text-white/35"
+                      className="h-11 rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                     />
                   </div>
                 ) : null}
@@ -3097,21 +3197,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   <div>
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <label className="block text-xs uppercase tracking-[0.16em] text-white/50">Shot To Replace</label>
-                      {isSceneShotsLoading ? <span className="text-[10px] text-cyan-100">Loading shots...</span> : null}
+                      {isSceneShotsLoading ? <span className="text-[10px] text-gold-100">Loading shots...</span> : null}
                     </div>
                     <select
                       value={replaceShotId}
                       onChange={(event) => setReplaceShotId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-white/12 bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
                       disabled={isSceneShotsLoading || sceneShotOptions.length === 0}
                     >
                       {sceneShotOptions.length === 0 ? (
-                        <option value="" className="bg-[#0f1012]">
+                        <option value="" className="bg-obsidian-900">
                           No shots available in this scene
                         </option>
                       ) : (
                         sceneShotOptions.map((shot) => (
-                          <option key={shot.id} value={shot.id} className="bg-[#0f1012]">
+                          <option key={shot.id} value={shot.id} className="bg-obsidian-900">
                             {shot.name}
                           </option>
                         ))
@@ -3132,7 +3232,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     (destinationMode === "create_scene" && !newSceneName.trim()) ||
                     (destinationMode === "replace_shot" && (!replaceShotId || sceneShotOptions.length === 0))
                   }
-                  className="h-11 w-full rounded-xl border border-cyan-300/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                  className="h-11 w-full rounded-xl border border-gold-300/30 bg-gold-500/10 text-gold-100 hover:bg-gold-500/20"
                 >
                   {isPromoting || isRoutingOutput ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRightLeft className="mr-2 h-4 w-4" />}
                   {destinationMode === "append"
@@ -3143,9 +3243,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 </Button>
               </div>
             </details>
+              </div>
+            </details>
 
             {process.env.NODE_ENV !== "production" ? (
-              <details className="rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-white/70">
+              <details className="rounded-xl border border-gold-400/[0.12] bg-black/30 p-3 text-xs text-white/70">
                 <summary className="cursor-pointer select-none text-white/80">
                   Developer Debug
                   {traceId ? ` · ${traceId.slice(0, 8)}` : ""}
@@ -3155,8 +3257,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <p>No debug events yet.</p>
                   ) : (
                     debugEvents.map((event, index) => (
-                      <div key={`${event.at}-${event.step}-${index}`} className="rounded border border-white/10 bg-white/5 p-2">
-                        <div className="text-cyan-300">{event.step}</div>
+                      <div key={`${event.at}-${event.step}-${index}`} className="rounded border border-gold-400/[0.12] bg-white/5 p-2">
+                        <div className="text-gold-300">{event.step}</div>
                         <div className="text-white/40">{event.at}</div>
                         {event.details ? <pre className="mt-1 whitespace-pre-wrap break-words">{JSON.stringify(event.details, null, 2)}</pre> : null}
                       </div>
@@ -3168,38 +3270,6 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           </CardContent>
         </Card>
 
-        {/* Direction Stack — inline summary bar */}
-        <div className="rounded-2xl border border-white/[0.06] bg-[#0c0c0e]/60 p-4 backdrop-blur-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <WandSparkles className="h-4 w-4 text-cyan-300/70" />
-            <span className="text-xs font-medium text-white/60 uppercase tracking-[0.12em]">Active Direction</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Style</span> {activeStyle?.name || "Custom"}
-            </span>
-            <span className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Motion</span> {activeMotion?.name || "Custom"}
-            </span>
-            <span className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Model</span> {activeModelFamily.label}
-            </span>
-            <span className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/65">
-              <span className="text-white/40">Continuity</span>{" "}
-              {continuityEnabled
-                ? `${CONTINUITY_LOCKS.filter((item) => continuityLocks[item.key]).length} lock(s)`
-                : "Off"}
-            </span>
-          </div>
-        </div>
-
-        <StudioAdPanel
-          promptPreview={subject}
-          onApplyPacket={handleApplyAdToFastTrack}
-          embedded={false}
-          showHistory={false}
-          context={{ generationModelHint: activeModelFamily.label }}
-        />
       </div>
     </div>
       ) : (
@@ -3224,37 +3294,36 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               modelFamilyId,
             })
           }}
+          onNewShot={handleNewStoryboardShot}
           onRemoveItem={removeStoryboardItem}
           onDuplicateItem={duplicateStoryboardItem}
           onUpdateGroup={updateStoryboardGroup}
           onReorder={reorderStoryboardItems}
           onUpdateNote={updateStoryboardNote}
           onSaveNote={(id) => void saveStoryboardNote(id)}
+          onUpdateDirection={(id, direction) => patchStoryboardItem(id, { direction }, false)}
+          onSaveDirection={(id) => { const item = storyboardItems.find((entry) => entry.id === id); if (item) patchStoryboardItem(id, { direction: (item.direction || "").trim() }) }}
           onClearGroup={clearStoryboardGroup}
           onDuplicateGroup={duplicateStoryboardGroupToNext}
           onCopyGroupShotList={(group) => void copyStoryboardGroupShotList(group)}
-          onContinueFromShot={async (item) => {
-            restoreReferences((item.mediaReferences || []).filter((ref) => ref.locked && ref.scope !== "shot"))
-            setSubject(item.prompt)
-            setActiveTab("builder")
-            if (item.sourceClipId) {
-              const result = await loadContinuity(item.sourceClipId)
-              if (result) {
-                setContinuityEnabled(true)
-                setContinuityLocks(result.locks)
-                setContinuityValues(result.values)
-                toast.success("Loaded shot with continuity locks — continue your sequence")
-                return
-              }
-            }
-            toast.success("Loaded shot prompt into builder — continue your sequence")
-          }}
+          onGenerateShot={(item) => void handleGenerateStoryboardShot(item)}
+          onApproveShot={(item) => void handleApproveStoryboardShot(item)}
+          onContinueToNext={handleContinueStoryboardShot}
+          onStartNewScene={handleStartNewSceneFromShot}
+          onToggleReferenceLock={(item, referenceId, scope) => updateStoryboardReference(item, referenceId, scope ?? "this", "toggle-lock")}
+          onRemoveReference={(item, referenceId, scope) => updateStoryboardReference(item, referenceId, scope ?? "this", "remove")}
           onEditShot={(item) => {
             restoreReferences(item.mediaReferences || [])
-            setSubject(item.subject)
+            setShotFrames({ start: item.startFrame ?? null, end: null, transitionDirection: "" })
+            setSubject((item.direction || "").trim() || item.prompt || item.subject)
             setActiveTab("builder")
-            toast.success("Loaded shot into builder for editing")
+            toast.success("Loaded shot into Shot Builder")
           }}
+          onAddReferenceFiles={(item, files) => void handleAddStoryboardReferenceFiles(item, files)}
+          onPatchItem={patchStoryboardItem}
+          addingReferencesId={addingReferencesStoryboardId}
+          approvingId={approvingStoryboardId}
+          generatingId={generatingStoryboardId}
           onSwitchToBuilder={() => setActiveTab("builder")}
           hasOutput={!!videoUrl}
         />

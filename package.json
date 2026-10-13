@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test scripts/test-media-references.mjs scripts/test-bounded-body.mjs scripts/test-media-runtime.mjs scripts/test-prompt-budget.mjs scripts/test-crew-prompt-integrity.mjs scripts/test-kie-provider.mjs scripts/test-preview-safety.mjs"
+    "test": "node --test scripts/test-media-references.mjs scripts/test-bounded-body.mjs scripts/test-media-runtime.mjs scripts/test-prompt-budget.mjs scripts/test-crew-prompt-integrity.mjs scripts/test-crew-advisory-workflow.mjs scripts/test-presets.mjs scripts/test-shot-frames.mjs scripts/test-gallery.mjs scripts/test-campaign-references.mjs scripts/test-scene-builder.mjs scripts/test-kie-provider.mjs scripts/test-preview-safety.mjs scripts/test-storyboard-continuity.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -19,6 +19,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "crypto-js": "^4.2.0",
+    "ffmpeg-static": "^5.3.0",
     "framer-motion": "^12.38.0",
     "gsap": "^3.14.2",
     "lucide-react": "^0.564.0",

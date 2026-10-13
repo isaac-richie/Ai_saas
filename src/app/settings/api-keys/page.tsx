@@ -1,4 +1,6 @@
 'use client'
+
+import type * as React from 'react'
 import { useState, useEffect } from 'react'
 import { Plus, Check, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
@@ -79,48 +81,51 @@ export default function ApiKeysPage() {
     }
 
     return (
-        <div className="p-8 max-w-4xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
+        <div className="workspace-page max-w-4xl">
+            <header className="workspace-heading">
                 <div>
-                    <h1 className="text-3xl font-bold">API Keys</h1>
-                    <p className="text-gray-600 mt-1">Connect your AI provider accounts</p>
+                    <p className="workspace-eyebrow">PROVIDER ACCESS</p>
+                    <h1>API keys</h1>
+                    <p className="workspace-description">Connect your AI provider accounts. Keys are encrypted and scoped to you.</p>
                 </div>
-                <button
-                    onClick={() => setShowAddModal(true)}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                >
-                    <Plus size={20} /> Add API Key
-                </button>
-            </div>
+                <div className="workspace-actions">
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className="workspace-primary-link"
+                    >
+                        <Plus size={17} /> Add API key
+                    </button>
+                </div>
+            </header>
 
-            <div className="space-y-4">
+            <div className="lux-stagger space-y-3">
                 {providers.length === 0 ? (
-                    <div className="text-center py-10 border rounded-lg text-gray-500">
+                    <div className="rounded-2xl border border-dashed border-gold-400/20 [background:radial-gradient(70%_120%_at_50%_0%,rgba(217,192,138,0.06),transparent_60%),#0f110f] py-12 text-center text-sm text-[#a3a59a]">
                         No providers found. Make sure the database is seeded.
                     </div>
-                ) : providers.map(provider => {
+                ) : providers.map((provider, index) => {
                     const userKey = userKeys.find(k => k.provider_id === provider.id)
 
                     return (
-                        <div key={provider.id} className="border rounded-lg p-4 hover:shadow-md transition bg-white text-black">
-                            <div className="flex justify-between items-start">
+                        <div key={provider.id} style={{ "--i": index } as React.CSSProperties} className="lux-lift lux-spotlight rounded-2xl border border-gold-400/[0.12] bg-obsidian-800 p-5 text-[#eeeae1]">
+                            <div className="relative flex justify-between items-start">
                                 <div className="flex-1">
                                     <div className="flex items-center gap-3">
-                                        <h3 className="font-bold text-lg">{provider.name}</h3>
-                                        <span className="text-xs px-2 py-1 rounded bg-gray-100">
+                                        <h3 className="text-lg font-normal tracking-tight">{provider.name}</h3>
+                                        <span className="rounded-full border border-gold-400/20 bg-gold-400/[0.06] px-2.5 py-0.5 text-[10px] uppercase tracking-[0.16em] text-gold-200/80">
                                             {provider.type}
                                         </span>
                                     </div>
-                                    <p className="text-sm text-gray-600 mt-1">{provider.best_for}</p>
+                                    <p className="mt-1 text-sm text-[#a3a59a]">{provider.best_for}</p>
 
                                     {userKey ? (
                                         <div className="mt-3 flex items-center gap-3">
-                                            <div className="flex items-center gap-2 text-green-600">
+                                            <div className="flex items-center gap-2 text-[#b6ddd3]">
                                                 <Check size={16} />
                                                 <span className="text-sm font-medium">Connected</span>
                                             </div>
                                             {userKey.last_used_at && (
-                                                <span className="text-xs text-gray-500">
+                                                <span className="text-xs text-[#8f9086]">
                                                     Last used: {new Date(userKey.last_used_at).toLocaleDateString()}
                                                 </span>
                                             )}
@@ -131,7 +136,7 @@ export default function ApiKeysPage() {
                                                 setSelectedProvider(provider)
                                                 setShowAddModal(true)
                                             }}
-                                            className="mt-3 text-blue-600 text-sm font-medium hover:underline"
+                                            className="workspace-text-link mt-3"
                                         >
                                             Connect API key →
                                         </button>
@@ -142,9 +147,10 @@ export default function ApiKeysPage() {
                                     href={provider.api_access_via}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-gray-400 hover:text-gray-600"
+                                    aria-label={`Open ${provider.name} API access`}
+                                    className="grid size-9 place-items-center rounded-full border border-gold-400/15 text-[#8f9086] transition-all duration-300 hover:border-gold-400/40 hover:text-gold-200"
                                 >
-                                    <ExternalLink size={18} />
+                                    <ExternalLink size={16} />
                                 </a>
                             </div>
                         </div>
@@ -154,26 +160,27 @@ export default function ApiKeysPage() {
 
             {/* Add Key Modal */}
             {showAddModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full text-black">
-                        <h2 className="text-xl font-bold mb-4">
-                            Add API Key {selectedProvider && `for ${selectedProvider.name}`}
+                <div className="lux-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
+                    <div className="lux-rise lux-hairline w-full max-w-md rounded-3xl [background:linear-gradient(180deg,rgba(217,192,138,0.06),transparent_40%),#111311] p-7 text-[#eeeae1] shadow-[0_40px_90px_-40px_#000]">
+                        <p className="workspace-eyebrow">NEW CONNECTION</p>
+                        <h2 className="mb-5 mt-3 text-2xl font-light tracking-[-0.03em]">
+                            Add API key {selectedProvider && <span className="lux-serif text-gold-300">for {selectedProvider.name}</span>}
                         </h2>
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium mb-1">API Key</label>
+                                <label className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-[#a3a59a]">API key</label>
                                 <input
                                     type="password"
                                     value={newApiKey}
                                     onChange={(e) => setNewApiKey(e.target.value)}
                                     placeholder="sk-..."
-                                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="h-11 w-full border px-3 text-sm"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium mb-1">
+                                <label className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-[#a3a59a]">
                                     Nickname (optional)
                                 </label>
                                 <input
@@ -181,24 +188,24 @@ export default function ApiKeysPage() {
                                     value={nickname}
                                     onChange={(e) => setNickname(e.target.value)}
                                     placeholder="Production key"
-                                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="h-11 w-full border px-3 text-sm"
                                 />
                             </div>
                         </div>
 
-                        <div className="flex gap-3 mt-6">
+                        <div className="mt-7 flex gap-3">
                             <button
                                 onClick={() => setShowAddModal(false)}
-                                className="flex-1 px-4 py-2 border rounded hover:bg-gray-50 transition"
+                                className="workspace-secondary-link flex-1"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleAddKey}
                                 disabled={!newApiKey || loading}
-                                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition"
+                                className="workspace-primary-link flex-1 disabled:pointer-events-none disabled:opacity-50"
                             >
-                                {loading ? 'Saving...' : 'Save Key'}
+                                {loading ? 'Saving...' : 'Save key'}
                             </button>
                         </div>
                     </div>

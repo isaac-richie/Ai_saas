@@ -101,20 +101,20 @@ export function PreferredProviderCard() {
   };
 
   return (
-    <Card data-reveal="card" className="rounded-2xl border border-white/10 bg-[#0f1012] text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+    <Card data-reveal="card" className="rounded-2xl border border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
       <CardHeader>
-        <CardTitle className="text-base">Preferred Generation Provider</CardTitle>
+        <CardTitle className="text-base">AI engine</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-white/50">
-          Auto mode uses available connected providers in fallback order. Set a preferred provider to prioritize it.
+          Auto picks the best available engine for each job. Choose one only if you have a favourite.
         </p>
 
         <Select value={preferred} onValueChange={setPreferred} disabled={loading}>
-          <SelectTrigger className="w-full rounded-xl border-white/10 bg-white/5 text-white">
+          <SelectTrigger className="w-full rounded-xl border-gold-400/[0.12] bg-white/5 text-white">
             <SelectValue placeholder="Select provider" />
           </SelectTrigger>
-          <SelectContent className="border-white/10 bg-[#111114] text-white">
+          <SelectContent className="border-gold-400/[0.12] bg-obsidian-800 text-white">
             <SelectItem value="auto">Auto (Recommended)</SelectItem>
             {options.map((option) => (
               <SelectItem key={option.slug} value={option.slug}>
@@ -124,8 +124,8 @@ export function PreferredProviderCard() {
           </SelectContent>
         </Select>
 
-        <Button onClick={onSave} disabled={saving || loading} className="rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15">
-          {saving ? "Saving..." : "Save Preference"}
+        <Button onClick={onSave} disabled={saving || loading} className="rounded-xl border border-gold-400/[0.12] bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
+          {saving ? "Saving…" : "Save"}
         </Button>
 
         {message && <p className="text-xs text-white/55">{message}</p>}

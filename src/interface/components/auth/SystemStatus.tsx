@@ -19,7 +19,7 @@ export function SystemStatus() {
       <div className="flex-1 space-y-1.5">
          <div className="flex justify-between items-end">
             <span className="text-[8px] font-bold uppercase tracking-widest text-white/30">Engine Ready</span>
-            <span className="text-[9px] font-mono text-cyan-400 opacity-60">Latency: 24ms</span>
+            <span className="text-[9px] font-mono text-gold-400 opacity-60">Latency: 24ms</span>
          </div>
          <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden flex gap-0.5">
             {[...Array(12)].map((_, i) => (
@@ -35,7 +35,7 @@ export function SystemStatus() {
                     delay: i * 0.1,
                     ease: "easeInOut"
                   }}
-                  className="flex-1 bg-cyan-500/40 rounded-full"
+                  className="flex-1 bg-gold-500/40 rounded-full"
                />
             ))}
          </div>

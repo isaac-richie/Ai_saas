@@ -37,7 +37,7 @@ test("Kling 3.0 single-shot request supplies required mode and references", () =
     duration_seconds: 5,
   }, "kling-3.0/video")
 
-  assert.equal(input.mode, "std")
+  assert.equal(input.mode, "pro")
   assert.equal(input.multi_shots, false)
   assert.equal(input.duration, "5")
   assert.equal(input.aspect_ratio, "16:9")
@@ -50,7 +50,7 @@ test("Kling 3.0 single-shot request supplies required mode and references", () =
 
 test("Kling 3.0 text-only requests still specify a mode", () => {
   const input = provider.buildMarketInput({ prompt: "An empty street", output_type: "video", duration_seconds: 5 }, "kling-3.0/video")
-  assert.equal(input.mode, "std")
+  assert.equal(input.mode, "pro")
   assert.equal(input.multi_shots, false)
   assert.equal(input.image_urls, undefined)
 })

@@ -38,7 +38,7 @@ export function CinematicBackground() {
   )
 
   return (
-    <div className="fixed inset-0 -z-50 overflow-hidden bg-[#05070A] pointer-events-none">
+    <div className="fixed inset-0 -z-50 overflow-hidden bg-obsidian-950 pointer-events-none">
       {/* 1. Base Layer: Cinematic Environment (Blurred & Dimmed) */}
       <motion.div 
         style={{ y: y1 }}
@@ -68,14 +68,14 @@ export function CinematicBackground() {
             opacity: [0.2, 0.5, 0.2],
           }}
           transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[-20%] left-[-20%] h-[140%] w-[140%] opacity-50 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.1),transparent_70%)] blur-[100px]"
+          className="absolute top-[-20%] left-[-20%] h-[140%] w-[140%] opacity-50 bg-[radial-gradient(ellipse_at_center,rgba(217,192,138,0.1),transparent_70%)] blur-[100px]"
         />
         <motion.div 
           animate={{
              rotate: [0, 360],
           }}
           transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
-          className="absolute top-[10%] right-[-30%] h-[100%] w-[150%] opacity-30 bg-[conic-gradient(from_0deg,transparent,rgba(34,211,238,0.05),transparent)] blur-[80px]"
+          className="absolute top-[10%] right-[-30%] h-[100%] w-[150%] opacity-30 bg-[conic-gradient(from_0deg,transparent,rgba(217,192,138,0.05),transparent)] blur-[80px]"
         />
       </div>
 
@@ -85,13 +85,13 @@ export function CinematicBackground() {
           <motion.div
             key={i}
             suppressHydrationWarning
-            className="absolute rounded-full bg-cyan-400"
+            className="absolute rounded-full bg-gold-400"
             style={{
               left: particle.left,
               top: particle.top,
               width: `${particle.sizePx}px`,
               height: `${particle.sizePx}px`,
-              boxShadow: '0 0 12px 1px rgba(34,211,238,0.8)'
+              boxShadow: '0 0 12px 1px rgba(217,192,138,0.8)'
             }}
             animate={{
               y: [0, -150, 0],
@@ -115,7 +115,7 @@ export function CinematicBackground() {
           scale: [1, 1.05, 1],
         }}
         transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute inset-0 opacity-20 z-0 bg-[radial-gradient(circle_at_70%_20%,rgba(53,166,255,0.1),transparent_50%),radial-gradient(circle_at_30%_80%,rgba(99,102,241,0.08),transparent_50%)]"
+        className="absolute inset-0 opacity-20 z-0 bg-[radial-gradient(circle_at_70%_20%,rgba(200,167,106,0.1),transparent_50%),radial-gradient(circle_at_30%_80%,rgba(99,102,241,0.08),transparent_50%)]"
       />
     </div>
   )

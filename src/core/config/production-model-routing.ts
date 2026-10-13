@@ -11,7 +11,10 @@ const ECONOMY_ROLES = new Set([
   "production-designer",
   "performance-director",
   "reference-analysis",
+  "continuity-extractor",
   "keyframe-inspection",
+  "reference-classifier",
+  "shot-enhancer",
 ])
 
 const BALANCED_ROLES = new Set([

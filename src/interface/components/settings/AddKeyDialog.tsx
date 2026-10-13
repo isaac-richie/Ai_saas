@@ -45,9 +45,9 @@ export function AddKeyDialog({ providerId, providerName, onSuccess }: AddKeyDial
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="rounded-xl border-white/10 bg-white/5 text-white hover:bg-white/10">Connect</Button>
+                <Button variant="outline" size="sm" className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white hover:bg-gold-400/[0.08]">Connect</Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[460px] border-white/10 bg-[#111114] text-white">
+            <DialogContent className="sm:max-w-[460px] border-gold-400/[0.12] bg-obsidian-800 text-white">
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>
                         <DialogTitle>Connect {providerName}</DialogTitle>
@@ -63,14 +63,14 @@ export function AddKeyDialog({ providerId, providerName, onSuccess }: AddKeyDial
                                 type="password"
                                 value={key}
                                 onChange={(e) => setKey(e.target.value)}
-                                className="rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/35"
+                                className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
                                 placeholder="sk-..."
                                 required
                             />
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button type="submit" disabled={loading} className="rounded-xl border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                        <Button type="submit" disabled={loading} className="rounded-xl border border-gold-400/[0.12] bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
                             {loading ? "Saving..." : "Save Key"}
                         </Button>
                     </DialogFooter>

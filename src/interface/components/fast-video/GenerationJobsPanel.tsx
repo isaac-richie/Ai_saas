@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
-import { Loader2, X, RefreshCw } from "lucide-react"
+import { X, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import {
   listGenerationJobs,
@@ -12,15 +12,15 @@ import {
 } from "@/core/actions/generation-jobs"
 
 const STATUS_COLORS: Record<GenerationJobStatus, string> = {
-  queued: "border-white/10 bg-white/5 text-white/60",
-  preparing: "border-cyan-400/20 bg-cyan-500/10 text-cyan-300/70",
-  submitted: "border-cyan-400/20 bg-cyan-500/10 text-cyan-300/70",
-  generating: "border-cyan-400/25 bg-cyan-500/15 text-cyan-200",
-  downloading: "border-cyan-400/25 bg-cyan-500/15 text-cyan-200",
-  processing: "border-cyan-400/25 bg-cyan-500/15 text-cyan-200",
+  queued: "border-gold-400/[0.12] bg-white/5 text-white/60",
+  preparing: "border-gold-400/20 bg-gold-500/10 text-gold-300/70",
+  submitted: "border-gold-400/20 bg-gold-500/10 text-gold-300/70",
+  generating: "border-gold-400/25 bg-gold-500/15 text-gold-200",
+  downloading: "border-gold-400/25 bg-gold-500/15 text-gold-200",
+  processing: "border-gold-400/25 bg-gold-500/15 text-gold-200",
   completed: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300/70",
   failed: "border-rose-400/20 bg-rose-500/10 text-rose-300/70",
-  cancelled: "border-white/10 bg-white/5 text-white/40",
+  cancelled: "border-gold-400/[0.12] bg-white/5 text-white/40",
 }
 
 const ACTIVE_STATUSES = new Set<GenerationJobStatus>([
@@ -81,7 +81,7 @@ export function GenerationJobsPanel() {
             Generation Jobs
           </p>
           {activeCount > 0 && (
-            <span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] text-cyan-300">
+            <span className="rounded-full border border-gold-400/25 bg-gold-500/10 px-1.5 py-0.5 text-[9px] text-gold-300">
               {activeCount} active
             </span>
           )}
@@ -108,7 +108,7 @@ export function GenerationJobsPanel() {
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  {isActive && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-cyan-300/60" />}
+                  {isActive && <span className="lux-live-dot !size-1.5 shrink-0" />}
                   <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] ${STATUS_COLORS[job.status]}`}>
                     {job.status}
                   </span>
@@ -119,7 +119,7 @@ export function GenerationJobsPanel() {
                 {job.progress > 0 && job.progress < 100 && (
                   <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
                     <div
-                      className="h-full rounded-full bg-cyan-400/50 transition-[width] duration-300"
+                      className="h-full rounded-full bg-gold-400/50 transition-[width] duration-300"
                       style={{ width: `${job.progress}%` }}
                     />
                   </div>

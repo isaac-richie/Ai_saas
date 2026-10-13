@@ -8,8 +8,11 @@ export class OpenAIProvider extends BaseProvider {
 
     constructor(config: { apiKey: string }) {
         super(config);
+        // Fail fast: a quota error must not be retried until the server function times out.
         this.client = new OpenAI({
             apiKey: config.apiKey,
+            maxRetries: 0,
+            timeout: 90_000,
         });
     }
 
@@ -41,8 +44,8 @@ export class OpenAIProvider extends BaseProvider {
                 prompt: request.prompt,
                 n: 1,
                 size,
-                response_format: "url",
             };
+            // No response_format: OpenAI now rejects it. Results may come back as a URL or base64.
 
             // OpenAI image quality accepts only standard|hd for image generation.
             if (quality) {
@@ -51,7 +54,8 @@ export class OpenAIProvider extends BaseProvider {
 
             const response = await this.client.images.generate(payload);
 
-            const url = response?.data?.[0]?.url;
+            const first = response?.data?.[0];
+            const url = first?.url || (first?.b64_json ? `data:image/png;base64,${first.b64_json}` : undefined);
 
             if (!url) {
                 throw new Error("No image URL returned from OpenAI");

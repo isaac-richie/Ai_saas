@@ -7,7 +7,7 @@ import { ErrorStatePanel } from '@/interface/components/ui/state-panels';
 import { WorkspaceHeading } from '@/interface/components/layout/WorkspaceHeading';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Gallery' };
+export const metadata = { title: 'My videos' };
 
 export default async function GalleryPage({
   searchParams,
@@ -25,13 +25,13 @@ export default async function GalleryPage({
   return (
     <div className="workspace-page workspace-gallery">
       <WorkspaceHeading
-        label="02 / THE COLLECTION"
-        title="Every frame, in one place."
-        description="Review your takes, find the favourites, and shape what comes next."
+        label="MY VIDEOS"
+        title="Everything you've made."
+        description="Watch, download and share. Your newest work is first."
         actions={
           <>
             <Link href="/dashboard/exports" className="workspace-secondary-link">
-              <Download size={16} /> Exports
+              <Download size={16} /> Downloads
             </Link>
             <Link href="/dashboard/fast-video" className="workspace-primary-link">
               Create a video <ArrowUpRight size={17} />
@@ -41,9 +41,9 @@ export default async function GalleryPage({
       />
       <div className="workspace-library-heading">
         <div>
-          <span className="workspace-eyebrow">YOUR VISUAL LIBRARY</span>
+          <span className="workspace-eyebrow">YOUR LIBRARY</span>
           <h2>
-            Collected frames <span>{typeof result.error === 'string' ? '' : assets.length}</span>
+            Videos &amp; images <span>{typeof result.error === 'string' ? '' : assets.length}</span>
           </h2>
         </div>
         {projectLabel && (

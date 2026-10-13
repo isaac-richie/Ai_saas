@@ -48,7 +48,7 @@ export default async function SequencePage(props: SequencePageProps) {
     if (!sequence) {
         return (
             <div className="mx-auto w-full max-w-4xl py-10">
-                <div className="rounded-3xl border border-white/10 bg-[#0b0b0d] p-6 text-white">
+                <div className="rounded-3xl border border-gold-400/[0.12] bg-obsidian-950 p-6 text-white">
                     Sequence not found.
                 </div>
             </div>
