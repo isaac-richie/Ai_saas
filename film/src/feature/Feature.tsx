@@ -127,7 +127,10 @@ export const Feature: React.FC = () => {
   const flash = (at: number) => interpolate(frame, [s(at) - 1, s(at), s(at) + 5], [0, 0.5, 0], clamp)
   return (
     <AbsoluteFill style={{ backgroundColor: color.ink }}>
-      <Audio src={staticFile("film/score_edit.m4a")} />
+      {/* Beta cut only: "Echo" (instrumental) by Apollo On The Run, NCS Release (ncs.io/A_Echo).
+          The breakdown (1:52.5) runs under the film, silence over the black, and the drop (2:16.5)
+          lands on "In motion." at 26.9 s. Public use needs an NCS commercial licence. */}
+      <Audio src={staticFile("film/ef_ncs_edit.m4a")} />
       {SHOTS.map((shot, i) => (
         <Sequence key={i} from={s(shot.at)} durationInFrames={s(shot.to - shot.at)}>
           <ShotClip shot={shot} />
