@@ -150,6 +150,9 @@ export class KieProvider extends BaseProvider {
             // Kling 3.0 expects `sound` instead of `is_generate_audio`.
             input.sound = request.is_generate_audio ?? true;
             const elements = request.reference_elements?.filter(element => element.image_urls.length >= 2 && element.image_urls.length <= 4).slice(0, 3) || [];
+            // Element tags are provider syntax and must never leak into prompts
+            // without a matching Kling element payload. Remove stale tags safely.
+            input.prompt = elements.length ? request.prompt : request.prompt.replace(/@element_[\w-]+/gi, "").replace(/\s{2,}/g, " ").trim();
             if (elements.length) {
                 input.kling_elements = elements.map(({ name, description, image_urls }) => ({
                     name,
