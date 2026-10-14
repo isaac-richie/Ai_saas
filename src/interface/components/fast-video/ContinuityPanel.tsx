@@ -66,10 +66,11 @@ export function ContinuityPanel({
 }: ContinuityPanelProps) {
   const activeCount = CONTINUITY_LOCKS.filter((item) => continuityChannelState(item.key, locks, values, sources, references).active).length
   return (
-    <section aria-label="Continuity locks" className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-3">
+    <section aria-label="Continuity guidance" className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-[12px] font-medium text-[#d6d0c0]">Continuity locks</p>
+          <p className="text-[12px] font-medium text-[#d6d0c0]">Continuity guidance</p>
+          <p className="text-xs text-white/60">These instructions guide consistency; matching is not guaranteed.</p>
           <p className="text-[11.5px] text-[#B0B8C4]" aria-live="polite">
             {enabled ? `${activeCount} active · kept for every shot until you change them` : "Off · your saved locks are kept, not used"}
           </p>
@@ -88,6 +89,7 @@ export function ContinuityPanel({
         </button>
       </div>
       <div className={`grid gap-2.5 ${enabled ? "" : "opacity-50"}`}>
+        {enabled && CONTINUITY_LOCKS.some((item, index) => locks[item.key] && sources[item.key] && CONTINUITY_LOCKS.slice(0, index).some(other => locks[other.key] && sources[other.key] === sources[item.key])) && <p role="status" className="text-xs text-amber-100">Several channels use the same image. Check that its character, clothing and setting match your intended direction.</p>}
         {CONTINUITY_LOCKS.map((item) => {
           const { source, missing, active } = continuityChannelState(item.key, locks, values, sources, references)
           const locked = locks[item.key]

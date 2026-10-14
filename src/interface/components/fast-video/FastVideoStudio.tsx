@@ -1567,6 +1567,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       return
     }
     const generationReferences = buildGenerationReferences()
+    const mentioned = [...new Set(subject.match(/@(?:image|video|audio)\d+/g) ?? [])]
+    const unresolved = mentioned.filter((tag) => !generationReferences.some((ref) => ref.label === tag))
+    if (unresolved.length) {
+      const missing = unresolved.filter((tag) => !labelledReferences.some((ref) => ref.label === tag))
+      toast.error(missing.length
+        ? `${missing.join(", ")} ${missing.length === 1 ? "isn't" : "aren't"} in your references any more.`
+        : `${unresolved.join(", ")} ${unresolved.length === 1 ? "isn't" : "aren't"} applied, so the model won't see ${unresolved.length === 1 ? "it" : "them"}.`, {
+        id: "fast-video-mentions",
+        description: missing.length ? "Remove the tag from your idea, or add the image again." : "Apply it in More options → Media references, or remove the tag.",
+      })
+      return
+    }
     const referenceIssues = referenceCompatibility(generationReferences)
     if (referenceIssues.length) { toast.error(referenceIssues.join(" ")); return }
     if (referenceImageUrl && generationReferences.some((ref) => ref.target === "provider")) { toast.error("Remove the legacy starting image before using another direct image."); return }
@@ -1649,6 +1661,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       }
       if (promptFit.notes.length) {
         toast.message("Fitted to the video model's prompt limit", { id: "fast-video-fit", description: promptFit.notes.join(" ") })
+      }
+      // Request summary: exactly how each applied reference reached the model.
+      const sent = (res.data as { referenceDelivery?: { label: string; as: string }[] }).referenceDelivery ?? []
+      if (sent.length) {
+        const group = (as: string) => sent.filter((item) => item.as === as).map((item) => item.label)
+        const parts = [
+          group("start-frame").length ? `Start frame: ${group("start-frame").join(", ")}` : "",
+          group("image").length ? `Sent as images: ${group("image").join(", ")}` : "",
+          group("text").length ? `Text only: ${group("text").join(", ")}` : "",
+          group("not-used").length ? `Not used after fitting: ${group("not-used").join(", ")}` : "",
+        ].filter(Boolean)
+        toast.message(`Sent to ${activeModelFamily.label}`, { id: "fast-video-delivery", description: parts.join(" · ") })
       }
 
       const appliedDuration =
@@ -2190,7 +2214,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   }
 
   const handleRetryAsTake = () => {
-    handleGenerate()
+    toast.message("Generating with current settings", { description: "This uses the prompt and references currently shown in the editor." })
+    void handleGenerate()
   }
 
   const handleClearAllClips = () => {
@@ -2312,7 +2337,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
                 <label htmlFor="fast-video-prompt" className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Your idea</label>
-                {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite" title={promptBudget.overflow ? "Over the limit is fine: reference directions are condensed first, your prompt last." : undefined}>Prompt + references: {promptBudget.used}/{promptBudget.limit}{promptBudget.overflow ? " · will auto-fit" : ""}</span>}
+                {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite">Prompt + references: {promptBudget.used}/{promptBudget.limit}{promptBudget.overflow ? " · will auto-fit" : ""}</span>}
+                {promptBudget.overflow > 0 && <details className="text-xs text-white/70"><summary>Review automatic shortening</summary><p className="whitespace-pre-wrap">{fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), buildGenerationReferences()).subject}</p><p>{fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), buildGenerationReferences()).notes.join(" ")}</p><p>Additional frame, style and scene instructions are applied when the request is assembled.</p></details>}
               </div>
               <MentionTextarea
                 id="fast-video-prompt"
@@ -2414,6 +2440,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   references={currentReferences}
                   onChange={updateCurrentReferences}
                   lockedRoles={lockedRoleOwners(continuityEnabled, continuityLocks, continuitySources, labelledReferences)}
+                  model={activeModelFamily.i2vModel}
+                  modelLabel={activeModelFamily.label}
+                  hasStartFrame={Boolean(shotFrames?.start) || Boolean(referenceImageUrl)}
                   projectId={selectedProjectId || null}
                   sceneId={selectedSceneId || null}
                   onBusy={setIsUploading}

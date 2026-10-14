@@ -17,7 +17,7 @@ import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
-import { REFERENCE_BUCKET, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
+import { REFERENCE_BUCKET, planReferenceDelivery, type ReferenceDelivery, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
 import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
@@ -416,6 +416,7 @@ export async function generateFastVideo(input: unknown) {
   let shotFrames: ShotFrames | null = null
   let referenceImageUrls: string[] | undefined
   let campaignRefs: CampaignReferences | null = null
+  let delivery: { label: string; name: string; as: ReferenceDelivery }[] = []
   try {
     const refs = validateOwnedReferences(payload.prompt_inputs.media_references, user.id)
     const issues = referenceCompatibility(refs)
@@ -500,7 +501,26 @@ export async function generateFastVideo(input: unknown) {
     }
     // Fit instead of refusing: condense directions first, the creator's prompt last.
     // Only the provider text changes; saved takes keep every attached reference.
-    const fit = fitReferencePrompt(payload.prompt_inputs.text_subject, payload.prompt_inputs.media_references ? validateOwnedReferences(payload.prompt_inputs.media_references, user.id) : refs)
+    // Deliver reference images the model can actually use, decided by the same rule the panel shows.
+    const deliveryRefs = payload.prompt_inputs.media_references ? validateOwnedReferences(payload.prompt_inputs.media_references, user.id) : refs
+    const plan = planReferenceDelivery(deliveryRefs, {
+      model: payload.settings.model?.trim() || "",
+      hasStartFrame: Boolean(frames.start) || (Boolean(payload.prompt_inputs.reference_image) && !direct),
+      campaignImages: Boolean(referenceImageUrls?.length),
+    })
+    const sentImages = deliveryRefs.filter((ref) => plan[ref.id] === "image")
+    if (sentImages.length) {
+      referenceImageUrls = []
+      for (const ref of sentImages) {
+        const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(ref.assetPath, 3600)
+        if (error || !data) return { error: `${ref.name} is unavailable. Re-add it, then retry; nothing was charged.` }
+        referenceImageUrls.push(data.signedUrl)
+      }
+    }
+    delivery = deliveryRefs.filter((ref) => ref.applied).map((ref) => ({ label: ref.label ?? ref.name, name: ref.name, as: plan[ref.id] }))
+    debug.push("references.delivery", { delivery })
+    const fit = fitReferencePrompt(payload.prompt_inputs.text_subject, deliveryRefs)
+    delivery = delivery.map(item => ({ ...item, as: item.as === "text" && !fit.references.some(ref => (ref.label ?? ref.name) === item.label && ref.applied) ? "not-used" as const : item.as }))
     if (fit.notes.length) debug.push("prompt.fitted", { notes: fit.notes })
     payload.prompt_inputs.text_subject = fit.subject
     payload.prompt_inputs.media_references = fit.references
@@ -618,6 +638,8 @@ export async function generateFastVideo(input: unknown) {
         model: payload.settings.model?.trim() || null,
         // Frame IDs are reported separately from media references.
         startFrameId: shotFrames?.start?.id || null,
+        // What reached the model, per applied reference (start frame / image / text).
+        referenceDelivery: delivery,
         endFrameId: shotFrames?.end?.id || null,
         characterReferenceId: campaignRefs?.character?.id || null,
         productReferenceId: campaignRefs?.product?.id || null,

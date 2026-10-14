@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import { Button } from "@/interface/components/ui/button"
 import {
     Dialog,
@@ -32,7 +33,7 @@ export function CreateProjectDialog() {
             setOpen(false)
             router.refresh()
         } else {
-            alert("Error creating project: " + res.error)
+            toast.error(res.error || "Couldn't create the project.")
         }
     }
 

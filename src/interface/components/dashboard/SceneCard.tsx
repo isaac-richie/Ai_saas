@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import { Scene, deleteScene, moveScene, renameScene } from "@/core/actions/scenes"
 import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components/ui/card"
 import { Badge } from "@/interface/components/ui/badge"
@@ -35,7 +36,7 @@ export function SceneCard({ scene, projectId, isFirst, isLast }: SceneCardProps)
         setIsBusy(false)
 
         if (result.error) {
-            alert(`Rename failed: ${result.error}`)
+            toast.error(`Couldn't rename the scene: ${result.error}`)
             return
         }
         router.refresh()
@@ -51,7 +52,7 @@ export function SceneCard({ scene, projectId, isFirst, isLast }: SceneCardProps)
         setIsBusy(false)
 
         if (result.error) {
-            alert(`Delete failed: ${result.error}`)
+            toast.error(`Couldn't delete the scene: ${result.error}`)
             return
         }
         router.refresh()
@@ -64,7 +65,7 @@ export function SceneCard({ scene, projectId, isFirst, isLast }: SceneCardProps)
         setIsBusy(false)
 
         if (result.error) {
-            alert(`Reorder failed: ${result.error}`)
+            toast.error(`Couldn't reorder: ${result.error}`)
             return
         }
         router.refresh()

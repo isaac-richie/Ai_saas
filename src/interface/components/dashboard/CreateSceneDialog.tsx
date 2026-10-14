@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import { Button } from "@/interface/components/ui/button"
 import {
     Dialog,
@@ -35,7 +36,7 @@ export function CreateSceneDialog({ projectId }: CreateSceneDialogProps) {
         if (!res.error) {
             setOpen(false)
         } else {
-            alert("Error creating scene: " + res.error)
+            toast.error(res.error || "Couldn't create the scene.")
         }
     }
 

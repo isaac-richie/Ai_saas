@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { ImagePlus, Film, AudioLines, LockKeyhole, ChevronDown, Loader2, Check } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/infrastructure/supabase/client"
-import { continueWithoutAnalysisTarget, labelReferences, MAX_REFERENCE_BYTES, MAX_REFERENCES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, ROLE_CONTROLS, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, referenceRoles, withRoles, type MediaReference } from "@/core/validation/media-reference"
+import { continueWithoutAnalysisTarget, labelReferences, planReferenceDelivery, type ReferenceDelivery, MAX_REFERENCE_BYTES, MAX_REFERENCES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, ROLE_CONTROLS, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, referenceRoles, withRoles, type MediaReference } from "@/core/validation/media-reference"
 import styles from "./MediaReferenceManager.module.css"
 
 async function getDuration(file: File, kind: "video" | "audio") {
@@ -101,6 +101,14 @@ function ReferencePreview({ reference }: { reference: MediaReference }) {
   </div>
 }
 
+const DELIVERY_LABEL: Record<ReferenceDelivery, string> = { "start-frame": "Start frame", image: "Sent as image", text: "Text only", "not-used": "Not used" }
+const DELIVERY_HELP: Record<ReferenceDelivery, string> = {
+  "start-frame": "This exact image becomes the first frame of the video.",
+  image: "The image itself is sent to the model as a visual reference.",
+  text: "Only this reference's written direction reaches the model; the file stays attached.",
+  "not-used": "Not applied, so nothing from it is sent.",
+}
+
 const thumbCache = new Map<string, string>()
 
 /** Small signed thumbnail for an image reference; other media show their type icon. */
@@ -154,7 +162,7 @@ function RolePicker({ reference, disabled, onChange }: { reference: MediaReferen
   </details>
 }
 
-export function MediaReferenceManager({ references, onChange, projectId, sceneId, onBusy, disabled = false, lockedRoles = {} }: {
+export function MediaReferenceManager({ references, onChange, projectId, sceneId, onBusy, disabled = false, lockedRoles = {}, model = "", modelLabel = "the video model", hasStartFrame = false }: {
   references: MediaReference[]
   onChange: Dispatch<SetStateAction<MediaReference[]>>
   projectId: string | null
@@ -163,6 +171,11 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
   disabled?: boolean
   /** Roles held by active continuity locks (role → reference id); those conflicts are already settled. */
   lockedRoles?: Record<string, string>
+  /** Selected video model id and name, so the panel can say what will really be sent. */
+  model?: string
+  modelLabel?: string
+  /** A Start Frame already opens the shot (it takes the single image slot). */
+  hasStartFrame?: boolean
 }) {
   const picker = useRef<HTMLInputElement>(null)
   const selection = useRef<{ type: MediaReference["mediaType"]; replaceId?: string }>({ type: "image" })
@@ -237,7 +250,8 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
           target: previous?.target || "director", projectId, sceneId, applied: false, duration,
           trimStart: 0, trimEnd: duration ? Math.min(duration, 10) : undefined, volume: previous?.volume ?? 1,
         }
-        onChange((current) => previous ? current.map((item) => item.id === previous.id ? ref : item) : [...current, ref])
+        // Stamp a permanent tag now, so a later removal never renumbers this file.
+        onChange((current) => labelReferences(previous ? current.map((item) => item.id === previous.id ? { ...ref, label: previous.label } : item) : [...current, ref]))
         setAnalysisErrors((current) => { const next = { ...current }; delete next[ref.id]; return next })
         setExpandedId(ref.id)
         setUploadProgress((current) => current && { ...current, done: current.done + 1 })
@@ -292,9 +306,23 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
   const labelled = labelReferences(references)
   const full = references.length >= MAX_REFERENCES
   const appliedCount = references.filter((ref) => ref.applied).length
+  const delivery = planReferenceDelivery(labelled, { model, hasStartFrame })
+  const counts = { start: 0, image: 0, text: 0 }
+  for (const ref of labelled) {
+    const as = delivery[ref.id]
+    if (as === "start-frame") counts.start += 1
+    else if (as === "image") counts.image += 1
+    else if (as === "text") counts.text += 1
+  }
+  const seedance = /seedance/i.test(model)
   return <section className={styles.manager} aria-label="Media references">
     <div className={styles.header}><h3>Media references</h3><span className={styles.count} aria-live="polite">{appliedCount} applied / {references.length} added</span></div>
     <p className={styles.hint}>Give each reference one job. Review the direction, then apply it to your next shot.</p>
+    {appliedCount > 0 && <p className={styles.delivery} role="status">
+      Sent to {modelLabel}: {[counts.start && "1 start frame", counts.image && `${counts.image} image${counts.image === 1 ? "" : "s"}`, counts.text && `${counts.text} as written direction only`].filter(Boolean).join(" · ") || "nothing yet"}.
+      {counts.text > 0 && !seedance ? " This model takes one image (the start frame); other references guide it by text." : null}
+      {counts.text > 0 && seedance && (hasStartFrame || counts.start > 0) ? " Seedance can't take reference images alongside a start frame, so these guide by text." : null}
+    </p>}
     <div className={styles.toolbar}>
       <button type="button" disabled={disabled || !!busy || full} onClick={() => pick("image")}><ImagePlus size={14} /> Add Image</button>
       <button type="button" disabled={disabled || !!busy || full} onClick={() => pick("video")}><Film size={14} /> Add Video</button>
@@ -315,7 +343,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
         ? continueWithoutAnalysisTarget(ref, references) === "provider" ? "It will be used directly as the starting frame." : "It stays attached as a labelled reference; the starting frame is already taken."
         : "Your written prompt leads; the file stays attached."
       return <details className={styles.card} key={ref.id} open={expandedId === ref.id}>
-      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><ReferenceThumb reference={ref} /><div className={styles.title}><strong><span className={styles.tag}>{ref.label}</span>{ref.name}</strong><span>{referenceRoles(ref).join(" + ")} · {ref.scope}{ref.locked ? " · locked" : ""}</span></div><span className={styles.badge}>{ref.applied ? "Applied" : ref.analysis ? "Ready to apply" : ref.analysisUnavailable || analysisError ? "Analysis unavailable" : "Analysis optional"}</span><ChevronDown size={12} /></summary>
+      <summary onClick={(event) => { event.preventDefault(); setExpandedId(expandedId === ref.id ? null : ref.id) }}><ReferenceThumb reference={ref} /><div className={styles.title}><strong><span className={styles.tag}>{ref.label}</span>{ref.name}</strong><span>{referenceRoles(ref).join(" + ")} · {ref.scope}{ref.locked ? " · locked" : ""}</span></div><span className={styles.badge} data-delivery={delivery[ref.id]} title={DELIVERY_HELP[delivery[ref.id]]}>{ref.applied ? DELIVERY_LABEL[delivery[ref.id]] : ref.analysis ? "Ready to apply" : ref.analysisUnavailable || analysisError ? "Analysis unavailable" : "Analysis optional"}</span><ChevronDown size={12} /></summary>
       <div className={styles.body}>
         <ReferencePreview reference={ref} />
         {(ref.analysisUnavailable || analysisError) && !ref.applied && <div className={styles.warning} role="status">
@@ -327,10 +355,10 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
         </div>}
         <div className={styles.grid}>
           <div className={`${styles.field} ${styles.full}`}>Roles<RolePicker reference={ref} disabled={disabled || !!busy || ref.locked} onChange={(roles) => { const next = withRoles(ref, roles); update(ref.id, { roles: next.roles, role: next.role }, true) }} /></div>
-          <label className={styles.field}>Use for<select disabled={disabled || !!busy || ref.locked} value={ref.target} onChange={(e) => update(ref.id, { target: e.target.value as MediaReference["target"] })}><option value="director">Director guidance</option><option value="provider" disabled={ref.mediaType !== "image"}>Direct image-to-video</option></select></label>
-          <label className={styles.field}>Priority<select disabled={disabled || !!busy || ref.locked} value={ref.priority} onChange={(e) => update(ref.id, { priority: e.target.value as MediaReference["priority"] })}>{["primary", "secondary", "supporting"].map((v) => <option key={v}>{v}</option>)}</select></label>
-          <label className={styles.field}>Influence<select disabled={disabled || !!busy || ref.locked} value={ref.influence} onChange={(e) => update(ref.id, { influence: e.target.value as MediaReference["influence"] })}>{["low", "medium", "high"].map((v) => <option key={v}>{v}</option>)}</select></label>
-          <label className={`${styles.field} ${styles.full}`}>Scope<select disabled={disabled || !!busy || ref.locked} value={ref.scope} onChange={(e) => update(ref.id, { scope: e.target.value as MediaReference["scope"], projectId, sceneId })}><option value="shot">This shot / retries</option><option value="scene" disabled={!sceneId}>This scene</option><option value="project" disabled={!projectId}>This project</option></select></label>
+          <label className={styles.field} title="Direct image-to-video: this exact image becomes the video's first frame. Director guidance: on Seedance (with no start frame) the image itself is sent as a visual reference; otherwise only its written direction is used.">Use for<select disabled={disabled || !!busy || ref.locked} value={ref.target} onChange={(e) => update(ref.id, { target: e.target.value as MediaReference["target"] })}><option value="director">Director guidance</option><option value="provider" disabled={ref.mediaType !== "image"}>Direct image-to-video</option></select></label>
+          <label className={styles.field} title="Order and tie-break, not a model setting: primary references are described first, and if two primaries conflict you'll be asked to choose.">Priority<select disabled={disabled || !!busy || ref.locked} value={ref.priority} onChange={(e) => update(ref.id, { priority: e.target.value as MediaReference["priority"] })}>{["primary", "secondary", "supporting"].map((v) => <option key={v}>{v}</option>)}</select></label>
+          <label className={styles.field} title="Wording only. The video models expose no image-strength control, so High asks more firmly in the prompt; it can't guarantee a match.">Influence<select disabled={disabled || !!busy || ref.locked} value={ref.influence} onChange={(e) => update(ref.id, { influence: e.target.value as MediaReference["influence"] })}>{["low", "medium", "high"].map((v) => <option key={v}>{v}</option>)}</select></label>
+          <label className={`${styles.field} ${styles.full}`} title="Where this reference stays attached. Shot beats scene, scene beats project, for the same role. References never cross projects.">Scope<select disabled={disabled || !!busy || ref.locked} value={ref.scope} onChange={(e) => update(ref.id, { scope: e.target.value as MediaReference["scope"], projectId, sceneId })}><option value="shot">This shot / retries</option><option value="scene" disabled={!sceneId}>This scene</option><option value="project" disabled={!projectId}>This project</option></select></label>
           {ref.mediaType !== "image" && <>
             <label className={styles.field}>Trim start (seconds)<input type="number" min="0" max={ref.duration} step="0.1" disabled={disabled || !!busy || ref.locked} value={ref.trimStart} onChange={(e) => update(ref.id, { trimStart: Number(e.target.value) }, true)} /></label>
             <label className={styles.field}>Trim end (seconds)<input type="number" min="0.1" max={ref.duration} step="0.1" disabled={disabled || !!busy || ref.locked} value={ref.trimEnd ?? ""} onChange={(e) => update(ref.id, { trimEnd: Number(e.target.value) }, true)} /></label>
@@ -338,6 +366,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
             <label className={`${styles.field} ${styles.full}`}>Preview volume ({Math.round(ref.volume * 100)}%)<input type="range" min="0" max="1" step="0.05" disabled={disabled || !!busy || ref.locked} value={ref.volume} onChange={(e) => update(ref.id, { volume: Number(e.target.value) })} /></label>
           </>}
         </div>
+        <p className={`${styles.hint} ${styles.fieldHelp}`}><strong>Use for</strong>: Direct = this image is the first frame; Director guidance = sent as an image on Seedance (no start frame), otherwise text only. <strong>Priority</strong> orders references and settles conflicts. <strong>Influence</strong> changes prompt wording only; no model has an image-strength dial.</p>
         {ref.target === "provider" && <p className={styles.warning}>One image is passed as the starting frame. Its entire composition may influence the result; role isolation and influence strength are not provider controls.</p>}
         {ref.mediaType === "audio" && <p className={styles.hint}>Speech roles use transcription. Music, effects, ambience and timing are listened to for sound and rhythm cues, not precise beat mapping or lip-sync.</p>}
         {ref.analysis && <div className={styles.analysis}>

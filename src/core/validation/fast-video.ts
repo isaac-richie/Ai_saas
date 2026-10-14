@@ -10,7 +10,8 @@ export const fastVideoRequestSchema = z.object({
   scene_id: z.string().min(1).optional().nullable(),
   shot_id: z.string().min(1).optional().nullable(),
   prompt_inputs: z.object({
-    text_subject: z.string().min(3, "Describe your subject in at least 3 characters").max(1200),
+    // Generous intake: the server fits prompt + references to the model budget (1100) itself.
+    text_subject: z.string().min(3, "Describe your idea in at least 3 characters.").max(4000, "That idea is very long. Keep it under 4,000 characters; we fit it to the video model automatically."),
     style_preset_id: z.string().optional().nullable(),
     motion_preset_id: z.string().optional().nullable(),
     aspect_ratio: z.enum(FAST_VIDEO_ASPECT_RATIOS),
