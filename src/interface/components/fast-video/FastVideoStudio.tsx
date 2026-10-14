@@ -110,6 +110,7 @@ import {
 } from "./fast-video-studio.model"
 
 export function FastVideoStudio({ projects }: FastVideoStudioProps) {
+  const [requestPreview, setRequestPreview] = useState<{ prompt: string; model: string | null; referenceDelivery: { label: string; as: string }[] } | null>(null)
   const router = useRouter()
   const { saveContinuity, loadContinuity } = useContinuitySync()
 
@@ -683,6 +684,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     })
 
     setTakes((prev) => [...prev, {
+      snapshot: generationSnapshotRef.current ? structuredClone(generationSnapshotRef.current) : undefined,
       id: clip.id,
       takeNumber: prev.length + 1,
       prompt: clip.subject,
@@ -1556,7 +1558,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
   }
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (previewOnly: boolean | unknown = false) => {
+    previewOnly = previewOnly === true
     if (!subject.trim()) {
       toast.error("Describe your idea first, even one sentence works.")
       document.getElementById("fast-video-prompt")?.focus()
@@ -1591,9 +1594,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     const fitSubject = continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim()
     const promptFit = fitReferencePrompt(generationFrames ? `${frameDirective(generationFrames)}. ${fitSubject}` : fitSubject, generationReferences)
 
-    const storyboardTargetId = storyboardTargetRef.current
-    storyboardTargetRef.current = null
-    setGeneratingStoryboardId(storyboardTargetId)
+    const storyboardTargetId = previewOnly ? null : storyboardTargetRef.current
+    if (!previewOnly) {
+      storyboardTargetRef.current = null
+      setGeneratingStoryboardId(storyboardTargetId)
+    }
     // On a phone the preview sits below the form; bring it into view so progress is visible.
     const preview = document.getElementById("create-preview")
     if (preview && preview.getBoundingClientRect().top > window.innerHeight * 0.6) {
@@ -1601,6 +1606,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
 
     setIsGenerating(true)
+    if (!previewOnly) {
     setStatus("processing")
     setStatusMessage("Initializing...")
     setVideoUrl(null)
@@ -1609,6 +1615,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setTraceId(null)
     setDebugEvents([])
     setActiveSavedClipId(null)
+    }
 
     const selectedModel = resolveKieVideoModelByFamily({
       familyId: modelFamilyId,
@@ -1619,7 +1626,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       ? `${subject.trim()}, ${continuityClause}`
       : subject.trim()
 
-    generationSnapshotRef.current = {
+    if (!previewOnly) generationSnapshotRef.current = {
       storyboardTargetId,
       mediaReferences: generationReferences,
       shotFrames: generationFrames,
@@ -1633,7 +1640,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
 
     try {
-      const res = await generateFastVideo({
+      const request: import("@/core/validation/fast-video").FastVideoRequest = {
         request_type: "fast_video",
         project_id: selectedProjectId || null,
         scene_id: selectedSceneId || null,
@@ -1651,8 +1658,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           duration_seconds: durationSeconds,
           model: selectedModel,
         },
-      })
+      }
+      const res = await generateFastVideo(request, previewOnly === true)
 
+      if (res.data?.status === "preview") {
+        setRequestPreview({ prompt: res.data.prompt, model: res.data.model, referenceDelivery: res.data.referenceDelivery })
+        return
+      }
       if (res.error || !res.data) {
         setStatus("failed")
         setStatusMessage(res.error || "Generation failed")
@@ -1680,6 +1692,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       const resolvedPrompt = res.data.prompt || subjectWithContinuity
 
       generationSnapshotRef.current = {
+        request,
+        delivery: res.data.referenceDelivery,
         storyboardTargetId,
         mediaReferences: generationReferences,
         shotFrames: generationFrames,
@@ -2218,6 +2232,25 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     void handleGenerate()
   }
 
+  const retrySavedTake = async (take: TakeItem) => {
+    const snapshot = take.snapshot
+    if (!snapshot?.request || isGenerating || status === "processing") return
+    setIsGenerating(true)
+    try {
+      const res = await generateFastVideo(structuredClone(snapshot.request))
+      if (res.error || !res.data) throw new Error(res.error || "Could not start this take.")
+      generationSnapshotRef.current = { ...structuredClone(snapshot), prompt: res.data.prompt, delivery: res.data.referenceDelivery }
+      setFinalPrompt(res.data.prompt)
+      setTaskId(res.data.taskId)
+      setVideoUrl(res.data.url)
+      setStatus(res.data.url ? "completed" : "processing")
+      setStatusMessage(res.data.url ? "Complete" : "Generating with saved settings")
+      if (res.data.url) saveClip({ ...snapshot, id: crypto.randomUUID(), taskId: res.data.taskId, url: res.data.url, prompt: res.data.prompt, createdAt: new Date().toISOString() })
+      toast.success("Started with this take's saved settings")
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Retry failed") }
+    finally { setIsGenerating(false) }
+  }
+
   const handleClearAllClips = () => {
     setSavedClips([])
     setActiveSavedClipId(null)
@@ -2333,6 +2366,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     <div className="workspace-builder-grid">
       <Card className={setupCardClass}>
         <CardContent className="space-y-5 px-4 pb-5 pt-0 sm:px-5">
+          <button type="button" disabled={isGenerating} onClick={() => void handleGenerate(true)} className="text-sm text-gold-200 underline">Preview final request without generating</button>
+          {requestPreview && <details open className="rounded-lg border border-white/20 p-3 text-sm"><summary>Request preview · {requestPreview.model}</summary><p className="whitespace-pre-wrap">{requestPreview.prompt}</p><ul>{requestPreview.referenceDelivery.map((item, index) => <li key={index}>{item.label}: {item.as}</li>)}</ul><p className="text-xs text-white/60">Preview reflects settings when requested. Refresh after editing.</p></details>}
           <div className={sectionClass}>
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
@@ -3056,6 +3091,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               onApproveTake={handleApproveTake}
               onDeleteTake={handleDeleteTake}
               onRetry={handleRetryAsTake}
+              onRetrySaved={(take) => void retrySavedTake(take)}
               isRetrying={isGenerating}
             />
 

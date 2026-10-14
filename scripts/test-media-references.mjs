@@ -334,3 +334,30 @@ test("a lock settles competing primary roles, so no conflict warning", () => {
   assert.equal(referenceConflicts([a, b]).length, 1)
   assert.equal(referenceConflicts([a, b], { character: uid(1) }).length, 0)
 })
+
+test("scope precedence keeps the narrowest applied role and leaves other roles intact", () => {
+  const refs = [withRoles({ ...base, id: uid(1), scope: "project" }, ["wardrobe", "location"]), { ...base, id: uid(2), scope: "scene" }, { ...base, id: uid(3), scope: "shot" }]
+  const result = resolveLockedRoles(refs, {})
+  same(referenceRoles(result[0]), ["location"])
+  assert.equal(result[1].applied, false)
+  assert.equal(result[2].applied, true)
+})
+
+test("stored tags survive reordering and deletion", () => {
+  const refs = labelReferences([{ ...base, id: uid(1) }, { ...base, id: uid(2) }])
+  same(labelReferences([refs[1], refs[0]]).map(ref => ref.label), ["@image2", "@image1"])
+  assert.equal(labelReferences([refs[1]])[0].label, "@image2")
+})
+
+test("document prompt boundaries all fit deterministically", () => {
+  for (const length of [1099, 1100, 1101, 1199, 1200, 1201]) {
+    const result = fitReferencePrompt("x".repeat(length), [base])
+    assert.equal(referencePromptFits(result.subject, result.references), true)
+  }
+})
+
+test("delivery sends Seedance images only without a starting frame", () => {
+  const refs = labelReferences([{ ...base, id: uid(1) }, { ...base, id: uid(2) }])
+  same(Object.values(module.exports.planReferenceDelivery(refs, { model: "bytedance/seedance-2-5", hasStartFrame: false })), ["image", "image"])
+  same(Object.values(module.exports.planReferenceDelivery(refs, { model: "bytedance/seedance-2-5", hasStartFrame: true })), ["text", "text"])
+})

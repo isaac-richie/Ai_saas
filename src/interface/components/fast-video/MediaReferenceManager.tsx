@@ -1,4 +1,5 @@
 "use client"
+import { resolveLockedRoles } from "@/core/validation/media-reference"
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import { ImagePlus, Film, AudioLines, LockKeyhole, ChevronDown, Loader2, Check } from "lucide-react"
@@ -306,7 +307,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
   const labelled = labelReferences(references)
   const full = references.length >= MAX_REFERENCES
   const appliedCount = references.filter((ref) => ref.applied).length
-  const delivery = planReferenceDelivery(labelled, { model, hasStartFrame })
+  const delivery = planReferenceDelivery(resolveLockedRoles(labelled, lockedRoles), { model, hasStartFrame })
   const counts = { start: 0, image: 0, text: 0 }
   for (const ref of labelled) {
     const as = delivery[ref.id]

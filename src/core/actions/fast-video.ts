@@ -1,4 +1,5 @@
 "use server"
+import { resolveLockedRoles, referenceConflicts } from "@/core/validation/media-reference"
 
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/infrastructure/supabase/server"
@@ -384,7 +385,7 @@ const persistRemoteMedia = async (
   }
 }
 
-export async function generateFastVideo(input: unknown) {
+export async function generateFastVideo(input: unknown, previewOnly = false) {
   const debug = createFastVideoDebug()
   debug.push("request.received")
 
@@ -418,7 +419,10 @@ export async function generateFastVideo(input: unknown) {
   let campaignRefs: CampaignReferences | null = null
   let delivery: { label: string; name: string; as: ReferenceDelivery }[] = []
   try {
-    const refs = validateOwnedReferences(payload.prompt_inputs.media_references, user.id)
+    const refs = resolveLockedRoles(validateOwnedReferences(payload.prompt_inputs.media_references, user.id), {})
+    payload.prompt_inputs.media_references = refs
+    const conflicts = referenceConflicts(refs)
+    if (conflicts.length) return { error: `${conflicts.join(" ")} Choose one primary reference per role before generating.` }
     const issues = referenceCompatibility(refs)
     if (issues.length) return { error: issues.join(" ") }
     if (refs.some((ref) => ref.applied && !referenceIsInContext(ref, payload.project_id || null, payload.scene_id || null))) {
@@ -558,6 +562,13 @@ export async function generateFastVideo(input: unknown) {
   })
 
   let reservationIdForAttempt: string | undefined
+  if (previewOnly) return { data: {
+    taskId: null, status: "preview", url: null, prompt: compliance.prompt,
+    negativePrompt: compliance.negativePrompt, stylePresetName: composed.style?.name || null,
+    motionPresetName: composed.motion?.name || null, durationSeconds: safeDuration,
+    requestedDurationSeconds: requestedDuration, model: payload.settings.model?.trim() || null,
+    referenceDelivery: delivery, debug: { traceId: debug.traceId, events: debug.events },
+  } }
   let providerSubmissionStarted = false
   try {
     const provider = ProviderFactory.create("kie", { apiKey: kie.data.apiKey })

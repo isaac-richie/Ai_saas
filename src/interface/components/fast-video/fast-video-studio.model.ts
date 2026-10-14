@@ -38,6 +38,8 @@ export type FastVideoDebugEvent = {
 }
 
 export type GenerationSnapshot = {
+  request?: import("@/core/validation/fast-video").FastVideoRequest
+  delivery?: { label: string; as: string }[]
   mediaReferences?: MediaReference[]
   shotFrames?: ShotFrames | null
   projectId?: string | null
