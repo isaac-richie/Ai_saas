@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import { ImagePlus, Film, AudioLines, LockKeyhole, ChevronDown, Loader2, Check } from "lucide-react"
+import { toast } from "sonner"
 import { createClient } from "@/infrastructure/supabase/client"
 import { continueWithoutAnalysisTarget, labelReferences, MAX_REFERENCE_BYTES, MAX_REFERENCES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, ROLE_CONTROLS, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, referenceRoles, withRoles, type MediaReference } from "@/core/validation/media-reference"
 import styles from "./MediaReferenceManager.module.css"
@@ -171,6 +172,10 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
   const [analysisErrors, setAnalysisErrors] = useState<Record<string, string>>({})
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null)
   const setAnalysisError = (id: string, message: string) => setAnalysisErrors((current) => ({ ...current, [id]: message }))
+  const reportError = (title: string, message: string) => {
+    setError(message)
+    toast.error(title, { description: message })
+  }
   useEffect(() => { onBusy(Boolean(busy)); return () => onBusy(false) }, [busy, onBusy])
   const update = (id: string, change: Partial<MediaReference>, invalidateAnalysis = false) => {
     setError("")
@@ -191,7 +196,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
     if (!files.length) return
     const { type, replaceId } = selection.current
     const room = MAX_REFERENCES - references.length + (replaceId ? 1 : 0)
-    if (room <= 0) { setError(`All ${MAX_REFERENCES} slots are full. Remove a reference to free one.`); return }
+    if (room <= 0) { reportError("Reference limit reached", `All ${MAX_REFERENCES} slots are full. Remove a reference to free one.`); return }
     const duplicates = files.filter((file) => references.some((ref) => ref.id !== replaceId && ref.name === file.name.slice(0, 180) && (!ref.bytes || ref.bytes === file.size)))
     const fresh = files.filter((file) => !duplicates.includes(file))
     const accepted = fresh.slice(0, room)
@@ -199,7 +204,12 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
       duplicates.length ? `${duplicates.length === 1 ? `${duplicates[0].name} is` : `${duplicates.length} files are`} already added.` : "",
       fresh.length > room ? `Only ${room} more ${room === 1 ? "slot was" : "slots were"} free, so ${fresh.length - room} ${fresh.length - room === 1 ? "file was" : "files were"} not added.` : "",
     ].filter(Boolean).join(" ")
-    if (!accepted.length) { setError(notices || "Nothing to add."); return }
+    if (!accepted.length) {
+      const message = notices || "Nothing to add."
+      setError(message)
+      toast.message("No new references added", { description: message })
+      return
+    }
     files = accepted
     setBusy("upload")
     setUploadProgress({ done: 0, total: files.length })
@@ -232,13 +242,16 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
         setExpandedId(ref.id)
         setUploadProgress((current) => current && { ...current, done: current.done + 1 })
       }
-      if (notices) setError(notices)
-    } catch (err) { setError(err instanceof Error ? err.message : "Upload failed") }
+      if (notices) {
+        setError(notices)
+        toast.message("Some files were skipped", { description: notices })
+      }
+    } catch (err) { reportError("Reference upload failed", err instanceof Error ? err.message : "Upload failed") }
     finally { setBusy(null); setUploadProgress(null) }
   }
   async function analyse(ref: MediaReference) {
     const validated = mediaReferenceSchema.safeParse(ref)
-    if (!validated.success) { setError(validated.error.issues[0]?.message || "Check reference settings"); return }
+    if (!validated.success) { reportError("Check this reference", validated.error.issues[0]?.message || "Check reference settings"); return }
     setBusy(ref.id)
     setError("")
     onChange((current) => current.map((item) => item.id === ref.id ? { ...item, analysisUnavailable: false } : item))
@@ -253,15 +266,16 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
       onChange((current) => current.map((item) => item.id === ref.id ? { ...item, analysisUnavailable: true } : item))
       setError("")
       setAnalysisError(ref.id, message)
+      toast.error("Couldn’t analyze this reference", { id: `reference-analysis-${ref.id}`, description: `${message} Your file is safe; retry or continue without analysis.` })
     }
     finally { setBusy(null) }
   }
   function apply(ref: MediaReference) {
     const result = mediaReferenceSchema.safeParse({ ...ref, applied: true })
-    if (!result.success) { setError(result.error.issues[0]?.message || "Check reference settings"); return }
+    if (!result.success) { reportError("Check this reference", result.error.issues[0]?.message || "Check reference settings"); return }
     const next = references.map((item) => item.id === ref.id ? result.data : item)
     const issues = referenceCompatibility(next)
-    if (issues.length) { setError(issues.join(" ")); return }
+    if (issues.length) { reportError("Reference needs attention", issues.join(" ")); return }
     setError("")
     onChange((current) => current.map((item) => item.id === ref.id ? result.data : item))
   }

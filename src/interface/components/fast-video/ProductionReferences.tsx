@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useRef, useState } from "react"
 import { ImagePlus, Loader2, LockKeyhole, RefreshCw, X } from "lucide-react"
+import { toast } from "sonner"
 import type { ProductionAsset } from "@/core/validation/production-assets"
 import styles from "./ProductionReferences.module.css"
 
@@ -15,6 +16,10 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
   const input = useRef<HTMLInputElement>(null)
   const replacementId = useRef<string | null>(null)
   const locked = !onChange
+  function reportError(title: string, message: string) {
+    setError(message)
+    toast.error(title, { description: message })
+  }
   async function upload(file?: File) {
     if (!file || !onChange || uploading) return
     setError("")
@@ -25,7 +30,7 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
     const isVideo = ["video/mp4", "video/webm", "video/quicktime"].includes(file.type)
     const maxBytes = isImage ? 10 * 1024 * 1024 : 25 * 1024 * 1024
     if ((!isImage && !isVideo) || file.size > maxBytes || !file.size) {
-      setError("Choose a JPG or PNG image under 10 MB, or an MP4, WebM, or MOV video under 25 MB."); return
+      reportError("Unsupported reference file", "Choose a JPG or PNG image under 10 MB, or an MP4, WebM, or MOV video under 25 MB."); return
     }
     setUploading(true); onBusy?.(true)
     try {
@@ -39,7 +44,7 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
         role: replacement?.role || role, url: result.url, mediaType: isVideo ? "video" : "image",
       }
       onChange(replacement ? assets.map(asset => asset.id === replacement.id ? next : asset) : [...assets, next])
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Upload failed") }
+    } catch (cause) { reportError("Reference upload failed", cause instanceof Error ? cause.message : "Upload failed") }
     finally { replacementId.current = null; setUploading(false); onBusy?.(false); if (input.current) input.current.value = "" }
   }
   function replace(assetId: string) {
