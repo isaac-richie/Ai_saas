@@ -18,8 +18,8 @@ import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
-import { REFERENCE_BUCKET, planReferenceDelivery, type ReferenceDelivery, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
-import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
+import { REFERENCE_BUCKET, referenceRoles as referenceRolesOf, planReferenceDelivery, type ReferenceDelivery, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
+import { KIE_VIDEO_MODEL_FAMILIES, LIP_SYNC_MODEL } from "@/core/config/kie-video-models"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
@@ -417,7 +417,10 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
   let shotFrames: ShotFrames | null = null
   let referenceImageUrls: string[] | undefined
   let campaignRefs: CampaignReferences | null = null
-  let delivery: { label: string; name: string; as: ReferenceDelivery }[] = []
+  let delivery: { label: string; name: string; as: ReferenceDelivery | "waveform" }[] = []
+  let lipSyncAudioUrl: string | undefined
+  let lipSyncAudioLabel: string | undefined
+  let lipSyncFace: string | undefined
   try {
     const refs = resolveLockedRoles(validateOwnedReferences(payload.prompt_inputs.media_references, user.id), {})
     payload.prompt_inputs.media_references = refs
@@ -505,6 +508,30 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     }
     // Fit instead of refusing: condense directions first, the creator's prompt last.
     // Only the provider text changes; saved takes keep every attached reference.
+    // Lip-sync: the real audio drives a face image on Kling AI Avatar Pro. Checked before any quota.
+    if (payload.settings.lip_sync) {
+      const sync = payload.settings.lip_sync
+      if (!sync.audio_path.startsWith(`${user.id}/`)) return { error: "Reference access denied." }
+      const audioRef = refs.find((ref) => ref.id === sync.audio_reference_id && ref.applied && ref.mediaType === "audio")
+      if (!audioRef) return { error: "Apply the audio you want to lip-sync, then try again. Nothing was charged." }
+      if (!payload.prompt_inputs.reference_image) {
+        const face = refs.find((ref) => ref.applied && ref.mediaType === "image" && referenceRolesOf(ref).includes("character"))
+          ?? refs.find((ref) => ref.applied && ref.mediaType === "image")
+        if (!face) return { error: "Lip-sync needs a face: add a Start Frame or apply a Character image. Nothing was charged." }
+        const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(face.assetPath, 3600)
+        if (error || !data) return { error: `${face.name} is unavailable. Re-add it, then retry; nothing was charged.` }
+        payload.prompt_inputs.reference_image = data.signedUrl
+        lipSyncFace = face.label ?? face.name
+      }
+      const { data: audio, error: audioError } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(sync.audio_path, 3600)
+      if (audioError || !audio) return { error: "The trimmed audio is unavailable. Try again; nothing was charged." }
+      lipSyncAudioUrl = audio.signedUrl
+      lipSyncAudioLabel = audioRef.label ?? audioRef.name
+      payload.settings.model = LIP_SYNC_MODEL
+      // The avatar model has no end-frame control; the performance follows the audio.
+      endFramePrompt = undefined
+      debug.push("lip_sync.ready", { audio: lipSyncAudioLabel, face: lipSyncFace ?? "start frame" })
+    }
     // Deliver reference images the model can actually use, decided by the same rule the panel shows.
     const deliveryRefs = payload.prompt_inputs.media_references ? validateOwnedReferences(payload.prompt_inputs.media_references, user.id) : refs
     const plan = planReferenceDelivery(deliveryRefs, {
@@ -522,6 +549,13 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
       }
     }
     delivery = deliveryRefs.filter((ref) => ref.applied).map((ref) => ({ label: ref.label ?? ref.name, name: ref.name, as: plan[ref.id] }))
+    if (lipSyncAudioUrl) {
+      // On the avatar route only the face image and the waveform are sent; the rest guide the acting prompt.
+      delivery = delivery.map((item) => item.label === lipSyncAudioLabel ? { ...item, as: "waveform" as const }
+        : item.label === lipSyncFace ? { ...item, as: "start-frame" as const }
+          : item.as === "image" ? { ...item, as: "text" as const } : item)
+      referenceImageUrls = undefined
+    }
     debug.push("references.delivery", { delivery })
     const fit = fitReferencePrompt(payload.prompt_inputs.text_subject, deliveryRefs)
     delivery = delivery.map(item => ({ ...item, as: item.as === "text" && !fit.references.some(ref => (ref.label ?? ref.name) === item.label && ref.applied) ? "not-used" as const : item.as }))
@@ -577,6 +611,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
       negative_prompt: compliance.negativePrompt,
       image_prompt: payload.prompt_inputs.reference_image || undefined,
       end_image_prompt: endFramePrompt,
+      audio_url: lipSyncAudioUrl,
       reference_image_urls: referenceImageUrls,
       reference_elements: payload.prompt_inputs.reference_elements,
       output_type: "video" as const,

@@ -96,3 +96,24 @@ test("discarded invalid elements cannot leave dangling bindings", () => {
   assert.equal(input.prompt, "reference_set_1 walks")
   assert.equal(input.kling_elements, undefined)
 })
+
+test("lip-sync avatar gets exactly the face image, the real audio and the acting prompt", () => {
+  const input = provider.buildMarketInput({
+    prompt: "She sings the chorus to camera, warm smile", output_type: "video",
+    image_prompt: "https://example.com/face.png", audio_url: "https://example.com/line.wav",
+    end_image_prompt: "https://example.com/end.png", negative_prompt: "blur", aspect_ratio: "16:9", reference_image_urls: ["https://example.com/a.png"],
+  }, "kling/ai-avatar-pro")
+  assert.deepEqual(Object.keys(input).sort(), ["audio_url", "image_url", "prompt"])
+  assert.equal(input.image_url, "https://example.com/face.png")
+  assert.equal(input.audio_url, "https://example.com/line.wav")
+})
+
+test("normal image-to-video is unchanged by the lip-sync route", () => {
+  const kling = provider.buildMarketInput({ prompt: "A shot", output_type: "video", image_prompt: "https://example.com/f.png", audio_url: "https://example.com/x.wav" }, "kling-3.0/video")
+  assert.equal(kling.audio_url, undefined, "video models never receive the lip-sync audio")
+  assert.equal(JSON.stringify(kling.image_urls), JSON.stringify(["https://example.com/f.png"]))
+  assert.equal(kling.mode, "pro")
+  const seedance = provider.buildMarketInput({ prompt: "A shot", output_type: "video", image_prompt: "https://example.com/f.png" }, "bytedance/seedance-2-5")
+  assert.equal(seedance.first_frame_url, "https://example.com/f.png")
+  assert.equal(seedance.aspect_ratio, "adaptive")
+})

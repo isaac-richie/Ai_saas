@@ -25,6 +25,9 @@ export const KIE_VIDEO_MODEL_FAMILIES: KieVideoModelFamily[] = [
   },
 ];
 
+/** Lip-sync route: a face image plus the real audio drive the mouth (verified on Kie: image_url + audio_url + prompt). */
+export const LIP_SYNC_MODEL = "kling/ai-avatar-pro";
+
 export const DEFAULT_KIE_VIDEO_MODEL_FAMILY: KieVideoModelFamilyId = "kling";
 
 export function getKieVideoModelFamily(id?: string | null): KieVideoModelFamily {

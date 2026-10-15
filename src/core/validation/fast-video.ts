@@ -31,6 +31,11 @@ export const fastVideoRequestSchema = z.object({
   settings: z.object({
     duration_seconds: z.number().int().min(4).max(15).default(5),
     model: z.string().optional().nullable(),
+    /** Sync lips to audio: the trimmed WAV uploaded to the creator's reference storage. */
+    lip_sync: z.object({
+      audio_path: z.string().regex(/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.wav$/, "Re-trim the audio, then try again."),
+      audio_reference_id: z.string().uuid(),
+    }).optional().nullable(),
   }),
 })
 

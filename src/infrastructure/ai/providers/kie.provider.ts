@@ -106,6 +106,14 @@ export class KieProvider extends BaseProvider {
             return input;
         }
 
+        // Lip-sync avatars take exactly a face image, the driving audio and an acting prompt.
+        if (normalizedModel.includes("ai-avatar")) {
+            if (request.image_prompt) input.image_url = request.image_prompt;
+            if (request.audio_url) input.audio_url = request.audio_url;
+            input.prompt = request.prompt.slice(0, 1000);
+            return input;
+        }
+
         if (request.negative_prompt) input.negative_prompt = request.negative_prompt;
         if (request.aspect_ratio) input.aspect_ratio = request.aspect_ratio;
         if (request.quality) input.quality = request.quality;

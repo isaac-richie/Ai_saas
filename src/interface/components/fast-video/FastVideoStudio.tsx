@@ -10,6 +10,7 @@ import { Button } from "@/interface/components/ui/button"
 import { Input } from "@/interface/components/ui/input"
 import { Textarea } from "@/interface/components/ui/textarea"
 import { MentionTextarea } from "./MentionTextarea"
+import { LIP_SYNC_MAX_SECONDS, prepareLipSyncAudio } from "./lip-sync-audio"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import {
   FAST_VIDEO_ASPECT_RATIOS,
@@ -156,6 +157,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     colorGrade: "",
     cameraStyle: "",
   })
+  // Sync lips to audio: which applied audio reference drives the mouth (null = off).
+  const [lipSyncAudioId, setLipSyncAudioId] = useState<string | null>(null)
   const [continuitySources, setContinuitySources] = useState<ContinuitySources>(EMPTY_CONTINUITY_SOURCES)
   const [activeSavedClipId, setActiveSavedClipId] = useState<string | null>(null)
   const [downloadName, setDownloadName] = useState<string>("")
@@ -1640,6 +1643,19 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
 
     try {
+      // Lip-sync: cut the applied audio to its trim window and send the real waveform.
+      const lipSyncRef = lipSyncAudioId ? generationReferences.find((ref) => ref.id === lipSyncAudioId && ref.mediaType === "audio") : undefined
+      let lipSync: { audio_path: string; audio_reference_id: string } | null = null
+      if (lipSyncAudioId && !lipSyncRef) {
+        toast.error("Apply the audio you want to lip-sync, or turn Sync lips off.", { id: "fast-video-generate" })
+        setIsGenerating(false); setStatus("idle"); setStatusMessage("")
+        return
+      }
+      if (lipSyncRef && !previewOnly) {
+        setStatusMessage("Preparing your audio for lip-sync...")
+        const prepared = await prepareLipSyncAudio(lipSyncRef)
+        lipSync = { audio_path: prepared.audioPath, audio_reference_id: lipSyncRef.id }
+      }
       const request: import("@/core/validation/fast-video").FastVideoRequest = {
         request_type: "fast_video",
         project_id: selectedProjectId || null,
@@ -1657,6 +1673,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         settings: {
           duration_seconds: durationSeconds,
           model: selectedModel,
+          ...(lipSync ? { lip_sync: lipSync } : {}),
         },
       }
       const res = await generateFastVideo(request, previewOnly === true)
@@ -1682,6 +1699,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           group("start-frame").length ? `Start frame: ${group("start-frame").join(", ")}` : "",
           group("image").length ? `Sent as images: ${group("image").join(", ")}` : "",
           group("text").length ? `Text only: ${group("text").join(", ")}` : "",
+          group("waveform").length ? `Lip-synced to: ${group("waveform").join(", ")}` : "",
           group("not-used").length ? `Not used after fitting: ${group("not-used").join(", ")}` : "",
         ].filter(Boolean)
         toast.message(`Sent to ${activeModelFamily.label}`, { id: "fast-video-delivery", description: parts.join(" · ") })
@@ -2483,6 +2501,39 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   onBusy={setIsUploading}
                   disabled={isReferenceSyncing || isGenerating || status === "processing"}
                 />
+                {(() => {
+                  const audios = labelledReferences.filter((ref) => ref.mediaType === "audio" && ref.applied)
+                  if (!audios.length) return null
+                  const active = audios.find((ref) => ref.id === lipSyncAudioId)
+                  return (
+                    <div className="space-y-2 rounded-xl border border-gold-400/[0.14] bg-white/[0.02] p-3">
+                      <label className="flex cursor-pointer items-start gap-3">
+                        <input
+                          type="checkbox"
+                          className="mt-1 size-4 accent-[#d9c08a]"
+                          checked={Boolean(active)}
+                          onChange={(event) => setLipSyncAudioId(event.target.checked ? audios[0].id : null)}
+                        />
+                        <span>
+                          <span className="block text-[13.5px] font-medium text-[#ece6d6]">Sync lips to audio</span>
+                          <span className="block text-[12px] leading-snug text-[#B0B8C4]">
+                            The real sound drives the mouth (Kling AI Avatar Pro): your Start Frame or Character image sings or speaks your audio, up to {LIP_SYNC_MAX_SECONDS}s, with the original audio in the final clip. Best for singing and dialogue; big camera moves are limited.
+                          </span>
+                        </span>
+                      </label>
+                      {active && audios.length > 1 ? (
+                        <select
+                          aria-label="Audio to lip-sync"
+                          value={active.id}
+                          onChange={(event) => setLipSyncAudioId(event.target.value)}
+                          className="h-9 w-full rounded-lg border border-gold-400/[0.12] bg-white/5 px-2 text-[12px] text-white [color-scheme:dark]"
+                        >
+                          {audios.map((ref) => <option key={ref.id} value={ref.id}>{ref.label} {ref.name}</option>)}
+                        </select>
+                      ) : null}
+                    </div>
+                  )
+                })()}
                 <ShotFramesPanel
                   frames={shotFrames}
                   onChange={setShotFrames}
