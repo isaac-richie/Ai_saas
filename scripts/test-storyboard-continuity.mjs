@@ -104,7 +104,7 @@ test("a short direction is enhanced once and reused until it changes", () => {
 test("dropped-image tags and enhance requests are bounded", () => {
   assert.equal(referenceClassificationSchema.safeParse({ role: "character", label: "Man", description: "Short dark hair, pearl necklace" }).success, true)
   assert.equal(referenceClassificationSchema.safeParse({ role: "celebrity", label: "x", description: "y" }).success, false)
-  assert.equal(enhanceDirectionRequestSchema.safeParse({ direction: "x".repeat(1201) }).success, false)
+  assert.equal(enhanceDirectionRequestSchema.safeParse({ direction: "x".repeat(20001) }).success, false)
   assert.equal(enhanceDirectionRequestSchema.safeParse({ direction: "ok go", references: Array(7).fill({ role: "character", name: "a" }) }).success, false)
 })
 

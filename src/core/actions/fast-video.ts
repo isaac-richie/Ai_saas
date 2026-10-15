@@ -18,8 +18,10 @@ import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
-import { REFERENCE_BUCKET, referenceRoles as referenceRolesOf, planReferenceDelivery, type ReferenceDelivery, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
+import { REFERENCE_BUCKET, referencePromptBudget, referenceRoles as referenceRolesOf, planReferenceDelivery, type ReferenceDelivery, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
 import { KIE_VIDEO_MODEL_FAMILIES, LIP_SYNC_MODEL } from "@/core/config/kie-video-models"
+import { promptBudgetFor } from "@/core/config/prompt-limits"
+import { condensePrompt } from "@/core/services/prompt-condenser"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
@@ -307,7 +309,7 @@ function assembleFastVideoPrompt(
   const guidance = referencePrompt(prompt_inputs.media_references || [])
   // fitReferencePrompt keeps both inside the budget; if they ever don't fit, the creator's words go first.
   const parts = !guidance ? [subject]
-    : guidance.length + subject.length < 980 ? [`[REFERENCE ROLES] ${guidance}`, `[PROMPT] ${subject}`]
+    : guidance.length + subject.length < promptBudgetFor(payload.settings.model) - 120 ? [`[REFERENCE ROLES] ${guidance}`, `[PROMPT] ${subject}`]
       : [subject, `[REFERENCE ROLES] ${guidance}`]
   parts.push(`duration ${safeDuration}s with coherent start-middle-end motion arc`)
 
@@ -326,7 +328,7 @@ function assembleFastVideoPrompt(
   parts.push(...BASE_QUALITY_TOKENS)
 
   const uniquePromptParts = dedupeClauses(parts)
-  const prompt = trimPromptBySegments(uniquePromptParts, 1100)
+  const prompt = trimPromptBySegments(uniquePromptParts, promptBudgetFor(payload.settings.model))
 
   const negativePrompt = dedupeClauses([
     ...(style?.negativeTokens ? style.negativeTokens.split(",") : []),
@@ -419,6 +421,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
   let campaignRefs: CampaignReferences | null = null
   let delivery: { label: string; name: string; as: ReferenceDelivery | "waveform" }[] = []
   let lipSyncAudioUrl: string | undefined
+  let promptCondensed: { from: number; to: number } | null = null
   let lipSyncAudioLabel: string | undefined
   let lipSyncFace: string | undefined
   try {
@@ -563,7 +566,21 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
       referenceImageUrls = undefined
     }
     debug.push("references.delivery", { delivery })
-    const fit = fitReferencePrompt(payload.prompt_inputs.text_subject, deliveryRefs)
+    // Long briefs (pasted scripts, JSON scene breakdowns) are condensed by the AI director to the
+    // model's real budget, preserving meaning; the deterministic fitter below is the safety net.
+    const budget = promptBudgetFor(payload.settings.model)
+    const reserve = referencePromptBudget("", deliveryRefs, budget).used
+    if (payload.prompt_inputs.text_subject.length > budget - reserve && process.env.OPENAI_API_KEY) {
+      try {
+        const condensed = await condensePrompt(payload.prompt_inputs.text_subject, Math.max(400, budget - reserve), lipSyncAudioUrl ? "lip-sync" : "video")
+        debug.push("prompt.condensed", { from: condensed.from, to: condensed.to, structured: condensed.structured })
+        promptCondensed = { from: condensed.from, to: condensed.to }
+        payload.prompt_inputs.text_subject = condensed.prompt
+      } catch (error) {
+        debug.push("prompt.condense_failed", { message: error instanceof Error ? error.message : "unknown" })
+      }
+    }
+    const fit = fitReferencePrompt(payload.prompt_inputs.text_subject, deliveryRefs, budget)
     delivery = delivery.map(item => ({ ...item, as: item.as === "text" && !fit.references.some(ref => (ref.label ?? ref.name) === item.label && ref.applied) ? "not-used" as const : item.as }))
     if (fit.notes.length) debug.push("prompt.fitted", { notes: fit.notes })
     payload.prompt_inputs.text_subject = fit.subject
@@ -607,7 +624,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     negativePrompt: compliance.negativePrompt, stylePresetName: composed.style?.name || null,
     motionPresetName: composed.motion?.name || null, durationSeconds: safeDuration,
     requestedDurationSeconds: requestedDuration, model: payload.settings.model?.trim() || null,
-    referenceDelivery: delivery, debug: { traceId: debug.traceId, events: debug.events },
+    referenceDelivery: delivery, promptCondensed, debug: { traceId: debug.traceId, events: debug.events },
   } }
   let providerSubmissionStarted = false
   try {
@@ -692,6 +709,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
         startFrameId: shotFrames?.start?.id || null,
         // What reached the model, per applied reference (start frame / image / text).
         referenceDelivery: delivery,
+        promptCondensed,
         endFrameId: shotFrames?.end?.id || null,
         characterReferenceId: campaignRefs?.character?.id || null,
         productReferenceId: campaignRefs?.product?.id || null,

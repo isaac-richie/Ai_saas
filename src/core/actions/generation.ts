@@ -12,10 +12,25 @@ import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing";
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance";
 import type { GenerationResult } from "@/infrastructure/ai/types";
 import { FALLBACK_KIE_IMAGE_MODEL } from "@/infrastructure/ai/providers/kie.models";
+import { promptBudgetFor } from "@/core/config/prompt-limits";
+import { condensePrompt } from "@/core/services/prompt-condenser";
 
 /** 
  * Force server action re-validation to clear cached ReferenceErrors 
  */
+/** Fits a prompt to the model's real budget: unchanged if it fits, AI-condensed if not, sentence-trimmed as a last resort. */
+async function fitPromptForModel(prompt: string, model: string, purpose: "video" | "image"): Promise<string> {
+    const budget = promptBudgetFor(model);
+    if (prompt.length <= budget) return prompt;
+    try {
+        return (await condensePrompt(prompt, budget, purpose)).prompt;
+    } catch {
+        const cut = prompt.slice(0, budget);
+        const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+        return end > budget * 0.5 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(" ")).trimEnd();
+    }
+}
+
 export async function __REVALIDATION_TRIGGER() {
     return "c6a6de80-6ed4-4894-8c12-a274c1a77eba";
 }
@@ -321,6 +336,8 @@ export async function generateShot(shotId: string) {
     if (compliance.blocked) {
         return { error: compliance.reason || "Prompt blocked by safety guardrails. Revise and retry." };
     }
+    // GPT Image rejects prompts over ~3,000 characters; long scene descriptions are condensed first.
+    compliance.prompt = await fitPromptForModel(compliance.prompt, typeof settings.model === "string" ? settings.model : "gpt-image/1.5", "image");
 
     // Reference images: attached project references plus the approved image this shot continues from.
     const referenceImageUrls = await shotReferenceImageUrls(supabase, shotId, settings);
@@ -542,15 +559,15 @@ export async function generateVideoShot(
     }
 
     const basePrompt = compliance.prompt;
-    // Kie.ai prompt length limits are strict; keep it short to avoid failures.
-    const promptText = basePrompt.length > 600 ? `${basePrompt.slice(0, 597)}...` : basePrompt;
-
     const optionParameters = (shotOption.parameters as Record<string, unknown> | null) ?? null;
     const configuredModel =
         options?.model?.trim()
         || (typeof optionParameters?.video_model === "string" ? optionParameters.video_model : undefined)
         || (typeof optionParameters?.model === "string" ? optionParameters.model : undefined)
         || undefined;
+    // Each model reads a different amount (Kling 3.0: 2,500). Longer prompts are condensed by the AI
+    // director, never cut off mid-sentence; a sentence-boundary trim is the last resort.
+    const promptText = await fitPromptForModel(basePrompt, configuredModel ?? "kling-3.0/video", "video");
 
     const quota = await reserveUsageQuota(supabase, user.id, "studio");
     if (!quota.allowed) {

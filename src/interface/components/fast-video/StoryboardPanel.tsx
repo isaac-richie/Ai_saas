@@ -514,7 +514,7 @@ function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, appr
             onChange={(event) => actions.onUpdateDirection(item.id, event.target.value)}
             onBlur={() => actions.onSaveDirection(item.id)}
             placeholder={hasVideo ? "Describe the action…" : "Short is fine, e.g. puts the earbud in, eyes closed, enjoying it"}
-            maxLength={1200}
+            maxLength={20000}
             className="mt-1 min-h-14 rounded-xl border-gold-400/[0.12] bg-black/30 text-[11.5px] leading-relaxed text-white placeholder:text-white/30"
           />
         </label>
@@ -567,7 +567,7 @@ function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, appr
                   value={item.enhancedPrompt}
                   onChange={(event) => actions.onPatchItem(item.id, { enhancedPrompt: event.target.value, enhancedFrom: direction.trim() }, false)}
                   onBlur={() => actions.onPatchItem(item.id, { enhancedPrompt: (item.enhancedPrompt || "").trim() || null })}
-                  maxLength={1200}
+                  maxLength={20000}
                   className="mt-1 min-h-20 rounded-xl border-gold-400/[0.12] bg-black/30 text-[10.5px] leading-relaxed text-white/75"
                 />
               </label>

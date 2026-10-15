@@ -9,7 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components
 import { Button } from "@/interface/components/ui/button"
 import { Input } from "@/interface/components/ui/input"
 import { Textarea } from "@/interface/components/ui/textarea"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/interface/components/ui/dialog"
 import { MentionTextarea } from "./MentionTextarea"
+import { promptBudgetFor } from "@/core/config/prompt-limits"
 import { LIP_SYNC_MAX_SECONDS, prepareLipSyncAudio } from "./lip-sync-audio"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import {
@@ -23,6 +25,7 @@ import {
 import {
   DEFAULT_KIE_VIDEO_MODEL_FAMILY,
   KIE_VIDEO_MODEL_FAMILIES,
+  LIP_SYNC_MODEL,
   type KieVideoModelFamilyId,
   getKieVideoModelFamily,
   resolveKieVideoModelByFamily,
@@ -266,10 +269,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     resolveLockedRoles(labelledReferences, lockedRoleOwners(continuityEnabled, continuityLocks, continuitySources, labelledReferences))
       .filter((ref) => ref.applied)
   ), [labelledReferences, continuityEnabled, continuityLocks, continuitySources])
+  // Each model reads a different amount of prompt (Kling 3.0: 2,500; Seedance: ~20,000); budget for the one in use.
+  const budgetModel = lipSyncAudioId ? LIP_SYNC_MODEL : activeModelFamily.i2vModel
   const promptBudget = useMemo(() => referencePromptBudget(
     continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(),
     buildGenerationReferences(),
-  ), [continuityClause, buildGenerationReferences, subject])
+    promptBudgetFor(budgetModel),
+  ), [continuityClause, buildGenerationReferences, subject, budgetModel])
+  // Long briefs are condensed by the AI director and shown for approval before anything is generated.
+  const [condenseReview, setCondenseReview] = useState<{ original: string; prompt: string; from: number; to: number; target: number; kept: string[]; dropped: string[]; structured: boolean } | null>(null)
+  const [isCondensing, setIsCondensing] = useState(false)
+  const condenseApprovedRef = useRef(false)
+  const [generateAfterCondense, setGenerateAfterCondense] = useState(0)
 
   const filteredStyles = useMemo(() => {
     const q = styleSearch.trim().toLowerCase()
@@ -1576,6 +1587,28 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       document.getElementById("fast-video-prompt")?.focus()
       return
     }
+    // Longer than the model can read: the AI director condenses it, and the creator approves first.
+    if (!previewOnly && promptBudget.overflow > 0 && !condenseApprovedRef.current) {
+      if (isCondensing) return
+      setIsCondensing(true)
+      try {
+        const reserve = promptBudget.used - subject.trim().length
+        const response = await fetch("/api/prompt/condense", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: subject.trim(), model: budgetModel, reserve: Math.max(0, reserve), purpose: lipSyncAudioId ? "lip-sync" : "video" }),
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error || "Couldn't condense this brief.")
+        setCondenseReview({ original: subject.trim(), prompt: body.prompt, from: body.from, to: body.to, target: body.target, kept: body.kept ?? [], dropped: body.dropped ?? [], structured: Boolean(body.structured) })
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Couldn't condense this brief.", { id: "fast-video-condense", description: "We'll fit it automatically instead; tap Create video again to go ahead." })
+        condenseApprovedRef.current = true
+      } finally {
+        setIsCondensing(false)
+      }
+      return
+    }
+    condenseApprovedRef.current = false
     if (isUploading || isFrameBusy || isReferenceSyncing || isGenerating || status === "processing") {
       toast.message("Wait for the current upload, analysis or generation to finish.")
       return
@@ -1976,6 +2009,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   const handleGenerateRef = useRef(handleGenerate)
   useEffect(() => { handleGenerateRef.current = handleGenerate })
+  // After the creator approves a condensed prompt, generate once that new prompt has rendered.
+  useEffect(() => {
+    if (generateAfterCondense) void handleGenerateRef.current()
+  }, [generateAfterCondense])
   // "Generate shot" on a storyboard card loads the builder first; generate once that state has rendered.
   useEffect(() => {
     if (!storyboardGenerateRequest) return
@@ -2366,6 +2403,45 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   return (
     <div className="workspace-workbench space-y-6">
+      <Dialog open={Boolean(condenseReview)} onOpenChange={(open) => { if (!open) setCondenseReview(null) }}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto border-gold-400/[0.16] bg-obsidian-900 text-white sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>Your idea, ready for {lipSyncAudioId ? "Kling AI Avatar" : activeModelFamily.label}</DialogTitle>
+            <DialogDescription className="text-[#B0B8C4]">
+              {condenseReview ? `${condenseReview.from.toLocaleString()} characters${condenseReview.structured ? " of JSON" : ""} condensed to ${condenseReview.to.toLocaleString()} (this model reads up to ${condenseReview.target.toLocaleString()} with your references). Check it, edit anything, then create.` : null}
+            </DialogDescription>
+          </DialogHeader>
+          {condenseReview ? (
+            <div className="space-y-3">
+              <Textarea
+                aria-label="Condensed prompt"
+                value={condenseReview.prompt}
+                onChange={(event) => setCondenseReview({ ...condenseReview, prompt: event.target.value })}
+                className="min-h-56 rounded-xl text-[14px] leading-relaxed text-white"
+              />
+              <p className={`text-right text-[11.5px] ${condenseReview.prompt.length > condenseReview.target ? "text-amber-200" : "text-[#B0B8C4]"}`}>{condenseReview.prompt.length.toLocaleString()}/{condenseReview.target.toLocaleString()}</p>
+              {condenseReview.kept.length ? <p className="text-[12.5px] text-[#B0B8C4]"><span className="text-[#ece6d6]">Kept:</span> {condenseReview.kept.join(" · ")}</p> : null}
+              {condenseReview.dropped.length ? <p className="text-[12.5px] text-amber-100/90"><span className="text-amber-100">Left out:</span> {condenseReview.dropped.join(" · ")}</p> : null}
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" className="rounded-xl" onClick={() => setCondenseReview(null)}>Edit my original</Button>
+            <Button
+              className="rounded-xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a)] font-semibold text-[#1a160e]"
+              disabled={!condenseReview?.prompt.trim()}
+              onClick={() => {
+                if (!condenseReview) return
+                setSubject(condenseReview.prompt.trim())
+                setCondenseReview(null)
+                condenseApprovedRef.current = true
+                setGenerateAfterCondense((n) => n + 1)
+              }}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />Use this and create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {activeTab === "storyboard" || storyboardItems.length > 0 ? (
       <div className="workspace-builder-tabs flex flex-wrap items-center gap-2" role="group" aria-label="Create view">
         <Button
@@ -2399,7 +2475,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
                 <label htmlFor="fast-video-prompt" className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Your idea</label>
-                {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite">Prompt + references: {promptBudget.used}/{promptBudget.limit}{promptBudget.overflow ? " · will auto-fit" : ""}</span>}
+                {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite">Prompt + references: {promptBudget.used.toLocaleString()}/{promptBudget.limit.toLocaleString()}{promptBudget.overflow ? " · we'll condense it for you" : ""}</span>}
+                {!currentReferences.some((ref) => ref.applied) && subject.length > 600 && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite">{subject.length.toLocaleString()}/{promptBudget.limit.toLocaleString()}{promptBudget.overflow ? " · we'll condense it for you" : ""}</span>}
                 {promptBudget.overflow > 0 && <details className="text-xs text-white/70"><summary>Review automatic shortening</summary><p className="whitespace-pre-wrap">{fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), buildGenerationReferences()).subject}</p><p>{fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), buildGenerationReferences()).notes.join(" ")}</p><p>Additional frame, style and scene instructions are applied when the request is assembled.</p></details>}
               </div>
               <MentionTextarea
@@ -2893,8 +2970,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 disabled={isGenerating}
                 className="h-14 w-full rounded-2xl text-sm tracking-wide"
               >
-                {isGenerating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
-                Create video
+                {isGenerating || isCondensing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
+                {isCondensing ? "Condensing your idea…" : "Create video"}
               </Button>
             </span>
           </div>

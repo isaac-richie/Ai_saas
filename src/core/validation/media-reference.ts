@@ -224,16 +224,18 @@ export function referencePrompt(refs: MediaReference[]) {
     }).join(" ")
 }
 
-export function referencePromptBudget(subject: string, refs: MediaReference[]) {
-  const limit = 1100
+/** Default budget when the model is unknown; callers pass the selected model's budget (see prompt-limits). */
+export const DEFAULT_PROMPT_BUDGET = 1100
+
+export function referencePromptBudget(subject: string, refs: MediaReference[], limit = DEFAULT_PROMPT_BUDGET) {
   const guidance = referencePrompt(refs)
   // Reserve room for the reference label, duration directive and separators.
   const used = subject.replace(/\s+/g, " ").trim().length + guidance.length + (guidance ? 30 : 0) + 80
   return { limit, used, overflow: Math.max(0, used - limit) }
 }
 
-export function referencePromptFits(subject: string, refs: MediaReference[]) {
-  return referencePromptBudget(subject, refs).overflow === 0
+export function referencePromptFits(subject: string, refs: MediaReference[], limit = DEFAULT_PROMPT_BUDGET) {
+  return referencePromptBudget(subject, refs, limit).overflow === 0
 }
 
 function shortenAtBoundary(value: string, limit: number) {
@@ -271,11 +273,11 @@ const INFLUENCE_RANK = { high: 0, medium: 1, low: 2 } as const
  * 3) only then shorten the shot prompt at a sentence boundary.
  * Deterministic, so the browser preview and the server agree exactly.
  */
-export function fitReferencePrompt(subject: string, refs: MediaReference[]): PromptFit {
+export function fitReferencePrompt(subject: string, refs: MediaReference[], limit = DEFAULT_PROMPT_BUDGET): PromptFit {
   let fittedSubject = subject.replace(/\s+/g, " ").trim()
   let fitted = refs.map((ref) => ({ ...ref, analysis: ref.analysis ? { ...ref.analysis } : undefined }))
   const notes: string[] = []
-  const fits = () => referencePromptFits(fittedSubject, fitted)
+  const fits = () => referencePromptFits(fittedSubject, fitted, limit)
   if (fits()) return { subject: fittedSubject, references: fitted, notes }
 
   const inPrompt = () => fitted.filter((ref) => ref.applied && ref.target === "director")
@@ -313,7 +315,7 @@ export function fitReferencePrompt(subject: string, refs: MediaReference[]): Pro
 
   // 3) Last resort: shorten the shot prompt to whatever room remains.
   if (!fits()) {
-    const { overflow } = referencePromptBudget(fittedSubject, fitted)
+    const { overflow } = referencePromptBudget(fittedSubject, fitted, limit)
     const before = fittedSubject.length
     fittedSubject = shortenAtBoundary(fittedSubject, Math.max(60, before - overflow))
     if (!fits()) {
@@ -328,7 +330,7 @@ export function fitReferencePrompt(subject: string, refs: MediaReference[]): Pro
     fitted = fitted.map((ref) => ref.applied && ref.target === "director" ? { ...ref, applied: false } : ref)
     if (remaining.length) notes.push(`Left ${describeReferences(remaining)} out of the text prompt to make room; the files stay attached.`)
   }
-  if (!fits()) fittedSubject = shortenAtBoundary(fittedSubject, referencePromptBudget("", []).limit - referencePromptBudget("", []).used)
+  if (!fits()) fittedSubject = shortenAtBoundary(fittedSubject, limit - referencePromptBudget("", [], limit).used)
   return { subject: fittedSubject, references: fitted, notes }
 }
 
