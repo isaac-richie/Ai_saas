@@ -4,19 +4,20 @@
  * Nano Banana Pro over ~20,000. The budgets below keep a margin under each hard cap, and cap the
  * very long ones at a length models still follow well.
  */
-export const PROMPT_INTAKE_LIMIT = 20_000
+export const PROMPT_INTAKE_LIMIT = 50_000
 
 const BUDGETS: { match: RegExp; budget: number; hardLimit: number }[] = [
   { match: /ai-avatar/i, budget: 1000, hardLimit: 1000 },
-  { match: /kling/i, budget: 2400, hardLimit: 2500 },
-  { match: /seedance/i, budget: 4000, hardLimit: 20_000 },
-  { match: /gpt-image/i, budget: 2800, hardLimit: 3000 },
-  { match: /nano-banana/i, budget: 4000, hardLimit: 20_000 },
+  // Kling: the provider appends reference-set tags after budgeting, so keep ~60 characters spare.
+  { match: /kling/i, budget: 2440, hardLimit: 2500 },
+  { match: /seedance/i, budget: 10_000, hardLimit: 20_000 },
+  { match: /gpt-image/i, budget: 2950, hardLimit: 3000 },
+  { match: /nano-banana/i, budget: 10_000, hardLimit: 20_000 },
 ]
 
 /** Characters of prompt a model reads well (our budget), for the selected model id. Unknown models get Kling's. */
 export function promptBudgetFor(model?: string | null): number {
-  return BUDGETS.find((entry) => entry.match.test(model ?? ""))?.budget ?? 2400
+  return BUDGETS.find((entry) => entry.match.test(model ?? ""))?.budget ?? 2440
 }
 
 /** The provider's hard cap, for messages. */

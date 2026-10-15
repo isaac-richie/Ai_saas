@@ -100,6 +100,19 @@ export class KieProvider extends BaseProvider {
         return request.image_prompt ? "video" : "image";
     }
 
+    /** Kie's hard prompt caps (measured 2026-10-15). Budgets upstream stay below these; this is the last guard. */
+    static readonly HARD_PROMPT_LIMITS: [RegExp, number][] = [[/ai-avatar/i, 1000], [/kling/i, 2500], [/gpt-image/i, 3000], [/seedance|nano-banana/i, 20000]];
+
+    /** Never send a prompt the provider would reject for length: trim at the last sentence that fits. */
+    static clampPrompt(input: Record<string, unknown>, model: string): Record<string, unknown> {
+        const limit = KieProvider.HARD_PROMPT_LIMITS.find(([match]) => match.test(model))?.[1];
+        const prompt = typeof input.prompt === "string" ? input.prompt : "";
+        if (!limit || prompt.length <= limit) return input;
+        const cut = prompt.slice(0, limit);
+        const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+        return { ...input, prompt: (end > limit * 0.6 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(" "))).trimEnd() };
+    }
+
     private buildMarketInput(request: GenerationRequest, model: string): Record<string, unknown> {
         const input: Record<string, unknown> = {
             prompt: request.prompt,
@@ -412,7 +425,7 @@ export class KieProvider extends BaseProvider {
             const preparedRequest = await this.prepareRequest(request);
             const body: Record<string, unknown> = {
                 model,
-                input: this.buildMarketInput(preparedRequest, model),
+                input: KieProvider.clampPrompt(this.buildMarketInput(preparedRequest, model), model),
             };
 
             if (process.env.KIE_AI_CALLBACK_URL) {

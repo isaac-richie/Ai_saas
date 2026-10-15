@@ -20,8 +20,8 @@ test("each model gets its measured budget, always under the provider's hard cap"
     assert.ok(promptBudgetFor(model) > 1100 || /avatar/.test(model), `${model} reads more than the old 1,100 budget`)
   }
   assert.equal(promptBudgetFor("kling/ai-avatar-pro"), 1000, "avatar is matched before the generic Kling rule")
-  assert.equal(promptBudgetFor(undefined), 2400, "unknown model falls back to Kling's safe budget")
-  assert.equal(PROMPT_INTAKE_LIMIT, 20000)
+  assert.equal(promptBudgetFor(undefined), 2440, "unknown model falls back to Kling's safe budget")
+  assert.equal(PROMPT_INTAKE_LIMIT, 50000)
 })
 
 test("pasted JSON scene breakdowns are recognised; prose and broken JSON are not", () => {

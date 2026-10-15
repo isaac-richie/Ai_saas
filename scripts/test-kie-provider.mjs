@@ -129,3 +129,15 @@ test("images follow the chosen shape: GPT Image for 1:1, 3:2, 2:3; Nano Banana P
   assert.equal(nano.aspect_ratio, "9:16", "the shape reaches Nano Banana Pro untouched")
   assert.equal(JSON.stringify(nano.image_input), JSON.stringify(["https://example.com/r.png"]))
 })
+
+test("the last guard never sends a prompt over a model's hard cap, and leaves short prompts alone", () => {
+  const long = "She sings into the microphone. ".repeat(200)
+  for (const [model, cap] of [["kling-3.0/video", 2500], ["gpt-image/1.5-text-to-image", 3000], ["kling/ai-avatar-pro", 1000], ["bytedance/seedance-2-5", 20000]]) {
+    const out = module.exports.KieProvider.clampPrompt({ prompt: long.repeat(model.includes("seedance") ? 4 : 1), aspect_ratio: "16:9" }, model)
+    assert.ok(out.prompt.length <= cap, `${model}: ${out.prompt.length} <= ${cap}`)
+    assert.ok(out.prompt.endsWith("."), `${model}: ends on a sentence`)
+    assert.equal(out.aspect_ratio, "16:9")
+  }
+  const short = { prompt: "A short prompt." }
+  assert.equal(module.exports.KieProvider.clampPrompt(short, "kling-3.0/video"), short)
+})

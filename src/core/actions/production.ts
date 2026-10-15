@@ -11,7 +11,7 @@ import { buildRevisionContext, revisionSaveError } from "@/core/utils/production
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 
 const updateSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(20000), assets: productionAssetsSchema.default([]), shotSettings: productionShotSettingsSchema }),
+  z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(50000), assets: productionAssetsSchema.default([]), shotSettings: productionShotSettingsSchema }),
   z.object({ action: z.literal("plan"), id: z.string().uuid(), plan: productionPlanSchema }),
   z.object({ action: z.literal("approve"), id: z.string().uuid(), acknowledgeFindings: z.boolean().optional() }),
 ])
@@ -57,7 +57,7 @@ export async function updateProduction(input: unknown) {
 
 const productionRevisionSchema = z.object({
   productionId: z.string().uuid(),
-  direction: z.string().trim().min(8).max(20000),
+  direction: z.string().trim().min(8).max(50000),
   repair: z.boolean().optional(),
   shotSettings: productionShotSettingsSchema.optional(),
 })

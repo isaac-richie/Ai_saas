@@ -157,7 +157,7 @@ export function ProductionDesk() {
         keep(result.data as Production); setBrief(""); setAssets([])
       }) }}>
         <label htmlFor="production-brief" className="text-sm text-white/80">What should the audience feel?</label>
-        <textarea id="production-brief" required minLength={8} maxLength={20000} value={brief} onChange={event => setBrief(event.target.value)} placeholder="A quiet fashion film at dawn. One protagonist, an ivory coat, and a city coming to life..." className="mt-2 min-h-28 w-full rounded-xl border border-gold-400/20 bg-black/30 p-4 text-white placeholder:text-white/30" />
+        <textarea id="production-brief" required minLength={8} maxLength={50000} value={brief} onChange={event => setBrief(event.target.value)} placeholder="A quiet fashion film at dawn. One protagonist, an ivory coat, and a city coming to life..." className="mt-2 min-h-28 w-full rounded-xl border border-gold-400/20 bg-black/30 p-4 text-white placeholder:text-white/30" />
         <ProductionShotSettings value={shotSettings} onChange={setShotSettings} disabled={busy} />
         <ProductionReferences assets={assets} onChange={setAssets} disabled={busy} onBusy={setUploading} />
         <button disabled={busy || !ready || uploading} className="mt-3 rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-5 py-2 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)] disabled:opacity-40">{busy ? "Working..." : "Save film brief"}</button>

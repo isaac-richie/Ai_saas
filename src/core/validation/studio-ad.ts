@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { campaignReferencesSchema } from './campaign-references';
 
 export const studioAdRequestSchema = z.object({
-  userIntent: z.string().min(8).max(20000),
+  userIntent: z.string().min(8).max(50000),
   outputType: z.enum(['image', 'video']).default('image'),
   providerTarget: z.string().min(2).max(80).optional().default('openai'),
   mode: z
@@ -32,7 +32,7 @@ export const studioAdRequestSchema = z.object({
       generationModelHint: z.string().max(120).optional(),
     })
     .optional(),
-  currentPromptContext: z.string().max(20000).optional(),
+  currentPromptContext: z.string().max(50000).optional(),
   productionMemory: z
     .object({
       projectSummary: z.string().max(2000).optional(),
@@ -88,7 +88,7 @@ export type StudioAdRequest = z.infer<typeof studioAdRequestSchema>;
 export type StudioAdPacket = z.infer<typeof studioAdPacketSchema>;
 
 export const studioAdCampaignRequestSchema = z.object({
-  userIntent: z.string().min(8).max(20000),
+  userIntent: z.string().min(8).max(50000),
   assetCount: z.number().int().min(2).max(5).default(3),
   outputType: z.literal('video').default('video'),
   providerTarget: z.string().min(2).max(80).optional().default('kie'),
@@ -102,7 +102,7 @@ export const studioAdCampaignRequestSchema = z.object({
       generationModelHint: z.string().max(120).optional(),
     })
     .optional(),
-  currentPromptContext: z.string().max(20000).optional(),
+  currentPromptContext: z.string().max(50000).optional(),
   continuityAnchors: z.array(z.string().max(500)).max(20).optional().default([]),
   // Optional character / product references; generic UGC omits them.
   references: campaignReferencesSchema.optional().nullable(),
