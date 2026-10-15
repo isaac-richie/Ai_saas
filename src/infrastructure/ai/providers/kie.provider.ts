@@ -150,16 +150,20 @@ export class KieProvider extends BaseProvider {
             // Kling 3.0 expects `sound` instead of `is_generate_audio`.
             input.sound = request.is_generate_audio ?? true;
             const elements = request.reference_elements?.filter(element => element.image_urls.length >= 2 && element.image_urls.length <= 4).slice(0, 3) || [];
-            // Element tags are provider syntax and must never leak into prompts
-            // without a matching Kling element payload. Remove stale tags safely.
-            input.prompt = elements.length ? request.prompt : request.prompt.replace(/@element_[\w-]+/gi, "").replace(/\s{2,}/g, " ").trim();
+            // Studio tags (@image1, @audio1, etc.) are textual labels, not
+            // Kling bindings. Only retain @ syntax for elements actually sent.
+            const boundNames = new Set(elements.map(element => element.name));
+            const prompt = request.prompt.replace(/@([\w-]+)/g, (tag, name: string) =>
+                boundNames.has(name) ? tag : name);
+            input.prompt = prompt;
             if (elements.length) {
                 input.kling_elements = elements.map(({ name, description, image_urls }) => ({
                     name,
                     description,
                     element_input_urls: image_urls,
                 }));
-                input.prompt = `${request.prompt} ${elements.map(element => `@${element.name}`).join(" ")}`.trim();
+                const missingTags = elements.filter(element => !prompt.match(/@[\w-]+/g)?.includes(`@${element.name}`));
+                input.prompt = `${prompt} ${missingTags.map(element => `@${element.name}`).join(" ")}`.trim();
             }
         }
 

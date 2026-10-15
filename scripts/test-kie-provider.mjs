@@ -54,3 +54,21 @@ test("Kling 3.0 text-only requests still specify a mode", () => {
   assert.equal(input.multi_shots, false)
   assert.equal(input.image_urls, undefined)
 })
+
+test("studio reference labels cannot become unbound Kling roles", () => {
+  const input = provider.buildMarketInput({ prompt: "@image1 defines character. @audio1 guides timing. @element_dog runs.", output_type: "video" }, "kling-3.0/video")
+  assert.equal(input.prompt, "image1 defines character. audio1 guides timing. element_dog runs.")
+  assert.equal(input.kling_elements, undefined)
+})
+
+test("only supplied valid element names keep their binding syntax", () => {
+  const input = provider.buildMarketInput({ prompt: "@reference_set_1 follows @image2 and @element_dog.", output_type: "video", reference_elements: [{ name: "reference_set_1", description: "character", image_urls: ["https://example.com/a.png", "https://example.com/b.png"] }] }, "kling-3.0/video")
+  assert.equal(input.prompt, "@reference_set_1 follows image2 and element_dog.")
+  assert.equal(input.kling_elements[0].name, "reference_set_1")
+})
+
+test("discarded invalid elements cannot leave dangling bindings", () => {
+  const input = provider.buildMarketInput({ prompt: "@reference_set_1 walks", output_type: "video", reference_elements: [{ name: "reference_set_1", description: "character", image_urls: ["https://example.com/a.png"] }] }, "kling-3.0/video")
+  assert.equal(input.prompt, "reference_set_1 walks")
+  assert.equal(input.kling_elements, undefined)
+})
