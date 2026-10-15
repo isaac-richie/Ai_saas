@@ -91,7 +91,7 @@ import { generationPrompt, needsEnhancement, referenceClassificationSchema } fro
 import { EMPTY_CAMPAIGN_REFERENCES, brandSafetyReviewed, type CampaignProvenance, campaignMode, campaignPlanSummary, campaignReferenceIssues, campaignReferencesSchema, recommendedCampaignModel, type CampaignReferences } from "@/core/validation/campaign-references"
 import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
-import { MAX_REFERENCES, labelReferences, mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, resolveLockedRoles, type MediaReference } from "@/core/validation/media-reference"
+import { MAX_REFERENCES, labelReferences, referenceRoles, mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, resolveLockedRoles, type MediaReference } from "@/core/validation/media-reference"
 
 import {
   SceneShotOption,
@@ -159,6 +159,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   })
   // Sync lips to audio: which applied audio reference drives the mouth (null = off).
   const [lipSyncAudioId, setLipSyncAudioId] = useState<string | null>(null)
+  // Once the creator flips the switch themselves, we stop choosing for them.
+  const [lipSyncTouched, setLipSyncTouched] = useState(false)
   const [continuitySources, setContinuitySources] = useState<ContinuitySources>(EMPTY_CONTINUITY_SOURCES)
   const [activeSavedClipId, setActiveSavedClipId] = useState<string | null>(null)
   const [downloadName, setDownloadName] = useState<string>("")
@@ -249,6 +251,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const activeModelFamily = useMemo(() => getKieVideoModelFamily(modelFamilyId), [modelFamilyId])
   // Tags (@image1…) come from the full panel order, so prompts match what the creator sees.
   const labelledReferences = useMemo(() => labelReferences(currentReferences), [currentReferences])
+  // Singing or speaking audio means the creator wants lips to follow it: switch lip-sync on by default.
+  const speechAudioId = labelledReferences.find((ref) => ref.mediaType === "audio" && ref.applied && referenceRoles(ref).some((role) => ["lip-sync", "dialogue", "voiceover"].includes(role)))?.id ?? null
+  const lipSyncDefault = !lipSyncTouched && !lipSyncAudioId ? speechAudioId : null
+  useEffect(() => {
+    if (lipSyncDefault) setLipSyncAudioId(lipSyncDefault)
+  }, [lipSyncDefault])
   const continuityClause = useMemo(
     () => buildContinuityClauseFromState(continuityEnabled, continuityLocks, continuityValues, continuitySources, labelledReferences),
     [continuityEnabled, continuityLocks, continuityValues, continuitySources, labelledReferences]
@@ -1645,12 +1653,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     try {
       // Lip-sync: cut the applied audio to its trim window and send the real waveform.
       const lipSyncRef = lipSyncAudioId ? generationReferences.find((ref) => ref.id === lipSyncAudioId && ref.mediaType === "audio") : undefined
-      let lipSync: { audio_path: string; audio_reference_id: string } | null = null
+      let lipSync: { audio_path?: string; audio_reference_id: string } | null = null
       if (lipSyncAudioId && !lipSyncRef) {
         toast.error("Apply the audio you want to lip-sync, or turn Sync lips off.", { id: "fast-video-generate" })
         setIsGenerating(false); setStatus("idle"); setStatusMessage("")
         return
       }
+      if (lipSyncRef && previewOnly) lipSync = { audio_reference_id: lipSyncRef.id }
       if (lipSyncRef && !previewOnly) {
         setStatusMessage("Preparing your audio for lip-sync...")
         const prepared = await prepareLipSyncAudio(lipSyncRef)
@@ -2512,12 +2521,14 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           type="checkbox"
                           className="mt-1 size-4 accent-[#d9c08a]"
                           checked={Boolean(active)}
-                          onChange={(event) => setLipSyncAudioId(event.target.checked ? audios[0].id : null)}
+                          onChange={(event) => { setLipSyncTouched(true); setLipSyncAudioId(event.target.checked ? audios[0].id : null) }}
                         />
                         <span>
                           <span className="block text-[13.5px] font-medium text-[#ece6d6]">Sync lips to audio</span>
                           <span className="block text-[12px] leading-snug text-[#B0B8C4]">
-                            The real sound drives the mouth (Kling AI Avatar Pro): your Start Frame or Character image sings or speaks your audio, up to {LIP_SYNC_MAX_SECONDS}s, with the original audio in the final clip. Best for singing and dialogue; big camera moves are limited.
+                            {active
+                              ? <>On: the real sound drives the mouth (Kling AI Avatar Pro). Your Start Frame or Character image sings or speaks your audio, up to {LIP_SYNC_MAX_SECONDS}s, with the original audio in the final clip.</>
+                              : <><strong className="text-amber-200">Off: the audio only guides the prompt as text, so the lips won&rsquo;t follow the song.</strong> Turn on to lip-sync.</>}
                           </span>
                         </span>
                       </label>

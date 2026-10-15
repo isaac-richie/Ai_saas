@@ -511,21 +511,27 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     // Lip-sync: the real audio drives a face image on Kling AI Avatar Pro. Checked before any quota.
     if (payload.settings.lip_sync) {
       const sync = payload.settings.lip_sync
-      if (!sync.audio_path.startsWith(`${user.id}/`)) return { error: "Reference access denied." }
+      if (!sync.audio_path && !previewOnly) return { error: "Re-trim the audio, then try again. Nothing was charged." }
+      if (sync.audio_path && !sync.audio_path.startsWith(`${user.id}/`)) return { error: "Reference access denied." }
       const audioRef = refs.find((ref) => ref.id === sync.audio_reference_id && ref.applied && ref.mediaType === "audio")
       if (!audioRef) return { error: "Apply the audio you want to lip-sync, then try again. Nothing was charged." }
       if (!payload.prompt_inputs.reference_image) {
         const face = refs.find((ref) => ref.applied && ref.mediaType === "image" && referenceRolesOf(ref).includes("character"))
           ?? refs.find((ref) => ref.applied && ref.mediaType === "image")
         if (!face) return { error: "Lip-sync needs a face: add a Start Frame or apply a Character image. Nothing was charged." }
-        const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(face.assetPath, 3600)
-        if (error || !data) return { error: `${face.name} is unavailable. Re-add it, then retry; nothing was charged.` }
-        payload.prompt_inputs.reference_image = data.signedUrl
+        // A preview only reports the plan; files are signed for a real generation.
+        if (!previewOnly) {
+          const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(face.assetPath, 3600)
+          if (error || !data) return { error: `${face.name} is unavailable. Re-add it, then retry; nothing was charged.` }
+          payload.prompt_inputs.reference_image = data.signedUrl
+        }
         lipSyncFace = face.label ?? face.name
       }
-      const { data: audio, error: audioError } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(sync.audio_path, 3600)
-      if (audioError || !audio) return { error: "The trimmed audio is unavailable. Try again; nothing was charged." }
-      lipSyncAudioUrl = audio.signedUrl
+      if (sync.audio_path) {
+        const { data: audio, error: audioError } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(sync.audio_path, 3600)
+        if (audioError || !audio) return { error: "The trimmed audio is unavailable. Try again; nothing was charged." }
+        lipSyncAudioUrl = audio.signedUrl
+      } else lipSyncAudioUrl = "preview:waveform"
       lipSyncAudioLabel = audioRef.label ?? audioRef.name
       payload.settings.model = LIP_SYNC_MODEL
       // The avatar model has no end-frame control; the performance follows the audio.
