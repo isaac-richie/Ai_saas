@@ -153,8 +153,8 @@ export class KieProvider extends BaseProvider {
             // Studio tags (@image1, @audio1, etc.) are textual labels, not
             // Kling bindings. Only retain @ syntax for elements actually sent.
             const boundNames = new Set(elements.map(element => element.name));
-            const prompt = request.prompt.replace(/@([\w-]+)/g, (tag, name: string) =>
-                boundNames.has(name) ? tag : name);
+            const prompt = request.prompt.replace(/@+([\w-]+)/g, (_tag, name: string) =>
+                boundNames.has(name) ? `@${name}` : name);
             input.prompt = prompt;
             if (elements.length) {
                 input.kling_elements = elements.map(({ name, description, image_urls }) => ({
