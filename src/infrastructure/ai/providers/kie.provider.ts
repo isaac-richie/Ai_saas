@@ -74,10 +74,23 @@ export class KieProvider extends BaseProvider {
         return request.image_prompt ? DEFAULT_KIE_VIDEO_MODEL_I2V : DEFAULT_KIE_VIDEO_MODEL_T2V;
     }
 
-    /** GPT Image 1.5 is two Kie models: text-to-image, or image-to-image when references are attached. */
+    /**
+     * GPT Image 1.5 is two Kie models: text-to-image, or image-to-image when references are attached.
+     * It only makes 1:1, 3:2 and 2:3, and a video follows its starting image's shape, so any other
+     * requested shape (16:9, 9:16, 21:9, 4:5…) goes to Nano Banana Pro, which makes it natively.
+     */
     private resolveImageVariant(model: string, request: GenerationRequest): string {
+        if (model.startsWith("gpt-image") && !KieProvider.gptImageMakesShape(request.aspect_ratio)) return "nano-banana-pro";
         if (model !== "gpt-image/1.5") return model;
         return request.reference_image_urls?.length ? "gpt-image/1.5-image-to-image" : "gpt-image/1.5-text-to-image";
+    }
+
+    /** True when GPT Image can produce the requested shape without cropping (or no shape was asked for). */
+    static gptImageMakesShape(aspect?: string): boolean {
+        const match = (aspect || "").match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
+        if (!match) return true;
+        const ratio = Number(match[1]) / Number(match[2]);
+        return [1, 3 / 2, 2 / 3].some((native) => Math.abs(ratio - native) < 0.01);
     }
 
     private resolveOutputType(request: GenerationRequest, model: string): "image" | "video" {

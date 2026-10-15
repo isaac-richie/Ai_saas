@@ -117,3 +117,15 @@ test("normal image-to-video is unchanged by the lip-sync route", () => {
   assert.equal(seedance.first_frame_url, "https://example.com/f.png")
   assert.equal(seedance.aspect_ratio, "adaptive")
 })
+
+test("images follow the chosen shape: GPT Image for 1:1, 3:2, 2:3; Nano Banana Pro for every other shape", () => {
+  const route = (aspect, refs = []) => provider.resolveModel({ prompt: "x", output_type: "image", model: "gpt-image/1.5", aspect_ratio: aspect, reference_image_urls: refs })
+  assert.equal(route("1:1"), "gpt-image/1.5-text-to-image")
+  assert.equal(route("3:2"), "gpt-image/1.5-text-to-image")
+  assert.equal(route("2:3", ["https://example.com/r.png"]), "gpt-image/1.5-image-to-image")
+  assert.equal(route(undefined), "gpt-image/1.5-text-to-image", "no shape asked: keep GPT Image")
+  for (const aspect of ["16:9", "9:16", "21:9", "4:5", "5:4", "4:3", "3:4"]) assert.equal(route(aspect), "nano-banana-pro", aspect)
+  const nano = provider.buildMarketInput({ prompt: "x", output_type: "image", aspect_ratio: "9:16", reference_image_urls: ["https://example.com/r.png"] }, "nano-banana-pro")
+  assert.equal(nano.aspect_ratio, "9:16", "the shape reaches Nano Banana Pro untouched")
+  assert.equal(JSON.stringify(nano.image_input), JSON.stringify(["https://example.com/r.png"]))
+})
