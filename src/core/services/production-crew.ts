@@ -262,7 +262,8 @@ export function compileProductionPlan(input: {
 
 export function createCrewRunner(_legacyModel: string, references: ProductionAsset[] = [], shotCount = 3): CrewRunner {
   if (!process.env.OPENAI_API_KEY) throw new Error("The director connection is not configured.")
-  const CREW_CALL_TIMEOUT_MS = 150_000
+  // Bigger films write more: 150 s for a short plan, up to 270 s for twelve shots.
+  const CREW_CALL_TIMEOUT_MS = Math.min(270_000, 150_000 + Math.max(0, shotCount - 3) * 13_000)
   const CREW_STAGE_BUDGET_MS = 165_000
   const CREW_MIN_ATTEMPT_MS = 45_000
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: CREW_CALL_TIMEOUT_MS, maxRetries: 0 })
@@ -341,10 +342,10 @@ export async function developProductionCrew(brief: string, model: string, run: C
   const story = await run("story-director", "Write the treatment and world bible. Give each beat an emotional purpose. Build a continuityLedger with concrete reusable identity, wardrobe, hero objects, materials, location, environment, palette, lighting, screen direction, camera rules, and invariants. Mark invented creative choices as assumptions.", { brief: planningBrief }, productionBibleSchema)
   if (!story.value.continuityLedger) throw new Error("The story crew did not produce a complete continuity ledger.")
   const departments = await Promise.allSettled([
-    run("cinematographer", "Design coverage for all three beats: framing, lens intent, one motivated movement, blocking, eyeline, and cut point. Preserve the shared bible.", { brief: planningBrief, bible: story.value }, departmentDirectionSchema),
-    run("lighting-director", "Define motivated key, fill, practicals, palette, and exposure intent for each beat. Maintain time of day and light direction. Do not invent independent scene changes.", { brief: planningBrief, bible: story.value }, departmentDirectionSchema),
-    run("production-designer", "Lock the physical world for all three beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: planningBrief, bible: story.value }, departmentDirectionSchema),
-    run("performance-director", "Direct behavior for all three beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: planningBrief, bible: story.value }, departmentDirectionSchema),
+    run("cinematographer", "Design coverage for every planned shot: framing, lens intent, one motivated movement, blocking, eyeline, and cut point. Preserve the shared bible.", { brief: planningBrief, bible: story.value }, departmentDirectionSchema),
+    run("lighting-director", "Define motivated key, fill, practicals, palette, and exposure intent for every planned shot. Maintain time of day and light direction. Do not invent independent scene changes.", { brief: planningBrief, bible: story.value }, departmentDirectionSchema),
+    run("production-designer", "Lock the physical world for every planned shot: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose.", { brief: planningBrief, bible: story.value }, departmentDirectionSchema),
+    run("performance-director", "Direct behavior for every planned shot: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity.", { brief: planningBrief, bible: story.value }, departmentDirectionSchema),
   ])
   const [cameraResult, lightingResult, productionDesignResult, performanceResult] = departments
   if (cameraResult.status === "rejected") throw cameraResult.reason
@@ -356,7 +357,7 @@ export async function developProductionCrew(brief: string, model: string, run: C
   const productionDesign = productionDesignResult.value
   const performance = performanceResult.value
   const context = { brief: planningBrief, bible: story.value, camera: camera.value, lighting: lighting.value, productionDesign: productionDesign.value, performance: performance.value }
-  const editor = await run("shot-editor", "Compile exactly three executable prompts in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot, define continuity startState, endState, carriedDetails, and only intentionalChanges. Shot 2 must begin at shot 1's end state; shot 3 must begin at shot 2's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", context, crewShotsSchema)
+  const editor = await run("shot-editor", "Compile exactly one executable prompt per planned shot, in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot, define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the previous shot's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible.", context, crewShotsSchema)
   if (editor.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
   for (const shot of editor.value.shots) {
     const checked = enforcePromptCompliance({ prompt: shot.prompt, negativePrompt: shot.negativePrompt, outputType: "video" })

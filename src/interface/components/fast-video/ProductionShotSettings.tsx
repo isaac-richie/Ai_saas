@@ -77,7 +77,7 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
         }}>{label}</button>)}</div>
       </div>
       <div>
-        <span className={styles.label}>Shots</span>
+        <span className={styles.label}>Shots <small style={{ opacity: 0.7, fontWeight: 400 }}>· up to 12</small></span>
         <div className={styles.counter} role="group" aria-label="Number of shots">
           <button type="button" aria-label="Remove a shot" disabled={disabled || value.length <= MIN_SHOTS} onClick={() => resize(value.length - 1)}>−</button>
           <output aria-live="polite">{value.length}</output>
