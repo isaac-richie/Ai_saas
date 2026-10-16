@@ -21,6 +21,7 @@ import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { REFERENCE_BUCKET, referencePromptBudget, referenceRoles as referenceRolesOf, planReferenceDelivery, type ReferenceDelivery, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
 import { KIE_VIDEO_MODEL_FAMILIES, LIP_SYNC_MODEL } from "@/core/config/kie-video-models"
 import { promptBudgetFor } from "@/core/config/prompt-limits"
+import { NO_SCREEN_TEXT_DIRECTIVE, SCREEN_TEXT_NEGATIVES, wantsOnScreenText } from "@/core/utils/ai/screen-text"
 import { condensePrompt } from "@/core/services/prompt-condenser"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
@@ -311,6 +312,9 @@ function assembleFastVideoPrompt(
   const parts = !guidance ? [subject]
     : guidance.length + subject.length < promptBudgetFor(payload.settings.model) - 120 ? [`[REFERENCE ROLES] ${guidance}`, `[PROMPT] ${subject}`]
       : [subject, `[REFERENCE ROLES] ${guidance}`]
+  // Quoted lyrics or dialogue must be heard, not painted on screen as (misspelled) captions.
+  const noScreenText = !wantsOnScreenText(prompt_inputs.text_subject)
+  if (noScreenText) parts.push(NO_SCREEN_TEXT_DIRECTIVE)
   parts.push(`duration ${safeDuration}s with coherent start-middle-end motion arc`)
 
   if (extra?.continuity?.clause) parts.push(extra.continuity.clause)
@@ -333,6 +337,7 @@ function assembleFastVideoPrompt(
   const negativePrompt = dedupeClauses([
     ...(style?.negativeTokens ? style.negativeTokens.split(",") : []),
     ...BASE_NEGATIVE_TOKENS,
+    ...(noScreenText ? SCREEN_TEXT_NEGATIVES : []),
     ...buildVariationNegatives(prompt_inputs.variation_setting),
   ]).join(", ")
 

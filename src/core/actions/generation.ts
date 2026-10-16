@@ -14,6 +14,7 @@ import type { GenerationResult } from "@/infrastructure/ai/types";
 import { FALLBACK_KIE_IMAGE_MODEL } from "@/infrastructure/ai/providers/kie.models";
 import { promptBudgetFor } from "@/core/config/prompt-limits";
 import { condensePrompt } from "@/core/services/prompt-condenser";
+import { withNoScreenText } from "@/core/utils/ai/screen-text";
 
 /** 
  * Force server action re-validation to clear cached ReferenceErrors 
@@ -567,7 +568,8 @@ export async function generateVideoShot(
         || undefined;
     // Each model reads a different amount (Kling 3.0: 2,500). Longer prompts are condensed by the AI
     // director, never cut off mid-sentence; a sentence-boundary trim is the last resort.
-    const promptText = await fitPromptForModel(basePrompt, configuredModel ?? "kling-3.0/video", "video");
+    // Studio animations get the same rule: spoken or sung words are heard, never painted as captions.
+    const promptText = withNoScreenText(await fitPromptForModel(basePrompt, configuredModel ?? "kling-3.0/video", "video"));
 
     const quota = await reserveUsageQuota(supabase, user.id, "studio");
     if (!quota.allowed) {
