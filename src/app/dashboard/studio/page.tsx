@@ -6,6 +6,7 @@ import { getProjects } from "@/core/actions/projects";
 import { getScenes } from "@/core/actions/scenes";
 import { STUDIO_ENABLED } from "@/core/config/feature-flags";
 import { ArrowRight, Lock } from "lucide-react";
+import { DeleteProjectButton } from "@/interface/components/dashboard/DeleteProjectButton";
 import { WorkspaceHeading } from "@/interface/components/layout/WorkspaceHeading";
 
 export const metadata: Metadata = {
@@ -157,6 +158,7 @@ export default async function StudioPage() {
                                         <Link href={`/dashboard/projects/${project.id}`} className={firstScene ? quietLink : openLink}>
                                             {firstScene ? "All scenes" : "Add the first scene"}
                                         </Link>
+                                        <span className="ml-auto self-center"><DeleteProjectButton id={project.id} name={project.name} /></span>
                                     </div>
                                 </article>
                             );
