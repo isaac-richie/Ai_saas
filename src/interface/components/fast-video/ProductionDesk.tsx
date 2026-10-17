@@ -154,7 +154,7 @@ export function ProductionDesk() {
           selectedId={selected?.id ?? null}
           disabled={busy}
           onSelect={id => { const job = jobs.find(item => item.id === id); setSelectedId(job?.id || null); setView(job ? (job.project_id ? "takes" : "direction") : "brief") }}
-          onDeleted={ids => { setJobs(current => current.filter(job => !ids.includes(job.id) && !ids.includes(job.parent_job_id || ""))); if (selected && ids.includes(selected.id)) { setSelectedId(null); setView("brief") } }}
+          onDeleted={ids => { setJobs(current => current.filter(job => !ids.includes(job.id))); if (selected && ids.includes(selected.id)) { setSelectedId(null); setView("brief") } }}
         />
         <button type="button" disabled={busy} onClick={() => void run(refresh)} aria-label="Refresh productions"><RefreshCw size={16} /></button>
       </div>

@@ -17,7 +17,7 @@ export function normalizeGenerationError(rawMessage?: string, fallback = "Genera
     return "This model supports limited durations. Use 5s, 10s, or 15s."
   }
 
-  if (/(model name.*not supported|unsupported model)/i.test(lower)) {
+  if (/(model name.*not supported|unsupported model|model .{0,40}does not exist|model_not_found)/i.test(lower)) {
     return "Selected model is not available right now. Choose another model and retry."
   }
 

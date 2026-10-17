@@ -839,10 +839,10 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                                                     <Input
                                                         placeholder={
                                                             selectedProvider === "kie"
-                                                                ? "e.g. qwen/qwen-image"
+                                                                ? "e.g. nano-banana-pro"
                                                                 : selectedProvider === "openai"
-                                                                    ? "e.g. dall-e-3"
-                                                                    : "e.g. dall-e-3 or qwen/qwen-image"
+                                                                    ? "e.g. gpt-image-1.5"
+                                                                    : "Leave empty for the best default"
                                                         }
                                                         value={field.value ?? ""}
                                                         onChange={(event) => field.onChange(event.target.value)}

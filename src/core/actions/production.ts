@@ -524,24 +524,30 @@ export async function pollProductionGeneration(generationJobId: string) {
  * with the creator's own session first; the delete then runs with the server's admin connection,
  * because production rows have no delete policy for regular sessions.
  */
-export async function deleteProductions(ids: unknown): Promise<{ data?: { deleted: number }; error?: string }> {
+export async function deleteProductions(ids: unknown): Promise<{ data?: { deleted: number; ids: string[] }; error?: string }> {
   const parsed = z.array(z.string().uuid()).min(1).max(200).safeParse(ids)
   if (!parsed.success) return { error: "Choose productions to delete." }
   const db = await createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return { error: "Please sign in." }
+  // The list shows each film's latest revision, so deleting one means the whole film: resolve every
+  // chosen row to its original, then take the original and all of its revisions.
+  const { data: chosen, error: chosenError } = await db.from("production_jobs").select("id,parent_job_id").eq("user_id", user.id).in("id", parsed.data)
+  if (chosenError) return { error: "Couldn't load those productions. Try again." }
+  const roots = [...new Set((chosen || []).map((row) => (row.parent_job_id as string | null) || (row.id as string)))]
+  if (!roots.length) return { error: "Those productions no longer exist." }
   const { data: owned, error } = await db.from("production_jobs").select("id").eq("user_id", user.id)
-    .or(`id.in.(${parsed.data.join(",")}),parent_job_id.in.(${parsed.data.join(",")})`)
+    .or(`id.in.(${roots.join(",")}),parent_job_id.in.(${roots.join(",")})`)
   if (error) return { error: "Couldn't load those productions. Try again." }
   const targets = (owned || []).map((row) => row.id as string)
   if (!targets.length) return { error: "Those productions no longer exist." }
   const admin = createAdminClient()
-  // Revisions first (they point at their parent), then the originals.
+  // Revisions first (they point at their original), then the originals.
   const { error: deleteError } = await admin.from("production_jobs").delete().in("id", targets).eq("user_id", user.id).not("parent_job_id", "is", null)
   const { error: rootError } = deleteError ? { error: deleteError } : await admin.from("production_jobs").delete().in("id", targets).eq("user_id", user.id)
   if (rootError) {
     console.error("deleteProductions failed", { code: rootError.code, message: rootError.message })
     return { error: `Couldn't delete (${rootError.code ?? "unknown"}). Try again.` }
   }
-  return { data: { deleted: targets.length } }
+  return { data: { deleted: roots.length, ids: targets } }
 }

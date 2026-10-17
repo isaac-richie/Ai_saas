@@ -2,6 +2,7 @@ import { BaseProvider } from "../base.provider";
 import { GenerationRequest, GenerationResult } from "../types";
 import {
     DEFAULT_KIE_IMAGE_MODEL,
+    currentKieModel,
     DEFAULT_KIE_VIDEO_MODEL_I2V,
     DEFAULT_KIE_VIDEO_MODEL_T2V,
     inferKieOutputType,
@@ -63,15 +64,16 @@ export class KieProvider extends BaseProvider {
 
     private resolveModel(request: GenerationRequest): string {
         const explicitModel = request.model?.trim();
-        if (explicitModel) return this.resolveImageVariant(explicitModel, request);
+        if (explicitModel) return this.resolveImageVariant(currentKieModel(explicitModel), request);
 
         const requestedType =
             request.output_type
             || (request.image_prompt ? "video" : undefined)
             || "image";
 
-        if (requestedType !== "video") return this.resolveImageVariant(DEFAULT_KIE_IMAGE_MODEL, request);
-        return request.image_prompt ? DEFAULT_KIE_VIDEO_MODEL_I2V : DEFAULT_KIE_VIDEO_MODEL_T2V;
+        // Defaults can come from the environment, so they pass the same retired-slug check.
+        if (requestedType !== "video") return this.resolveImageVariant(currentKieModel(DEFAULT_KIE_IMAGE_MODEL), request);
+        return currentKieModel(request.image_prompt ? DEFAULT_KIE_VIDEO_MODEL_I2V : DEFAULT_KIE_VIDEO_MODEL_T2V);
     }
 
     /**
@@ -484,10 +486,12 @@ export class KieProvider extends BaseProvider {
                 console.error("Kie.ai Provider Exception:", error);
             }
             const message = error instanceof Error ? error.message : "Kie.ai request failed";
+            const normalized = normalizeGenerationError(message, "Kie.ai request failed");
             return {
                 content_type: request.output_type || "image",
                 status: "failed",
-                error: normalizeGenerationError(message, "Kie.ai request failed"),
+                // Name the model when Kie rejects it, so a report says exactly which one.
+                error: /model.*not available/i.test(normalized) ? normalized.replace("Selected model", `The model "${this.resolveModel(request)}"`) : normalized,
                 debug: {
                     stage: "generate",
                     rawError: message,

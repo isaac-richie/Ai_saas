@@ -7,20 +7,8 @@ export interface KieModelDefinition {
   mode: "text-to-image" | "image-to-video" | "text-to-video";
 }
 
-// Curated starter list. Any valid Kie Market model slug can still be passed directly.
+// Curated list, re-verified against Kie on 2026-10-17. Any valid Kie Market slug can still be passed directly.
 export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
-  {
-    slug: "qwen/qwen-image",
-    type: "image",
-    label: "Qwen Image",
-    mode: "text-to-image",
-  },
-  {
-    slug: "seedream/seedream-4.0",
-    type: "image",
-    label: "Seedream 4.0",
-    mode: "text-to-image",
-  },
   {
     slug: "kling/v2-5-turbo-text-to-video-pro",
     type: "video",
@@ -76,24 +64,6 @@ export const KIE_MODEL_CATALOG: KieModelDefinition[] = [
     mode: "text-to-video",
   },
   {
-    slug: "flux/flux-2-0",
-    type: "image",
-    label: "Flux 2.0 Pro",
-    mode: "text-to-image",
-  },
-  {
-    slug: "black-forest-labs/flux-1-1-pro",
-    type: "image",
-    label: "Flux 1.1 Pro (BFL)",
-    mode: "text-to-image",
-  },
-  {
-    slug: "flux-1.1-pro",
-    type: "image",
-    label: "Flux 1.1 Pro (Standard)",
-    mode: "text-to-image",
-  },
-  {
     slug: "gpt-image/1.5",
     type: "image",
     label: "GPT Image 1.5",
@@ -118,6 +88,30 @@ export const DEFAULT_KIE_VIDEO_MODEL_I2V =
 export const DEFAULT_KIE_VIDEO_MODEL_T2V =
   process.env.KIE_DEFAULT_VIDEO_MODEL_T2V
   || "kling-3.0/video";
+
+/**
+ * Slugs Kie no longer serves (it answers "model name not supported"), mapped to today's equivalent.
+ * Shots saved with an old model keep working instead of failing with "model not available".
+ */
+export const RETIRED_KIE_MODELS: Record<string, string> = {
+  "qwen/qwen-image": "nano-banana-pro",
+  "seedream/seedream-4.0": "nano-banana-pro",
+  "flux/flux-2-0": "nano-banana-pro",
+  "black-forest-labs/flux-1-1-pro": "nano-banana-pro",
+  "flux-1.1-pro": "nano-banana-pro",
+  "nano-banana": "nano-banana-pro",
+  "kling-3.0": "kling-3.0/video",
+};
+
+/** Today's Kie slug for a requested model: retired slugs and other providers' model names are replaced. */
+export function currentKieModel(model: string, fallbackImageModel = "gpt-image/1.5"): string {
+  const slug = model.trim();
+  const retired = RETIRED_KIE_MODELS[slug.toLowerCase()];
+  if (retired) return retired;
+  // OpenAI image names (dall-e-3, gpt-image-1.5) are not Kie slugs; Kie's GPT Image is "gpt-image/1.5".
+  if (/^(dall-e|gpt-image-\d)/i.test(slug)) return fallbackImageModel;
+  return slug;
+}
 
 export function inferKieOutputType(model?: string): KieMediaType | null {
   if (!model) return null;

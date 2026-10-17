@@ -50,9 +50,9 @@ export function ProductionPicker({ films, selectedId, disabled, onSelect, onDele
     setDeleting(ids.length === 1 ? ids[0] : "all")
     const result = await deleteProductions(ids)
     setDeleting(null); setConfirmId(null); setConfirmClear(false)
-    if (result.error) { toast.error(result.error); return }
+    if (result.error || !result.data) { toast.error(result.error || "Couldn't delete. Try again."); return }
     toast.success(label)
-    onDeleted(ids)
+    onDeleted(result.data.ids)
   }
 
   return (

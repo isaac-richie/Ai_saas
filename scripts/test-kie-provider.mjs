@@ -16,6 +16,7 @@ const requireMock = (id) => {
     DEFAULT_KIE_VIDEO_MODEL_I2V: "kling-3.0/video",
     DEFAULT_KIE_VIDEO_MODEL_T2V: "kling/v2-5-turbo-text-to-video-pro",
     inferKieOutputType: () => "video",
+    currentKieModel: (model) => model,
   }
   if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
   throw new Error(`Unexpected import: ${id}`)
