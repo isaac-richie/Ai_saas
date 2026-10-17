@@ -11,6 +11,7 @@ import { Input } from "@/interface/components/ui/input"
 import { Textarea } from "@/interface/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/interface/components/ui/dialog"
 import { MentionTextarea } from "./MentionTextarea"
+import { normalizeReferenceImage } from "./normalize-image"
 import { promptBudgetFor } from "@/core/config/prompt-limits"
 import { LIP_SYNC_MAX_SECONDS, prepareLipSyncAudio } from "./lip-sync-audio"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
@@ -256,7 +257,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const labelledReferences = useMemo(() => labelReferences(currentReferences), [currentReferences])
   // Singing or speaking audio means the creator wants lips to follow it: switch lip-sync on by default.
   const speechAudioId = labelledReferences.find((ref) => ref.mediaType === "audio" && ref.applied && referenceRoles(ref).some((role) => ["lip-sync", "dialogue", "voiceover"].includes(role)))?.id ?? null
-  const lipSyncDefault = !lipSyncTouched && !lipSyncAudioId ? speechAudioId : null
+  // Lip-sync counts only while its audio is attached and applied; a removed or unapplied file is ignored.
+  const activeLipSyncId = lipSyncAudioId && labelledReferences.some((ref) => ref.id === lipSyncAudioId && ref.mediaType === "audio" && ref.applied) ? lipSyncAudioId : null
+  const lipSyncDefault = !lipSyncTouched && !activeLipSyncId ? speechAudioId : null
   useEffect(() => {
     if (lipSyncDefault) setLipSyncAudioId(lipSyncDefault)
   }, [lipSyncDefault])
@@ -270,7 +273,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       .filter((ref) => ref.applied)
   ), [labelledReferences, continuityEnabled, continuityLocks, continuitySources])
   // Each model reads a different amount of prompt (Kling 3.0: 2,500; Seedance: ~20,000); budget for the one in use.
-  const budgetModel = lipSyncAudioId ? LIP_SYNC_MODEL : activeModelFamily.i2vModel
+  const budgetModel = activeLipSyncId ? LIP_SYNC_MODEL : activeModelFamily.i2vModel
   const promptBudget = useMemo(() => referencePromptBudget(
     continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(),
     buildGenerationReferences(),
@@ -1595,7 +1598,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         const reserve = promptBudget.used - subject.trim().length
         const response = await fetch("/api/prompt/condense", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: subject.trim(), model: budgetModel, reserve: Math.max(0, reserve), purpose: lipSyncAudioId ? "lip-sync" : "video" }),
+          body: JSON.stringify({ text: subject.trim(), model: budgetModel, reserve: Math.max(0, reserve), purpose: activeLipSyncId ? "lip-sync" : "video" }),
         })
         const body = await response.json().catch(() => ({}))
         if (!response.ok) throw new Error(body.error || "Couldn't condense this brief.")
@@ -1685,13 +1688,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
     try {
       // Lip-sync: cut the applied audio to its trim window and send the real waveform.
-      const lipSyncRef = lipSyncAudioId ? generationReferences.find((ref) => ref.id === lipSyncAudioId && ref.mediaType === "audio") : undefined
+      const lipSyncRef = activeLipSyncId ? generationReferences.find((ref) => ref.id === activeLipSyncId && ref.mediaType === "audio") : undefined
       let lipSync: { audio_path?: string; audio_reference_id: string } | null = null
-      if (lipSyncAudioId && !lipSyncRef) {
-        toast.error("Apply the audio you want to lip-sync, or turn Sync lips off.", { id: "fast-video-generate" })
-        setIsGenerating(false); setStatus("idle"); setStatusMessage("")
-        return
-      }
       if (lipSyncRef && previewOnly) lipSync = { audio_reference_id: lipSyncRef.id }
       if (lipSyncRef && !previewOnly) {
         setStatusMessage("Preparing your audio for lip-sync...")
@@ -2185,8 +2183,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   }
 
   const handleAddStoryboardReferenceFiles = async (item: StoryboardItem, files: File[]) => {
-    const images = files.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type))
-    if (!images.length) { toast.error("Drop JPG, PNG or WebP images.", { id: "storyboard-refs" }); return }
+    const candidates = files.filter((file) => file.type.startsWith("image/") || /\.(heic|heif|avif)$/i.test(file.name))
+    if (!candidates.length) { toast.error("Drop photos (JPG, PNG, WebP or HEIC).", { id: "storyboard-refs" }); return }
+    const images: File[] = []
+    for (const file of candidates) {
+      try { images.push(await normalizeReferenceImage(file)) } catch (cause) { toast.error(cause instanceof Error ? cause.message : "Couldn't use that image.", { id: "storyboard-refs" }) }
+    }
+    if (!images.length) return
     const existing = item.mediaReferences || []
     const room = MAX_REFERENCES - existing.length
     if (room <= 0) { toast.error(`A shot can use up to ${MAX_REFERENCES} references.`, { id: "storyboard-refs" }); return }
@@ -2406,7 +2409,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       <Dialog open={Boolean(condenseReview)} onOpenChange={(open) => { if (!open) setCondenseReview(null) }}>
         <DialogContent className="max-h-[88vh] overflow-y-auto border-gold-400/[0.16] bg-obsidian-900 text-white sm:max-w-[640px]">
           <DialogHeader>
-            <DialogTitle>Your idea, ready for {lipSyncAudioId ? "Kling AI Avatar" : activeModelFamily.label}</DialogTitle>
+            <DialogTitle>Your idea, ready for {activeLipSyncId ? "Kling AI Avatar" : activeModelFamily.label}</DialogTitle>
             <DialogDescription className="text-[#B0B8C4]">
               {condenseReview ? `${condenseReview.from.toLocaleString()} characters${condenseReview.structured ? " of JSON" : ""} condensed to ${condenseReview.to.toLocaleString()} (this model reads up to ${condenseReview.target.toLocaleString()} with your references). Check it, edit anything, then create.` : null}
             </DialogDescription>
@@ -2590,7 +2593,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 {(() => {
                   const audios = labelledReferences.filter((ref) => ref.mediaType === "audio" && ref.applied)
                   if (!audios.length) return null
-                  const active = audios.find((ref) => ref.id === lipSyncAudioId)
+                  const active = audios.find((ref) => ref.id === activeLipSyncId)
                   return (
                     <div className="space-y-2 rounded-xl border border-gold-400/[0.14] bg-white/[0.02] p-3">
                       <label className="flex cursor-pointer items-start gap-3">

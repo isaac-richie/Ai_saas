@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { createClient } from "@/infrastructure/supabase/client"
 import { continueWithoutAnalysisTarget, labelReferences, planReferenceDelivery, type ReferenceDelivery, MAX_REFERENCE_BYTES, MAX_REFERENCES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, ROLE_CONTROLS, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, referenceRoles, withRoles, type MediaReference } from "@/core/validation/media-reference"
 import styles from "./MediaReferenceManager.module.css"
+import { normalizeReferenceImage } from "./normalize-image"
 
 async function getDuration(file: File, kind: "video" | "audio") {
   const url = URL.createObjectURL(file)
@@ -199,7 +200,7 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
   function pick(type: MediaReference["mediaType"], replaceId?: string) {
     selection.current = { type, replaceId }
     if (picker.current) {
-      picker.current.accept = REFERENCE_MIME_TYPES[type].join(",")
+      picker.current.accept = type === "image" ? "image/*,.heic,.heif" : REFERENCE_MIME_TYPES[type].join(",")
       picker.current.multiple = !replaceId
       picker.current.value = ""
       picker.current.click()
@@ -232,7 +233,9 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
       const db = createClient()
       const { data: { user } } = await db.auth.getUser()
       if (!user) throw new Error("Please sign in to upload references.")
-      for (const file of files) {
+      for (const picked of files) {
+        // Photos in any format (WebP, AVIF, HEIC where readable, oversized PNG) become a usable JPEG.
+        const file = type === "image" ? await normalizeReferenceImage(picked) : picked
         if (!(REFERENCE_MIME_TYPES[type] as readonly string[]).includes(file.type)) throw new Error("Unsupported format. Use JPG/PNG/WebP, MP4/WebM/MOV, or MP3/M4A/WAV.")
         if (file.size > MAX_REFERENCE_BYTES || file.size === 0) throw new Error("Each file must be non-empty and no larger than 25 MB.")
         const duration = type === "image" ? undefined : await getDuration(file, type)

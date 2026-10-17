@@ -1,5 +1,7 @@
 "use server"
 
+
+import { condensePrompt } from "@/core/services/prompt-condenser"
 import { z } from "zod"
 import { createClient } from "@/infrastructure/supabase/server"
 import { productionPlanSchema, canApproveProduction, productionBibleSchema, departmentDirectionSchema, crewShotsSchema, blockingFindings, findingsRepairUsed } from "@/core/validation/production-crew"
@@ -30,7 +32,8 @@ export async function listProductions() {
   return { data }
 }
 
-export async function updateProduction(input: unknown) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function updateProduction(input: unknown): Promise<{ data?: any; error?: string; notice?: string }> {
   const parsed = updateSchema.safeParse(input)
   if (!parsed.success) return { error: "Please check the production details." }
   const db = await createClient()
@@ -49,10 +52,27 @@ export async function updateProduction(input: unknown) {
     : db.from("production_jobs").update(payload.action === "plan"
       ? { status: "awaiting_approval", plan: payload.plan }
       : { status: "approved" }).eq("id", payload.id).eq("user_id", user.id).eq("status", payload.action === "plan" ? "brief" : "awaiting_approval")
-  const { data, error } = await query.select("*").single()
+  let { data, error } = await query.select("*").single()
+  let notice: string | null = null
+  // Before migration 0043 the database caps briefs at 4,000 characters: condense a longer brief
+  // with the AI director (meaning kept, not cut off) and save that, instead of failing.
+  if (error?.code === "23514" && payload.action === "create" && payload.brief.length > 4000) {
+    try {
+      const condensed = await condensePrompt(payload.brief, 3900, "video")
+      ;({ data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: condensed.prompt, planning_context: { shotSettings: payload.shotSettings }, ...(payload.assets.length ? { reference_assets: payload.assets } : {}) }).select("*").single())
+      if (!error) notice = `Your brief was ${payload.brief.length.toLocaleString()} characters, so the crew condensed it to ${condensed.to.toLocaleString()} to save it. Apply migration 0043 to keep long briefs in full.`
+    } catch {
+      return { error: `Your brief is ${payload.brief.length.toLocaleString()} characters; this database stores up to 4,000 until migration 0043 is applied. Shorten it, or apply the migration.` }
+    }
+  }
   if (error && ["42703", "PGRST204"].includes(error.code || "")) return { error: "Reference storage is not configured yet. Apply migration 0026, then save your brief again. Your draft is still here." }
-  if (error) return { error: "Could not save this production. Refresh and try again; the plan may already have changed." }
-  return { data }
+  if (error) {
+    console.error("updateProduction failed", { action: payload.action, code: error.code, message: error.message })
+    return { error: payload.action === "create"
+      ? `Could not save this brief (${error.code ?? "unknown"}). Your draft is still here; try again.`
+      : "Could not save this production. Refresh and try again; the plan may already have changed." }
+  }
+  return { data, ...(notice ? { notice } : {}) }
 }
 
 const productionRevisionSchema = z.object({

@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { applyMechanicalPlanRepair, createProductionRevision, listProductions, materializeProduction, replaceProductionReferences, updateProduction } from "@/core/actions/production"
@@ -154,6 +155,7 @@ export function ProductionDesk() {
         if (!settings.success) throw new Error("Choose a model and duration for each shot.")
         const result = await updateProduction({ action: "create", brief, assets, shotSettings: settings.data })
         if (result.error) throw new Error(result.error)
+        if (result.notice) toast.message("Brief condensed to save", { description: result.notice })
         keep(result.data as Production); setBrief(""); setAssets([])
       }) }}>
         <label htmlFor="production-brief" className="text-sm text-white/80">What should the audience feel?</label>
