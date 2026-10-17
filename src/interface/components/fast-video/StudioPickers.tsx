@@ -16,9 +16,9 @@ export function TemplateGallery({ templates, activeId, onApply }: {
 }) {
   return (
     <section aria-label="Prompt templates" className="space-y-2">
-      <div className="flex items-baseline justify-between">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[#8f9086]">Start from a template</p>
-        <p className="text-[10px] text-[#77796f]">Fills the prompt and look · all editable</p>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-[13px] font-medium text-[#ece6d6]">Need an idea?</p>
+        <p className="text-[12px] text-[#9aa1ab]">Tap one to start. Edit anything.</p>
       </div>
       <div className="preset-rail -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1">
         {templates.map((template) => {
@@ -36,7 +36,7 @@ export function TemplateGallery({ templates, activeId, onApply }: {
               className={`preset-card group relative w-[176px] shrink-0 snap-start overflow-hidden rounded-xl border text-left transition-all duration-300 ${
                 active
                   ? "border-gold-300/70 bg-gold-400/[0.07] shadow-[0_16px_32px_-20px_rgba(217,192,138,0.8)]"
-                  : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40"
+                  : "border-line bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40"
               }`}
             >
               <span className="relative block h-[84px] overflow-hidden bg-obsidian-900">
@@ -92,7 +92,7 @@ export function ModelPicker({ families, value, onChange }: {
             className={`lux-spotlight relative rounded-xl border px-3.5 py-3 text-left transition-all duration-300 ${
               active
                 ? "border-gold-300/70 bg-[linear-gradient(180deg,rgba(217,192,138,0.12),rgba(217,192,138,0.03))] shadow-[0_14px_30px_-20px_rgba(217,192,138,0.8)]"
-                : "border-gold-400/[0.12] bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40"
+                : "border-line bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40"
             }`}
           >
             <span className="flex items-center justify-between">
@@ -104,7 +104,7 @@ export function ModelPicker({ families, value, onChange }: {
             <span className="mt-1 block text-[11px] leading-snug text-[#a3a59a]">{family.description}</span>
             <span className="mt-2.5 flex flex-wrap gap-1.5">
               {[...MODEL_FACTS[family.id], { icon: <Film className="h-3 w-3" />, text: frames.start ? "Start + End frames" : "No frame control" }].map((fact) => (
-                <span key={fact.text} className="inline-flex items-center gap-1 rounded-full border border-gold-400/15 bg-black/20 px-2 py-0.5 text-[10px] text-[#c8c3b3]">
+                <span key={fact.text} className="inline-flex items-center gap-1 rounded-full border border-line bg-black/20 px-2 py-0.5 text-[10px] text-[#c8c3b3]">
                   <span className="text-gold-400/80">{fact.icon}</span>{fact.text}
                 </span>
               ))}

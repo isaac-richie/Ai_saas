@@ -23,7 +23,7 @@ export function BillingPlanCard({
   const isPro = billing.planCode === "studio_pro"
 
   return (
-    <Card data-reveal="card" className="rounded-2xl border border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
+    <Card data-reveal="card" className="rounded-2xl border border-line bg-obsidian-900 text-white shadow-[0_20px_38px_-34px_rgba(0,0,0,0.9)]">
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
         <div>
           <CardTitle className="text-lg">Billing & Usage</CardTitle>
@@ -31,25 +31,25 @@ export function BillingPlanCard({
             Your current plan and generation limits.
           </p>
         </div>
-        <Badge className="rounded-full border border-gold-400/[0.12] bg-white/10 text-white/90">
+        <Badge className="rounded-full border border-line bg-white/10 text-white/90">
           {billing.planName}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
+          <div className="rounded-xl border border-line bg-white/5 p-3">
             <p className="text-xs uppercase tracking-[0.14em] text-white/45">Projects</p>
             <p className="mt-1 text-sm font-medium text-white/85">
               {billing.maxProjects == null ? "Unlimited" : `${billing.maxProjects} max`}
             </p>
           </div>
-          <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
+          <div className="rounded-xl border border-line bg-white/5 p-3">
             <p className="text-xs uppercase tracking-[0.14em] text-white/45">Studio</p>
             <p className="mt-1 text-sm font-medium text-white/85">
               {usageLabel(billing.studioGenerationsUsed, billing.maxStudioGenerations)}
             </p>
           </div>
-          <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
+          <div className="rounded-xl border border-line bg-white/5 p-3">
             <p className="text-xs uppercase tracking-[0.14em] text-white/45">Quick videos</p>
             <p className="mt-1 text-sm font-medium text-white/85">
               {usageLabel(billing.fastVideoGenerationsUsed, billing.maxFastVideoGenerations)}

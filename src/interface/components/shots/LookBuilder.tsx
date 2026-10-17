@@ -51,7 +51,7 @@ export function LookBuilder({ options, values, labels, onChange }: {
         ))}
       </div>
 
-      <div role="tablist" aria-label="Look categories" className="flex gap-1 rounded-xl border border-gold-400/[0.12] bg-black/20 p-1">
+      <div role="tablist" aria-label="Look categories" className="flex gap-1 rounded-xl border border-line bg-black/20 p-1">
         {GROUPS.map((item) => {
           const selected = item.id === active.id
           const count = countIn(item.categories)
@@ -109,7 +109,7 @@ function LookChip({ label, description, selected, onSelect, icon, muted }: {
           ? "border-gold-300/70 bg-gold-400/15 text-gold-50 shadow-[0_0_18px_-8px_rgba(217,192,138,0.8)]"
           : muted
             ? "border-dashed border-gold-400/20 text-[#8f9086] hover:border-gold-400/45 hover:text-gold-100"
-            : "border-gold-400/[0.14] bg-white/[0.02] text-[#d4cfc0] hover:-translate-y-px hover:border-gold-400/45 hover:text-gold-50"
+            : "border-line bg-white/[0.02] text-[#d4cfc0] hover:-translate-y-px hover:border-gold-400/45 hover:text-gold-50"
       }`}>
       {selected && !muted ? <Check className="h-3 w-3 text-gold-300" strokeWidth={3} /> : icon}
       {label}

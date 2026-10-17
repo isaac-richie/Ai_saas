@@ -75,7 +75,7 @@ export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanel
   if (storyboardItems.length === 0) return null
 
   return (
-    <div className="rounded-3xl border border-gold-400/[0.12] bg-gradient-to-b from-white/[0.035] to-black/30 p-4">
+    <div className="rounded-3xl border border-line bg-gradient-to-b from-white/[0.035] to-black/30 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-gold-200/60">Final render</p>
@@ -85,7 +85,7 @@ export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanel
               : "Approve takes on your shots to render them"}
           </p>
         </div>
-        <div role="radiogroup" aria-label="Export format" className="inline-flex rounded-full border border-gold-400/[0.12] bg-black/30 p-0.5">
+        <div role="radiogroup" aria-label="Export format" className="inline-flex rounded-full border border-line bg-black/30 p-0.5">
           {PROFILES.map((p) => (
             <button
               key={p.id}

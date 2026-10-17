@@ -180,3 +180,29 @@
 @media (prefers-reduced-motion: reduce) {
   .desk, .header em, .shotStrip button, .emptyScreen::before, .departments details[open] > :not(summary) { animation: none; }
 }
+
+/* ── Calm pass: one type family, neutral structure, gold only where it means something ── */
+.desk { --line: rgba(255, 255, 255, .08); border-color: var(--line); border-radius: 22px; }
+.header { padding: clamp(20px, 3vw, 32px) clamp(20px, 3vw, 36px); background: radial-gradient(ellipse at 92% -30%, #d9c08a1a, transparent 55%); }
+.header h2 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .3em; font-family: inherit; font-weight: 300; font-size: clamp(24px, 2.4vw, 32px); line-height: 1.2; letter-spacing: -.03em; margin: 0 0 8px; }
+.header h2 svg { align-self: center; color: #d9c08a; margin-right: .15em; }
+.header em { font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; font-style: italic; font-weight: 400; animation: none; }
+.intro { max-width: 620px; font-size: 13.5px; line-height: 1.65; color: #9aa1ab; }
+.toolbar { padding: 16px clamp(16px, 3vw, 28px); background: transparent; }
+.steps > * { font-size: 13px; color: #9aa1ab; }
+.steps > * > span { font-size: 12px; color: #8a9099; }
+@media (min-width: 851px) { .briefGrid { grid-template-columns: .75fr 1.25fr; gap: 36px; } }
+.briefGrid h3 { font-family: inherit; font-weight: 300; font-size: clamp(22px, 2vw, 28px); line-height: 1.2; letter-spacing: -.03em; margin: 0 0 12px; }
+.briefGrid p:not(.eyebrow) { font-size: 13.5px; line-height: 1.7; color: #9aa1ab; }
+.format { margin-top: 14px; font-size: 12.5px; letter-spacing: 0; color: #8a9099; }
+.productionTitle { font-family: inherit; font-weight: 300; letter-spacing: -.03em; }
+.emptyScreen p { font-family: inherit; }
+.departments details, .checkpoint, .progress, .shotStrip button, .emptyScreen { border-color: var(--line); }
+@media (max-width: 560px) {
+  .header { padding: 20px 16px 18px; }
+  .header h2 { font-size: 24px; }
+  .intro { font-size: 13px; }
+  .body { padding: 20px 16px; }
+  .briefGrid { gap: 18px; }
+  .briefGrid p:not(.eyebrow) { display: none; }
+}

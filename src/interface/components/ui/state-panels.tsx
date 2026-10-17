@@ -34,7 +34,7 @@ export function ErrorStatePanel({ title, description, action, icon, compact = fa
 
 export function LoadingStatePanel({ title = "Loading", description = "Preparing workspace...", compact = false }: { title?: string; description?: string; compact?: boolean }) {
   return (
-    <div className={`lux-fade rounded-2xl border border-gold-400/10 bg-[#0f110f] text-center ${compact ? "p-5" : "p-8"}`}>
+    <div className={`lux-fade rounded-2xl border border-line bg-[#0f110f] text-center ${compact ? "p-5" : "p-8"}`}>
       <Loader2 className="mx-auto h-5 w-5 animate-spin text-gold-400" />
       <h3 className="mt-3 text-sm font-semibold text-white">{title}</h3>
       <p className="mt-1 text-xs text-white/55">{description}</p>

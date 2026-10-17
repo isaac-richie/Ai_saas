@@ -57,7 +57,7 @@ export function ProductionPicker({ films, selectedId, disabled, onSelect, onDele
 
   return (
     <div ref={root} className="relative min-w-0 flex-1">
-      <span className="mb-1.5 block text-[10.5px] font-medium uppercase tracking-[0.2em] text-gold-300/80">Production</span>
+      <span className="mb-1.5 block text-[13px] font-medium text-[#ece6d6]">Production</span>
       <button
         type="button"
         disabled={disabled}

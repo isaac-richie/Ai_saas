@@ -146,8 +146,7 @@ export function ProductionDesk() {
   return (
     <section className={styles.desk} aria-label="Production Desk">
       <header className={styles.header}>
-        <div><p className={styles.eyebrow}><Clapperboard size={15} /> THE PRODUCTION DESK</p><h2>Your vision.<br /><em>A crew to bring it to life.</em></h2><p className={styles.intro}>Shape the story. Direct the details. Make something worth watching.</p></div>
-        <div className={styles.slate}><span>CREW / 07</span><strong>One shared vision.</strong><p>Continuity · Camera · Light<br />Design · Performance · Edit · Review</p></div>
+        <div><h2><Clapperboard size={22} strokeWidth={1.5} aria-hidden /> Your vision. <em>A crew to bring it to life.</em></h2><p className={styles.intro}>Describe the film. A crew of seven AI specialists (continuity, camera, light, design, performance, edit and review) plans connected shots for you to approve.</p></div>
       </header>
       <div className={styles.toolbar}>
         <ProductionPicker
@@ -164,7 +163,7 @@ export function ProductionDesk() {
         {selected?.sequence_id ? <Link href={`/dashboard/sequences/${selected.sequence_id}`}><span>04</span>Edit & deliver <ArrowUpRight size={14} /></Link> : <span className={styles.locked}><span>04</span>Edit & deliver</span>}
       </nav>
       <div className={styles.body}>
-      {view === "brief" && <div className={styles.briefGrid}><div><p className={styles.eyebrow}>01 / THE STARTING POINT</p><h3>Every film starts<br />with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop connected shots with your chosen models and timing.</p><span className={styles.format}>2-12 SHOTS / YOUR MODEL & TIMING / 16:9</span></div>
+      {view === "brief" && <div className={styles.briefGrid}><div><h3>Every film starts with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop connected shots with your chosen models and timing.</p><span className={styles.format}>2–12 shots · your model and timing · 16:9</span></div>
       <form onSubmit={event => { event.preventDefault(); void run(async () => {
         if (uploading) return
         const settings = productionShotSettingsSchema.safeParse(shotSettings)
@@ -189,7 +188,7 @@ export function ProductionDesk() {
         />
         <ProductionShotSettings value={shotSettings} onChange={setShotSettings} disabled={busy} />
         <ProductionReferences assets={assets} onChange={setAssets} disabled={busy} onBusy={setUploading} />
-        <button disabled={busy || !ready || uploading} className="mt-3 rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-5 py-2 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)] disabled:opacity-40">{busy ? "Working..." : "Save film brief"}</button>
+        <button disabled={busy || !ready || uploading} className="mt-3 h-12 w-full rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-6 text-sm sm:h-11 sm:w-auto font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)] disabled:opacity-40">{busy ? "Working..." : "Save film brief"}</button>
       </form></div>}
       {error && <p role="alert" className="mt-4 text-sm text-amber-200">{error}</p>}
       {busy && <div role="status" className={styles.progress}><span />{crewStatus || "Working on your production..."}<small>Completed stages are saved.</small></div>}
@@ -218,7 +217,7 @@ export function ProductionDesk() {
           {view === "direction" && job.planning_error && job.status === "brief" && <p role="status" className="mt-3 text-sm text-amber-200">{/no credits remaining|credit_balance_exhausted|insufficient_quota|ai planning credits are exhausted/i.test(job.planning_error) ? "AI planning is paused because the studio's OpenAI API credits are exhausted. The studio owner needs to add credits, then select Resume crew. Your saved work is safe." : "The crew paused at its saved checkpoint. Resume to continue; no completed planning work was lost."}</p>}
           {view === "direction" && job.plan && <div className="mt-4">
             <p className="text-sm text-white/70">{job.plan.creativeStrategy}</p>
-            {job.plan.crew && <details className="mt-4 rounded-xl border border-gold-400/[0.12] p-4">
+            {job.plan.crew && <details className="mt-4 rounded-xl border border-line p-4">
               <summary className="cursor-pointer text-sm text-gold-300">Production bible and crew review</summary>
               <h4 className="mt-4 text-lg text-white">{job.plan.crew.bible.title}</h4>
               <p className="mt-2 text-sm text-white/70">{job.plan.crew.bible.audienceEmotion}</p>
@@ -250,7 +249,7 @@ export function ProductionDesk() {
               <h4 className="text-sm font-medium text-white">{index + 1}. {shot.title}</h4>
               <p className="mt-2 text-xs text-white/50">{shot.modelFamilyId} / {shot.durationSeconds}s requested / {shot.aspectRatio}</p>
               <p className="mt-3 text-sm text-white/70">{shot.creatorDirection}</p>
-              {shot.continuityStartState && <div className="mt-3 rounded-lg border border-gold-400/[0.12] bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
+              {shot.continuityStartState && <div className="mt-3 rounded-lg border border-line bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
               <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2 whitespace-pre-wrap">{shot.masterPrompt}</p></details>
               {!!shot.productionNotes?.length && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
             </section>)}</div>
@@ -317,7 +316,7 @@ export function ProductionDesk() {
             {job.sequence_id && <Link className="rounded-full border border-gold-400/25 px-4 py-2 text-sm text-white" href={`/dashboard/sequences/${job.sequence_id}`}>Open first cut</Link>}
           </div>}
           {view === "takes" && job.project_id && job.scene_id && <ProductionRunPanel productionId={job.id} projectId={job.project_id} sceneId={job.scene_id} sequenceId={job.sequence_id} references={productionMentions(productionAssetsSchema.safeParse(job.reference_assets).data ?? [])} />}
-          {job.status !== "brief" && <details className="mt-4 rounded-xl border border-gold-400/[0.12] p-3"><summary className="cursor-pointer text-xs text-white/55">Adjust production direction</summary><textarea value={revisionNotes[job.id] || ""} onChange={event => setRevisionNotes(current => ({ ...current, [job.id]: event.target.value }))} maxLength={2000} placeholder="Keep the approved history and describe only what should change..." className="mt-3 min-h-20 w-full rounded-lg border border-gold-400/[0.12] bg-black/30 p-3 text-sm text-white placeholder:text-white/30" /><button disabled={busy || (revisionNotes[job.id] || "").trim().length < 8} className="mt-3 rounded-full border border-gold-400/20 px-4 py-2 text-xs text-white disabled:opacity-40" onClick={() => void run(async () => { const result = await createProductionRevision({ productionId: job.id, direction: revisionNotes[job.id] || "" }); if (result.error || !result.data) throw new Error(result.error || "Could not create revision."); keep(result.data as Production); setRevisionNotes(current => ({ ...current, [job.id]: "" })) })}>Update direction</button></details>}
+          {job.status !== "brief" && <details className="mt-4 rounded-xl border border-line p-3"><summary className="cursor-pointer text-xs text-white/55">Adjust production direction</summary><textarea value={revisionNotes[job.id] || ""} onChange={event => setRevisionNotes(current => ({ ...current, [job.id]: event.target.value }))} maxLength={2000} placeholder="Keep the approved history and describe only what should change..." className="mt-3 min-h-20 w-full rounded-lg border border-line bg-black/30 p-3 text-sm text-white placeholder:text-white/30" /><button disabled={busy || (revisionNotes[job.id] || "").trim().length < 8} className="mt-3 rounded-full border border-gold-400/20 px-4 py-2 text-xs text-white disabled:opacity-40" onClick={() => void run(async () => { const result = await createProductionRevision({ productionId: job.id, direction: revisionNotes[job.id] || "" }); if (result.error || !result.data) throw new Error(result.error || "Could not create revision."); keep(result.data as Production); setRevisionNotes(current => ({ ...current, [job.id]: "" })) })}>Update direction</button></details>}
         </article>)}
       </div>
       </div>

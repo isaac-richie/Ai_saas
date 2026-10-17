@@ -24,7 +24,6 @@ export default async function ProjectsPage() {
             <section className="workspace-section">
                 <div className="workspace-section-title">
                     <div>
-                        <span className="workspace-eyebrow">PROJECT LIBRARY</span>
                         <h2>Your productions</h2>
                     </div>
                 </div>

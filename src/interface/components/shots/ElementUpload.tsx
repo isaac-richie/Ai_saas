@@ -119,10 +119,10 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
     }
 
     return (
-        <form id="project-references" onSubmit={handleSubmit} className="scroll-mt-24 space-y-3 rounded-2xl lux-glass lux-hairline p-4 text-white">
+        <form id="project-references" onSubmit={handleSubmit} className="scroll-mt-24 space-y-3 rounded-2xl border border-line bg-white/[0.02] p-5 text-white">
             <div>
-                <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Project references</h3>
-                <p className="mt-1 text-xs text-white/40">Characters, products and places you reuse across shots.</p>
+                <h2 className="text-[15px] font-medium text-[#f3eee2]">Project references</h2>
+                <p className="mt-1 text-[13px] text-[#9aa1ab]">Characters, products and places you reuse across shots.</p>
             </div>
             <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handleFileSelect} />
             {previewUrl ? (
@@ -154,7 +154,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
             <div role="radiogroup" aria-label="Reference type" className="flex flex-wrap gap-1.5">
                 {TYPES.map((item) => (
                     <button key={item.value} type="button" role="radio" aria-checked={type === item.value} onClick={() => setType(item.value)}
-                        className={`h-7 rounded-full border px-2.5 text-[11px] transition ${type === item.value ? "border-gold-300/45 bg-gold-400/15 text-gold-50" : "border-gold-400/[0.14] text-white/60 hover:text-white/90"}`}>
+                        className={`h-7 rounded-full border px-2.5 text-[11px] transition ${type === item.value ? "border-gold-300/45 bg-gold-400/15 text-gold-50" : "border-line text-white/60 hover:text-white/90"}`}>
                         {item.label}
                     </button>
                 ))}

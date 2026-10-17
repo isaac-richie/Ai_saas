@@ -2,7 +2,7 @@
 
 export function CinematicSkeleton({ className = "" }: { className?: string }) {
   return (
-    <div className={`lux-shimmer relative overflow-hidden rounded-2xl border border-gold-400/10 ${className}`}>
+    <div className={`lux-shimmer relative overflow-hidden rounded-2xl border border-line ${className}`}>
       <div className="absolute inset-0 opacity-[0.12] [background-image:repeating-linear-gradient(0deg,rgba(255,255,255,0.2),rgba(255,255,255,0.2)_1px,transparent_1px,transparent_3px)]" />
       <div className="h-full w-full bg-gradient-to-b from-white/[0.04] to-transparent" />
     </div>

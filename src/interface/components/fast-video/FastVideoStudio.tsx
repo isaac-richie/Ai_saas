@@ -64,6 +64,7 @@ import {
   ArrowRightLeft,
   ListChecks,
   ChevronDown,
+  SlidersHorizontal,
   Send,
   Copy,
   Pencil,
@@ -2400,7 +2401,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     `${optionBaseClass} ${
       active
         ? "border border-gold-300/40 bg-gold-400/12 text-gold-100 shadow-[inset_0_1px_0_rgba(217,192,138,0.15),0_8px_24px_-10px_rgba(217,192,138,0.25)] ring-1 ring-gold-400/20"
-        : "border border-gold-400/10 bg-white/[0.04] text-white/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:border-gold-400/20 hover:bg-white/[0.07] hover:text-white/80"
+        : "border border-line bg-white/[0.04] text-white/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:border-gold-400/20 hover:bg-white/[0.07] hover:text-white/80"
     }`
   const subtlePanelClass = "rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
 
@@ -2475,7 +2476,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           <div className={sectionClass}>
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
-                <label htmlFor="fast-video-prompt" className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Your idea</label>
+                <label htmlFor="fast-video-prompt" className="text-[13px] font-medium text-[#ece6d6]">Your idea</label>
                 {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite">Prompt + references: {promptBudget.used.toLocaleString()}/{promptBudget.limit.toLocaleString()}{promptBudget.overflow ? " · we'll condense it for you" : ""}</span>}
                 {!currentReferences.some((ref) => ref.applied) && subject.length > 600 && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite">{subject.length.toLocaleString()}/{promptBudget.limit.toLocaleString()}{promptBudget.overflow ? " · we'll condense it for you" : ""}</span>}
                 {promptBudget.overflow > 0 && <details className="text-xs text-white/70"><summary>Review automatic shortening</summary><p className="whitespace-pre-wrap">{fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), buildGenerationReferences()).subject}</p><p>{fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), buildGenerationReferences()).notes.join(" ")}</p><p>Additional frame, style and scene instructions are applied when the request is assembled.</p></details>}
@@ -2489,14 +2490,14 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 className="studio-field min-h-32 resize-none rounded-xl text-[15px] text-white placeholder:text-white/40 leading-relaxed md:text-sm"
               />
             </div>
-            <details className="group/helper rounded-2xl border border-gold-400/[0.14] bg-white/[0.02]">
-              <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold-400/[0.08] text-gold-300"><WandSparkles className="size-4" /></span>
+            <details className="group/helper -mx-2 rounded-xl transition-colors open:bg-white/[0.02]">
+              <summary className="flex min-h-[52px] cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/[0.03] [&::-webkit-details-marker]:hidden">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><WandSparkles className="size-4" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[14px] font-medium text-[#ece6d6]">Help me write it</span>
-                  <span className="block text-[12px] text-[#B0B8C4]">Say it in your own words; the AI director turns it into a pro prompt.</span>
+                  <span className="block text-[13.5px] font-medium text-[#ece6d6]">Help me write it</span>
+                  <span className="block text-[12.5px] text-[#9aa1ab]">Say it your way. The AI director turns it into a pro prompt.</span>
                 </span>
-                <ChevronDown className="size-4 shrink-0 text-gold-300/70 transition-transform duration-300 group-open/helper:rotate-180" />
+                <ChevronDown className="size-4 shrink-0 text-[#9aa1ab] transition-transform duration-300 group-open/helper:rotate-180" />
               </summary>
               <div className="px-1 pb-1">
                 <StudioAdPanel
@@ -2508,11 +2509,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 />
               </div>
             </details>
-            <TemplateGallery
-              templates={PROMPT_TEMPLATES}
-              activeId={PROMPT_TEMPLATES.find((template) => template.prompt === subject.trim())?.id ?? null}
-              onApply={applyTemplate}
-            />
+            {!subject.trim() || PROMPT_TEMPLATES.some((template) => template.prompt === subject.trim()) ? (
+              <TemplateGallery
+                templates={PROMPT_TEMPLATES}
+                activeId={PROMPT_TEMPLATES.find((template) => template.prompt === subject.trim())?.id ?? null}
+                onApply={applyTemplate}
+              />
+            ) : null}
           </div>
 
           <ShotLookSection
@@ -2533,13 +2536,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           />
 
           <div className={sectionClass}>
-            <label className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Length</label>
-            <div className={`${subtlePanelClass} space-y-2`}>
-              <div className="flex items-center justify-between text-xs text-white/65">
-                <span>Video length</span>
-                <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2 py-0.5 text-white/80">{durationSeconds}s</span>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label htmlFor="fast-video-length" className="text-[13px] font-medium text-[#ece6d6]">Length</label>
+                <span className="text-[13px] tabular-nums text-gold-100">{durationSeconds} seconds</span>
               </div>
               <input
+                id="fast-video-length"
                 type="range"
                 min={5}
                 max={15}
@@ -2549,18 +2552,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-gold-300"
               />
             </div>
-            <Button
+            <button
               type="button"
-              variant="liquidMetal"
-              size="sm"
               onClick={() => setShowAdvanced((prev) => !prev)}
-              className="h-10 w-full text-xs"
+              aria-expanded={showAdvanced}
+              className="-mx-2 flex min-h-[52px] w-[calc(100%+16px)] items-center gap-3 rounded-xl px-2 text-left transition-colors hover:bg-white/[0.03]"
             >
-              {showAdvanced ? "Hide options" : "More options: size, AI model, references"}
-            </Button>
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><SlidersHorizontal className="size-4" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-medium text-[#ece6d6]">More options</span>
+                <span className="block text-[12.5px] text-[#9aa1ab]">Shape, AI model, references and frames</span>
+              </span>
+              <ChevronDown className={`size-4 shrink-0 text-[#9aa1ab] transition-transform duration-300 ${showAdvanced ? "rotate-180" : ""}`} />
+            </button>
             {showAdvanced ? (
               <div className={`${subtlePanelClass} space-y-3`}>
-                <p className="text-[12px] font-medium text-[#d6d0c0]">More options</p>
                 <ModelPicker families={KIE_VIDEO_MODEL_FAMILIES} value={modelFamilyId} onChange={setModelFamilyId} />
                 <SegmentedPreset
                   label="Video shape"
@@ -2593,7 +2599,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   if (!audios.length) return null
                   const active = audios.find((ref) => ref.id === activeLipSyncId)
                   return (
-                    <div className="space-y-2 rounded-xl border border-gold-400/[0.14] bg-white/[0.02] p-3">
+                    <div className="space-y-2 rounded-xl border border-line bg-white/[0.02] p-3">
                       <label className="flex cursor-pointer items-start gap-3">
                         <input
                           type="checkbox"
@@ -2615,7 +2621,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           aria-label="Audio to lip-sync"
                           value={active.id}
                           onChange={(event) => setLipSyncAudioId(event.target.value)}
-                          className="h-9 w-full rounded-lg border border-gold-400/[0.12] bg-white/5 px-2 text-[12px] text-white [color-scheme:dark]"
+                          className="h-9 w-full rounded-lg border border-line bg-white/5 px-2 text-[12px] text-white [color-scheme:dark]"
                         >
                           {audios.map((ref) => <option key={ref.id} value={ref.id}>{ref.label} {ref.name}</option>)}
                         </select>
@@ -2670,16 +2676,16 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             ) : null}
           </div>
 
-          <details className="group/campaign rounded-2xl border border-gold-400/[0.12] bg-white/[0.02]">
-            <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold-400/[0.08] text-gold-300"><ListChecks className="size-4" /></span>
+          <details className="group/campaign -mx-2 rounded-xl transition-colors open:bg-white/[0.02]">
+            <summary className="flex min-h-[52px] cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/[0.03] [&::-webkit-details-marker]:hidden">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><ListChecks className="size-4" /></span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-medium text-[#ece6d6]">Make a set of ads</span>
-                <span className="block text-[12px] text-[#B0B8C4]">Describe your product and get 2–5 social ad videos at once.</span>
+                <span className="block text-[13.5px] font-medium text-[#ece6d6]">Make a set of ads</span>
+                <span className="block text-[12.5px] text-[#9aa1ab]">Describe your product, get 2–5 social ads at once.</span>
               </span>
-              <ChevronDown className="size-4 shrink-0 text-gold-300/70 transition-transform duration-300 group-open/campaign:rotate-180" />
+              <ChevronDown className="size-4 shrink-0 text-[#9aa1ab] transition-transform duration-300 group-open/campaign:rotate-180" />
             </summary>
-            <div className="space-y-4 px-4 pb-4">
+            <div className="space-y-4 px-2 pb-3 pt-1">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-2">
               <label className="text-[12px] font-medium text-[#B0B8C4]">Your product or brief</label>
@@ -2693,7 +2699,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </div>
             </div>
             {campaignHistory.length > 0 ? (
-              <div className="space-y-1.5 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2">
+              <div className="space-y-1.5 rounded-xl border border-line bg-white/[0.03] p-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[10.5px] font-medium uppercase tracking-[0.2em] text-gold-300/80">Recent ad sets</p>
                   <span className="text-[10px] text-white/40">{campaignHistory.length}</span>
@@ -2705,7 +2711,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       className={`min-w-[190px] rounded-xl border p-2.5 transition ${
                         campaignId === campaign.id
                           ? "border-gold-300/35 bg-gold-500/10"
-                          : "border-gold-400/[0.12] bg-black/20"
+                          : "border-line bg-black/20"
                       }`}
                     >
                       <button type="button" onClick={() => openCampaign(campaign)} className="block w-full text-left">
@@ -2778,7 +2784,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </Button>
             </div>
             {campaignPlan ? (
-              <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2.5">
+              <div className="space-y-2 rounded-xl border border-line bg-white/[0.03] p-2.5">
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
                   {campaignPlanSummary({
                     title: campaignPlan.campaignSummary.split(/(?<=[.!?])\s/)[0].slice(0, 90),
@@ -2801,7 +2807,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 {planDetailsOpen ? <p className="text-[11px] leading-relaxed text-white/50">{campaignPlan.creativeStrategy}</p> : null}
                 <div className="space-y-3">
                   {campaignItems.map((item, index) => (
-                    <article key={item.id} className="group/ugc overflow-hidden rounded-2xl border border-gold-400/[0.14] bg-gradient-to-b from-white/[0.035] to-black/30 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] transition hover:border-gold-300/30">
+                    <article key={item.id} className="group/ugc overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-white/[0.035] to-black/30 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] transition hover:border-gold-300/30">
                       <header className="flex items-center gap-2.5 px-3 pt-3">
                         <span className="grid size-7 shrink-0 place-items-center rounded-full border border-gold-300/35 bg-gold-400/10 font-serif text-[12px] text-gold-100">{index + 1}</span>
                         <div className="min-w-0 flex-1">
@@ -2823,7 +2829,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           {item.status}
                         </span>
                       </header>
-                      <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-gold-400/[0.12] bg-black/50">
+                      <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-line bg-black/50">
                         {item.url ? (
                           <video src={`/api/media/proxy?url=${encodeURIComponent(item.url)}`} className="aspect-[4/5] w-full object-cover" controls playsInline preload="metadata" />
                         ) : (
@@ -2889,7 +2895,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                                 variant="ghost"
                                 size="sm"
                                 onClick={handleCancelEditPrompt}
-                                className="h-6 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/60 hover:bg-gold-400/[0.1]"
+                                className="h-6 rounded-md border border-line bg-white/5 px-2 text-[10px] text-white/60 hover:bg-gold-400/[0.1]"
                               >
                                 <X className="mr-1 h-3 w-3" />
                                 Cancel
@@ -2952,7 +2958,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     type="button"
                     onClick={() => void handleAddCampaignToStoryboard()}
                     disabled={isAddingCampaignToStoryboard || campaignItems.every((item) => !item.url)}
-                    className="h-10 rounded-xl border border-gold-400/[0.12] bg-white/5 text-xs text-white/80 hover:bg-gold-400/[0.1]"
+                    className="h-10 rounded-xl border border-line bg-white/5 text-xs text-white/80 hover:bg-gold-400/[0.1]"
                   >
                     {isAddingCampaignToStoryboard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clapperboard className="mr-2 h-4 w-4" />}
                     Add All
@@ -2984,7 +2990,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       </Card>
 
       <div className="space-y-6">
-        <Card id="create-preview" className="workspace-preview-panel min-w-0 scroll-mt-20 overflow-hidden">
+        <Card id="create-preview" data-idle={!videoUrl && status !== "processing" ? "true" : undefined} className="workspace-preview-panel min-w-0 scroll-mt-20 overflow-hidden">
           <CardHeader className="px-6 pt-6 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -2996,7 +3002,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   status === "completed" ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200/80" :
                   status === "processing" ? "border-gold-400/20 bg-gold-400/[0.08] text-gold-200/80" :
                   status === "failed" ? "border-rose-400/20 bg-rose-400/[0.08] text-rose-200/80" :
-                  "border-gold-400/10 bg-white/[0.04] text-white/60"
+                  "border-line bg-white/[0.04] text-white/60"
                 }`}>{renderStatusText()}</span>
               </div>
             </div>
@@ -3042,7 +3048,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     {status === "processing" ? (
                       <div className="lux-fade flex w-full max-w-md flex-col items-center gap-5">
                         <div className="relative grid size-20 place-items-center">
-                          <span className="absolute inset-0 rounded-full border border-gold-400/15" />
+                          <span className="absolute inset-0 rounded-full border border-line" />
                           <span className="absolute inset-0 animate-spin rounded-full border border-transparent border-t-gold-300 [animation-duration:1.6s] [box-shadow:0_0_30px_-8px_rgba(217,192,138,0.6)]" />
                           <span className="absolute inset-3 animate-spin rounded-full border border-transparent border-b-gold-500/70 [animation-direction:reverse] [animation-duration:2.4s]" />
                           <Sparkles className="h-5 w-5 text-gold-300" />
@@ -3051,7 +3057,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           <span className="lux-live-dot" />
                           {statusMessage}
                         </div>
-                        <div className="lux-shimmer h-1.5 w-full rounded-full border border-gold-400/[0.12]" />
+                        <div className="lux-shimmer h-1.5 w-full rounded-full border border-line" />
                       </div>
                     ) : (
                       <div className="lux-fade relative flex h-full w-full items-center justify-center">
@@ -3098,7 +3104,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     {isMuted ? <VolumeX className="mr-1.5 h-3.5 w-3.5" /> : <Volume2 className="mr-1.5 h-3.5 w-3.5" />}
                     {isMuted ? "Muted" : "Sound"}
                   </Button>
-                  <div className="flex min-w-[130px] flex-1 items-center gap-2 rounded-lg border border-gold-400/10 bg-white/[0.03] px-2.5 py-1.5">
+                  <div className="flex min-w-[130px] flex-1 items-center gap-2 rounded-lg border border-line bg-white/[0.03] px-2.5 py-1.5">
                     <span className="text-[11px] text-white/45">Vol</span>
                     <input
                       type="range"
@@ -3141,7 +3147,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
 
             {videoUrl ? (
-              <div className="lux-rise rounded-2xl border border-gold-400/[0.14] bg-white/[0.02] p-4">
+              <div className="lux-rise rounded-2xl border border-line bg-white/[0.02] p-4">
                 <p className="mb-3 text-[13px] font-medium text-[#ece6d6]">Your video is ready</p>
                 <div className="grid grid-cols-2 gap-2.5">
                   <a
@@ -3363,7 +3369,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={selectedProjectId}
                       onChange={(event) => setSelectedProjectId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-line bg-white/5 px-3 text-sm text-white"
                     >
                       {projects.map((project) => (
                         <option key={project.id} value={project.id} className="bg-obsidian-900">
@@ -3378,7 +3384,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={selectedSceneId}
                       onChange={(event) => setSelectedSceneId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-line bg-white/5 px-3 text-sm text-white"
                       disabled={destinationMode === "create_scene"}
                     >
                       {(selectedProject?.scenes || []).map((scene) => (
@@ -3397,7 +3403,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       value={newSceneName}
                       onChange={(event) => setNewSceneName(event.target.value)}
                       placeholder="INT. SHOWROOM - GOLDEN HOUR"
-                      className="h-11 rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
+                      className="h-11 rounded-xl border-line bg-white/5 text-white placeholder:text-white/35"
                     />
                   </div>
                 ) : null}
@@ -3411,7 +3417,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={replaceShotId}
                       onChange={(event) => setReplaceShotId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-line bg-white/5 px-3 text-sm text-white"
                       disabled={isSceneShotsLoading || sceneShotOptions.length === 0}
                     >
                       {sceneShotOptions.length === 0 ? (
@@ -3456,7 +3462,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             </details>
 
             {process.env.NODE_ENV !== "production" ? (
-              <details className="rounded-xl border border-gold-400/[0.12] bg-black/30 p-3 text-xs text-white/70">
+              <details className="rounded-xl border border-line bg-black/30 p-3 text-xs text-white/70">
                 <summary className="cursor-pointer select-none text-white/80">
                   Developer Debug
                   {traceId ? ` · ${traceId.slice(0, 8)}` : ""}
@@ -3466,7 +3472,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <p>No debug events yet.</p>
                   ) : (
                     debugEvents.map((event, index) => (
-                      <div key={`${event.at}-${event.step}-${index}`} className="rounded border border-gold-400/[0.12] bg-white/5 p-2">
+                      <div key={`${event.at}-${event.step}-${index}`} className="rounded border border-line bg-white/5 p-2">
                         <div className="text-gold-300">{event.step}</div>
                         <div className="text-white/40">{event.at}</div>
                         {event.details ? <pre className="mt-1 whitespace-pre-wrap break-words">{JSON.stringify(event.details, null, 2)}</pre> : null}

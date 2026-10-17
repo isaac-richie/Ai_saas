@@ -201,7 +201,7 @@ function ReferenceSlot({ kind, reference, busy, disabled, onUpload, onGallery, o
       {reference ? (
         <div className="mt-2 flex gap-1.5">
           {reference.assetPaths.map((path) => (
-            <div key={path} className="group relative size-12 shrink-0 overflow-hidden rounded-lg border border-gold-400/15 bg-obsidian-900">
+            <div key={path} className="group relative size-12 shrink-0 overflow-hidden rounded-lg border border-line bg-obsidian-900">
               <ReferenceThumb assetPath={path} alt={`${reference.name} reference`} />
               <button type="button" onClick={() => onRemoveImage(path)} disabled={disabled} aria-label={`Remove image from ${reference.name}`} className="absolute right-0.5 top-0.5 grid size-4 place-items-center rounded-full bg-black/70 text-white opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"><X className="h-2.5 w-2.5" /></button>
             </div>
@@ -275,7 +275,7 @@ function SavedReferencePicker({ kind, onClose, onPick }: { kind: Kind | null; on
       ) : (
         <div className="flex flex-wrap gap-2">
           {items.map((item) => (
-            <button key={item.id} type="button" onClick={() => onPick(item)} className="flex items-center gap-2 rounded-lg border border-gold-400/15 p-1.5 pr-2.5 text-left transition hover:border-gold-400/45">
+            <button key={item.id} type="button" onClick={() => onPick(item)} className="flex items-center gap-2 rounded-lg border border-line p-1.5 pr-2.5 text-left transition hover:border-gold-400/45">
               <span className="relative size-9 overflow-hidden rounded-md bg-obsidian-900"><ReferenceThumb assetPath={item.assetPaths[0]} alt={item.name} /></span>
               <span className="text-[11px] text-[#e8e2d2]">{item.name}<span className="block text-[9.5px] text-[#8f9086]">{item.assetPaths.length} image{item.assetPaths.length === 1 ? "" : "s"}</span></span>
             </button>
@@ -304,11 +304,11 @@ function AdvancedSettings({ value, onChange, settings, onSettingsChange, effecti
   const setProduct = (patch: Partial<ProductReference>) => product && onChange({ ...value, product: { ...product, ...patch } })
   const negatives = campaignLockNegatives(value)
   return (
-    <details className="group rounded-xl border border-gold-400/[0.12] bg-black/10">
+    <details className="group rounded-xl border border-line bg-black/10">
       <summary className="flex cursor-pointer select-none list-none items-center justify-between px-3 py-2 text-[11.5px] text-[#c8c3b3] [&::-webkit-details-marker]:hidden">
         Advanced <span className="flex items-center gap-1 text-[10px] text-[#77796f]">{modelLabel} · {settings.aspectRatio} · {settings.durationSeconds}s<ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" /></span>
       </summary>
-      <div className="space-y-4 border-t border-gold-400/[0.1] p-3">
+      <div className="space-y-4 border-t border-line p-3">
         {character ? (
           <fieldset className="space-y-2" disabled={disabled}>
             <legend className="mb-1 text-[11px] font-medium text-[#e8e2d2]">Character</legend>
@@ -364,7 +364,7 @@ function AdvancedSettings({ value, onChange, settings, onSettingsChange, effecti
 function LockChip({ label, active, onToggle }: { label: string; active: boolean; onToggle: () => void }) {
   return (
     <button type="button" role="switch" aria-checked={active} onClick={onToggle}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${active ? "border-gold-300/60 bg-gold-400/15 text-gold-50" : "border-gold-400/15 text-[#8f9086] hover:text-gold-100"}`}>
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${active ? "border-gold-300/60 bg-gold-400/15 text-gold-50" : "border-line text-[#8f9086] hover:text-gold-100"}`}>
       {active ? <Lock className="h-2.5 w-2.5" /> : <Unlock className="h-2.5 w-2.5" />}{label}
     </button>
   )
@@ -374,7 +374,7 @@ function Influence({ label, value, onChange }: { label: string; value: Character
   return (
     <div>
       <span className={labelClass}>{label}</span>
-      <div role="radiogroup" aria-label={label} className="mt-1 flex rounded-lg border border-gold-400/[0.12] bg-black/20 p-0.5">
+      <div role="radiogroup" aria-label={label} className="mt-1 flex rounded-lg border border-line bg-black/20 p-0.5">
         {REFERENCE_INFLUENCES.map((item) => (
           <button key={item} type="button" role="radio" aria-checked={value === item} onClick={() => onChange(item)}
             className={`flex-1 rounded-md py-1 text-[10.5px] capitalize transition ${value === item ? "bg-[linear-gradient(135deg,#f3e5c0,#d9c08a)] font-semibold text-[#1a160e]" : "text-[#a3a59a] hover:text-gold-100"}`}>

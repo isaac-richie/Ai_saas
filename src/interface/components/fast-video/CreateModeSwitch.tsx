@@ -19,7 +19,7 @@ export function CreateModeSwitch({ initialMode, quick, film }: { initialMode: Cr
   const [mode, setMode] = useState<CreateMode>(initialMode)
   return (
     <div className="space-y-5">
-      <div role="tablist" aria-label="What are you making?" className="grid grid-cols-2 gap-1.5 rounded-2xl border border-gold-400/[0.14] bg-black/30 p-1.5 sm:inline-grid sm:min-w-[440px]">
+      <div role="tablist" aria-label="What are you making?" className="grid grid-cols-2 gap-1.5 rounded-2xl border border-line bg-black/30 p-1.5 sm:inline-grid sm:min-w-[440px]">
         {MODES.map(({ id, label, hint, icon: Icon }) => {
           const active = mode === id
           return (
@@ -36,7 +36,7 @@ export function CreateModeSwitch({ initialMode, quick, film }: { initialMode: Cr
                 else url.searchParams.delete("mode")
                 window.history.replaceState(null, "", url)
               }}
-              className={`flex min-h-[56px] items-center gap-3 rounded-xl px-3.5 text-left transition-all duration-300 ${
+              className={`flex min-h-[56px] items-center gap-2.5 rounded-xl px-3 py-2 text-left sm:gap-3 sm:px-3.5 transition-all duration-300 ${
                 active
                   ? "bg-[linear-gradient(135deg,rgba(243,229,192,0.16),rgba(217,192,138,0.08))] text-gold-50 shadow-[inset_0_0_0_1px_rgba(229,169,60,0.55),0_10px_26px_-16px_rgba(217,192,138,0.9)]"
                   : "text-[#c9c5b8] hover:bg-white/[0.04]"
@@ -47,7 +47,7 @@ export function CreateModeSwitch({ initialMode, quick, film }: { initialMode: Cr
               </span>
               <span className="min-w-0">
                 <span className="block text-[14px] font-semibold leading-tight">{label}</span>
-                <span className="block truncate text-[11.5px] text-[#B0B8C4]">{hint}</span>
+                <span className="block text-[11.5px] leading-snug text-[#B0B8C4]">{hint}</span>
               </span>
             </button>
           )

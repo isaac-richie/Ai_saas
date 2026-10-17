@@ -12,7 +12,7 @@ import {
 } from "@/core/actions/generation-jobs"
 
 const STATUS_COLORS: Record<GenerationJobStatus, string> = {
-  queued: "border-gold-400/[0.12] bg-white/5 text-white/60",
+  queued: "border-line bg-white/5 text-white/60",
   preparing: "border-gold-400/20 bg-gold-500/10 text-gold-300/70",
   submitted: "border-gold-400/20 bg-gold-500/10 text-gold-300/70",
   generating: "border-gold-400/25 bg-gold-500/15 text-gold-200",
@@ -20,7 +20,7 @@ const STATUS_COLORS: Record<GenerationJobStatus, string> = {
   processing: "border-gold-400/25 bg-gold-500/15 text-gold-200",
   completed: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300/70",
   failed: "border-rose-400/20 bg-rose-500/10 text-rose-300/70",
-  cancelled: "border-gold-400/[0.12] bg-white/5 text-white/40",
+  cancelled: "border-line bg-white/5 text-white/40",
 }
 
 const ACTIVE_STATUSES = new Set<GenerationJobStatus>([

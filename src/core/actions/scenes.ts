@@ -88,6 +88,17 @@ export async function moveScene(projectId: string, sceneId: string, direction: "
     }
 }
 
+/** Cover stills for scene cards; a missing cover just shows the placeholder. */
+export async function getSceneCovers(sceneIds: string[]): Promise<Record<string, string>> {
+    const ids = z.array(z.string().uuid()).max(200).safeParse(sceneIds);
+    if (!ids.success) return {};
+    try {
+        return await SceneRepo.getSceneCovers(ids.data);
+    } catch {
+        return {};
+    }
+}
+
 export async function getScenes(projectId: string) {
     try {
         const scenes = await SceneRepo.getScenesByProjectId(projectId);

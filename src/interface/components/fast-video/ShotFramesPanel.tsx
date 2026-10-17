@@ -82,13 +82,13 @@ export function ShotFramesPanel({ frames, onChange, modelFamilyId, modelLabel, c
 
   const endBlocked = capability.endRequiresStart && !frames.start && !frames.end
   return (
-    <section className="space-y-3 rounded-2xl border border-gold-400/[0.14] bg-[linear-gradient(180deg,rgba(217,192,138,0.05),transparent_45%)] p-3.5" aria-label="Start and End Frames">
+    <section className="space-y-3 rounded-2xl border border-line bg-[linear-gradient(180deg,rgba(217,192,138,0.05),transparent_45%)] p-3.5" aria-label="Start and End Frames">
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-gold-300/80">Start / End Frame</p>
           <p className="mt-0.5 text-[11px] leading-relaxed text-[#8f9086]">Optional. Pin where the shot begins and where it lands. Your media references stay as they are.</p>
         </div>
-        <span className="rounded-full border border-gold-400/15 px-2 py-0.5 text-[10px] text-[#a3a59a]">{modelLabel}: {capability.start ? (capability.endRequiresStart ? "start, or start + end" : "start and/or end") : "frames unavailable"}</span>
+        <span className="rounded-full border border-line px-2 py-0.5 text-[10px] text-[#a3a59a]">{modelLabel}: {capability.start ? (capability.endRequiresStart ? "start, or start + end" : "start and/or end") : "frames unavailable"}</span>
       </header>
 
       {!capability.start ? (
@@ -202,7 +202,7 @@ function FrameSlotCard({ slot, frame, busy, disabled, unavailableReason, orphane
   const label = slot === "start" ? "Start Frame" : "End Frame"
   const hint = slot === "start" ? "Shot time 0" : "Where the shot lands"
   return (
-    <div className={`overflow-hidden rounded-xl border transition-colors ${frame ? "border-gold-300/40 bg-gold-400/[0.04]" : "border-gold-400/[0.12] bg-white/[0.02]"} ${orphaned ? "!border-amber-300/50" : ""}`}>
+    <div className={`overflow-hidden rounded-xl border transition-colors ${frame ? "border-gold-300/40 bg-gold-400/[0.04]" : "border-line bg-white/[0.02]"} ${orphaned ? "!border-amber-300/50" : ""}`}>
       <div className="flex items-center justify-between px-3 pt-2.5">
         <span className="text-[11px] font-medium text-[#e8e2d2]">{label}</span>
         <span className="text-[9.5px] uppercase tracking-[0.16em] text-[#77796f]">{hint}</span>
@@ -223,14 +223,14 @@ function FrameSlotCard({ slot, frame, busy, disabled, unavailableReason, orphane
         ) : unavailableReason ? (
           <div className="absolute inset-0 grid place-items-center px-3 text-center text-[10.5px] leading-snug text-[#8f9086]"><span><Lock className="mx-auto mb-1 h-3.5 w-3.5 text-gold-400/50" />{unavailableReason}</span></div>
         ) : (
-          <div className="absolute inset-0 grid place-items-center border border-dashed border-gold-400/15 text-[10px] uppercase tracking-[0.2em] text-[#77796f]">Empty</div>
+          <div className="absolute inset-0 grid place-items-center border border-dashed border-line text-[10px] uppercase tracking-[0.2em] text-[#77796f]">Empty</div>
         )}
       </div>
       {orphaned ? <p className="mx-3 mt-2 text-[10.5px] text-amber-100">This End Frame needs a Start Frame before you generate.</p> : null}
       {frame?.sourceType === "previous_shot" && frame.sourceLabel ? <p className="mx-3 mt-1.5 truncate text-[10px] text-[#8f9086]">Chained from {frame.sourceLabel}</p> : null}
       <div className="flex flex-wrap gap-1.5 p-3">
         {frame ? (
-          <div role="radiogroup" aria-label={`${label} influence`} className="flex w-full rounded-lg border border-gold-400/[0.12] bg-black/20 p-0.5">
+          <div role="radiogroup" aria-label={`${label} influence`} className="flex w-full rounded-lg border border-line bg-black/20 p-0.5">
             {FRAME_INFLUENCES.map((influence) => (
               <button key={influence} type="button" role="radio" aria-checked={frame.influence === influence} disabled={disabled} onClick={() => onInfluence(influence)}
                 className={`flex-1 rounded-md py-1 text-[10.5px] capitalize transition ${frame.influence === influence ? "bg-[linear-gradient(135deg,#f3e5c0,#d9c08a)] font-semibold text-[#1a160e]" : "text-[#a3a59a] hover:text-gold-100"}`}>
@@ -250,7 +250,7 @@ function FrameSlotCard({ slot, frame, busy, disabled, unavailableReason, orphane
 function FrameAction({ icon, label, onClick, disabled, title }: { icon: React.ReactNode; label: string; onClick: () => void; disabled: boolean; title?: string }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} title={title}
-      className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-gold-400/15 px-2 py-1.5 text-[11px] text-[#d4cfc0] transition hover:border-gold-400/45 hover:bg-gold-400/[0.08] hover:text-gold-50 disabled:pointer-events-none disabled:opacity-35">
+      className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-line px-2 py-1.5 text-[11px] text-[#d4cfc0] transition hover:border-gold-400/45 hover:bg-gold-400/[0.08] hover:text-gold-50 disabled:pointer-events-none disabled:opacity-35">
       {icon}{label}
     </button>
   )

@@ -107,7 +107,7 @@ export default function ApiKeysPage() {
                     const userKey = userKeys.find(k => k.provider_id === provider.id)
 
                     return (
-                        <div key={provider.id} style={{ "--i": index } as React.CSSProperties} className="lux-lift lux-spotlight rounded-2xl border border-gold-400/[0.12] bg-obsidian-800 p-5 text-[#eeeae1]">
+                        <div key={provider.id} style={{ "--i": index } as React.CSSProperties} className="lux-lift lux-spotlight rounded-2xl border border-line bg-obsidian-800 p-5 text-[#eeeae1]">
                             <div className="relative flex justify-between items-start">
                                 <div className="flex-1">
                                     <div className="flex items-center gap-3">
@@ -148,7 +148,7 @@ export default function ApiKeysPage() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     aria-label={`Open ${provider.name} API access`}
-                                    className="grid size-9 place-items-center rounded-full border border-gold-400/15 text-[#8f9086] transition-all duration-300 hover:border-gold-400/40 hover:text-gold-200"
+                                    className="grid size-9 place-items-center rounded-full border border-line text-[#8f9086] transition-all duration-300 hover:border-gold-400/40 hover:text-gold-200"
                                 >
                                     <ExternalLink size={16} />
                                 </a>

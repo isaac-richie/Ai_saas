@@ -41,7 +41,6 @@ export default async function GalleryPage({
       />
       <div className="workspace-library-heading">
         <div>
-          <span className="workspace-eyebrow">YOUR LIBRARY</span>
           <h2>
             Videos &amp; images <span>{typeof result.error === 'string' ? '' : assets.length}</span>
           </h2>

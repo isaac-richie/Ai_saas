@@ -22,8 +22,8 @@ export async function ElementList({ projectId }: ElementListProps) {
     return (
         <div className="grid gap-3 md:grid-cols-2">
             {elements.map((element) => (
-                <div key={element.id} className="flex gap-3 rounded-2xl border border-gold-400/[0.12] bg-obsidian-950 p-3">
-                    <div className="h-16 w-16 overflow-hidden rounded-xl border border-gold-400/[0.12] bg-white/5">
+                <div key={element.id} className="flex gap-3 rounded-2xl border border-line bg-obsidian-950 p-3">
+                    <div className="h-16 w-16 overflow-hidden rounded-xl border border-line bg-white/5">
                         {element.image_url ? (
                             <img src={element.image_url} alt={element.name} className="h-full w-full object-cover" />
                         ) : (

@@ -30,7 +30,7 @@ export default async function StudioPage(props: StudioPageProps) {
                         <div className="absolute -right-20 top-1/3 h-60 w-60 rounded-full bg-[#b6ddd3]/[0.07] blur-[90px]" />
                     </div>
                     <div className="relative mx-auto max-w-2xl text-center">
-                        <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-gold-400/[0.12] bg-white/10">
+                        <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-line bg-white/10">
                             <Lock className="h-5 w-5 text-white/80" />
                         </div>
                         <Badge className="mb-4 rounded-full border border-gold-400/25 bg-gold-400/[0.07] px-3 text-[10px] font-medium uppercase tracking-[0.22em] text-gold-200">Studio</Badge>
@@ -39,10 +39,10 @@ export default async function StudioPage(props: StudioPageProps) {
                             The Studio workspace is currently locked while we stabilize beta operations. It will be enabled automatically for mainnet release.
                         </p>
                         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                            <Link href="/dashboard/fast-video" className="rounded-xl border border-gold-400/[0.12] bg-white/10 px-4 py-2 text-sm text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
+                            <Link href="/dashboard/fast-video" className="rounded-xl border border-line bg-white/10 px-4 py-2 text-sm text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
                                 Go to Create
                             </Link>
-                            <Link href="/dashboard/gallery" className="rounded-xl border border-gold-400/[0.12] bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-gold-400/[0.08]">
+                            <Link href="/dashboard/gallery" className="rounded-xl border border-line bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-gold-400/[0.08]">
                                 My videos
                             </Link>
                         </div>
@@ -121,7 +121,7 @@ export default async function StudioPage(props: StudioPageProps) {
                             { step: "2", title: "Add your scenes", body: "One scene per place or moment in your story." },
                             { step: "3", title: "Build each shot", body: "Describe it, choose the best image, then animate it into video." },
                         ].map(({ step, title, body }) => (
-                            <li key={step} className="flex gap-4 rounded-2xl border border-gold-400/[0.14] bg-white/[0.02] p-5">
+                            <li key={step} className="flex gap-4 rounded-2xl border border-line bg-white/[0.02] p-5">
                                 <span className="grid size-9 shrink-0 place-items-center rounded-full border border-gold-300/40 text-[15px] text-gold-200">{step}</span>
                                 <span>
                                     <span className="block text-[16px] font-medium text-[#f3eee2]">{title}</span>
@@ -139,21 +139,20 @@ export default async function StudioPage(props: StudioPageProps) {
             {recentScenes.length > 0 ? (
                 <section data-reveal="card" className="space-y-3">
                     <div>
-                        <span className="workspace-eyebrow">PICK UP WHERE YOU LEFT OFF</span>
-                        <h2 className="mt-1 text-2xl font-light tracking-[-0.035em] text-[#f6f1e4]">Recent scenes</h2>
+                        <h2 className="text-2xl font-light tracking-[-0.035em] text-[#f6f1e4]">Recent scenes</h2>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         {recentScenes.map((scene) => (
                             <Link
                                 key={scene.id}
                                 href={`/dashboard/projects/${scene.projectId}/scenes/${scene.id}`}
-                                className="lux-lift group flex flex-col gap-2 rounded-2xl border border-gold-400/[0.14] bg-obsidian-950 p-5 text-white transition hover:border-gold-400/40"
+                                className="lux-lift group flex flex-col gap-2 rounded-2xl border border-line bg-obsidian-950 p-5 text-white transition hover:border-gold-400/40"
                             >
                                 <span className="text-[12px] font-medium text-gold-300/85">{scene.projectName}</span>
                                 <span className="line-clamp-1 text-[17px] text-[#f3eee2]">{scene.name}</span>
-                                <span className="line-clamp-2 text-[14px] text-[#B0B8C4]">{scene.description || "No description yet."}</span>
+                                {scene.description ? <span className="line-clamp-2 text-[14px] text-[#B0B8C4]">{scene.description}</span> : null}
                                 <span className="mt-1 flex items-center justify-between text-[13px] text-[#B0B8C4]">
-                                    {new Date(scene.created_at).toLocaleDateString()}
+                                    {new Date(scene.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
                                     <span className="inline-flex items-center gap-1 text-gold-200 transition-transform group-hover:translate-x-0.5">Open scene <ArrowRight className="size-4" /></span>
                                 </span>
                             </Link>
@@ -165,15 +164,14 @@ export default async function StudioPage(props: StudioPageProps) {
             {projects.length > 0 ? (
                 <section data-reveal="card" className="space-y-3">
                     <div>
-                        <span className="workspace-eyebrow">YOUR FILMS</span>
-                        <h2 className="mt-1 text-2xl font-light tracking-[-0.035em] text-[#f6f1e4]">Film projects <span className="text-[15px] text-[#B0B8C4]">{projects.length}</span></h2>
+                        <h2 className="text-2xl font-light tracking-[-0.035em] text-[#f6f1e4]">Film projects <span className="text-[15px] text-[#B0B8C4]">{projects.length}</span></h2>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         {projects.map((project) => {
                             const scenes = sceneMap.get(project.id) || [];
                             const firstScene = scenes[0];
                             return (
-                                <article key={project.id} className="lux-lift flex flex-col gap-3 rounded-2xl border border-gold-400/[0.14] bg-obsidian-950 p-5 text-white transition hover:border-gold-400/40">
+                                <article key={project.id} className="lux-lift flex flex-col gap-3 rounded-2xl border border-line bg-obsidian-950 p-5 text-white transition hover:border-gold-400/40">
                                     <div>
                                         <h3 className="line-clamp-1 text-[18px] text-[#f3eee2]">{project.name}</h3>
                                         <p className="mt-1 line-clamp-2 text-[14px] text-[#B0B8C4]">{project.description || "No description yet."}</p>

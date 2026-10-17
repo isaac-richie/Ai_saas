@@ -397,7 +397,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                         <button type="button" aria-label="Clear search" onClick={() => setQuery("")} className="absolute right-3 text-[#8f9086] hover:text-gold-100"><X className="h-3.5 w-3.5" /></button>
                     ) : <span className="lux-kbd pointer-events-none absolute right-3">/</span>}
                 </label>
-                <div role="radiogroup" aria-label="Filter by type" className="flex rounded-xl border border-gold-400/[0.12] bg-black/20 p-1">
+                <div role="radiogroup" aria-label="Filter by type" className="flex rounded-xl border border-line bg-black/20 p-1">
                     {([["all", "All", counts.total], ["video", "Videos", counts.videos], ["image", "Images", counts.images]] as const).map(([type, label, count]) => (
                         <button
                             key={type}
@@ -460,7 +460,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                     aria-pressed={selecting ? selected : undefined}
                                     onClick={() => selecting ? toggleSelect(asset.id) : setActiveId(asset.id)}
                                     onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); if (selecting) toggleSelect(asset.id); else setActiveId(asset.id) } }}
-                                    className={`workspace-media-card lux-spotlight gallery-card group relative min-w-0 cursor-pointer overflow-hidden border bg-obsidian-900 duration-500 ${selected ? "!border-gold-300/80 shadow-[0_0_0_1px_rgba(217,192,138,0.4),0_20px_40px_-24px_rgba(217,192,138,0.7)]" : "border-gold-400/[0.12]"}`}
+                                    className={`workspace-media-card lux-spotlight gallery-card group relative min-w-0 cursor-pointer overflow-hidden border bg-obsidian-900 duration-500 ${selected ? "!border-gold-300/80 shadow-[0_0_0_1px_rgba(217,192,138,0.4),0_20px_40px_-24px_rgba(217,192,138,0.7)]" : "border-line"}`}
                                 >
                                     <div className={asset.type === "video" ? "relative aspect-video w-full bg-black" : "relative aspect-[4/5] w-full"}>
                                         <AssetMedia key={previewUrl} asset={asset} previewUrl={previewUrl} variant="thumb" />
@@ -519,13 +519,13 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                 <span className="absolute left-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] tabular-nums text-white/80 backdrop-blur">{activeIndex + 1} / {filteredAssets.length}</span>
                             </div>
 
-                            <div className="flex min-h-0 flex-col border-t border-gold-400/[0.12] bg-[#111311] lg:border-l lg:border-t-0">
-                                <div className="flex items-start justify-between gap-3 border-b border-gold-400/[0.12] p-5">
+                            <div className="flex min-h-0 flex-col border-t border-line bg-[#111311] lg:border-l lg:border-t-0">
+                                <div className="flex items-start justify-between gap-3 border-b border-line p-5">
                                     <div className="min-w-0">
                                         <p className="text-[10px] uppercase tracking-[0.22em] text-gold-300/80">{activeAsset.type === "video" ? "Video" : "Image"}{activeAsset.shotType ? ` · ${activeAsset.shotType}` : ""}</p>
                                         <h3 className="mt-1.5 truncate text-xl font-light tracking-tight text-[#f6f1e4]">{activeAsset.shotName}</h3>
                                     </div>
-                                    <button type="button" aria-label="Close" onClick={() => setActiveId(null)} className="grid size-8 shrink-0 place-items-center rounded-full border border-gold-400/15 text-[#a3a59a] transition hover:rotate-90 hover:border-gold-400/40 hover:text-gold-100"><X className="h-4 w-4" /></button>
+                                    <button type="button" aria-label="Close" onClick={() => setActiveId(null)} className="grid size-8 shrink-0 place-items-center rounded-full border border-line text-[#a3a59a] transition hover:rotate-90 hover:border-gold-400/40 hover:text-gold-100"><X className="h-4 w-4" /></button>
                                 </div>
 
                                 <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
@@ -546,7 +546,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                                 <button type="button" onClick={() => copyPrompt(activeAsset.prompt)} className="inline-flex items-center gap-1 text-[#a3a59a] hover:text-gold-100"><Copy className="h-3 w-3" />Copy</button>
                                             </div>
                                         </div>
-                                        <p className={`mt-2 rounded-xl border border-gold-400/[0.12] bg-black/20 p-3 text-[13px] leading-relaxed text-[#c8c3b3] whitespace-pre-wrap [overflow-wrap:anywhere] ${expandedPrompts[activeAsset.id] ? "max-h-72 overflow-y-auto" : "line-clamp-4"}`}>
+                                        <p className={`mt-2 rounded-xl border border-line bg-black/20 p-3 text-[13px] leading-relaxed text-[#c8c3b3] whitespace-pre-wrap [overflow-wrap:anywhere] ${expandedPrompts[activeAsset.id] ? "max-h-72 overflow-y-auto" : "line-clamp-4"}`}>
                                             {activeAsset.prompt || "No prompt recorded."}
                                         </p>
                                     </div>
@@ -575,7 +575,7 @@ export function MediaGallery({ assets, projectOptions = [], pendingIds = [] }: M
                                     )}
                                 </div>
 
-                                <div className="space-y-3 border-t border-gold-400/[0.12] p-5">
+                                <div className="space-y-3 border-t border-line p-5">
                                     <div className="flex items-center gap-2">
                                         <Input
                                             aria-label="Download file name"

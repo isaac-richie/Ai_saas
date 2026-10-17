@@ -49,7 +49,7 @@ export function GalleryPicker({ open, title, description = "Pick an image, or a 
           <div className="grid max-h-[60vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
             {assets.map((asset) => (
               <button key={asset.id} type="button" onClick={() => asset.type === "video" ? setSelected(asset) : onPick(asset, 0)}
-                className="group relative aspect-video overflow-hidden rounded-lg border border-gold-400/[0.12] bg-black text-left transition hover:border-gold-300/50">
+                className="group relative aspect-video overflow-hidden rounded-lg border border-line bg-black text-left transition hover:border-gold-300/50">
                 {asset.type === "video"
                   ? <video src={sameOriginMediaUrl(asset.url)} muted preload="metadata" className="h-full w-full object-cover" />
                   // eslint-disable-next-line @next/next/no-img-element

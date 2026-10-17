@@ -1,21 +1,20 @@
 import { getShots } from "@/core/actions/shots";
 import { getProjectById } from "@/core/actions/projects";
 import { getScenes } from "@/core/actions/scenes";
-import Link from "next/link";
-import { Check, ChevronRight } from "lucide-react";
+import { Check } from "lucide-react";
 import { getSequences } from "@/core/actions/sequences";
 import { ShotBuilder } from "@/interface/components/shots/ShotBuilder";
 import { ShotList } from "@/interface/components/shots/ShotList";
 import { ElementUpload } from "@/interface/components/shots/ElementUpload";
 import { SequenceList } from "@/interface/components/sequences/SequenceList";
 import { Metadata } from "next";
-import { Badge } from "@/interface/components/ui/badge";
+import { WorkspaceHeading } from "@/interface/components/layout/WorkspaceHeading";
 
 // Server actions on this page (image generation) can wait on a provider.
 export const maxDuration = 300;
 
 export const metadata: Metadata = {
-    title: "Scene Builder | AI Cinematography Dashboard",
+    title: "Scene",
 };
 
 interface ScenePageProps {
@@ -44,50 +43,41 @@ export default async function ScenePage(props: ScenePageProps) {
     ];
     const currentStep = steps.findIndex((step) => !step.done);
 
+    const panel = "rounded-2xl border border-line bg-white/[0.02] p-5 text-white";
+
     return (
-        <div className="mx-auto w-full max-w-7xl space-y-6 py-2 md:py-3">
-            <section data-reveal="hero" className="rounded-3xl lux-glass lux-hairline p-5 text-white md:p-6">
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <Badge className="mb-3 rounded-full border border-gold-400/25 bg-gold-400/[0.07] px-3 text-[10px] font-medium uppercase tracking-[0.22em] text-gold-200">Scene Builder</Badge>
-                        <h1 className="text-3xl font-light tracking-[-0.04em] text-[#f6f1e4] md:text-[42px] md:leading-[1.08]">Compose your shot sequence</h1>
-                        <p className="mt-2 max-w-2xl text-sm text-white/50 md:text-base">
-                            Define camera language, generate visuals, and iterate quickly with cinematic consistency.
-                        </p>
-                    </div>
-<nav aria-label="Breadcrumb" className="flex items-center gap-1.5 rounded-full border border-gold-400/[0.12] bg-white/5 px-3.5 py-1.5 text-xs text-white/55">
-                        <Link href={`/dashboard/projects/${params.id}`} className="max-w-[12rem] truncate transition hover:text-gold-100">{projectName}</Link>
-                        <ChevronRight className="h-3 w-3 text-white/30" />
-                        <span className="max-w-[12rem] truncate text-[#f1ece0]">{sceneName}</span>
-                    </nav>
-                </div>
+        <div className="workspace-page">
+            <WorkspaceHeading
+                label="SCENE"
+                crumbs={[{ label: "Studio", href: "/dashboard/studio" }, { label: projectName, href: `/dashboard/projects/${params.id}` }]}
+                title={sceneName}
+                description="Describe each shot, choose the best image, then bring it to life."
+            />
 
-                <div className="mt-8 grid gap-8 xl:grid-cols-3 min-w-0">
-                    <section data-reveal="card" className="space-y-8 xl:col-span-2 min-w-0">
-                    <div>
-                        <ShotBuilder projectId={params.id} sceneId={params.sceneId} shots={shots} sequences={sequences} />
-                    </div>
+            <div className="grid min-w-0 gap-8 xl:grid-cols-3">
+                <section data-reveal="card" className="min-w-0 space-y-10 xl:col-span-2">
+                    <ShotBuilder projectId={params.id} sceneId={params.sceneId} shots={shots} sequences={sequences} />
 
                     <div>
-                        <h2 className="text-lg font-semibold">Shot list <span className="text-white/40">({shots.length})</span></h2>
-                        <p className="mb-3 text-xs text-white/40">Every shot and experiment in this scene. Only what you add to a sequence goes into the final cut.</p>
+                        <h2 className="text-[17px] font-medium text-[#f3eee2]">Shot list <span className="font-normal text-[#9aa1ab]">{shots.length}</span></h2>
+                        <p className="mb-4 mt-1 text-[13px] text-[#9aa1ab]">Every shot and experiment in this scene. Only what you add to a sequence goes into the final cut.</p>
                         <ShotList projectId={params.id} sceneId={params.sceneId} shots={shots} sequences={sequences} />
                     </div>
                 </section>
 
                 <aside data-reveal="card" className="space-y-4">
-                    <div className="rounded-2xl lux-glass lux-hairline p-4 text-white">
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Your progress</h3>
-                        <ol className="mt-3 space-y-2 text-sm">
+                    <div className={panel}>
+                        <h2 className="text-[15px] font-medium text-[#f3eee2]">Your progress</h2>
+                        <ol className="mt-4 space-y-3 text-[14px]">
                             {steps.map((step, index) => (
-                                <li key={step.label} className={`flex items-center gap-2.5 ${step.done ? "text-white/45" : index === currentStep ? "text-[#f1ece0]" : "text-white/40"}`}>
-                                    <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
-                                        step.done ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-200" : index === currentStep ? "border-gold-300/50 bg-gold-400/15 text-gold-100" : "border-gold-400/[0.12] bg-white/5 text-white/50"
+                                <li key={step.label} className={`flex items-center gap-3 ${step.done ? "text-[#9aa1ab]" : index === currentStep ? "text-[#f3eee2]" : "text-[#9aa1ab]"}`}>
+                                    <span className={`inline-flex size-6 shrink-0 items-center justify-center rounded-full border text-[12px] ${
+                                        step.done ? "border-emerald-300/40 bg-emerald-400/15 text-emerald-200" : index === currentStep ? "border-gold-300/60 text-gold-100" : "border-line text-[#9aa1ab]"
                                     }`}>
-                                        {step.done ? <Check className="h-3 w-3" /> : index + 1}
+                                        {step.done ? <Check className="size-3.5" /> : index + 1}
                                     </span>
                                     <span className={step.done ? "line-through decoration-white/20" : undefined}>{step.label}</span>
-                                    {index === currentStep ? <span className="ml-auto text-[10px] uppercase tracking-[0.16em] text-gold-300/80">Next</span> : null}
+                                    {index === currentStep ? <span className="ml-auto rounded-full bg-gold-400/[0.1] px-2 py-0.5 text-[11.5px] text-gold-200">Next</span> : null}
                                 </li>
                             ))}
                         </ol>
@@ -95,15 +85,14 @@ export default async function ScenePage(props: ScenePageProps) {
 
                     <ElementUpload projectId={params.id} />
 
-                    <div className="rounded-2xl lux-glass lux-hairline p-4 text-white">
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Sequences</h3>
+                    <div className={panel}>
+                        <h2 className="text-[15px] font-medium text-[#f3eee2]">Sequences</h2>
                         <div className="mt-3">
                             <SequenceList sequences={sequences} />
                         </div>
                     </div>
                 </aside>
-                </div>
-            </section>
+            </div>
         </div>
     );
 }

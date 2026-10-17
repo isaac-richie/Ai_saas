@@ -66,7 +66,7 @@ export function ContinuityPanel({
 }: ContinuityPanelProps) {
   const activeCount = CONTINUITY_LOCKS.filter((item) => continuityChannelState(item.key, locks, values, sources, references).active).length
   return (
-    <section aria-label="Continuity guidance" className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-3">
+    <section aria-label="Continuity guidance" className="space-y-2 rounded-xl border border-line bg-white/[0.03] p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-[12px] font-medium text-[#d6d0c0]">Continuity guidance</p>
@@ -82,7 +82,7 @@ export function ContinuityPanel({
           className={`h-8 shrink-0 rounded-full border px-3 text-[11px] font-medium transition ${
             enabled
               ? "border-gold-300/40 bg-gold-500/15 text-gold-100"
-              : "border-gold-400/[0.12] bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
+              : "border-line bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
           }`}
         >
           {enabled ? "Enabled" : "Disabled"}
@@ -106,7 +106,7 @@ export function ContinuityPanel({
                     ? "border-gold-300/60 bg-gold-500/15 text-gold-50"
                     : locked
                       ? "border-dashed border-gold-400/35 bg-white/[0.03] text-gold-100/90"
-                      : "border-gold-400/[0.12] bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
+                      : "border-line bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
                 }`}
               >
                 {item.label}
@@ -121,7 +121,7 @@ export function ContinuityPanel({
                     placeholder={source ? "Optional note" : `Describe the ${item.label.toLowerCase()} to keep`}
                     aria-label={`${item.label} lock description`}
                     disabled={!enabled || !locked}
-                    className="h-9 min-w-0 flex-1 rounded-lg border-gold-400/[0.12] bg-white/5 text-[12px] text-white placeholder:text-white/40 disabled:opacity-45"
+                    className="h-9 min-w-0 flex-1 rounded-lg border-line bg-white/5 text-[12px] text-white placeholder:text-white/40 disabled:opacity-45"
                   />
                   <label className="relative">
                     <span className="sr-only">{item.label} reference</span>
@@ -130,7 +130,7 @@ export function ContinuityPanel({
                       onChange={(event) => onChangeSource(item.key, event.target.value)}
                       disabled={!enabled || !locked || options.length === 0}
                       title={options.length === 0 ? "Add an image reference to lock this to it" : "Lock to a reference"}
-                      className="h-9 w-[104px] appearance-none rounded-lg border border-gold-400/[0.12] bg-white/5 pl-7 pr-2 text-[11.5px] text-white disabled:opacity-45 [color-scheme:dark]"
+                      className="h-9 w-[104px] appearance-none rounded-lg border border-line bg-white/5 pl-7 pr-2 text-[11.5px] text-white disabled:opacity-45 [color-scheme:dark]"
                     >
                       <option value="">No image</option>
                       {options.map((ref) => (

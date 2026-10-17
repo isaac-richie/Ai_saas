@@ -12,8 +12,8 @@
   --ws-text: #eeeae1;
   --ws-muted: #b4b7b6;
   --ws-faint: #979a96;
-  --ws-line: #d9c08a17;
-  --ws-line-strong: #d9c08a2e;
+  --ws-line: rgb(255 255 255 / 0.07);
+  --ws-line-strong: rgb(255 255 255 / 0.12);
   --ws-accent: #d9c08a;
   --ws-accent-soft: #d9c08a14;
   --ws-accent-hi: #f3e5c0;
@@ -361,7 +361,7 @@
 .studio-workspace [data-variant='studioSecondary']:not([data-slot='badge'], [data-slot='tabs-list']),
 .studio-workspace [data-variant='outline']:not([data-slot='badge'], [data-slot='tabs-list']) {
   background: linear-gradient(180deg, #ffffff07, #ffffff02);
-  border: 1px solid #d9c08a26;
+  border: 1px solid rgb(255 255 255 / 0.1);
   color: #dcd7c9;
   box-shadow: inset 0 1px 0 #ffffff08;
 }
@@ -404,7 +404,7 @@
 .studio-workspace
   :is(input:not([type='checkbox']):not([type='range']):not([type='radio']), textarea, select, [data-slot='select-trigger']) {
   background: #0e100e;
-  border-color: #d9c08a24;
+  border-color: rgb(255 255 255 / 0.09);
   color: var(--ws-text);
   border-radius: 10px;
   box-shadow: inset 0 1px 2px #0000004d;
@@ -434,7 +434,7 @@
 }
 .studio-workspace .studio-field {
   background: #0e100e;
-  border-color: #d9c08a24;
+  border-color: rgb(255 255 255 / 0.09);
 }
 .studio-workspace input[type='range'] {
   accent-color: var(--ws-accent);
@@ -455,9 +455,9 @@
 [data-slot='dialog-content'],
 [data-slot='popover-content'],
 [data-slot='select-content'] {
-  border-color: #d9c08a26 !important;
+  border-color: rgb(255 255 255 / 0.1) !important;
   background:
-    linear-gradient(180deg, #d9c08a0a, transparent 40%),
+    linear-gradient(180deg, #ffffff06, transparent 40%),
     #111311f7 !important;
   color: #eeeae1;
   box-shadow:
@@ -518,6 +518,19 @@
 .workspace-heading .workspace-actions {
   animation: luxRise 0.8s var(--ws-ease) 0.22s both;
 }
+.workspace-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--ws-faint);
+}
+.workspace-crumbs > span { display: inline-flex; align-items: center; gap: 8px; max-width: 22rem; }
+.workspace-crumbs > span:not(:last-child)::after { content: '/'; color: rgb(255 255 255 / 0.22); }
+.workspace-crumbs a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color 0.2s; }
+.workspace-crumbs a:hover { color: #f3e5c0; }
 .workspace-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -616,7 +629,7 @@
   transform: translateX(120%);
 }
 .workspace-secondary-link {
-  border: 1px solid #d9c08a2e;
+  border: 1px solid rgb(255 255 255 / 0.12);
   color: #dcd7c9;
   background: #ffffff04;
 }
@@ -820,6 +833,7 @@
 
 /* ─── Sections ─────────────────────────────────────────────────── */
 .workspace-section {
+  margin-top: 48px;
   margin-bottom: 36px;
 }
 .workspace-section-title {
@@ -1352,11 +1366,12 @@
 :where(.studio-workspace) .text-\[\#a3a59a\] {
   color: #b0b8c4;
 }
+/* Readable minimums: micro labels never drop below 11px on desktop or 12px on phones,
+   and body-size text is at least 13px on phones. */
+:where(.studio-workspace) :is(.text-\[9px\], .text-\[9\.5px\], .text-\[10px\]) { font-size: 11px; }
 @media (max-width: 767px) {
-  /* Phones: tiny labels grow to a readable minimum. */
-  :where(.studio-workspace) :is(.text-\[9px\], .text-\[9\.5px\]) { font-size: 10.5px; }
-  :where(.studio-workspace) :is(.text-\[10px\], .text-\[10\.5px\]) { font-size: 11.5px; }
-  :where(.studio-workspace) .text-xs { font-size: 12.5px; }
+  :where(.studio-workspace) :is(.text-\[9px\], .text-\[9\.5px\], .text-\[10px\], .text-\[10\.5px\], .text-\[11px\]) { font-size: 12px; }
+  :where(.studio-workspace) :is(.text-xs, .text-\[11\.5px\], .text-\[12px\], .text-\[12\.5px\]) { font-size: 13px; }
 }
 }
 
@@ -1406,7 +1421,7 @@
   background-position: right 12px center, 0 0;
   background-size: 12px 12px, 100% 100%;
   padding-right: 34px !important;
-  border: 1px solid rgba(217, 192, 138, 0.2) !important;
+  border: 1px solid rgb(255 255 255 / 0.1) !important;
   border-radius: 12px !important;
   color: #f1ecdf !important;
   color-scheme: dark;
@@ -1452,8 +1467,8 @@
 .studio-workspace table { border-collapse: separate; border-spacing: 0; width: 100%; }
 .studio-workspace thead th {
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
-  color: #cbb47f; background: rgba(217, 192, 138, 0.04);
-  border-bottom: 1px solid rgba(217, 192, 138, 0.16);
+  color: #b9bfc8; background: rgba(255, 255, 255, 0.025);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
 }
 .studio-workspace tbody tr { transition: background 0.2s; }
 .studio-workspace tbody tr:hover { background: rgba(217, 192, 138, 0.045); }
@@ -1471,21 +1486,44 @@
   outline-offset: 2px;
 }
 
-/* ─── Create: each control section is its own card ─────────────── */
+/* ─── Create: one calm surface ─────────────────────────────────────
+   The setup column is a single panel; sections are separated by hairlines, never boxed
+   inside boxes. On phones the panel dissolves into the page so content uses the full width. */
 .studio-workspace .workspace-setup-panel {
-  background: linear-gradient(180deg, rgba(20, 22, 20, 0.92), rgba(12, 13, 12, 0.92));
-  border-color: rgba(217, 192, 138, 0.14);
+  background: linear-gradient(180deg, rgba(20, 22, 20, 0.9), rgba(12, 13, 12, 0.9));
+  border-color: var(--ws-line);
 }
 .studio-workspace .workspace-setup-panel .workspace-control-section {
-  border: 1px solid rgba(217, 192, 138, 0.12);
-  border-radius: 18px;
-  padding: 16px;
-  background:
-    radial-gradient(120% 80% at 0% 0%, rgba(217, 192, 138, 0.05), transparent 60%),
-    rgba(255, 255, 255, 0.015);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  border: 0;
+  border-bottom: 1px solid var(--ws-line);
+  border-radius: 0;
+  padding: 22px 0;
+  background: transparent;
+  box-shadow: none;
 }
-.studio-workspace .workspace-setup-panel .workspace-control-section:last-child { border-bottom: 1px solid rgba(217, 192, 138, 0.12); }
+.studio-workspace .workspace-setup-panel .workspace-control-section:first-child { padding-top: 4px; }
+.studio-workspace .workspace-setup-panel .workspace-control-section:last-child { border-bottom: 0; }
 @media (max-width: 767px) {
-  .studio-workspace .workspace-setup-panel .workspace-control-section { padding: 14px; border-radius: 16px; }
+  .studio-workspace .workspace-setup-panel {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    backdrop-filter: none;
+    box-shadow: none;
+    padding-block: 0;
+  }
+  .studio-workspace .workspace-setup-panel > [data-slot='card-content'] { padding-inline: 0; }
+}
+
+/* Phones: before anything is made, the preview header says where the video will play;
+   the empty frame below it only pushes More tools out of reach. */
+@media (max-width: 767px) {
+  .studio-workspace .workspace-preview-panel[data-idle='true'] [data-slot='card-content'] > :first-child { display: none; }
+}
+
+/* Phones: section titles sit above their actions instead of squeezing beside them. */
+@media (max-width: 767px) {
+  .workspace-section-title { flex-wrap: wrap; align-items: center; gap: 12px; }
+  .workspace-section-title > div:last-child { width: 100%; justify-content: space-between; }
+  .workspace-section-title .workspace-text-link { white-space: nowrap; }
 }

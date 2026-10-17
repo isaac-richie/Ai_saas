@@ -32,7 +32,7 @@ export function CampaignAssetMeta({ references, characterReferenceId, productRef
     <div className="mt-2.5 space-y-2">
       <div className="flex flex-wrap items-center gap-1 empty:hidden">
         {characterActive ? (
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${characterLocked ? "bg-gold-400/15 text-gold-100" : "border border-gold-400/15 text-[#a3a59a]"}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${characterLocked ? "bg-gold-400/15 text-gold-100" : "border border-line text-[#a3a59a]"}`}>
             <UserRound className="h-2.5 w-2.5" />{references.character?.name}{characterLocked ? <Lock className="h-2.5 w-2.5" /> : null}
           </span>
         ) : null}
@@ -49,7 +49,7 @@ export function CampaignAssetMeta({ references, characterReferenceId, productRef
         </div>
       ) : null}
       {completed ? (
-        <details className="rounded-lg border border-gold-400/[0.12] bg-black/20 px-2.5 py-1.5">
+        <details className="rounded-lg border border-line bg-black/20 px-2.5 py-1.5">
           <summary className="flex cursor-pointer select-none items-center justify-between text-[10.5px] text-[#c8c3b3]">
             <span className="flex items-center gap-1.5"><ShieldAlert className="h-3 w-3 text-gold-400" />Review before publishing</span>
             <span className={flagged ? "text-amber-200" : "text-[#8f9086]"}>{flagged ? `${flagged} flagged` : `${reviewed}/${checks.length} checked`}</span>

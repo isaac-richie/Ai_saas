@@ -410,9 +410,8 @@ test('repairs that reuse paid departments also keep the paid extraction stage', 
 // ─── UI contract ────────────────────────────────────────────────────────
 test('production desk label matches the seven calls that actually run', () => {
   const desk = read('../src/interface/components/fast-video/ProductionDesk.tsx')
-  assert.match(desk, /CREW \/ 07/)
-  assert.match(desk, /Continuity · Camera · Light<br \/>Design · Performance · Edit · Review/)
-  assert.doesNotMatch(desk, /Story · Camera/)
+  assert.match(desk, /A crew of seven AI specialists \(continuity, camera, light, design, performance, edit and review\)/)
+  assert.doesNotMatch(desk, /\(story, /i)
   assert.match(desk, /step < 10/, 'client loop covers seven stages plus a reference reset')
 })
 

@@ -45,7 +45,7 @@ export function CreateProjectDialog() {
                     New film project
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] border-gold-400/[0.12] bg-obsidian-800 text-white">
+            <DialogContent className="sm:max-w-[425px] border-line bg-obsidian-800 text-white">
                 <form action={onSubmit} autoComplete="off">
                     <DialogHeader>
                         <DialogTitle>New film project</DialogTitle>
@@ -62,7 +62,7 @@ export function CreateProjectDialog() {
                                 autoComplete="new-password"
                                 placeholder="e.g. Summer lookbook"
                                 required
-                                className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
+                                className="rounded-xl border-line bg-white/5 text-white placeholder:text-white/35"
                             />
                         </div>
                         <div className="grid gap-2">
@@ -72,12 +72,12 @@ export function CreateProjectDialog() {
                                 name="description"
                                 autoComplete="off"
                                 placeholder="e.g. A 30-second fashion film shot at golden hour"
-                                className="rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
+                                className="rounded-xl border-line bg-white/5 text-white placeholder:text-white/35"
                             />
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button type="submit" disabled={loading} className="rounded-xl border border-gold-400/[0.12] bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
+                        <Button type="submit" disabled={loading} className="rounded-xl border border-line bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Create project
                         </Button>
