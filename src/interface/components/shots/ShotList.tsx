@@ -400,24 +400,21 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
 
     if (shots.length === 0) {
         return (
-            <div className="rounded-2xl border border-dashed border-gold-400/20 bg-obsidian-900 p-4">
-                <div className="mb-3 text-xs uppercase tracking-[0.16em] text-white/45">Shot Board</div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
-                        <div className="h-3 w-24 lux-shimmer rounded" />
-                        <div className="mt-3 aspect-video lux-shimmer rounded-lg" />
-                    </div>
-                    <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
-                        <div className="h-3 w-20 lux-shimmer rounded" />
-                        <div className="mt-3 aspect-video lux-shimmer rounded-lg" />
-                    </div>
-                    <div className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
-                        <div className="h-3 w-28 lux-shimmer rounded" />
-                        <div className="mt-3 aspect-video lux-shimmer rounded-lg" />
-                    </div>
+            <div className="relative overflow-hidden rounded-[22px] border border-gold-400/[0.14] bg-[radial-gradient(120%_90%_at_50%_0%,rgba(217,192,138,0.08),transparent_60%),linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.008))] px-5 py-10 text-center sm:py-14">
+                <div className="mx-auto mb-5 flex w-fit items-end gap-2" aria-hidden>
+                    {[0, 1, 2].map((frame) => (
+                        <span
+                            key={frame}
+                            className={`grid aspect-video place-items-center rounded-lg border border-gold-400/20 bg-black/40 ${frame === 1 ? "w-24 -translate-y-1 border-gold-300/40 shadow-[0_18px_40px_-20px_rgba(217,192,138,0.7)]" : "w-16 opacity-60"}`}
+                        >
+                            {frame === 1 ? <Camera className="size-5 text-gold-200" /> : null}
+                        </span>
+                    ))}
                 </div>
-                <p className="mt-4 text-sm text-white/55">
-                    No shots added yet. Build your first shot in the panel above and it will appear here.
+                <p className="text-[10.5px] font-medium uppercase tracking-[0.22em] text-gold-300/80">Shot board</p>
+                <h3 className="mt-2 text-xl font-light tracking-[-0.03em] text-[#f6f1e4] sm:text-2xl">No shots yet</h3>
+                <p className="mx-auto mt-2 max-w-sm text-[13.5px] leading-relaxed text-[#B0B8C4]">
+                    Describe your first shot in the panel above. Each one lands here, ready to preview and generate.
                 </p>
             </div>
         )

@@ -2472,8 +2472,6 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     <div className="workspace-builder-grid">
       <Card className={setupCardClass}>
         <CardContent className="space-y-5 px-4 pb-5 pt-0 sm:px-5">
-          <button type="button" disabled={isGenerating} onClick={() => void handleGenerate(true)} className="text-sm text-gold-200 underline">Preview final request without generating</button>
-          {requestPreview && <details open className="rounded-lg border border-white/20 p-3 text-sm"><summary>Request preview · {requestPreview.model}</summary><p className="whitespace-pre-wrap">{requestPreview.prompt}</p><ul>{requestPreview.referenceDelivery.map((item, index) => <li key={index}>{item.label}: {item.as}</li>)}</ul><p className="text-xs text-white/60">Preview reflects settings when requested. Refresh after editing.</p></details>}
           <div className={sectionClass}>
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
@@ -2697,14 +2695,14 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             {campaignHistory.length > 0 ? (
               <div className="space-y-1.5 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Recent Campaigns</p>
+                  <p className="text-[10.5px] font-medium uppercase tracking-[0.2em] text-gold-300/80">Recent ad sets</p>
                   <span className="text-[10px] text-white/40">{campaignHistory.length}</span>
                 </div>
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
                   {campaignHistory.map((campaign) => (
                     <div
                       key={campaign.id}
-                      className={`min-w-[190px] rounded-lg border p-2 ${
+                      className={`min-w-[190px] rounded-xl border p-2.5 transition ${
                         campaignId === campaign.id
                           ? "border-gold-300/35 bg-gold-500/10"
                           : "border-gold-400/[0.12] bg-black/20"
@@ -2719,7 +2717,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => void handleDeleteCampaign(campaign.id)}
-                        className="mt-2 h-7 rounded-md border border-rose-300/20 bg-rose-500/10 px-2 text-[10px] text-rose-100 hover:bg-rose-500/20"
+                        className="mt-2 h-7 rounded-lg px-2 text-[11px] text-[#9aa1ab] hover:bg-rose-500/15 hover:text-rose-200"
                       >
                         <Trash2 className="mr-1 h-3 w-3" />
                         Delete
@@ -2746,19 +2744,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               onBusy={setIsCampaignReferenceBusy}
               disabled={isPlanningCampaign || isGeneratingCampaign}
             />
-            <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-              <div className="space-y-1.5">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Assets</p>
-                <div className="grid grid-cols-4 gap-1.5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[12px] font-medium text-[#B0B8C4]">How many ads</p>
+                <div role="radiogroup" aria-label="How many ads" className="grid grid-cols-4 gap-1 rounded-xl border border-white/[0.07] bg-black/30 p-1">
                   {[2, 3, 4, 5].map((count) => (
                     <button
                       key={count}
                       type="button"
+                      role="radio"
+                      aria-checked={campaignAssetCount === count}
                       onClick={() => setCampaignAssetCount(count)}
-                      className={`h-9 rounded-lg border text-xs transition ${
+                      className={`h-8 min-w-10 rounded-lg text-[13px] font-medium transition ${
                         campaignAssetCount === count
-                          ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
-                          : "border-gold-400/[0.12] bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
+                          ? "bg-[linear-gradient(135deg,#f3e5c0,#d9c08a)] text-[#1a160e] shadow-[0_8px_20px_-12px_rgba(217,192,138,0.9)]"
+                          : "text-[#B0B8C4] hover:bg-white/[0.05] hover:text-white"
                       }`}
                     >
                       {count}
@@ -2768,13 +2768,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </div>
               <Button
                 type="button"
-                variant="liquidMetalCyan"
+                variant="studio"
                 onClick={handlePlanCampaign}
                 disabled={isPlanningCampaign}
-                className="h-9 px-3 text-xs"
+                className="h-11 w-full rounded-xl text-[13.5px]"
               >
-                {isPlanningCampaign ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ListChecks className="mr-1.5 h-3.5 w-3.5" />}
-                Plan
+                {isPlanningCampaign ? <Loader2 className="mr-2 size-4 animate-spin" /> : <ListChecks className="mr-2 size-4" />}
+                {isPlanningCampaign ? "Planning your ads…" : `Plan ${campaignAssetCount} ads`}
               </Button>
             </div>
             {campaignPlan ? (
@@ -2964,6 +2964,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             </div>
           </details>
 
+          <button type="button" disabled={isGenerating} onClick={() => void handleGenerate(true)} className="flex items-center gap-1.5 text-[12.5px] text-[#B0B8C4] underline decoration-gold-400/40 underline-offset-4 transition hover:text-gold-100">See exactly what will be sent (free preview)</button>
+          {requestPreview && <details open className="rounded-lg border border-white/20 p-3 text-sm"><summary>Request preview · {requestPreview.model}</summary><p className="whitespace-pre-wrap">{requestPreview.prompt}</p><ul>{requestPreview.referenceDelivery.map((item, index) => <li key={index}>{item.label}: {item.as}</li>)}</ul><p className="text-xs text-white/60">Preview reflects settings when requested. Refresh after editing.</p></details>}
           <div className="workspace-generate-bar sticky bottom-0 z-10 rounded-2xl bg-obsidian-950/95 p-4 shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.95)] backdrop-blur-xl">
             <span className={`block rounded-2xl ${isGenerating ? "" : "lux-ring-glow"}`}>
               <Button

@@ -191,12 +191,12 @@ function ReferenceSlot({ kind, reference, busy, disabled, onUpload, onGallery, o
   const Icon = kind === "character" ? UserRound : Package
   const label = kind === "character" ? "Character" : "Product"
   return (
-    <div className={`rounded-xl border p-2.5 transition-colors ${reference ? "border-gold-300/40 bg-gold-400/[0.04]" : "border-dashed border-gold-400/20 bg-white/[0.02]"}`}>
+    <div className={`rounded-2xl border p-3 transition-colors ${reference ? "border-gold-300/40 bg-[linear-gradient(180deg,rgba(217,192,138,0.07),rgba(217,192,138,0.02))]" : "border-white/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]"}`}>
       <div className="flex items-center justify-between">
-        <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-medium text-[#e8e2d2]"><Icon className="h-3.5 w-3.5 shrink-0 text-gold-400" />{label}</span>
+        <span className="flex min-w-0 items-center gap-2 text-[13px] font-medium text-[#ece6d6]"><span className="grid size-7 shrink-0 place-items-center rounded-lg bg-gold-400/[0.1] text-gold-300"><Icon className="size-3.5" /></span>{label}</span>
         {reference
           ? <button type="button" onClick={onRemove} disabled={disabled} className="text-[10.5px] text-[#8f9086] hover:text-red-200">Remove</button>
-          : <span className="ml-2 shrink-0 text-[9.5px] uppercase tracking-[0.16em] text-[#77796f]">Optional</span>}
+          : <span className="ml-2 shrink-0 rounded-full border border-white/[0.08] px-2 py-0.5 text-[10px] text-[#9aa1ab]">Optional</span>}
       </div>
       {reference ? (
         <div className="mt-2 flex gap-1.5">
@@ -215,7 +215,7 @@ function ReferenceSlot({ kind, reference, busy, disabled, onUpload, onGallery, o
       ) : busy ? (
         <div className="lux-shimmer mt-2 h-12 rounded-lg" />
       ) : (
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
           <SourceButton icon={<Upload className="h-3 w-3" />} label={`Add ${label.toLowerCase()}`} onClick={onUpload} disabled={disabled} primary />
           <SourceButton icon={<Images className="h-3 w-3" />} label="My videos" onClick={onGallery} disabled={disabled} />
           <SourceButton icon={<History className="h-3 w-3" />} label="Saved" onClick={onSaved} disabled={disabled} />
@@ -234,7 +234,7 @@ function ReferenceSlot({ kind, reference, busy, disabled, onUpload, onGallery, o
 function SourceButton({ icon, label, onClick, disabled, primary }: { icon: React.ReactNode; label: string; onClick: () => void; disabled: boolean; primary?: boolean }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled}
-      className={`inline-flex min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] transition disabled:opacity-40 ${primary ? "flex-[1_1_100%] border-gold-300/40 bg-gold-400/10 text-gold-50 hover:bg-gold-400/20" : "border-gold-400/15 text-[#c8c3b3] hover:border-gold-400/45 hover:text-gold-100"}`}>
+      className={`inline-flex min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-xl border px-3 text-[12px] transition disabled:opacity-40 ${primary ? "h-10 flex-[1_1_100%] border-gold-300/40 bg-gold-400/[0.1] font-medium text-gold-50 hover:bg-gold-400/20" : "h-9 flex-1 border-white/[0.08] bg-black/20 text-[#c8c3b3] hover:border-gold-400/45 hover:text-gold-100"}`}>
       {icon}{label}
     </button>
   )

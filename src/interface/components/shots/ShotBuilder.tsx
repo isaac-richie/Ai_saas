@@ -677,11 +677,11 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                             ) : null}
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating} className="h-11 flex-1 px-6 text-[13px] font-semibold sm:flex-none">
+                                <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating} className="h-11 flex-[1_1_100%] px-6 text-[13px] font-semibold sm:flex-none">
                                     {isSaving || isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     {isGenerating ? "Generating images…" : isSaving ? "Preparing…" : "Generate image"}
                                 </Button>
-                                <Button type="button" variant="studioSecondary" onClick={() => void handleEnhance()} disabled={isEnhancing || isSaving || isGenerating} className="h-11">
+                                <Button type="button" variant="studioSecondary" onClick={() => void handleEnhance()} disabled={isEnhancing || isSaving || isGenerating} className="h-11 flex-1 sm:flex-none">
                                     {isEnhancing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                     Enhance with AI
                                 </Button>

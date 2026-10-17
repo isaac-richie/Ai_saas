@@ -319,9 +319,9 @@
 .studio-workspace [data-slot='button']:not(:disabled):active {
   transform: translateY(1px) scale(0.985);
 }
-.studio-workspace [data-variant='studio'],
-.studio-workspace [data-variant='liquidMetalPrimary'],
-.studio-workspace [data-variant='default']:not([class*='red-']):not([class*='rose-']) {
+.studio-workspace [data-variant='studio']:not([data-slot='badge'], [data-slot='tabs-list']),
+.studio-workspace [data-variant='liquidMetalPrimary']:not([data-slot='badge'], [data-slot='tabs-list']),
+.studio-workspace [data-variant='default']:not([data-slot='badge'], [data-slot='tabs-list']):not([class*='red-']):not([class*='rose-']) {
   position: relative;
   overflow: hidden;
   background: linear-gradient(135deg, #f3e5c0 0%, #d9c08a 52%, #c3a265 100%);
@@ -333,9 +333,9 @@
     inset 0 -1px 0 #0000001f,
     0 10px 28px -14px #d9c08a99;
 }
-.studio-workspace [data-variant='studio']::after,
-.studio-workspace [data-variant='liquidMetalPrimary']::after,
-.studio-workspace [data-variant='default']:not([class*='red-']):not([class*='rose-'])::after {
+.studio-workspace [data-variant='studio']:not([data-slot='badge'], [data-slot='tabs-list'])::after,
+.studio-workspace [data-variant='liquidMetalPrimary']:not([data-slot='badge'], [data-slot='tabs-list'])::after,
+.studio-workspace [data-variant='default']:not([data-slot='badge'], [data-slot='tabs-list']):not([class*='red-']):not([class*='rose-'])::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -344,30 +344,30 @@
   transform: translateX(-120%);
   transition: transform 0.85s var(--ws-ease);
 }
-.studio-workspace [data-variant='studio']:not(:disabled):hover,
-.studio-workspace [data-variant='liquidMetalPrimary']:not(:disabled):hover,
-.studio-workspace [data-variant='default']:not([class*='red-']):not([class*='rose-']):not(:disabled):hover {
+.studio-workspace [data-variant='studio']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover,
+.studio-workspace [data-variant='liquidMetalPrimary']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover,
+.studio-workspace [data-variant='default']:not([data-slot='badge'], [data-slot='tabs-list']):not([class*='red-']):not([class*='rose-']):not(:disabled):hover {
   transform: translateY(-1px);
   box-shadow:
     inset 0 1px 0 #ffffffb0,
     0 16px 36px -14px #d9c08ab3;
 }
-.studio-workspace [data-variant='studio']:not(:disabled):hover::after,
-.studio-workspace [data-variant='liquidMetalPrimary']:not(:disabled):hover::after,
-.studio-workspace [data-variant='default']:not([class*='red-']):not([class*='rose-']):not(:disabled):hover::after {
+.studio-workspace [data-variant='studio']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover::after,
+.studio-workspace [data-variant='liquidMetalPrimary']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover::after,
+.studio-workspace [data-variant='default']:not([data-slot='badge'], [data-slot='tabs-list']):not([class*='red-']):not([class*='rose-']):not(:disabled):hover::after {
   transform: translateX(120%);
 }
-.studio-workspace [data-variant='liquidMetal'],
-.studio-workspace [data-variant='studioSecondary'],
-.studio-workspace [data-variant='outline'] {
+.studio-workspace [data-variant='liquidMetal']:not([data-slot='badge'], [data-slot='tabs-list']),
+.studio-workspace [data-variant='studioSecondary']:not([data-slot='badge'], [data-slot='tabs-list']),
+.studio-workspace [data-variant='outline']:not([data-slot='badge'], [data-slot='tabs-list']) {
   background: linear-gradient(180deg, #ffffff07, #ffffff02);
   border: 1px solid #d9c08a26;
   color: #dcd7c9;
   box-shadow: inset 0 1px 0 #ffffff08;
 }
-.studio-workspace [data-variant='liquidMetal']:not(:disabled):hover,
-.studio-workspace [data-variant='studioSecondary']:not(:disabled):hover,
-.studio-workspace [data-variant='outline']:not(:disabled):hover {
+.studio-workspace [data-variant='liquidMetal']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover,
+.studio-workspace [data-variant='studioSecondary']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover,
+.studio-workspace [data-variant='outline']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover {
   background: linear-gradient(180deg, #d9c08a14, #d9c08a06);
   border-color: #d9c08a59;
   color: #f3e5c0;
@@ -376,23 +376,23 @@
     inset 0 1px 0 #ffffff0d,
     0 12px 28px -18px #d9c08a66;
 }
-.studio-workspace [data-variant='liquidMetalCyan'] {
+.studio-workspace [data-variant='liquidMetalCyan']:not([data-slot='badge'], [data-slot='tabs-list']) {
   background: #d9c08a14;
   border: 1px solid #d9c08a4a;
   color: #f0e2bd;
   box-shadow: inset 0 1px 0 #ffffff0a;
 }
-.studio-workspace [data-variant='liquidMetalCyan']:not(:disabled):hover {
+.studio-workspace [data-variant='liquidMetalCyan']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover {
   background: #d9c08a22;
   border-color: #d9c08a80;
   transform: translateY(-1px);
 }
-.studio-workspace [data-variant='ghost']:not(:disabled):hover,
-.studio-workspace [data-variant='studioGhost']:not(:disabled):hover {
+.studio-workspace [data-variant='ghost']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover,
+.studio-workspace [data-variant='studioGhost']:not([data-slot='badge'], [data-slot='tabs-list']):not(:disabled):hover {
   background: #d9c08a0f;
   color: #f3e5c0;
 }
-.studio-workspace [data-variant^='liquidMetal']::before {
+.studio-workspace [data-variant^='liquidMetal']:not([data-slot='badge'], [data-slot='tabs-list'])::before {
   display: none;
 }
 .studio-workspace [data-slot='button']:disabled {
@@ -1168,8 +1168,19 @@
 
 @container (min-width: 950px) {
   .workspace-builder-grid {
-    grid-template-columns: 350px minmax(0, 1fr);
+    grid-template-columns: minmax(400px, 440px) minmax(0, 1fr);
   }
+  /* The preview stays in view while you work down the controls. */
+  .workspace-builder-grid > :nth-child(2) { align-self: stretch; }
+  .workspace-builder-grid > :nth-child(2) > .workspace-preview-panel {
+    position: sticky;
+    top: 84px;
+    max-height: calc(100vh - 104px);
+    overflow-y: auto;
+  }
+}
+@container (min-width: 1250px) {
+  .workspace-builder-grid { grid-template-columns: 480px minmax(0, 1fr); }
 }
 
 @keyframes wsDrawLine {
@@ -1378,4 +1389,103 @@
     transform: scale(0.98);
     transition: transform 0.12s ease;
   }
+}
+
+/* ─── Premium control layer ────────────────────────────────────────
+   One look for every native control inside the app: selects, inputs, text areas, fold-outs,
+   tables and scrollbars. Appearance only (colour, chevron, radius, focus, hover); sizes stay
+   with each component so layouts never shift. */
+.studio-workspace select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: #121412 !important;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23d9c08a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  background-repeat: no-repeat, no-repeat;
+  background-position: right 12px center, 0 0;
+  background-size: 12px 12px, 100% 100%;
+  padding-right: 34px !important;
+  border: 1px solid rgba(217, 192, 138, 0.2) !important;
+  border-radius: 12px !important;
+  color: #f1ecdf !important;
+  color-scheme: dark;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 0.25s, box-shadow 0.25s, background-color 0.25s;
+}
+.studio-workspace select:hover:not(:disabled) { border-color: rgba(217, 192, 138, 0.45) !important; }
+.studio-workspace select:disabled { opacity: 0.5; cursor: not-allowed; }
+.studio-workspace select option { background: #121412; color: #f1ecdf; }
+
+.studio-workspace :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea) {
+  caret-color: #e3cf9f;
+  transition: border-color 0.25s, box-shadow 0.25s, background-color 0.25s;
+}
+.studio-workspace :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea)::placeholder {
+  color: rgba(214, 219, 226, 0.42);
+}
+.studio-workspace :is(select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), textarea):focus-visible {
+  outline: none;
+  border-color: rgba(229, 169, 60, 0.7) !important;
+  box-shadow: 0 0 0 3px rgba(229, 169, 60, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+.studio-workspace input[type="checkbox"], .studio-workspace input[type="radio"] { accent-color: #d9c08a; }
+.studio-workspace input[type="range"] { accent-color: #d9c08a; }
+
+/* Fold-outs: a gold chevron that turns, instead of the browser triangle. */
+.studio-workspace details > summary { list-style: none; }
+.studio-workspace details > summary::-webkit-details-marker { display: none; }
+.studio-workspace details:not([class*="group"]) > summary:not(:has(svg))::before {
+  content: "";
+  display: inline-block;
+  width: 7px; height: 7px;
+  margin: 0 10px 2px 2px;
+  border-right: 1.6px solid #d9c08a;
+  border-bottom: 1.6px solid #d9c08a;
+  transform: rotate(-45deg);
+  transition: transform 0.3s var(--ws-ease);
+}
+.studio-workspace details[open]:not([class*="group"]) > summary:not(:has(svg))::before { transform: rotate(45deg); }
+
+/* Tables: quiet headers, hairline rows, a gold hover. */
+.studio-workspace table { border-collapse: separate; border-spacing: 0; width: 100%; }
+.studio-workspace thead th {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+  color: #cbb47f; background: rgba(217, 192, 138, 0.04);
+  border-bottom: 1px solid rgba(217, 192, 138, 0.16);
+}
+.studio-workspace tbody tr { transition: background 0.2s; }
+.studio-workspace tbody tr:hover { background: rgba(217, 192, 138, 0.045); }
+.studio-workspace tbody td { border-bottom: 1px solid rgba(255, 255, 255, 0.05); color: #e4dfd2; }
+
+/* Scrollbars: thin, dark, gold on hover. */
+.studio-workspace :not(.preset-rail):not(.scrollbar-none) { scrollbar-width: thin; scrollbar-color: rgba(217, 192, 138, 0.28) transparent; }
+.studio-workspace :not(.preset-rail):not(.scrollbar-none)::-webkit-scrollbar { width: 8px; height: 8px; }
+.studio-workspace *::-webkit-scrollbar-thumb { background: rgba(217, 192, 138, 0.22); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+.studio-workspace *::-webkit-scrollbar-thumb:hover { background: rgba(217, 192, 138, 0.45); background-clip: padding-box; }
+
+/* Keyboard focus is always visible, in gold. */
+.studio-workspace :is(button, a, summary, [role="tab"], [role="radio"], [role="option"]):focus-visible {
+  outline: 2px solid rgba(229, 169, 60, 0.75);
+  outline-offset: 2px;
+}
+
+/* ─── Create: each control section is its own card ─────────────── */
+.studio-workspace .workspace-setup-panel {
+  background: linear-gradient(180deg, rgba(20, 22, 20, 0.92), rgba(12, 13, 12, 0.92));
+  border-color: rgba(217, 192, 138, 0.14);
+}
+.studio-workspace .workspace-setup-panel .workspace-control-section {
+  border: 1px solid rgba(217, 192, 138, 0.12);
+  border-radius: 18px;
+  padding: 16px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(217, 192, 138, 0.05), transparent 60%),
+    rgba(255, 255, 255, 0.015);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+.studio-workspace .workspace-setup-panel .workspace-control-section:last-child { border-bottom: 1px solid rgba(217, 192, 138, 0.12); }
+@media (max-width: 767px) {
+  .studio-workspace .workspace-setup-panel .workspace-control-section { padding: 14px; border-radius: 16px; }
 }

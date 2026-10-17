@@ -87,3 +87,38 @@ delivery remain outside autonomous authority.
 Run `npm run build` and `npm run lint`. Exercise one signed-in production on the
 deployment host because provider networking, route duration, FFmpeg availability,
 and storage policies cannot be fully proven by a local compile.
+
+## Production Desk UI fixes (2026-10-17)
+
+Implements `Production_Desk_UI_Fixes_Spec.docx`. No new migrations.
+
+1. **@image mentions in the film brief.** The brief is a `MentionTextarea`.
+   Typing `@` opens the film's references at the caret, each with its thumbnail
+   and a permanent tag (`@image1`…`@image12`, `@video1`…). Tags are assigned
+   once on upload by `labelProductionAssets()` and never renumber when other
+   references are removed. The crew is told which image each tag means.
+2. **Production dropdown cleanup.** `ProductionPicker` replaces the native
+   select: search, status pills (Draft / Ready to approve / In production),
+   dates, a per-row trash button with the inline confirmation
+   "Delete this production draft?", and "Clear drafts" for every unplanned
+   brief except the open one. `deleteProductions(ids)` checks ownership before
+   it deletes revisions and roots.
+3. **Corrected takes with images.** "Request a corrected take" (`CorrectionBox`)
+   accepts up to four images ("Add image") and `@` tags for the film's
+   references. The images are checked for ownership and sent to the correction
+   supervisor alongside the note.
+
+### Studio, Create and UGC polish
+
+- Shared controls inside the workspace (selects, inputs, details, tables,
+  scrollbars, focus rings) follow the obsidian-and-gold system.
+- The gold primary-button style no longer leaks onto badges and tab lists, so
+  the project page's Scenes / Asset Library tabs are readable again.
+- Project pages highlight Studio in the menu, not Home.
+- The empty shot board is a designed empty state instead of loading skeletons.
+- Create on desktop keeps the preview sticky beside the controls; the free
+  prompt preview link sits just above Create video.
+- "Make a set of ads": segmented ad count, a full-width "Plan N ads" button,
+  and clearer Character and Product cards.
+- On phones, the scene builder's Generate image and Enhance with AI buttons
+  stack instead of clipping.
