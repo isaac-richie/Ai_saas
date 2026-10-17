@@ -24,7 +24,7 @@ async function fitPromptForModel(prompt: string, model: string, purpose: "video"
     const budget = promptBudgetFor(model);
     if (prompt.length <= budget) return prompt;
     try {
-        return (await condensePrompt(prompt, budget, purpose)).prompt;
+        return (await condensePrompt(prompt, budget, purpose, { timeoutMs: 20_000 })).prompt;
     } catch {
         const cut = prompt.slice(0, budget);
         const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));

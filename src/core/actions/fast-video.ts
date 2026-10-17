@@ -577,7 +577,8 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     const reserve = referencePromptBudget("", deliveryRefs, budget).used
     if (payload.prompt_inputs.text_subject.length > budget - reserve && process.env.OPENAI_API_KEY) {
       try {
-        const condensed = await condensePrompt(payload.prompt_inputs.text_subject, Math.max(400, budget - reserve), lipSyncAudioUrl ? "lip-sync" : "video")
+        const condensed = // Bounded so a slow director never holds the render: past 20 s the sentence-safe fitter takes over.
+        await condensePrompt(payload.prompt_inputs.text_subject, Math.max(400, budget - reserve), lipSyncAudioUrl ? "lip-sync" : "video", { timeoutMs: 20_000 })
         debug.push("prompt.condensed", { from: condensed.from, to: condensed.to, structured: condensed.structured })
         promptCondensed = { from: condensed.from, to: condensed.to }
         payload.prompt_inputs.text_subject = condensed.prompt

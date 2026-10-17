@@ -24,12 +24,13 @@ const INSTRUCTIONS = [
  * Rewrites long text or JSON into a prompt that fits the target model, preserving meaning rather than
  * cutting off the end. Throws on failure so callers can fall back to the deterministic fitter.
  */
-export async function condensePrompt(text: string, target: number, purpose: "video" | "image" | "lip-sync" = "video"): Promise<CondensedPrompt> {
+/** `timeoutMs` bounds each director call; generation paths pass a short one and fall back to the trimmer. */
+export async function condensePrompt(text: string, target: number, purpose: "video" | "image" | "lip-sync" = "video", options: { timeoutMs?: number } = {}): Promise<CondensedPrompt> {
   if (!process.env.OPENAI_API_KEY) throw new Error("The director connection is not configured.")
   const source = text.trim()
   const structured = looksLikeJson(source)
   if (source.length <= target) return { prompt: source, kept: [], dropped: [], from: source.length, to: source.length, structured }
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 1 })
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: options.timeoutMs ? 0 : 1 })
   const ask = async (limit: number) => {
     const result = await client.responses.parse({
       model: process.env.PROMPT_CONDENSER_MODEL || resolveProductionModel("prompt-condenser").model,
@@ -38,7 +39,7 @@ export async function condensePrompt(text: string, target: number, purpose: "vid
       instructions: INSTRUCTIONS.replace("TARGET", String(limit)),
       input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify({ purpose, targetCharacters: limit, structuredInput: structured, brief: source }) }] }],
       text: { format: zodTextFormat(condensedSchema, "condensed_prompt") },
-    }, { signal: AbortSignal.timeout(60_000) })
+    }, { signal: AbortSignal.timeout(options.timeoutMs ?? 60_000) })
     if (!result.output_parsed) throw new Error("The condensed prompt was incomplete.")
     return condensedSchema.parse(result.output_parsed)
   }

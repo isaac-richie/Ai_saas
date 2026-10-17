@@ -1656,7 +1656,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setIsGenerating(true)
     if (!previewOnly) {
     setStatus("processing")
-    setStatusMessage("Initializing...")
+    setStatusMessage(subject.trim().length > promptBudgetFor(resolveKieVideoModelByFamily({ familyId: modelFamilyId, useImageToVideo: false })) ? "Fitting your long idea to the model…" : "Sending to the studio…")
     setVideoUrl(null)
     setUseDirectVideoUrl(false)
     setTaskId(null)
