@@ -5,7 +5,7 @@ import { normalizeReferenceImage } from "./normalize-image"
 import { useRef, useState } from "react"
 import { ImagePlus, Loader2, LockKeyhole, RefreshCw, X } from "lucide-react"
 import { toast } from "sonner"
-import type { ProductionAsset } from "@/core/validation/production-assets"
+import { labelProductionAssets, type ProductionAsset } from "@/core/validation/production-assets"
 import styles from "./ProductionReferences.module.css"
 
 export function ProductionReferences({ assets, onChange, disabled = false, onBusy }: {
@@ -52,7 +52,8 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
         id: replacement?.id || crypto.randomUUID(), name: file.name.slice(0, 160),
         role: replacement?.role || role, url: result.url, mediaType: isVideo ? "video" : "image",
       }
-      onChange(replacement ? assets.map(asset => asset.id === replacement.id ? next : asset) : [...assets, next])
+      // A replacement keeps its tag; a new file takes the next free @image/@video number.
+      onChange(labelProductionAssets(replacement ? assets.map(asset => asset.id === replacement.id ? { ...next, label: replacement.label } : asset) : [...assets, next]))
     } catch (cause) { reportError("Reference upload failed", cause instanceof Error ? cause.message : "Upload failed") }
     finally { replacementId.current = null; setUploading(false); onBusy?.(false); if (input.current) input.current.value = "" }
   }
@@ -71,7 +72,7 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
     </div>}
     {!!assets.length && <div className={styles.grid}>{assets.map(asset => <figure key={asset.id}>
       <a href={asset.url} target="_blank" rel="noopener noreferrer" aria-label={`Preview ${asset.name}`}>{asset.mediaType === "video" ? <video src={asset.url} muted playsInline preload="metadata" controls /> : <img src={asset.url} alt={`${asset.role} reference: ${asset.name}`} loading="lazy" />}</a>
-      <figcaption><strong>{asset.role}</strong><span title={asset.name}>{asset.name}</span></figcaption>
+      <figcaption><strong>{asset.label ? <span className={styles.tag}>{asset.label}</span> : null}{asset.role}</strong><span title={asset.name}>{asset.name}</span></figcaption>
       {!locked && <div className={styles.assetActions}>
         <button type="button" className={styles.replace} disabled={disabled || uploading} aria-label={`Replace ${asset.name}`} onClick={() => replace(asset.id)}><RefreshCw size={14} /></button>
         <button type="button" className={styles.remove} disabled={disabled || uploading} aria-label={`Remove ${asset.name}`} onClick={() => onChange?.(assets.filter(item => item.id !== asset.id))}><X size={14} /></button>

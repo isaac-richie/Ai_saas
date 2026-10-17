@@ -4,6 +4,7 @@
 import { condensePrompt } from "@/core/services/prompt-condenser"
 import { z } from "zod"
 import { createClient } from "@/infrastructure/supabase/server"
+import { createAdminClient } from "@/infrastructure/supabase/admin"
 import { productionPlanSchema, canApproveProduction, productionBibleSchema, departmentDirectionSchema, crewShotsSchema, blockingFindings, findingsRepairUsed } from "@/core/validation/production-crew"
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
 import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
@@ -516,4 +517,31 @@ export async function pollProductionGeneration(generationJobId: string) {
     job.take_id ? db.from("shot_generations").update({ status: "completed", output_url: url }).eq("id", job.take_id) : Promise.resolve(),
   ])
   return { data: { ...job, status: "completed", progress: 100, output_url: url } }
+}
+
+/**
+ * Deletes the signed-in creator's productions (and every revision of each). Ownership is checked
+ * with the creator's own session first; the delete then runs with the server's admin connection,
+ * because production rows have no delete policy for regular sessions.
+ */
+export async function deleteProductions(ids: unknown): Promise<{ data?: { deleted: number }; error?: string }> {
+  const parsed = z.array(z.string().uuid()).min(1).max(200).safeParse(ids)
+  if (!parsed.success) return { error: "Choose productions to delete." }
+  const db = await createClient()
+  const { data: { user } } = await db.auth.getUser()
+  if (!user) return { error: "Please sign in." }
+  const { data: owned, error } = await db.from("production_jobs").select("id").eq("user_id", user.id)
+    .or(`id.in.(${parsed.data.join(",")}),parent_job_id.in.(${parsed.data.join(",")})`)
+  if (error) return { error: "Couldn't load those productions. Try again." }
+  const targets = (owned || []).map((row) => row.id as string)
+  if (!targets.length) return { error: "Those productions no longer exist." }
+  const admin = createAdminClient()
+  // Revisions first (they point at their parent), then the originals.
+  const { error: deleteError } = await admin.from("production_jobs").delete().in("id", targets).eq("user_id", user.id).not("parent_job_id", "is", null)
+  const { error: rootError } = deleteError ? { error: deleteError } : await admin.from("production_jobs").delete().in("id", targets).eq("user_id", user.id)
+  if (rootError) {
+    console.error("deleteProductions failed", { code: rootError.code, message: rootError.message })
+    return { error: `Couldn't delete (${rootError.code ?? "unknown"}). Try again.` }
+  }
+  return { data: { deleted: targets.length } }
 }

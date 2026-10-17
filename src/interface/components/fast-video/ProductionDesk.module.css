@@ -32,7 +32,7 @@
 .projectPicker { display: grid; gap: 5px; font-size: 9px; letter-spacing: .17em; color: #a3a59a; margin-right: auto; min-width: 0; width: min(440px, 65%); }
 .projectPicker select { background: transparent; border: 0; color: var(--ink); padding: 4px 0; font-size: 14px; letter-spacing: normal; width: 100%; text-overflow: ellipsis; }
 .projectPicker option { background: #151715; }
-.toolbar button { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 11px; font-size: 12px; }
+.toolbar > button { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 11px; font-size: 12px; }
 .desk button:not(:disabled), .desk summary, .desk a { cursor: pointer; }
 .desk button:disabled { opacity: .4; cursor: not-allowed; }
 .desk :is(button, a, textarea, select, summary):focus-visible { outline: 2px solid var(--mint); outline-offset: 4px; }
@@ -105,11 +105,11 @@
   padding-right: .06em;
 }
 .eyebrow::before { content: ''; width: 18px; height: 1px; background: linear-gradient(90deg, #d9c08a, transparent); }
-.toolbar button {
+.toolbar > button {
   background: #ffffff04;
   transition: border-color .3s, background .3s, color .3s, transform .3s cubic-bezier(.22, 1, .36, 1);
 }
-.toolbar button:hover:not(:disabled) { border-color: #d9c08a59; background: #d9c08a10; color: #f3e5c0; transform: translateY(-1px); }
+.toolbar > button:hover:not(:disabled) { border-color: #d9c08a59; background: #d9c08a10; color: #f3e5c0; transform: translateY(-1px); }
 .steps > * { position: relative; transition: color .35s, background .35s; }
 .steps > *::after {
   content: '';

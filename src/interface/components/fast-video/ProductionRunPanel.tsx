@@ -1,5 +1,7 @@
 "use client"
 
+import { CorrectionBox } from "./CorrectionBox"
+import type { MentionReference } from "./MentionTextarea"
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -117,12 +119,13 @@ function findContinuityGate(shots: Shot[]): ContinuityGate | null {
   return null
 }
 
-export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceId }: { productionId: string; projectId: string; sceneId: string; sequenceId?: string | null }) {
+export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceId, references = [] }: { productionId: string; projectId: string; sceneId: string; sequenceId?: string | null; references?: MentionReference[] }) {
   const [shots, setShots] = useState<Shot[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({})
   const [corrections, setCorrections] = useState<Record<string, Correction>>({})
+  const [correcting, setCorrecting] = useState<string | null>(null)
   const [scores, setScores] = useState({ story: 5, continuity: 5, visual: 5, editability: 5, notes: "" })
   const [evaluationSaved, setEvaluationSaved] = useState(false)
   const [inspectingTake, setInspectingTake] = useState<string | null>(null)
@@ -183,8 +186,9 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
     finally { setBusy(false) }
   }
 
-  async function proposeCorrection(take: Take) {
-    const result = await proposeTakeCorrection({ takeId: take.id, reviewerNote: reviewNotes[take.id] || "" })
+  async function proposeCorrection(take: Take, referenceImageUrls: string[] = []) {
+    setCorrecting(take.id)
+    const result = await proposeTakeCorrection({ takeId: take.id, reviewerNote: reviewNotes[take.id] || "", referenceImageUrls }).finally(() => setCorrecting(null))
     if (result.error || !result.data) { toast.error(result.error || "Could not propose a correction"); return }
     setCorrections(current => ({ ...current, [take.id]: result.data as Correction }))
     toast.success("Correction prepared for review")
@@ -273,7 +277,7 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
           {take.status === "completed" && shot.approved_take_id !== take.id && take.last_frame_url && <button className={`ml-2 mt-3 rounded-full px-3 py-1.5 text-xs font-medium ${take.review_status === "rejected" ? "border border-amber-200/40 bg-amber-200/10 text-amber-100" : "bg-gold-300 text-black"}`} onClick={() => void approveContinuityTake(shot, take)}>{take.review_status === "rejected" ? "Approve anyway" : "Approve continuity take"}</button>}
           {take.status === "completed" && take.review_status === "rejected" && take.last_frame_url && <p className="mt-2 text-xs text-amber-100/80">AI review is advisory. You can manually approve this inspected take if the result is acceptable.</p>}
           {take.status === "completed" && !take.last_frame_url && <p className="mt-2 text-xs text-white/45">Inspect this take before approval so the crew can lock its ending frame.</p>}
-          {take.status === "completed" && <details className="mt-3 rounded-lg border border-gold-400/[0.12] p-2"><summary className="cursor-pointer text-xs text-white/60">Request a corrected take</summary><textarea value={reviewNotes[take.id] || ""} onChange={event => setReviewNotes(current => ({ ...current, [take.id]: event.target.value }))} maxLength={1200} placeholder="Describe only what is visibly wrong: motion, continuity, framing, lighting..." className="mt-2 min-h-20 w-full rounded-lg border border-gold-400/[0.12] bg-black/30 p-2 text-xs text-white placeholder:text-white/30" /><button disabled={(reviewNotes[take.id] || "").trim().length < 3} onClick={() => void proposeCorrection(take)} className="mt-2 text-xs text-gold-300 disabled:opacity-40">Ask correction supervisor</button>{corrections[take.id] && <div className="mt-3 rounded-lg bg-black/30 p-3"><p className="text-xs text-white/80">Proposed prompt</p><p className="mt-2 whitespace-pre-wrap text-xs text-white/55">{corrections[take.id].revisedPrompt}</p><p className="mt-2 text-xs text-white/40">Changes: {corrections[take.id].changes.join(" ")}</p><button onClick={() => void applyCorrection(take.id)} className="mt-3 rounded-full bg-gold-300 px-3 py-1.5 text-xs font-medium text-black">Apply to next take</button></div>}</details>}
+          {take.status === "completed" && <><CorrectionBox note={reviewNotes[take.id] || ""} onNote={value => setReviewNotes(current => ({ ...current, [take.id]: value }))} references={references} busy={correcting === take.id} onSubmit={imageUrls => void proposeCorrection(take, imageUrls)} />{corrections[take.id] && <div className="mt-3 rounded-lg bg-black/30 p-3"><p className="text-xs text-white/80">Proposed prompt</p><p className="mt-2 whitespace-pre-wrap text-xs text-white/55">{corrections[take.id].revisedPrompt}</p><p className="mt-2 text-xs text-white/40">Changes: {corrections[take.id].changes.join(" ")}</p><button onClick={() => void applyCorrection(take.id)} className="mt-3 rounded-full bg-gold-300 px-3 py-1.5 text-xs font-medium text-black">Apply to next take</button></div>}</>}
         </div>)}
         {job && active.has(job.status) && <button className="mt-3 text-xs text-white/50" onClick={() => void cancelGenerationJob(job.id).then(refresh)}>Cancel tracking</button>}
         {(!job || !active.has(job.status)) && <button disabled={busy || continuityBlocked} className="mt-4 rounded-full border border-gold-400/25 px-4 py-2 text-sm text-gold-300 disabled:opacity-40" onClick={() => { setFocusedTakes(current => ({ ...current, [shot.id]: "" })); void generate([shot], true) }}>{continuityBlocked ? "Complete previous shot handoff first" : `Generate ${takes.length ? "another" : "first"} take for this shot`}</button>}

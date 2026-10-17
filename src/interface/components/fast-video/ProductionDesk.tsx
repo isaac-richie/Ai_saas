@@ -6,18 +6,29 @@ import Link from "next/link"
 import { applyMechanicalPlanRepair, createProductionRevision, listProductions, materializeProduction, replaceProductionReferences, updateProduction } from "@/core/actions/production"
 import { blockingFindings, canApproveProduction, findingsRepairUsed, type ProductionPlan } from "@/core/validation/production-crew"
 import { ProductionRunPanel } from "./ProductionRunPanel"
-import { ArrowUpRight, Clapperboard, Plus, RefreshCw } from "lucide-react"
+import { ArrowUpRight, Clapperboard, RefreshCw } from "lucide-react"
 import styles from "./ProductionDesk.module.css"
 import { ProductionReferences } from "./ProductionReferences"
-import { productionAssetsSchema, type ProductionAsset } from "@/core/validation/production-assets"
+import { labelProductionAssets, productionAssetsSchema, type ProductionAsset } from "@/core/validation/production-assets"
 import { isStaleServerActionError, recoverFromStaleServerAction } from "@/interface/lib/server-action-recovery"
 
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 import { ProductionShotSettings, ReviseProductionSettings, emptyShotSettings, type ShotSettingDraft } from "./ProductionShotSettings"
 
 import { latestFilms } from "@/core/utils/production/latest-films"
+import { ProductionPicker } from "./ProductionPicker"
+import { MentionTextarea, type MentionReference } from "./MentionTextarea"
 
-type Production = { planning_context?: { shotSettings?: ShotSettingDraft[]; findingsRepairUsed?: boolean }; parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; reference_assets?: unknown; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number }
+/** Film references as @-mentionable items (tag, thumbnail, role) for the brief and corrections. */
+export function productionMentions(assets: ProductionAsset[]): MentionReference[] {
+  return labelProductionAssets(assets).map((asset) => ({
+    id: asset.id, assetPath: "", name: asset.name, mediaType: asset.mediaType, role: asset.role, roles: [asset.role], label: asset.label,
+    previewUrl: asset.mediaType === "image" ? asset.url : undefined, applied: true, priority: "primary", influence: "high", scope: "shot",
+    projectId: null, sceneId: null, locked: false, target: "director", trimStart: 0, volume: 1,
+  }) as MentionReference)
+}
+
+type Production = { planning_context?: { shotSettings?: ShotSettingDraft[]; findingsRepairUsed?: boolean }; parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; reference_assets?: unknown; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number; created_at?: string | null }
 type ProductionView = "brief" | "direction" | "takes"
 
 const PRODUCTION_DESK_STORAGE_KEY = "aisas.production-desk.v1"
@@ -139,8 +150,13 @@ export function ProductionDesk() {
         <div className={styles.slate}><span>CREW / 07</span><strong>One shared vision.</strong><p>Continuity · Camera · Light<br />Design · Performance · Edit · Review</p></div>
       </header>
       <div className={styles.toolbar}>
-        <label className={styles.projectPicker}>PRODUCTION<select aria-label="Choose production" value={selected?.id || ""} disabled={busy} onChange={event => { const job = jobs.find(item => item.id === event.target.value); setSelectedId(job?.id || null); setView(job ? (job.project_id ? "takes" : "direction") : "brief") }}><option value="">Start a new film</option>{films.map(job => <option key={job.id} value={job.id}>{job.plan?.crew?.bible.title || job.brief.slice(0, 64)}</option>)}</select></label>
-        <button type="button" disabled={busy} onClick={() => { setSelectedId(null); setView("brief") }}><Plus size={16} /> New film</button>
+        <ProductionPicker
+          films={films.map(job => ({ id: job.id, title: job.plan?.crew?.bible.title || job.brief.replace(/\s+/g, " ").slice(0, 80), status: job.status, createdAt: job.created_at }))}
+          selectedId={selected?.id ?? null}
+          disabled={busy}
+          onSelect={id => { const job = jobs.find(item => item.id === id); setSelectedId(job?.id || null); setView(job ? (job.project_id ? "takes" : "direction") : "brief") }}
+          onDeleted={ids => { setJobs(current => current.filter(job => !ids.includes(job.id) && !ids.includes(job.parent_job_id || ""))); if (selected && ids.includes(selected.id)) { setSelectedId(null); setView("brief") } }}
+        />
         <button type="button" disabled={busy} onClick={() => void run(refresh)} aria-label="Refresh productions"><RefreshCw size={16} /></button>
       </div>
       <nav className={styles.steps} aria-label="Production stages">
@@ -159,7 +175,18 @@ export function ProductionDesk() {
         keep(result.data as Production); setBrief(""); setAssets([])
       }) }}>
         <label htmlFor="production-brief" className="text-sm text-white/80">What should the audience feel?</label>
-        <textarea id="production-brief" required minLength={8} maxLength={50000} value={brief} onChange={event => setBrief(event.target.value)} placeholder="A quiet fashion film at dawn. One protagonist, an ivory coat, and a city coming to life..." className="mt-2 min-h-28 w-full rounded-xl border border-gold-400/20 bg-black/30 p-4 text-white placeholder:text-white/30" />
+        <MentionTextarea
+          id="production-brief"
+          required
+          minLength={8}
+          maxLength={50000}
+          value={brief}
+          onChange={setBrief}
+          references={productionMentions(assets)}
+          emptyHint="No references yet. Add images or videos below, then type @ to use them."
+          placeholder="A quiet fashion film at dawn. One protagonist, an ivory coat, and a city coming to life… Type @ to use a reference."
+          className="mt-2 min-h-28 w-full rounded-xl border border-gold-400/20 bg-black/30 p-4 text-[15px] text-white placeholder:text-white/35 md:text-sm"
+        />
         <ProductionShotSettings value={shotSettings} onChange={setShotSettings} disabled={busy} />
         <ProductionReferences assets={assets} onChange={setAssets} disabled={busy} onBusy={setUploading} />
         <button disabled={busy || !ready || uploading} className="mt-3 rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-5 py-2 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)] disabled:opacity-40">{busy ? "Working..." : "Save film brief"}</button>
@@ -289,7 +316,7 @@ export function ProductionDesk() {
             <Link className="rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-4 py-2 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)]" href={`/dashboard/projects/${job.project_id}/scenes/${job.scene_id}`}>Open shot workspace</Link>
             {job.sequence_id && <Link className="rounded-full border border-gold-400/25 px-4 py-2 text-sm text-white" href={`/dashboard/sequences/${job.sequence_id}`}>Open first cut</Link>}
           </div>}
-          {view === "takes" && job.project_id && job.scene_id && <ProductionRunPanel productionId={job.id} projectId={job.project_id} sceneId={job.scene_id} sequenceId={job.sequence_id} />}
+          {view === "takes" && job.project_id && job.scene_id && <ProductionRunPanel productionId={job.id} projectId={job.project_id} sceneId={job.scene_id} sequenceId={job.sequence_id} references={productionMentions(productionAssetsSchema.safeParse(job.reference_assets).data ?? [])} />}
           {job.status !== "brief" && <details className="mt-4 rounded-xl border border-gold-400/[0.12] p-3"><summary className="cursor-pointer text-xs text-white/55">Adjust production direction</summary><textarea value={revisionNotes[job.id] || ""} onChange={event => setRevisionNotes(current => ({ ...current, [job.id]: event.target.value }))} maxLength={2000} placeholder="Keep the approved history and describe only what should change..." className="mt-3 min-h-20 w-full rounded-lg border border-gold-400/[0.12] bg-black/30 p-3 text-sm text-white placeholder:text-white/30" /><button disabled={busy || (revisionNotes[job.id] || "").trim().length < 8} className="mt-3 rounded-full border border-gold-400/20 px-4 py-2 text-xs text-white disabled:opacity-40" onClick={() => void run(async () => { const result = await createProductionRevision({ productionId: job.id, direction: revisionNotes[job.id] || "" }); if (result.error || !result.data) throw new Error(result.error || "Could not create revision."); keep(result.data as Production); setRevisionNotes(current => ({ ...current, [job.id]: "" })) })}>Update direction</button></details>}
         </article>)}
       </div>

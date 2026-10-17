@@ -1,5 +1,6 @@
 "use server"
 
+import { ownsAssetUrl } from "@/core/validation/production-assets"
 import { z } from "zod"
 import OpenAI from "openai"
 import { zodTextFormat } from "openai/helpers/zod"
@@ -70,7 +71,9 @@ export async function submitProductionEvaluation(input: unknown) {
 
 const correctionInputSchema = z.object({
   takeId: z.string().uuid(),
-  reviewerNote: z.string().trim().min(3).max(1200),
+  reviewerNote: z.string().trim().min(3).max(4000),
+  /** Visual targets the reviewer attached (pose, lighting, prop…), uploaded to their own storage. */
+  referenceImageUrls: z.array(z.string().url()).max(4).default([]),
 })
 const correctionOutputSchema = z.object({
   revisedPrompt: z.string().min(30).max(1600),
@@ -86,6 +89,7 @@ export async function proposeTakeCorrection(input: unknown) {
   if (!user) return { error: "Please sign in." }
   const { data: take } = await db.from("shot_generations").select("id,shot_id,prompt,compiled_prompt,review_notes,media_inspection,shots!shot_generations_shot_id_fkey!inner(name,prompt_text,generation_settings,scene_id,scenes!inner(project_id,projects!inner(user_id)))").eq("id", parsed.data.takeId).eq("shots.scenes.projects.user_id", user.id).maybeSingle()
   if (!take) return { error: "Take not found." }
+  if (parsed.data.referenceImageUrls.some((url) => !ownsAssetUrl(url, user.id))) return { error: "Attach images uploaded to your account." }
   const shotRelation = take.shots as unknown as { name: string; prompt_text: string | null; generation_settings: unknown }
   const previousPrompt = shotRelation.prompt_text || take.compiled_prompt || take.prompt
   if (!previousPrompt) return { error: "This shot has no source prompt to revise." }
@@ -99,7 +103,12 @@ export async function proposeTakeCorrection(input: unknown) {
       store: false,
       max_output_tokens: 1800,
       instructions: "You are a corrective cinematography supervisor. The supplied continuity_ledger and continuity_state are immutable except for explicitly listed intentionalChanges. Rewrite only what the reviewer evidence requires, while repeating every concrete identity, wardrobe, hero-object, material, location, palette, lighting, weather, geography, and state-handoff fact. Never replace facts with phrases such as same as before. Preserve shot duration and unaffected creative intent. Do not claim you saw footage; the supplied notes and metadata are your only evidence. Return a physically executable, policy-compliant video prompt and list retained anchors.",
-      input: JSON.stringify({ shot: shotRelation.name, previousPrompt, reviewerNote: parsed.data.reviewerNote, automatedMetadataReview: take.review_notes, mediaInspection: take.media_inspection, continuityContract: shotRelation.generation_settings }),
+      // Attached images are visual targets the supervisor can see, alongside the written note.
+      input: parsed.data.referenceImageUrls.length ? [{ role: "user", content: [
+        { type: "input_text", text: JSON.stringify({ shot: shotRelation.name, previousPrompt, reviewerNote: parsed.data.reviewerNote, automatedMetadataReview: take.review_notes, mediaInspection: take.media_inspection, continuityContract: shotRelation.generation_settings }) },
+        { type: "input_text", text: `The reviewer attached ${parsed.data.referenceImageUrls.length} reference image(s) showing the intended fix. Match what the note asks for using them (pose, lighting, wardrobe, prop or framing) and describe it in the revised prompt; do not copy anything else from them.` },
+        ...parsed.data.referenceImageUrls.map((url) => ({ type: "input_image" as const, image_url: url, detail: "high" as const })),
+      ] }] : JSON.stringify({ shot: shotRelation.name, previousPrompt, reviewerNote: parsed.data.reviewerNote, automatedMetadataReview: take.review_notes, mediaInspection: take.media_inspection, continuityContract: shotRelation.generation_settings }),
       text: { format: zodTextFormat(correctionOutputSchema, "take_correction") },
     })
     if (response.status !== "completed" || !response.output_parsed) return { error: "The correction proposal was incomplete. Try again." }
