@@ -673,6 +673,7 @@ export async function pollShotStatus(shotOptionId: string) {
             output_url,
             parameters, 
             provider_id,
+            created_at,
             shots ( scene_id )
         `)
         .eq("id", shotOptionId)
@@ -753,8 +754,16 @@ export async function pollShotStatus(shotOptionId: string) {
                 }
                 : rawResult;
 
-        const shouldUpdate = result.status !== option.status || Boolean(result.url);
         const outputType = typeof parameters?.output_type === "string" ? parameters.output_type : "image";
+        // A task the provider never finishes must not spin forever: images get 8 minutes, videos 20.
+        const startedAt = Date.parse(String((parameters?.fallback_started_at as string | undefined) || option.created_at || ""));
+        const limitMs = (outputType === "video" ? 20 : 8) * 60_000;
+        if (result.status === "processing" && Number.isFinite(startedAt) && Date.now() - startedAt > limitMs) {
+            const message = `The ${outputType === "video" ? "video" : "image"} service took too long on this take, so it was stopped. Generate again; most takes finish in under ${outputType === "video" ? "5 minutes" : "2 minutes"}.`;
+            await supabase.from("shot_generations").update({ status: "failed", output_url: null, parameters: { ...(parameters || {}), error: message, timed_out: true } }).eq("id", option.id);
+            return { data: { status: "failed", url: null, updated: true, error: message } };
+        }
+        const shouldUpdate = result.status !== option.status || Boolean(result.url);
 
         // GPT Image can be rate-limited: retry that one take on Nano Banana Pro once, quietly.
         const imageModel = typeof parameters?.image_model === "string" ? parameters.image_model : "";
@@ -778,6 +787,7 @@ export async function pollShotStatus(shotOptionId: string) {
                         image_model: FALLBACK_KIE_IMAGE_MODEL,
                         fallback_from: imageModel,
                         fallback_reason: normalizeGenerationError(result.error, "GPT Image failed"),
+                        fallback_started_at: new Date().toISOString(),
                     },
                 }).eq("id", option.id);
                 return { data: { status: "processing", url: null, updated: true, waitingForUrl: false } };
