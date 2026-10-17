@@ -134,7 +134,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         pathname.startsWith("/reset-password") ||
         pathname.startsWith("/auth/")
 
-    const isPublicRoute = pathname === "/" || pathname === "/inner-circle" || pathname.startsWith("/inner-circle/")
+    const isPublicRoute = pathname === "/" || pathname === "/inner-circle" || pathname.startsWith("/inner-circle/") || pathname === "/privacy" || pathname === "/terms"
 
     if (isAuthRoute || isPublicRoute) {
         return (
