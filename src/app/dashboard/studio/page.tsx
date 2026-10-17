@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { Badge } from "@/interface/components/ui/badge";
 import { CreateProjectDialog } from "@/interface/components/dashboard/CreateProjectDialog";
 import { getProjects } from "@/core/actions/projects";
 import { getScenes } from "@/core/actions/scenes";
-import { createClient } from "@/infrastructure/supabase/server";
 import { STUDIO_ENABLED } from "@/core/config/feature-flags";
 import { ArrowRight, Lock } from "lucide-react";
 import { WorkspaceHeading } from "@/interface/components/layout/WorkspaceHeading";
@@ -14,13 +12,7 @@ export const metadata: Metadata = {
     title: "Studio",
 };
 
-interface StudioPageProps {
-    searchParams?: Promise<{
-        overview?: string;
-    }>;
-}
-
-export default async function StudioPage(props: StudioPageProps) {
+export default async function StudioPage() {
     if (!STUDIO_ENABLED) {
         return (
             <div className="mx-auto w-full max-w-7xl space-y-5 py-2 md:py-3">
@@ -52,28 +44,7 @@ export default async function StudioPage(props: StudioPageProps) {
         );
     }
 
-    const searchParams = props.searchParams ? await props.searchParams : undefined;
-    const showOverview = searchParams?.overview === "1";
-
-    if (!showOverview) {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (user) {
-            const { data: latestScene } = await supabase
-                .from("scenes")
-                .select("id, project_id, created_at, projects!inner(user_id)")
-                .eq("projects.user_id", user.id)
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-            if (latestScene?.id && latestScene.project_id) {
-                redirect(`/dashboard/projects/${latestScene.project_id}/scenes/${latestScene.id}`);
-            }
-        }
-    }
-
+    // Studio always opens on your work (projects and recent scenes); it never jumps into a scene.
     const projectsResult = await getProjects();
     const projects = projectsResult.data || [];
 
