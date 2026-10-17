@@ -569,7 +569,7 @@ export async function generateVideoShot(
     // Each model reads a different amount (Kling 3.0: 2,500). Longer prompts are condensed by the AI
     // director, never cut off mid-sentence; a sentence-boundary trim is the last resort.
     // Studio animations get the same rule: spoken or sung words are heard, never painted as captions.
-    const promptText = withNoScreenText(await fitPromptForModel(basePrompt, configuredModel ?? "kling-3.0/video", "video"));
+    const promptText = withNoScreenText(await fitPromptForModel(basePrompt, configuredModel ?? "kling-3.0/video", "video"), typeof options?.durationSeconds === "number" ? options.durationSeconds : 5);
 
     const quota = await reserveUsageQuota(supabase, user.id, "studio");
     if (!quota.allowed) {

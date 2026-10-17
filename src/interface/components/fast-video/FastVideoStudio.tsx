@@ -11,6 +11,7 @@ import { Input } from "@/interface/components/ui/input"
 import { Textarea } from "@/interface/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/interface/components/ui/dialog"
 import { MentionTextarea } from "./MentionTextarea"
+import { speechFit } from "@/core/utils/ai/screen-text"
 import { normalizeReferenceImage } from "./normalize-image"
 import { promptBudgetFor } from "@/core/config/prompt-limits"
 import { LIP_SYNC_MAX_SECONDS, prepareLipSyncAudio } from "./lip-sync-audio"
@@ -2551,6 +2552,15 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 onChange={(event) => setDurationSeconds(Number(event.target.value))}
                 className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-gold-300"
               />
+              {(() => {
+                // Spoken lines longer than the clip get rushed and fall out of lip-sync.
+                const fit = speechFit(subject, durationSeconds)
+                return fit.words && !fit.fits && !activeLipSyncId ? (
+                  <p role="status" className="text-[12.5px] leading-snug text-amber-100/90">
+                    Your lines have {fit.words} words; a {durationSeconds}-second video fits about {fit.maxWords}. Make it longer or trim the lines so the lips stay in sync.
+                  </p>
+                ) : null
+              })()}
             </div>
             <button
               type="button"
