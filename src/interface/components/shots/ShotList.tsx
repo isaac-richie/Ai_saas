@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 "use client"
 
 import { Shot, duplicateShot } from "@/core/actions/shots"
@@ -14,6 +13,7 @@ import { GripVertical, Camera, Aperture, Wand2, Loader2, Play, Sparkles, Check, 
 import { generateShot, generateVideoShot, pollShotStatus } from "@/core/actions/generation"
 import { batchGenerate } from "@/core/actions/batch"
 import { updateShotStatus, removeShot } from "@/core/actions/shots"
+import { TakeMedia } from "./TakeMedia"
 import { addShotsToSequence, appendShotToSequence, createSequence, VideoSequence } from "@/core/actions/sequences"
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -611,10 +611,10 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 />
                                 <GripVertical className="h-4 w-4 text-white/35" />
                                 <div className="grid min-w-0 gap-1">
-                                    <div className="flex items-center gap-2">
-                                        <div className="truncate font-medium">{shot.name}</div>
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <div className="min-w-0 truncate font-medium" title={shot.name}>{shot.name}</div>
                                         {approvedOption && (
-                                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200">
+                                            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200">
                                                 <Check className="h-3 w-3" />
                                                 Approved
                                             </span>
@@ -646,7 +646,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex shrink-0 flex-wrap items-center gap-1 border-t border-gold-400/[0.08] pt-2.5 2xl:border-0 2xl:pt-0">
+                            <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-t border-line pt-2.5 2xl:ml-4 2xl:border-0 2xl:pt-0">
                                 <Button
                                     size="sm"
                                     variant="studioGhost"
@@ -723,11 +723,11 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                         <Card key={opt.id} className="studio-subcard hover-lift overflow-hidden rounded-2xl">
                                             <div className="relative aspect-video bg-black/55">
                                                 {mediaUrl ? (
-                                                    opt.status === 'completed' && isVideoUrl(mediaUrl) ? (
-                                                        <video src={getVideoProxyUrl(mediaUrl)} className="h-full w-full object-contain" controls playsInline muted preload="metadata" />
+                                                    isVideoUrl(mediaUrl) ? (
+                                                        <TakeMedia url={mediaUrl} videoSrc={getVideoProxyUrl(mediaUrl)} fit="contain" />
                                                     ) : (
                                                         <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full cursor-zoom-in overflow-hidden">
-                                                            <img src={mediaUrl} alt={opt.prompt || ""} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
+                                                            <TakeMedia url={mediaUrl} className="transition-transform duration-500 hover:scale-105" />
                                                         </a>
                                                     )
                                                 ) : (
@@ -917,9 +917,9 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                             {compareTargets.map((target) => (
                                 <div key={target.id} className="relative flex items-center justify-center border-r border-line bg-black p-4 last:border-r-0">
                                     {target.output_url?.endsWith(".mp4") ? (
-                                        <video src={getVideoProxyUrl(target.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay playsInline preload="metadata" />
+                                        <TakeMedia url={target.output_url} videoSrc={getVideoProxyUrl(target.output_url)} fit="contain" autoPlay />
                                     ) : (
-                                        <img src={target.output_url || ""} alt={target.prompt || ""} className="max-h-full max-w-full object-contain" />
+                                        <TakeMedia url={target.output_url} fit="contain" />
                                     )}
                                 </div>
                             ))}
@@ -941,9 +941,9 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 return (
                                     <div key={id} className="relative flex items-center justify-center border-r border-line bg-black p-4 last:border-r-0">
                                         {option.output_url?.endsWith(".mp4") ? (
-                                            <video src={getVideoProxyUrl(option.output_url)} className="max-h-full max-w-full object-contain" controls autoPlay playsInline preload="metadata" />
+                                            <TakeMedia url={option.output_url} videoSrc={getVideoProxyUrl(option.output_url)} fit="contain" autoPlay />
                                         ) : (
-                                            <img src={option.output_url || ""} alt={option.prompt || ""} className="max-h-full max-w-full object-contain" />
+                                            <TakeMedia url={option.output_url} fit="contain" />
                                         )}
                                     </div>
                                 )

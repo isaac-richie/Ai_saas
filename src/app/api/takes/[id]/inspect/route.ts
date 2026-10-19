@@ -34,6 +34,15 @@ const clientInspectionSchema = z.object({
 const CLIENT_FRAME_BYTES = 700 * 1024
 const CLIENT_INSPECTION_BODY_BYTES = 3 * 1024 * 1024
 
+/** Centre-crops a frame to the shot's requested shape (no stretching, no bars), 1280 px on the long edge. */
+function conformFilter(aspect: string | null | undefined) {
+  const [w, h] = (aspect || "16:9").split(":").map(Number)
+  const ratio = w > 0 && h > 0 ? w / h : 16 / 9
+  const width = ratio >= 1 ? 1280 : Math.round(1280 * ratio / 2) * 2
+  const height = ratio >= 1 ? Math.round(1280 / ratio / 2) * 2 : 1280
+  return `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`
+}
+
 class InvalidClientInspectionError extends Error {}
 
 function inspectionProviderFailure(cause: unknown, stage: string, timedOut: boolean) {
@@ -74,7 +83,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const db = await createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 })
-  const { data: take } = await db.from("shot_generations").select("id,shot_id,output_url,prompt,compiled_prompt,parameters,media_inspection,shots!shot_generations_shot_id_fkey!inner(name,prompt_text,generation_settings,previous_shot_id,scene_id,scenes!inner(project_id,projects!inner(user_id)))").eq("id", id).eq("status", "completed").eq("shots.scenes.projects.user_id", user.id).maybeSingle()
+  const { data: take } = await db.from("shot_generations").select("id,shot_id,output_url,aspect_ratio,prompt,compiled_prompt,parameters,media_inspection,shots!shot_generations_shot_id_fkey!inner(name,prompt_text,generation_settings,previous_shot_id,scene_id,scenes!inner(project_id,projects!inner(user_id)))").eq("id", id).eq("status", "completed").eq("shots.scenes.projects.user_id", user.id).maybeSingle()
   if (!take?.output_url) return NextResponse.json({ error: "Completed take not found." }, { status: 404 })
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "The director connection is not configured." }, { status: 503 })
 
@@ -111,7 +120,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       frames = []
       for (let index = 0; index < timestamps.length; index += 1) {
         const framePath = join(tempDir, `frame-${index}.jpg`)
-        await execFileAsync(ffmpegPath, ["-nostdin", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", "mov", "-y", "-ss", String(timestamps[index]), "-i", videoPath, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "3", framePath], { timeout: 12000, maxBuffer: 1024 * 1024, signal })
+        await execFileAsync(ffmpegPath, ["-nostdin", "-threads", "1", "-protocol_whitelist", "file,pipe", "-f", "mov", "-y", "-ss", String(timestamps[index]), "-i", videoPath, "-frames:v", "1", "-vf", conformFilter((take as { aspect_ratio?: string | null }).aspect_ratio), "-q:v", "3", framePath], { timeout: 12000, maxBuffer: 1024 * 1024, signal })
         frames.push(await readFile(framePath))
       }
       inspectionMethod = "server_sampled_stills"

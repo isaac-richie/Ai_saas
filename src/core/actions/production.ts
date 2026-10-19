@@ -439,7 +439,16 @@ export async function queueProductionShot(input: unknown) {
     const { data: previousTake } = await db.from("shot_generations").select("last_frame_url").eq("id", previousShot.approved_take_id).eq("status", "completed").maybeSingle()
     if (!previousTake?.last_frame_url) return { error: "Inspect the approved previous take first so its ending frame can guide this shot." }
     continuityReferenceUrl = previousTake.last_frame_url
+    // The ending frame is the physical anchor; the film's @image references still hold identity,
+    // so a continued shot never drops them (Kling sends them as elements beside the opening frame).
+    const references = productionAssetsSchema.safeParse(production.reference_assets || [])
+    if (references.success) referenceElements = buildReferenceElements(references.data, user.id)
   }
+  // Conditioning order, stated for the model: opening frame (position, light, pose) first, then the
+  // references (who and what), then the shot's own action.
+  const continuationPrefix = shot.previous_shot_id
+    ? "Seamless continuation from the opening frame, which is the previous shot's final frame: keep its framing, lighting, positions and every character's identity, then perform this shot's action. "
+    : ""
   const family = shot.model === "seedance" ? "seedance" : "kling"
   const model = resolveKieVideoModelByFamily({ familyId: family, useImageToVideo: Boolean(continuityReferenceUrl) })
   const duration = Math.max(4, Math.min(15, shot.duration_target || 10))
@@ -460,7 +469,7 @@ export async function queueProductionShot(input: unknown) {
 
   const generated = await generateFastVideo({
     request_type: "fast_video", project_id: production.project_id, scene_id: production.scene_id, shot_id: shot.id,
-    prompt_inputs: { text_subject: shot.prompt_text || shot.description || shot.name, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
+    prompt_inputs: { text_subject: continuationPrefix + (shot.prompt_text || shot.description || shot.name), style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
     settings: { duration_seconds: duration, model },
   })
   if (generated.error || !generated.data) {

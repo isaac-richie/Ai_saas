@@ -15,7 +15,7 @@ import { needsProductionTake } from "@/core/utils/production/retry-eligibility"
 
 type Take = { id: string; take_number: number; status: string; output_url: string | null; model_version_used: string | null; review_status?: string; review_notes?: string | null; media_inspection?: unknown; first_frame_url?: string | null; last_frame_url?: string | null; created_at?: string }
 type Job = { id: string; status: string; progress: number; error_message: string | null; provider_task_id: string | null; take_id: string | null; created_at?: string }
-type Shot = { id: string; name: string; model: string | null; duration_target: number | null; approved_take_id: string | null; previous_shot_id: string | null; shot_generations: Take[]; generation_jobs: Job[] }
+type Shot = { id: string; name: string; model: string | null; aspect_ratio?: string | null; duration_target: number | null; approved_take_id: string | null; previous_shot_id: string | null; shot_generations: Take[]; generation_jobs: Job[] }
 type Correction = { revisionId: string; revisedPrompt: string; changes: string[]; retainedAnchors: string[] }
 type ContinuityGate = { shotId: string; takeId: string; nextShotName: string | null; action: "inspect" | "approve" }
 type CapturedKeyframes = { frames: string[]; timestamps: number[] }
@@ -68,24 +68,42 @@ function seekVideo(video: HTMLVideoElement, timestamp: number) {
   })
 }
 
-async function captureTakeKeyframes(video: HTMLVideoElement): Promise<CapturedKeyframes> {
+/** Width / height for a shot's requested frame ("16:9" → 1.78). */
+function aspectValue(aspect: string | null | undefined) {
+  const [w, h] = (aspect || "16:9").split(":").map(Number)
+  return w > 0 && h > 0 ? w / h : 16 / 9
+}
+
+/**
+ * Samples three keyframes, conformed to the shot's requested canvas: when the model rendered a
+ * different shape, the frame is centre-cropped (never stretched or letterboxed), so the ending frame
+ * that anchors the next shot always has the film's shape.
+ */
+async function captureTakeKeyframes(video: HTMLVideoElement, aspect: string | null | undefined): Promise<CapturedKeyframes> {
   if (video.readyState < 2) await waitForVideoReady(video)
   if (!Number.isFinite(video.duration) || video.duration <= 0 || !video.videoWidth || !video.videoHeight) {
     throw new Error("The video is not ready for keyframe review yet.")
   }
   const originalTime = video.currentTime
   const timestamps = [Math.min(0.15, video.duration / 10), video.duration / 2, Math.max(0, video.duration - 0.15)]
-  const scale = Math.min(1, CLIENT_KEYFRAME_EDGE / Math.max(video.videoWidth, video.videoHeight))
+  const target = aspectValue(aspect)
+  const rendered = video.videoWidth / video.videoHeight
+  // Source window: the largest centred region with the target shape.
+  const sw = rendered > target ? video.videoHeight * target : video.videoWidth
+  const sh = rendered > target ? video.videoHeight : video.videoWidth / target
+  const sx = (video.videoWidth - sw) / 2
+  const sy = (video.videoHeight - sh) / 2
+  const scale = Math.min(1, CLIENT_KEYFRAME_EDGE / Math.max(sw, sh))
   const canvas = document.createElement("canvas")
-  canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
-  canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+  canvas.width = Math.max(1, Math.round(sw * scale))
+  canvas.height = Math.max(1, Math.round(sh * scale))
   const context = canvas.getContext("2d")
   if (!context) throw new Error("Your browser cannot prepare keyframes for review.")
   try {
     const frames: string[] = []
     for (const timestamp of timestamps) {
       await seekVideo(video, timestamp)
-      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      context.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
       const dataUrl = canvas.toDataURL("image/jpeg", 0.72)
       const bytes = Math.ceil((dataUrl.length - "data:image/jpeg;base64,".length) * 3 / 4)
       if (bytes > CLIENT_KEYFRAME_BYTES) throw new Error("This video frame is too detailed to inspect in the browser. Please retry once playback is stable.")
@@ -209,7 +227,8 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
     try {
       const video = document.getElementById(`take-video-${takeId}`) as HTMLVideoElement | null
       if (!video) throw new Error("Open this completed take before starting continuity review.")
-      const keyframes = await captureTakeKeyframes(video)
+      const shot = shots.find(item => item.shot_generations.some(take => take.id === takeId))
+      const keyframes = await captureTakeKeyframes(video, shot?.aspect_ratio)
       const response = await fetch(`/api/takes/${takeId}/inspect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
