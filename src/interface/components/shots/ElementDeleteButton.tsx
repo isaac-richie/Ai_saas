@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "sonner"
 import { useState } from "react"
 import { Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -21,7 +22,7 @@ export function ElementDeleteButton({ projectId, elementId }: ElementDeleteButto
         const res = await deleteElement(projectId, elementId)
         setIsDeleting(false)
         if (res.error) {
-            alert(`Delete failed: ${res.error}`)
+            toast.error(`Couldn't delete: ${res.error}`)
             return
         }
         router.refresh()

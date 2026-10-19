@@ -89,7 +89,8 @@ function sanitizeStoryboardItem(
     updated_at: new Date().toISOString(),
     // Migration 0036; omitted entirely when absent so older databases still accept the row.
     ...(item.campaignProvenance ? { campaign_provenance: campaignProvenanceSchema.parse(item.campaignProvenance) } : {}),
-    direction: (item.direction || "").trim().slice(0, 1200),
+    // Up to 20,000 with migration 0042 (long briefs); trimmed to 1,200 below if the database is older.
+    direction: (item.direction || "").trim().slice(0, 20000),
     review_status: item.review && REVIEW_STATES.has(item.review) ? item.review : null,
     start_frame: ownedFrame(item.startFrame, userId),
     end_frame: ownedFrame(item.endFrame, userId),
@@ -174,6 +175,11 @@ export async function replaceFastVideoStoryboard(input: ReplaceFastVideoStoryboa
       ;({ error: upsertError } = await supabase.from("fast_video_storyboard_items").upsert(rows as typeof payload, { onConflict: "id" }))
     }
 
+    // Before migration 0042 the database caps directions at 1,200 characters: keep the storyboard, trim the text.
+    if (upsertError?.message.includes("storyboard_direction_length")) {
+      rows = rows.map((row) => ({ ...row, direction: String(row.direction ?? "").slice(0, 1200) }))
+      ;({ error: upsertError } = await supabase.from("fast_video_storyboard_items").upsert(rows as typeof payload, { onConflict: "id" }))
+    }
     if (upsertError) return { error: upsertError.message.includes("media_references") ? "Apply migration 0027 to save storyboard reference snapshots." : upsertError.message }
 
     const incomingIds = payload.map((item) => item.id)

@@ -7,7 +7,7 @@ import { NAV_ITEMS } from "./nav-items"
 
 /**
  * Phone navigation: a bottom tab bar within thumb reach, with Create raised in
- * the middle as the one primary action. Hidden from md up, where the sidebar takes over.
+ * the middle as the one primary action (quiet while you are already on Create). Hidden from md up, where the sidebar takes over.
  */
 export function MobileTabBar() {
     const pathname = usePathname()
@@ -30,9 +30,12 @@ export function MobileTabBar() {
                                     data-tour={item.tour}
                                     className="group -mt-5 flex flex-col items-center gap-1"
                                 >
+                                    {/* On Create itself the page's own Create button is the primary action, so the tab goes quiet. */}
                                     <span className={cn(
-                                        "grid size-14 place-items-center rounded-full bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[#1a160e] shadow-[0_10px_30px_-8px_rgba(217,192,138,0.75),inset_0_1px_0_rgba(255,255,255,0.6)] transition-transform duration-300 group-active:scale-95",
-                                        active && "ring-2 ring-gold-200/60 ring-offset-2 ring-offset-[#0b0c0b]"
+                                        "grid size-14 place-items-center rounded-full transition-transform duration-300 group-active:scale-95",
+                                        active
+                                            ? "border border-gold-300/50 bg-[#141614] text-gold-200 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.9)]"
+                                            : "bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[#1a160e] shadow-[0_10px_30px_-8px_rgba(217,192,138,0.75),inset_0_1px_0_rgba(255,255,255,0.6)]"
                                     )}>
                                         <Icon className="size-6" strokeWidth={1.8} />
                                     </span>

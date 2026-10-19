@@ -1,31 +1,44 @@
 "use client"
 
-import { useTheme } from "next-themes"
-import { Toaster as Sonner } from "sonner"
+import { Toaster as Sonner, toast } from "sonner"
+import { friendlyError } from "@/core/utils/friendly-error"
 
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
-const Toaster = ({ ...props }: ToasterProps) => {
-    const { theme = "system" } = useTheme()
+// Every error toast in the app goes through one plain-language filter, so raw technical
+// text (validation, HTTP, provider errors) never reaches a creator.
+const originalError = toast.error
+toast.error = ((message: Parameters<typeof toast.error>[0], data?: Parameters<typeof toast.error>[1]) =>
+  originalError(typeof message === "string" ? friendlyError(message) : message, data)) as typeof toast.error
 
-    return (
-        <Sonner
-            theme={theme as ToasterProps["theme"]}
-            className="toaster group"
-            toastOptions={{
-                classNames: {
-                    toast:
-                        "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
-                    description: "group-[.toast]:text-muted-foreground",
-                    actionButton:
-                        "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
-                    cancelButton:
-                        "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
-                },
-            }}
-            {...props}
-        />
-    )
-}
+/** Obsidian-and-gold toasts at the top, clear of the phone tab bar and the Create button. */
+const Toaster = ({ ...props }: ToasterProps) => (
+  <Sonner
+    theme="dark"
+    position="top-center"
+    offset={16}
+    gap={10}
+    visibleToasts={3}
+    closeButton
+    className="toaster group"
+    toastOptions={{
+      duration: 5000,
+      classNames: {
+        toast:
+          "group toast !rounded-2xl !border !border-gold-400/25 !bg-[#111311]/95 !px-4 !py-3.5 !text-[#ece6d6] !shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9),0_0_0_1px_rgba(217,192,138,0.05)] backdrop-blur-xl !font-sans",
+        title: "!text-[14px] !font-medium !leading-snug",
+        description: "!text-[13px] !leading-snug !text-[#B0B8C4]",
+        icon: "!text-gold-300",
+        error: "!border-rose-300/30 [&_[data-icon]]:!text-rose-300",
+        success: "[&_[data-icon]]:!text-emerald-300",
+        warning: "!border-amber-300/30 [&_[data-icon]]:!text-amber-300",
+        closeButton: "!border-gold-400/25 !bg-[#1a1c1a] !text-[#B0B8C4] hover:!text-white",
+        actionButton: "!rounded-lg !bg-gold-300 !text-[#1a160e] !font-semibold",
+        cancelButton: "!rounded-lg !bg-white/10 !text-white/80",
+      },
+    }}
+    {...props}
+  />
+)
 
 export { Toaster }

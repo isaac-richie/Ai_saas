@@ -30,7 +30,7 @@ function statusClass(status: string) {
     if (status === "completed") return "border-[#b6ddd3]/35 bg-[#b6ddd3]/10 text-[#d6efe8]"
     if (status === "processing") return "border-gold-400/40 bg-gold-400/12 text-gold-100"
     if (status === "failed") return "border-red-400/35 bg-red-500/12 text-red-200"
-    return "border-gold-400/15 bg-white/[0.04] text-[#c8c3b3]"
+    return "border-line bg-white/[0.04] text-[#c8c3b3]"
 }
 
 export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
@@ -158,7 +158,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
 
     return (
         <div className="space-y-4">
-            <section className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gold-400/[0.12] bg-obsidian-900 px-3 py-2">
+            <section className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-obsidian-900 px-3 py-2">
                 <p className="text-xs text-white/60">
                     Run queue to process pending exports now.
                 </p>
@@ -166,7 +166,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="rounded-lg border border-gold-400/[0.12] text-white/75 hover:bg-gold-400/[0.08]"
+                        className="rounded-lg border border-line text-white/75 hover:bg-gold-400/[0.08]"
                         onClick={() => window.location.reload()}
                     >
                         <RefreshCcw className="h-4 w-4" />
@@ -195,7 +195,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                     <div
                         key={stat.label}
                         style={{ "--i": index } as React.CSSProperties}
-                        className="lux-lift lux-spotlight rounded-2xl border border-gold-400/[0.12] bg-obsidian-900 p-4"
+                        className="lux-lift lux-spotlight rounded-2xl border border-line bg-obsidian-900 p-4"
                     >
                         <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-[#8f9086]">
                             <span className={`size-1.5 rounded-full ${stat.dot}`} />
@@ -216,7 +216,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                         <article
                             key={job.id}
                             style={{ "--i": Math.min(jobIndex, 10) } as React.CSSProperties}
-                            className="lux-spotlight rounded-2xl border border-gold-400/[0.12] bg-obsidian-900 p-5 text-white transition-[border-color,box-shadow] duration-300 hover:border-gold-400/30 hover:shadow-[0_20px_40px_-28px_rgba(217,192,138,0.35)]"
+                            className="lux-spotlight rounded-2xl border border-line bg-obsidian-900 p-5 text-white transition-[border-color,box-shadow] duration-300 hover:border-gold-400/30 hover:shadow-[0_20px_40px_-28px_rgba(217,192,138,0.35)]"
                         >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="space-y-2">
@@ -225,11 +225,11 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                             {job.status === "processing" ? <span className="lux-live-dot !size-1.5" /> : null}
                                             {job.status}
                                         </Badge>
-                                        <Badge className="border border-gold-400/[0.12] bg-white/5 text-white/80">
+                                        <Badge className="border border-line bg-white/5 text-white/80">
                                             {profileLabels[job.profile] || job.profile}
                                         </Badge>
                                         {projectName ? (
-                                            <Badge className="border border-gold-400/[0.12] bg-white/5 text-white/80">{projectName}</Badge>
+                                            <Badge className="border border-line bg-white/5 text-white/80">{projectName}</Badge>
                                         ) : null}
                                     </div>
                                     <div className="text-xs text-white/50">
@@ -247,7 +247,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                     <Button
                                         size="sm"
                                         variant="ghost"
-                                        className="rounded-lg border border-gold-400/[0.12] text-white/75 hover:bg-gold-400/[0.08]"
+                                        className="rounded-lg border border-line text-white/75 hover:bg-gold-400/[0.08]"
                                         onClick={() => handleToggleItems(job.id)}
                                     >
                                         {isExpanded ? "Hide Items" : "View Items"}
@@ -310,7 +310,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                             )}
 
                             {isExpanded && (
-                                <div className="mt-4 rounded-xl border border-gold-400/[0.12] bg-black/30 p-3">
+                                <div className="mt-4 rounded-xl border border-line bg-black/30 p-3">
                                     {loadingItemsFor === job.id ? (
                                         <div className="flex items-center gap-2 text-xs text-white/60">
                                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -323,7 +323,7 @@ export function ExportJobsPanel({ jobs }: ExportJobsPanelProps) {
                                             {items.map((item, index) => (
                                                 <div
                                                     key={item.id}
-                                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gold-400/[0.12] bg-white/5 px-3 py-2 text-xs"
+                                                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-white/5 px-3 py-2 text-xs"
                                                 >
                                                     <div className="text-white/75">
                                                         Item {index + 1} · {item.source_url ? "Source attached" : "Missing source"}

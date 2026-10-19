@@ -2,6 +2,8 @@ export interface GenerationRequest {
     prompt: string;
     negative_prompt?: string;
     image_prompt?: string; // Used for image-to-video as starting frame or reference
+    /** Driving audio for lip-sync models (Kling AI Avatar): the real waveform, not a transcript. */
+    audio_url?: string;
     end_image_prompt?: string; // Target last frame; only with image_prompt on models that support first+last frames
     reference_image_urls?: string[]; // Seedance multimodal references; never combined with first/last frames
     reference_elements?: Array<{

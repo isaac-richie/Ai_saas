@@ -16,28 +16,32 @@ export class OpenAIProvider extends BaseProvider {
         });
     }
 
-    private normalizeImageQuality(raw?: string): "standard" | "hd" | undefined {
+    /** GPT Image quality: low | medium | high. Older "standard"/"hd" values map onto it. */
+    private normalizeImageQuality(raw?: string): "medium" | "high" | undefined {
         if (!raw) return undefined;
         const value = raw.trim().toLowerCase();
-        if (!value) return undefined;
-        if (value === "hd") return "hd";
-        if (value === "standard") return "standard";
-        if (value === "high") return "hd";
-        if (value === "medium" || value === "low") return "standard";
+        if (value === "hd" || value === "high") return "high";
+        if (value === "standard" || value === "medium" || value === "low") return "medium";
         return undefined;
+    }
+
+    /**
+     * OpenAI retired DALL·E 3; GPT Image 1.5 is the current image model. A model name meant for
+     * another provider (a Kie slug when OpenAI is the fallback) is never sent here.
+     */
+    static resolveModel(requested?: string): string {
+        const model = requested?.trim() || "";
+        return /^gpt-image-\d/.test(model) ? model : "gpt-image-1.5";
     }
 
     async generate(request: GenerationRequest): Promise<GenerationResult> {
         try {
             const ratio = request.aspect_ratio || "1:1";
-            const size =
-                ratio === "16:9"
-                    ? "1792x1024"
-                    : ratio === "9:16"
-                        ? "1024x1792"
-                        : "1024x1024";
+            const [w, h] = ratio.match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/)?.slice(1).map(Number) ?? [1, 1];
+            // GPT Image makes square, 3:2 landscape and 2:3 portrait.
+            const size = Math.abs(w / h - 1) < 0.15 ? "1024x1024" : w > h ? "1536x1024" : "1024x1536";
 
-            const model = request.model || "dall-e-3";
+            const model = OpenAIProvider.resolveModel(request.model);
             const quality = this.normalizeImageQuality(request.quality);
             const payload: OpenAI.Images.ImageGenerateParamsNonStreaming = {
                 model,
@@ -47,7 +51,6 @@ export class OpenAIProvider extends BaseProvider {
             };
             // No response_format: OpenAI now rejects it. Results may come back as a URL or base64.
 
-            // OpenAI image quality accepts only standard|hd for image generation.
             if (quality) {
                 payload.quality = quality;
             }

@@ -69,7 +69,7 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
   return <fieldset disabled={disabled} className={styles.console}>
     <legend className={styles.srOnly}>Shot models and timing</legend>
     <div className={styles.topbar}>
-      <div><span className={styles.eyebrow}>THE SEQUENCE</span><h4 className={styles.heading}>Shape the pace.</h4></div>
+      <div><h4 className={styles.heading}>Shape the pace</h4><span className={styles.eyebrow}>How long the film runs, and each shot&rsquo;s model and timing.</span></div>
       <div className={styles.runtime} aria-live="polite"><strong>{runtime(total)}</strong><span>{value.length} shots <i /> planned runtime</span></div>
     </div>
 
@@ -82,7 +82,7 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
         }}>{label}</button>)}</div>
       </div>
       <div>
-        <span className={styles.label}>Shots</span>
+        <span className={styles.label}>Shots <small style={{ opacity: 0.7, fontWeight: 400 }}>· up to 12</small></span>
         <div className={styles.counter} role="group" aria-label="Number of shots">
           <button type="button" aria-label="Remove a shot" disabled={disabled || value.length <= MIN_SHOTS} onClick={() => resize(value.length - 1)}>−</button>
           <output aria-live="polite">{value.length}</output>
@@ -99,14 +99,14 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
       const next = event.key === "ArrowRight" ? (index + 1) % value.length : event.key === "ArrowLeft" ? (index - 1 + value.length) % value.length : event.key === "Home" ? 0 : event.key === "End" ? value.length - 1 : null
       if (next !== null) { event.preventDefault(); select(next) }
     }} className={styles.shot} data-model={item.model || "none"} style={{ flexGrow: Math.max(item.durationSeconds, 4) }}>
-      <span className={styles.shotTop}><span>SHOT {String(index + 1).padStart(2, "0")}</span><span className={styles.dot} data-ready={!!item.model && !!item.durationSeconds} /></span>
+      <span className={styles.shotTop}><span>Shot {index + 1}</span><span className={styles.dot} data-ready={!!item.model && !!item.durationSeconds} /></span>
       <strong>{item.durationSeconds || "--"}<small>sec</small></strong>
       <span className={styles.shotModel}>{modelName(item.model)}</span>
       <span className={styles.ruler} aria-hidden="true" />
     </button>)}</div>
 
     <div role="tabpanel" id={`${id}-editor`} aria-labelledby={`${id}-shot-${selected}`} className={styles.editor}>
-      <div className={styles.editorTitle}><span className={styles.eyebrow}>IN FOCUS</span><strong>Shot {String(selected + 1).padStart(2, "0")}</strong><span>Set the look and timing.</span></div>
+      <div className={styles.editorTitle}><strong>Shot {selected + 1}</strong><span>Set the look and timing.</span></div>
       <div className={styles.modelControl}><span className={styles.label}>Video model</span><div role="radiogroup" aria-label={`Shot ${selected + 1} model`} className={styles.modelCards}>{MODELS.map(model => <button key={model} type="button" role="radio" aria-checked={shot.model === model} onClick={() => setModel(model)}>{modelName(model)}<small>{MODEL_NOTES[model]}</small></button>)}</div></div>
       <div className={styles.durationControl}><span className={styles.label} id={`${id}-duration`}>Duration</span>
         {durations.length

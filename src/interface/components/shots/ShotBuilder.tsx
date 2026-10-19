@@ -591,8 +591,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
     if (!isMounted) {
         return (
             <div className="flex flex-col gap-5 min-w-0">
-                <div className="min-h-[400px] rounded-2xl border border-gold-400/[0.12] lux-shimmer" />
-                <div className="min-h-[150px] rounded-2xl border border-gold-400/[0.12] lux-shimmer" />
+                <div className="min-h-[400px] rounded-2xl border border-line lux-shimmer" />
+                <div className="min-h-[150px] rounded-2xl border border-line lux-shimmer" />
             </div>
         )
     }
@@ -601,8 +601,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
         <div className="flex flex-col gap-6 min-w-0 2xl:gap-8">
             <Card ref={composerRef} className="studio-card scroll-mt-24 rounded-2xl text-white">
                 <CardHeader className="pb-2">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-gold-300/80">Shot {String(shots.length + 1).padStart(2, "0")}</p>
-                    <CardTitle className="font-serif text-xl tracking-tight text-[#f1ece0]">What do you want to see?</CardTitle>
+                    <p className="text-[12.5px] text-[#9aa1ab]">Shot {shots.length + 1}</p>
+                    <CardTitle className="text-[22px] font-light tracking-[-0.025em] text-[#f6f1e4]">What do you want to see?</CardTitle>
                     <p className="text-xs text-white/40">Describe it, generate images, choose one, then animate it or add it to your sequence.</p>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -658,7 +658,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                                     const on = selectedElementIds.has(el.id)
                                     return (
                                         <button key={el.id} type="button" aria-pressed={on} onClick={() => toggleElement(el.id)}
-                                            className={`inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[11.5px] transition ${on ? "bg-emerald-400/15 text-emerald-50 ring-1 ring-emerald-300/30" : "border border-gold-400/[0.14] text-white/55 hover:text-white/90"}`}>
+                                            className={`inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-[11.5px] transition ${on ? "bg-emerald-400/15 text-emerald-50 ring-1 ring-emerald-300/30" : "border border-line text-white/55 hover:text-white/90"}`}>
                                             {on ? <Check className="h-3 w-3" /> : null}{el.name}
                                         </button>
                                     )
@@ -677,11 +677,11 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                             ) : null}
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating} className="h-11 flex-1 px-6 text-[13px] font-semibold sm:flex-none">
+                                <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating} className="h-11 flex-[1_1_100%] px-6 text-[13px] font-semibold sm:flex-none">
                                     {isSaving || isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                                     {isGenerating ? "Generating images…" : isSaving ? "Preparing…" : "Generate image"}
                                 </Button>
-                                <Button type="button" variant="studioSecondary" onClick={() => void handleEnhance()} disabled={isEnhancing || isSaving || isGenerating} className="h-11">
+                                <Button type="button" variant="studioSecondary" onClick={() => void handleEnhance()} disabled={isEnhancing || isSaving || isGenerating} className="h-11 flex-1 sm:flex-none">
                                     {isEnhancing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                                     Enhance with AI
                                 </Button>
@@ -697,7 +697,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                                     <span>More options <span className="text-white/35">· style, camera, look, quality</span></span>
                                     <ChevronDown className="h-3.5 w-3.5 transition group-open/more:rotate-180" />
                                 </summary>
-                                <div className="space-y-3 border-t border-gold-400/[0.1] p-3">
+                                <div className="space-y-3 border-t border-line p-3">
                             <div className="studio-subcard space-y-2 rounded-xl p-3">
                                 <div className="flex items-center justify-between">
                                     <div className="text-xs uppercase tracking-[0.16em] text-white/50">Quick Styles</div>
@@ -722,7 +722,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                                                 aria-pressed={applied}
                                                 data-active={applied}
                                                 onClick={() => { applyQuickStyle(style.id); setAppliedQuickStyle(style.id) }}
-                                                className={`preset-card group relative overflow-hidden rounded-xl border text-left transition-all duration-300 ${applied ? "border-gold-300/70 shadow-[0_14px_30px_-20px_rgba(217,192,138,0.8)]" : "border-gold-400/[0.14] hover:-translate-y-0.5 hover:border-gold-400/45"}`}
+                                                className={`preset-card group relative overflow-hidden rounded-xl border text-left transition-all duration-300 ${applied ? "border-gold-300/70 shadow-[0_14px_30px_-20px_rgba(217,192,138,0.8)]" : "border-line hover:-translate-y-0.5 hover:border-gold-400/45"}`}
                                             >
                                                 <span className="relative block h-16 overflow-hidden bg-obsidian-900">
                                                     {preview ? <StyleSwatch id={preview} name={style.name} /> : (
@@ -777,7 +777,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                                     </div>
                                 </summary>
 
-                                <div className="space-y-3 border-t border-gold-400/[0.12] px-3 pb-3 pt-3">
+                                <div className="space-y-3 border-t border-line px-3 pb-3 pt-3">
                                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_8rem] sm:items-end">
                                         <FormField
                                             control={form.control}
@@ -794,7 +794,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                                                                 <SelectValue placeholder="Auto" />
                                                             </SelectTrigger>
                                                         </FormControl>
-                                                        <SelectContent className="border-gold-400/[0.12] bg-obsidian-800 text-white">
+                                                        <SelectContent className="border-line bg-obsidian-800 text-white">
                                                             <SelectItem value="auto">Auto</SelectItem>
                                                             <SelectItem value="openai">OpenAI</SelectItem>
                                                             <SelectItem value="kie">Kie.ai</SelectItem>
@@ -818,7 +818,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                                                                 <SelectValue placeholder="standard" />
                                                             </SelectTrigger>
                                                         </FormControl>
-                                                        <SelectContent className="border-gold-400/[0.12] bg-obsidian-800 text-white">
+                                                        <SelectContent className="border-line bg-obsidian-800 text-white">
                                                             <SelectItem value="standard">Standard</SelectItem>
                                                             <SelectItem value="hd">HD</SelectItem>
                                                             <SelectItem value="high">High</SelectItem>
@@ -839,10 +839,10 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                                                     <Input
                                                         placeholder={
                                                             selectedProvider === "kie"
-                                                                ? "e.g. qwen/qwen-image"
+                                                                ? "e.g. nano-banana-pro"
                                                                 : selectedProvider === "openai"
-                                                                    ? "e.g. dall-e-3"
-                                                                    : "e.g. dall-e-3 or qwen/qwen-image"
+                                                                    ? "e.g. gpt-image-1.5"
+                                                                    : "Leave empty for the best default"
                                                         }
                                                         value={field.value ?? ""}
                                                         onChange={(event) => field.onChange(event.target.value)}
@@ -1011,12 +1011,12 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
             <details className="group/tools studio-card rounded-2xl text-white">
                 <summary className="flex cursor-pointer select-none list-none items-center justify-between px-5 py-4 [&::-webkit-details-marker]:hidden">
                     <span>
-                        <span className="block text-sm font-medium uppercase tracking-wider text-white/55">Director tools</span>
-                        <span className="block text-xs text-white/40">Assistant Director variants, the full prompt, and saved looks.</span>
+                        <span className="block text-[14px] font-medium text-[#ece6d6]">Director tools</span>
+                        <span className="block text-[12.5px] text-[#9aa1ab]">Assistant Director variants, the full prompt, and saved looks.</span>
                     </span>
                     <ChevronDown className="h-4 w-4 text-white/50 transition group-open/tools:rotate-180" />
                 </summary>
-            <div className="space-y-5 border-t border-gold-400/[0.1] p-4">
+            <div className="space-y-5 border-t border-line p-4">
                 <StudioAdPanel
                     promptPreview={promptPreview}
                     onApplyPacket={handleApplyAdPacket}

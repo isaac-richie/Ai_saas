@@ -11,7 +11,8 @@ export const fastVideoRequestSchema = z.object({
   scene_id: z.string().min(1).optional().nullable(),
   shot_id: z.string().min(1).optional().nullable(),
   prompt_inputs: z.object({
-    text_subject: z.string().min(3, "Describe your subject in at least 3 characters").max(1200),
+    // Generous intake: the server fits prompt + references to the model budget (1100) itself.
+    text_subject: z.string().min(3, "Describe your idea in at least 3 characters.").max(50000, "That's very long. Keep it under 50,000 characters; we condense it to fit the video model."),
     style_preset_id: z.string().optional().nullable(),
     motion_preset_id: z.string().optional().nullable(),
     aspect_ratio: z.enum(FAST_VIDEO_ASPECT_RATIOS),
@@ -31,6 +32,12 @@ export const fastVideoRequestSchema = z.object({
   settings: z.object({
     duration_seconds: z.number().int().min(MIN_FAST_TRACK_SECONDS).max(MAX_FAST_TRACK_SECONDS).default(5),
     model: z.string().optional().nullable(),
+    /** Sync lips to audio: the trimmed WAV uploaded to the creator's reference storage. */
+    lip_sync: z.object({
+      // Absent only for a request preview; a real generation always carries the trimmed WAV.
+      audio_path: z.string().regex(/^[a-f0-9-]{36}\/[a-f0-9-]{36}\.wav$/, "Re-trim the audio, then try again.").optional(),
+      audio_reference_id: z.string().uuid(),
+    }).optional().nullable(),
   }),
 })
 

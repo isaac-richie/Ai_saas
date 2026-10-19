@@ -18,6 +18,7 @@ const ECONOMY_ROLES = new Set([
 ])
 
 const BALANCED_ROLES = new Set([
+  "prompt-condenser",
   "story-director",
   "shot-editor",
   "continuity-reviewer",

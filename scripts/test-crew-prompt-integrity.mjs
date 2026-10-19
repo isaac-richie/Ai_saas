@@ -479,7 +479,7 @@ test('Kling reference preparation stages every element before a render task is c
       uploads.push({ url, options })
       return { ok: true, json: async () => ({ success: true, data: { downloadUrl: `https://files.redpandaai.co/visio/${uploads.length}.png` } }) }
     },
-    require: name => name.endsWith('base.provider') ? { BaseProvider } : {},
+    require: name => name.endsWith('base.provider') ? { BaseProvider } : name.endsWith('kie.models') ? { currentKieModel: model => model } : {},
   })
   const provider = new result.exports.KieProvider({ apiKey: 'test-key' })
   const first = 'https://storage.example.com/reference-1.jpg'

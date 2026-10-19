@@ -1,5 +1,5 @@
 import { getProjectById } from "@/core/actions/projects";
-import { getScenes } from "@/core/actions/scenes";
+import { getSceneCovers, getScenes } from "@/core/actions/scenes";
 import { SceneCard } from "@/interface/components/dashboard/SceneCard";
 import { MediaGallery, MediaAsset } from "@/interface/components/media/MediaGallery";
 import { ElementUpload } from "@/interface/components/shots/ElementUpload";
@@ -11,7 +11,7 @@ import {
     TabsTrigger,
 } from "@/interface/components/ui/tabs";
 import { CreateSceneDialog } from "@/interface/components/dashboard/CreateSceneDialog";
-import { Badge } from "@/interface/components/ui/badge";
+import { WorkspaceHeading } from "@/interface/components/layout/WorkspaceHeading";
 import Link from "next/link";
 
 interface ProjectPageProps {
@@ -32,7 +32,7 @@ export default async function ProjectPage(props: ProjectPageProps) {
                         This can happen when the session is still initializing in build mode. Try again from the projects list.
                     </p>
                     <div className="mt-4">
-                        <Link href="/dashboard/projects" className="inline-flex rounded-xl border border-gold-400/[0.12] bg-white/10 px-4 py-2 text-sm text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
+                        <Link href="/dashboard/projects" className="inline-flex rounded-xl border border-line bg-white/10 px-4 py-2 text-sm text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
                             Back to Projects
                         </Link>
                     </div>
@@ -45,6 +45,7 @@ export default async function ProjectPage(props: ProjectPageProps) {
 
     const project = projectRes.data;
     const scenes = scenesRes.data || [];
+    const covers = await getSceneCovers(scenes.map((scene) => scene.id));
     const sceneCount = scenes.length;
     const shotCount = scenes.reduce((total, scene) => {
         const count = (scene as { shots?: { count: number }[] }).shots?.[0]?.count ?? 0;
@@ -52,54 +53,51 @@ export default async function ProjectPage(props: ProjectPageProps) {
     }, 0);
     const assets: MediaAsset[] = [];
 
+    const updated = new Date(project.updated_at || project.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    const tabTrigger = "rounded-full px-4 text-[13px] text-[#9aa1ab] transition-colors duration-300 hover:text-white data-[state=active]:bg-white/[0.08] data-[state=active]:text-white data-[state=active]:shadow-none";
+
     return (
-        <div className="mx-auto w-full max-w-7xl space-y-6 py-2 md:py-3">
-            <section data-reveal="hero" className="rounded-3xl lux-glass lux-hairline p-5 text-white md:p-6">
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <Badge className="mb-3 rounded-full border border-gold-400/25 bg-gold-400/[0.07] px-3 text-[10px] font-medium uppercase tracking-[0.22em] text-gold-200">Project Workspace</Badge>
-                        <h1 className="text-3xl font-light tracking-[-0.04em] text-[#f6f1e4] md:text-[42px] md:leading-[1.08]">{project.name}</h1>
-                        <p className="mt-2 text-sm text-white/50 md:text-base">
-                            {project.description || "Project workspace for scenes, prompts, and generated outputs."}
-                        </p>
-                        <div className="mt-4 flex flex-wrap gap-2 text-xs text-white/55">
-                            <span className="rounded-full border border-gold-400/[0.15] bg-gold-400/[0.04] px-3 py-1 text-gold-100/80">Scenes {sceneCount}</span>
-                            <span className="rounded-full border border-gold-400/[0.15] bg-gold-400/[0.04] px-3 py-1 text-gold-100/80">Shots {shotCount}</span>
-                            <span className="rounded-full border border-gold-400/[0.15] bg-gold-400/[0.04] px-3 py-1 text-gold-100/80">
-                                Updated {new Date(project.updated_at || project.created_at).toLocaleDateString()}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Link href={scenes[0] ? `/dashboard/projects/${project.id}/scenes/${scenes[0].id}` : `/dashboard/projects/${project.id}`} className="rounded-xl border border-gold-400/[0.12] bg-white/10 px-3.5 py-2 text-xs text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
-                            Open Studio
-                        </Link>
-                        <Link href={`/dashboard/gallery?projectId=${project.id}`} className="rounded-xl border border-gold-400/[0.12] bg-white/5 px-3.5 py-2 text-xs text-white/90 hover:bg-gold-400/[0.08]">
+        <div className="workspace-page">
+            <WorkspaceHeading
+                label="PROJECT"
+                crumbs={[{ label: "Studio", href: "/dashboard/studio" }]}
+                title={project.name}
+                description={project.description || "Your film, scene by scene. Open a scene to build its shots, or add the next one."}
+                actions={
+                    <>
+                        <Link href={`/dashboard/gallery?projectId=${project.id}`} className="inline-flex min-h-10 items-center rounded-xl border border-line px-4 text-[13px] text-[#ece6d6] transition hover:border-line-strong hover:bg-white/[0.03]">
                             My videos
                         </Link>
                         <CreateSceneDialog projectId={project.id} />
-                    </div>
+                    </>
+                }
+            />
+
+            <Tabs defaultValue="scenes" className="w-full" data-reveal="card">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <TabsList className="h-10 rounded-full border border-line bg-white/[0.02] p-1">
+                        <TabsTrigger value="scenes" className={tabTrigger}>Scenes</TabsTrigger>
+                        <TabsTrigger value="assets" className={tabTrigger}>References & media</TabsTrigger>
+                    </TabsList>
+                    <p className="text-[13px] text-[#9aa1ab]">
+                        {sceneCount} scene{sceneCount === 1 ? "" : "s"} · {shotCount} shot{shotCount === 1 ? "" : "s"} · Updated {updated}
+                    </p>
                 </div>
 
-                <Tabs defaultValue="scenes" className="mt-8 w-full" data-reveal="card">
-                <TabsList className="lux-glass h-11 rounded-2xl p-1">
-                    <TabsTrigger value="scenes" className="rounded-xl px-4 text-[#a3a59a] transition-all duration-300 data-[state=active]:border-gold-400/30 data-[state=active]:bg-gold-400/[0.1] data-[state=active]:text-gold-100 data-[state=active]:shadow-[0_0_24px_-10px_rgba(217,192,138,0.6)]">Scenes</TabsTrigger>
-                    <TabsTrigger value="assets" className="rounded-xl px-4 text-[#a3a59a] transition-all duration-300 data-[state=active]:border-gold-400/30 data-[state=active]:bg-gold-400/[0.1] data-[state=active]:text-gold-100 data-[state=active]:shadow-[0_0_24px_-10px_rgba(217,192,138,0.6)]">Asset Library</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="scenes" className="mt-4 space-y-5">
+                <TabsContent value="scenes" className="mt-5 space-y-5">
                     {scenes.length === 0 ? (
-                        <div className="flex h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-gold-400/20 bg-obsidian-950 text-center text-white">
-                            <p className="mb-2 text-sm text-white/50">No scenes yet.</p>
-                            <p className="text-xs text-white/50">Add your first scene to start composing shots.</p>
+                        <div className="flex flex-col items-center justify-center rounded-[22px] border border-line bg-white/[0.015] px-6 py-14 text-center">
+                            <p className="text-xl font-light tracking-[-0.03em] text-[#f6f1e4]">No scenes yet</p>
+                            <p className="mt-2 max-w-sm text-[14px] leading-relaxed text-[#9aa1ab]">Add a scene for each place or moment in your story. You&rsquo;ll build its shots inside.</p>
                         </div>
                     ) : (
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                             {scenes.map((scene, index) => (
                                 <SceneCard
                                     key={scene.id}
                                     scene={scene}
                                     projectId={project.id}
+                                    coverUrl={covers[scene.id]}
                                     isFirst={index === 0}
                                     isLast={index === scenes.length - 1}
                                 />
@@ -109,22 +107,20 @@ export default async function ProjectPage(props: ProjectPageProps) {
                 </TabsContent>
 
                 <TabsContent value="assets" className="mt-5">
-                    <div className="space-y-6">
+                    <div className="space-y-8">
                         <section>
-                            <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Reference Elements</h3>
                             <ElementUpload projectId={project.id} />
                             <div className="mt-4">
                                 <ElementList projectId={project.id} />
                             </div>
                         </section>
                         <section>
-                            <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-white/55">Generated Media</h3>
+                            <h2 className="mb-4 text-[15px] font-medium text-[#f3eee2]">Generated media</h2>
                             <MediaGallery assets={assets} />
                         </section>
                     </div>
                 </TabsContent>
             </Tabs>
-            </section>
         </div>
     )
 }

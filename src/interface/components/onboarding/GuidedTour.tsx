@@ -153,7 +153,7 @@ export function GuidedTour() {
           <Button
             type="button"
             variant="ghost"
-            className="rounded-lg border border-gold-400/[0.12] bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
+            className="rounded-lg border border-line bg-white/5 text-white/70 hover:bg-gold-400/[0.08]"
             disabled={stepIndex === 0}
             onClick={() => setStepIndex((prev) => Math.max(0, prev - 1))}
           >
@@ -161,7 +161,7 @@ export function GuidedTour() {
           </Button>
           <Button
             type="button"
-            className="rounded-lg border border-gold-400/[0.12] bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50"
+            className="rounded-lg border border-line bg-white/10 text-white hover:bg-gold-400/[0.12] hover:text-gold-50"
             onClick={() => {
               if (stepIndex >= STEPS.length - 1) {
                 window.localStorage.setItem(STORAGE_KEY, "1")

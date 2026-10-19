@@ -1,5 +1,7 @@
 "use client"
 
+import { CorrectionBox } from "./CorrectionBox"
+import type { MentionReference } from "./MentionTextarea"
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -13,7 +15,7 @@ import { needsProductionTake } from "@/core/utils/production/retry-eligibility"
 
 type Take = { id: string; take_number: number; status: string; output_url: string | null; model_version_used: string | null; review_status?: string; review_notes?: string | null; media_inspection?: unknown; first_frame_url?: string | null; last_frame_url?: string | null; created_at?: string }
 type Job = { id: string; status: string; progress: number; error_message: string | null; provider_task_id: string | null; take_id: string | null; created_at?: string }
-type Shot = { id: string; name: string; model: string | null; duration_target: number | null; approved_take_id: string | null; previous_shot_id: string | null; shot_generations: Take[]; generation_jobs: Job[] }
+type Shot = { id: string; name: string; model: string | null; aspect_ratio?: string | null; duration_target: number | null; approved_take_id: string | null; previous_shot_id: string | null; shot_generations: Take[]; generation_jobs: Job[] }
 type Correction = { revisionId: string; revisedPrompt: string; changes: string[]; retainedAnchors: string[] }
 type ContinuityGate = { shotId: string; takeId: string; nextShotName: string | null; action: "inspect" | "approve" }
 type CapturedKeyframes = { frames: string[]; timestamps: number[] }
@@ -66,24 +68,42 @@ function seekVideo(video: HTMLVideoElement, timestamp: number) {
   })
 }
 
-async function captureTakeKeyframes(video: HTMLVideoElement): Promise<CapturedKeyframes> {
+/** Width / height for a shot's requested frame ("16:9" → 1.78). */
+function aspectValue(aspect: string | null | undefined) {
+  const [w, h] = (aspect || "16:9").split(":").map(Number)
+  return w > 0 && h > 0 ? w / h : 16 / 9
+}
+
+/**
+ * Samples three keyframes, conformed to the shot's requested canvas: when the model rendered a
+ * different shape, the frame is centre-cropped (never stretched or letterboxed), so the ending frame
+ * that anchors the next shot always has the film's shape.
+ */
+async function captureTakeKeyframes(video: HTMLVideoElement, aspect: string | null | undefined): Promise<CapturedKeyframes> {
   if (video.readyState < 2) await waitForVideoReady(video)
   if (!Number.isFinite(video.duration) || video.duration <= 0 || !video.videoWidth || !video.videoHeight) {
     throw new Error("The video is not ready for keyframe review yet.")
   }
   const originalTime = video.currentTime
   const timestamps = [Math.min(0.15, video.duration / 10), video.duration / 2, Math.max(0, video.duration - 0.15)]
-  const scale = Math.min(1, CLIENT_KEYFRAME_EDGE / Math.max(video.videoWidth, video.videoHeight))
+  const target = aspectValue(aspect)
+  const rendered = video.videoWidth / video.videoHeight
+  // Source window: the largest centred region with the target shape.
+  const sw = rendered > target ? video.videoHeight * target : video.videoWidth
+  const sh = rendered > target ? video.videoHeight : video.videoWidth / target
+  const sx = (video.videoWidth - sw) / 2
+  const sy = (video.videoHeight - sh) / 2
+  const scale = Math.min(1, CLIENT_KEYFRAME_EDGE / Math.max(sw, sh))
   const canvas = document.createElement("canvas")
-  canvas.width = Math.max(1, Math.round(video.videoWidth * scale))
-  canvas.height = Math.max(1, Math.round(video.videoHeight * scale))
+  canvas.width = Math.max(1, Math.round(sw * scale))
+  canvas.height = Math.max(1, Math.round(sh * scale))
   const context = canvas.getContext("2d")
   if (!context) throw new Error("Your browser cannot prepare keyframes for review.")
   try {
     const frames: string[] = []
     for (const timestamp of timestamps) {
       await seekVideo(video, timestamp)
-      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      context.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height)
       const dataUrl = canvas.toDataURL("image/jpeg", 0.72)
       const bytes = Math.ceil((dataUrl.length - "data:image/jpeg;base64,".length) * 3 / 4)
       if (bytes > CLIENT_KEYFRAME_BYTES) throw new Error("This video frame is too detailed to inspect in the browser. Please retry once playback is stable.")
@@ -117,12 +137,13 @@ function findContinuityGate(shots: Shot[]): ContinuityGate | null {
   return null
 }
 
-export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceId }: { productionId: string; projectId: string; sceneId: string; sequenceId?: string | null }) {
+export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceId, references = [] }: { productionId: string; projectId: string; sceneId: string; sequenceId?: string | null; references?: MentionReference[] }) {
   const [shots, setShots] = useState<Shot[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({})
   const [corrections, setCorrections] = useState<Record<string, Correction>>({})
+  const [correcting, setCorrecting] = useState<string | null>(null)
   const [scores, setScores] = useState({ story: 5, continuity: 5, visual: 5, editability: 5, notes: "" })
   const [evaluationSaved, setEvaluationSaved] = useState(false)
   const [inspectingTake, setInspectingTake] = useState<string | null>(null)
@@ -183,8 +204,9 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
     finally { setBusy(false) }
   }
 
-  async function proposeCorrection(take: Take) {
-    const result = await proposeTakeCorrection({ takeId: take.id, reviewerNote: reviewNotes[take.id] || "" })
+  async function proposeCorrection(take: Take, referenceImageUrls: string[] = []) {
+    setCorrecting(take.id)
+    const result = await proposeTakeCorrection({ takeId: take.id, reviewerNote: reviewNotes[take.id] || "", referenceImageUrls }).finally(() => setCorrecting(null))
     if (result.error || !result.data) { toast.error(result.error || "Could not propose a correction"); return }
     setCorrections(current => ({ ...current, [take.id]: result.data as Correction }))
     toast.success("Correction prepared for review")
@@ -205,7 +227,8 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
     try {
       const video = document.getElementById(`take-video-${takeId}`) as HTMLVideoElement | null
       if (!video) throw new Error("Open this completed take before starting continuity review.")
-      const keyframes = await captureTakeKeyframes(video)
+      const shot = shots.find(item => item.shot_generations.some(take => take.id === takeId))
+      const keyframes = await captureTakeKeyframes(video, shot?.aspect_ratio)
       const response = await fetch(`/api/takes/${takeId}/inspect`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -240,7 +263,7 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
     window.requestAnimationFrame(() => document.getElementById(`shot-workspace-${continuityGate.shotId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }))
   }
 
-  return <section className="mt-5 rounded-xl border border-gold-400/[0.12] bg-black/20 p-4">
+  return <section className="mt-5 rounded-xl border border-line bg-black/20 p-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h4 className="text-lg font-medium text-white">The screening room</h4><p className="mt-1 text-xs text-white/60">Watch each shot. Choose your take. {shots.filter(shot => shot.approved_take_id).length} of {shots.length} shots selected.</p></div>
       <button disabled={busy || generationInProgress || (!continuityGate && !continuityReadyShots.length)} onClick={() => continuityGate ? focusContinuityGate() : void generate(continuityReadyShots)} className="rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-4 py-2 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)] disabled:opacity-40">{busy ? "Submitting..." : continuityGate ? `${continuityGate.action === "inspect" ? "Review" : "Approve"} ${shots.findIndex(shot => shot.id === continuityGate.shotId) + 1}${continuityGate.nextShotName ? ` to unlock ${continuityGate.nextShotName}` : ""}` : `${hasTakes ? "Generate next continuity take" : "Generate opening take"} (${continuityReadyShots.length} ${continuityReadyShots.length === 1 ? "credit" : "credits"})`}</button>
@@ -253,7 +276,7 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
       const shotIndex = shots.findIndex(item => item.id === shot.id)
       const continuityBlocked = shotIndex > 0 && !hasApprovedContinuityFrame(shots[shotIndex - 1])
       const isContinuityGate = continuityGate?.shotId === shot.id
-      return <article id={`shot-workspace-${shot.id}`} key={shot.id} className="rounded-lg border border-gold-400/[0.12] p-3">
+      return <article id={`shot-workspace-${shot.id}`} key={shot.id} className="rounded-lg border border-line p-3">
         <p className="text-sm text-white">{shot.name}</p><p className="mt-1 text-xs text-white/45">{shot.model} / {shot.duration_target}s requested</p>
         {isContinuityGate && <div className="mt-3 rounded-lg border border-gold-300/30 bg-gold-300/10 p-3 text-xs text-gold-300"><strong>Continuity gate</strong><p className="mt-1">{continuityGate.action === "inspect" ? "Inspect this completed take to lock its ending frame before selecting it." : "Approve this continuity-checked take to continue the sequence."}{continuityGate.nextShotName ? ` This unlocks ${continuityGate.nextShotName}.` : ""}</p></div>}
         {job && <div className="mt-3"><div className="h-1 overflow-hidden rounded bg-white/10"><i className="block h-full bg-gold-300" style={{ width: `${job.progress}%` }} /></div><p className="mt-2 text-xs text-white/55">{job.status}{job.error_message ? `: ${job.error_message}` : ""}</p></div>}
@@ -273,13 +296,13 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
           {take.status === "completed" && shot.approved_take_id !== take.id && take.last_frame_url && <button className={`ml-2 mt-3 rounded-full px-3 py-1.5 text-xs font-medium ${take.review_status === "rejected" ? "border border-amber-200/40 bg-amber-200/10 text-amber-100" : "bg-gold-300 text-black"}`} onClick={() => void approveContinuityTake(shot, take)}>{take.review_status === "rejected" ? "Approve anyway" : "Approve continuity take"}</button>}
           {take.status === "completed" && take.review_status === "rejected" && take.last_frame_url && <p className="mt-2 text-xs text-amber-100/80">AI review is advisory. You can manually approve this inspected take if the result is acceptable.</p>}
           {take.status === "completed" && !take.last_frame_url && <p className="mt-2 text-xs text-white/45">Inspect this take before approval so the crew can lock its ending frame.</p>}
-          {take.status === "completed" && <details className="mt-3 rounded-lg border border-gold-400/[0.12] p-2"><summary className="cursor-pointer text-xs text-white/60">Request a corrected take</summary><textarea value={reviewNotes[take.id] || ""} onChange={event => setReviewNotes(current => ({ ...current, [take.id]: event.target.value }))} maxLength={1200} placeholder="Describe only what is visibly wrong: motion, continuity, framing, lighting..." className="mt-2 min-h-20 w-full rounded-lg border border-gold-400/[0.12] bg-black/30 p-2 text-xs text-white placeholder:text-white/30" /><button disabled={(reviewNotes[take.id] || "").trim().length < 3} onClick={() => void proposeCorrection(take)} className="mt-2 text-xs text-gold-300 disabled:opacity-40">Ask correction supervisor</button>{corrections[take.id] && <div className="mt-3 rounded-lg bg-black/30 p-3"><p className="text-xs text-white/80">Proposed prompt</p><p className="mt-2 whitespace-pre-wrap text-xs text-white/55">{corrections[take.id].revisedPrompt}</p><p className="mt-2 text-xs text-white/40">Changes: {corrections[take.id].changes.join(" ")}</p><button onClick={() => void applyCorrection(take.id)} className="mt-3 rounded-full bg-gold-300 px-3 py-1.5 text-xs font-medium text-black">Apply to next take</button></div>}</details>}
+          {take.status === "completed" && <><CorrectionBox note={reviewNotes[take.id] || ""} onNote={value => setReviewNotes(current => ({ ...current, [take.id]: value }))} references={references} busy={correcting === take.id} onSubmit={imageUrls => void proposeCorrection(take, imageUrls)} />{corrections[take.id] && <div className="mt-3 rounded-lg bg-black/30 p-3"><p className="text-xs text-white/80">Proposed prompt</p><p className="mt-2 whitespace-pre-wrap text-xs text-white/55">{corrections[take.id].revisedPrompt}</p><p className="mt-2 text-xs text-white/40">Changes: {corrections[take.id].changes.join(" ")}</p><button onClick={() => void applyCorrection(take.id)} className="mt-3 rounded-full bg-gold-300 px-3 py-1.5 text-xs font-medium text-black">Apply to next take</button></div>}</>}
         </div>)}
         {job && active.has(job.status) && <button className="mt-3 text-xs text-white/50" onClick={() => void cancelGenerationJob(job.id).then(refresh)}>Cancel tracking</button>}
         {(!job || !active.has(job.status)) && <button disabled={busy || continuityBlocked} className="mt-4 rounded-full border border-gold-400/25 px-4 py-2 text-sm text-gold-300 disabled:opacity-40" onClick={() => { setFocusedTakes(current => ({ ...current, [shot.id]: "" })); void generate([shot], true) }}>{continuityBlocked ? "Complete previous shot handoff first" : `Generate ${takes.length ? "another" : "first"} take for this shot`}</button>}
       </article>
     })}</div>
-    {allApproved && <form className="mt-5 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-4" onSubmit={event => { event.preventDefault(); void submitProductionEvaluation({ productionId, ...scores }).then(result => { if (result.error) toast.error(result.error); else { setEvaluationSaved(true); toast.success("Production scorecard saved") } }) }}><div className="flex flex-wrap items-start justify-between gap-3"><div><h5 className="text-sm text-white">Beta production scorecard</h5><p className="mt-1 text-xs text-white/45">Rate the approved cut evidence. This data guides crew improvements.</p></div><button disabled={evaluationSaved} className="rounded-full border border-gold-400/20 px-4 py-2 text-xs text-white disabled:opacity-40">{evaluationSaved ? "Scorecard saved" : "Save scorecard"}</button></div><div className="mt-4 grid gap-3 sm:grid-cols-4">{(["story", "continuity", "visual", "editability"] as const).map(key => <label key={key} className="text-xs capitalize text-white/50">{key}<select value={scores[key]} onChange={event => setScores(current => ({ ...current, [key]: Number(event.target.value) }))} className="mt-1 w-full rounded-lg border border-gold-400/[0.12] bg-black/40 p-2 text-white">{[1,2,3,4,5].map(value => <option key={value} value={value}>{value} / 5</option>)}</select></label>)}</div><textarea value={scores.notes} onChange={event => setScores(current => ({ ...current, notes: event.target.value }))} maxLength={2000} placeholder="Optional production notes" className="mt-3 min-h-16 w-full rounded-lg border border-gold-400/[0.12] bg-black/30 p-2 text-xs text-white placeholder:text-white/30" /></form>}
+    {allApproved && <form className="mt-5 rounded-xl border border-line bg-white/[0.03] p-4" onSubmit={event => { event.preventDefault(); void submitProductionEvaluation({ productionId, ...scores }).then(result => { if (result.error) toast.error(result.error); else { setEvaluationSaved(true); toast.success("Production scorecard saved") } }) }}><div className="flex flex-wrap items-start justify-between gap-3"><div><h5 className="text-sm text-white">Beta production scorecard</h5><p className="mt-1 text-xs text-white/45">Rate the approved cut evidence. This data guides crew improvements.</p></div><button disabled={evaluationSaved} className="rounded-full border border-gold-400/20 px-4 py-2 text-xs text-white disabled:opacity-40">{evaluationSaved ? "Scorecard saved" : "Save scorecard"}</button></div><div className="mt-4 grid gap-3 sm:grid-cols-4">{(["story", "continuity", "visual", "editability"] as const).map(key => <label key={key} className="text-xs capitalize text-white/50">{key}<select value={scores[key]} onChange={event => setScores(current => ({ ...current, [key]: Number(event.target.value) }))} className="mt-1 w-full rounded-lg border border-line bg-black/40 p-2 text-white">{[1,2,3,4,5].map(value => <option key={value} value={value}>{value} / 5</option>)}</select></label>)}</div><textarea value={scores.notes} onChange={event => setScores(current => ({ ...current, notes: event.target.value }))} maxLength={2000} placeholder="Optional production notes" className="mt-3 min-h-16 w-full rounded-lg border border-line bg-black/30 p-2 text-xs text-white placeholder:text-white/30" /></form>}
     <div className="mt-4 flex flex-wrap gap-3"><Link className="text-xs text-gold-300" href={`/dashboard/projects/${projectId}/scenes/${sceneId}`}>Review shots</Link>{sequenceId && <Link className="text-xs text-gold-300" href={`/dashboard/sequences/${sequenceId}`}>Edit first cut</Link>}</div>
   </section>
 }

@@ -30,6 +30,8 @@ type PresetPickerProps = {
   expanded: boolean
   onToggleExpanded: () => void
   totalCount: number
+  /** The label stays for screen readers only, when a surrounding row already names the picker. */
+  hideLabel?: boolean
 }
 
 /**
@@ -39,7 +41,7 @@ type PresetPickerProps = {
  */
 export function PresetPicker({
   label, noneLabel, noneDescription, options, selectedId, onSelect, search, onSearch,
-  pinnedIds, recentIds, onTogglePin, expanded, onToggleExpanded, totalCount,
+  pinnedIds, recentIds, onTogglePin, expanded, onToggleExpanded, totalCount, hideLabel,
 }: PresetPickerProps) {
   const [searchOpen, setSearchOpen] = useState(false)
   const selected = options.find((option) => option.id === selectedId)
@@ -47,22 +49,20 @@ export function PresetPicker({
   return (
     <section className="space-y-2" aria-label={label}>
       <header className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-[#8f9086]">{label}</p>
-          <p className="truncate text-[13px] text-[#f3eee2]">
-            {selected ? selected.name : <span className="lux-serif text-gold-300">{noneLabel}</span>}
-          </p>
-        </div>
+        <p className="min-w-0 flex-1 truncate text-[13px]">
+          <span className={hideLabel ? "sr-only" : "font-medium text-[#ece6d6]"}>{label}</span>
+          <span className={selected ? "text-gold-200" : "text-[#9aa1ab]"}>{hideLabel ? "" : " · "}{selected ? selected.name : noneLabel}</span>
+        </p>
         {selectedId ? (
-          <button type="button" onClick={() => onSelect("")} aria-label={`Clear ${label.toLowerCase()}`} title="Clear" className="grid size-7 place-items-center rounded-full border border-gold-400/15 text-[#8f9086] transition hover:border-gold-400/40 hover:text-gold-100">
+          <button type="button" onClick={() => onSelect("")} aria-label={`Clear ${label.toLowerCase()}`} title="Clear" className="grid size-8 place-items-center rounded-full border border-line text-[#9aa1ab] transition hover:border-line-strong hover:text-white">
             <X className="h-3 w-3" />
           </button>
         ) : null}
-        <button type="button" onClick={() => setSearchOpen((open) => !open)} aria-pressed={showSearch} aria-label={`Search ${label.toLowerCase()}`} className={`grid size-7 place-items-center rounded-full border transition ${showSearch ? "border-gold-400/45 bg-gold-400/10 text-gold-100" : "border-gold-400/15 text-[#8f9086] hover:border-gold-400/40 hover:text-gold-100"}`}>
+        <button type="button" onClick={() => setSearchOpen((open) => !open)} aria-pressed={showSearch} aria-label={`Search ${label.toLowerCase()}`} className={`grid size-8 place-items-center rounded-full border transition ${showSearch ? "border-gold-400/45 bg-gold-400/10 text-gold-100" : "border-line text-[#9aa1ab] hover:border-line-strong hover:text-white"}`}>
           <Search className="h-3 w-3" />
         </button>
-        <button type="button" onClick={onToggleExpanded} aria-expanded={expanded} className="h-7 shrink-0 rounded-full border border-gold-400/15 px-2.5 text-[10px] text-gold-200/90 transition hover:border-gold-400/45 hover:bg-gold-400/[0.08]">
-          {expanded ? "Rail view" : `Browse ${totalCount}`}
+        <button type="button" onClick={onToggleExpanded} aria-expanded={expanded} className="h-8 shrink-0 rounded-full border border-line px-3 text-[12px] text-[#c9cdd3] transition hover:border-line-strong hover:text-white">
+          {expanded ? "Show less" : `See all ${totalCount}`}
         </button>
       </header>
 
@@ -122,7 +122,7 @@ export function PresetPicker({
         ))}
       </div>
       {options.length === 0 && (
-        <p className="rounded-xl border border-dashed border-gold-400/15 px-3 py-4 text-center text-[11px] text-[#8f9086]">
+        <p className="rounded-xl border border-dashed border-line px-3 py-4 text-center text-[11px] text-[#8f9086]">
           No {label.toLowerCase()} match “{search}”.
         </p>
       )}
@@ -155,7 +155,7 @@ function PresetCard({ index, compact, name, description, detail, visual, preview
       className={`preset-card group relative overflow-hidden rounded-xl transition-all duration-300 ${compact ? "flex h-[188px] w-[140px] shrink-0 snap-start flex-col" : ""} ${
         active
           ? "border border-solid border-[#E5A93C] bg-gold-400/[0.07] shadow-[0_0_0_0.5px_#E5A93C,0_16px_32px_-20px_rgba(229,169,60,0.8)]"
-          : `border ${none ? "border-dashed border-gold-400/35" : "border-gold-400/[0.12]"} bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40`
+          : `border ${none ? "border-dashed border-line-strong" : "border-line"} bg-white/[0.02] hover:-translate-y-0.5 hover:border-gold-400/40`
       }`}
     >
       <button
@@ -225,8 +225,8 @@ export function SegmentedPreset<T extends string>({ label, options, value, onCha
 }) {
   return (
     <div className="space-y-1.5">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-[#8f9086]">{label}</p>
-      <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5 rounded-xl border border-gold-400/[0.12] bg-black/20 p-1">
+      <p className="text-[13px] font-medium text-[#ece6d6]">{label}</p>
+      <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5 rounded-xl border border-line bg-black/20 p-1">
         {options.map((option) => {
           const active = option === value
           return (

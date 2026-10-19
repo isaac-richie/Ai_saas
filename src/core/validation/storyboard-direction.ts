@@ -12,14 +12,14 @@ export const referenceClassificationSchema = z.object({
 export type ReferenceClassification = z.infer<typeof referenceClassificationSchema>
 
 export const enhanceDirectionRequestSchema = z.object({
-  direction: z.string().trim().min(2).max(1200),
+  direction: z.string().trim().min(2).max(20000),
   references: z.array(z.object({
     role: z.string().max(32),
     name: z.string().max(180),
     guidance: z.string().max(240).optional(),
   })).max(6).default([]),
   previous: z.object({
-    direction: z.string().max(1200).optional(),
+    direction: z.string().max(20000).optional(),
     prompt: z.string().max(4000).optional(),
   }).nullish(),
   startsFromPreviousShot: z.boolean().default(false),

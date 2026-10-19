@@ -97,7 +97,7 @@ export function CommandPalette() {
         <DialogContent className="max-w-xl gap-0 overflow-hidden p-0 text-white" showCloseButton={false}>
           <DialogTitle className="sr-only">Command Palette</DialogTitle>
           <div>
-            <div className="flex items-center gap-3 border-b border-gold-400/10 px-5">
+            <div className="flex items-center gap-3 border-b border-line px-5">
               <Command className="h-4 w-4 shrink-0 text-gold-400" />
               <Input
                 autoFocus
@@ -129,18 +129,18 @@ export function CommandPalette() {
                 </button>
               ))}
               {filtered.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-gold-400/15 bg-white/[0.02] px-3 py-8 text-center text-xs text-[#8f9086]">
+                <div className="rounded-xl border border-dashed border-line bg-white/[0.02] px-3 py-8 text-center text-xs text-[#8f9086]">
                   No matches. Try &quot;studio&quot;, &quot;gallery&quot;, or &quot;tour&quot;.
                 </div>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2 border-t border-gold-400/10 bg-black/20 px-4 py-3 text-[11px] text-[#8f9086]">
-              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><FolderKanban className="h-3 w-3" /> Projects</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Film className="h-3 w-3" /> Studio</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><GalleryHorizontalEnd className="h-3 w-3" /> Gallery</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Video className="h-3 w-3" /> Create</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Wand2 className="h-3 w-3" /> Generate</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-gold-400/10 bg-gold-400/[0.03] px-2 py-1"><Sparkles className="h-3 w-3" /> Tour</span>
+            <div className="flex flex-wrap items-center gap-2 border-t border-line bg-black/20 px-4 py-3 text-[11px] text-[#8f9086]">
+              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><FolderKanban className="h-3 w-3" /> Projects</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><Film className="h-3 w-3" /> Studio</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><GalleryHorizontalEnd className="h-3 w-3" /> Gallery</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><Video className="h-3 w-3" /> Create</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><Wand2 className="h-3 w-3" /> Generate</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><Sparkles className="h-3 w-3" /> Tour</span>
             </div>
           </div>
         </DialogContent>

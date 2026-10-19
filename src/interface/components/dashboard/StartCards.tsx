@@ -50,7 +50,7 @@ export function StartCards() {
           className={`lux-sheen group relative isolate flex overflow-hidden rounded-3xl border transition-all duration-500 hover:-translate-y-0.5 ${
             featured
               ? 'min-h-[220px] border-gold-300/40 shadow-[0_24px_60px_-34px_rgba(217,192,138,0.75)] md:min-h-[300px]'
-              : 'min-h-[132px] border-gold-400/[0.14] hover:border-gold-400/40 md:min-h-[300px]'
+              : 'min-h-[132px] border-line hover:border-gold-400/40 md:min-h-[300px]'
           }`}
         >
           {hasClip(clip) ? (

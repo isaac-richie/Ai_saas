@@ -25,7 +25,7 @@ export function DeleteProjectButton({ id, name }: { id: string; name: string }) 
         <Trash2 className="size-4" />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="border-gold-400/[0.14] bg-obsidian-900 text-white sm:max-w-[420px]" onClick={(event) => event.stopPropagation()}>
+        <DialogContent className="border-line bg-obsidian-900 text-white sm:max-w-[420px]" onClick={(event) => event.stopPropagation()}>
           <DialogHeader>
             <DialogTitle>Delete “{name}”?</DialogTitle>
             <DialogDescription className="text-[#B0B8C4]">

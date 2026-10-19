@@ -6,6 +6,7 @@ import { Check, Trash2, Play, RotateCcw } from "lucide-react"
 import type { MediaReference } from "@/core/validation/media-reference"
 
 export type TakeItem = {
+  snapshot?: import("./fast-video-studio.model").GenerationSnapshot
   mediaReferences?: MediaReference[]
   id: string
   takeNumber: number
@@ -28,6 +29,7 @@ interface TakesPanelProps {
   onApproveTake: (takeId: string) => void
   onDeleteTake: (takeId: string) => void
   onRetry: () => void
+  onRetrySaved?: (take: TakeItem) => void
   isRetrying?: boolean
 }
 
@@ -39,6 +41,7 @@ export function TakesPanel({
   onApproveTake,
   onDeleteTake,
   onRetry,
+  onRetrySaved,
   isRetrying,
 }: TakesPanelProps) {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -74,7 +77,7 @@ export function TakesPanel({
           className="h-7 px-2.5 text-[10px]"
         >
           <RotateCcw className="mr-1 h-3 w-3" />
-          New Take
+          Generate with current settings
         </Button>
       </div>
 
@@ -133,6 +136,12 @@ export function TakesPanel({
                 </p>
               </button>
 
+              {isCompleted && (
+                <div className="my-2 text-xs text-white/70">
+                  {take.snapshot?.request && <button type="button" disabled={isRetrying} onClick={() => onRetrySaved?.(take)} className="underline">Retry saved settings</button>}
+                  <details><summary>What was sent</summary><p>{take.modelVersionUsed}</p><p className="max-w-sm whitespace-pre-wrap">{take.compiledPrompt || take.prompt}</p>{take.snapshot?.delivery?.map((item, index) => <p key={index}>{item.label}: {item.as}</p>)}</details>
+                </div>
+              )}
               {isCompleted && (
                 <div className="mt-2 flex items-center gap-1">
                   {!isApproved && (

@@ -154,7 +154,7 @@ export function StoryboardPanel({
   const busy = isLoading || isSyncing
 
   return (
-    <Card className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500 rounded-3xl border border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_55px_-40px_rgba(0,0,0,0.95)]">
+    <Card className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500 rounded-3xl border border-line bg-obsidian-900 text-white shadow-[0_24px_55px_-40px_rgba(0,0,0,0.95)]">
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -194,7 +194,7 @@ export function StoryboardPanel({
 
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Filter by scene" className="inline-flex rounded-full border border-gold-400/[0.12] bg-black/30 p-0.5">
+          <div role="tablist" aria-label="Filter by scene" className="inline-flex rounded-full border border-line bg-black/30 p-0.5">
             {(["All", "Scene A", "Scene B", "Scene C"] as const).map((group) => (
               <button
                 key={group}
@@ -348,7 +348,7 @@ function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, appr
         dragHandlers.onDrop?.(event)
       }}
       className={`group/shot relative animate-in fade-in-0 slide-in-from-bottom-1 duration-300 overflow-hidden rounded-2xl border bg-gradient-to-b from-white/[0.035] to-black/30 transition ${
-        dropTarget || fileOver ? "border-gold-300/70 ring-2 ring-gold-300/25" : review === "approved" ? "border-emerald-300/25" : "border-gold-400/[0.14] hover:border-gold-300/30"
+        dropTarget || fileOver ? "border-gold-300/70 ring-2 ring-gold-300/25" : review === "approved" ? "border-emerald-300/25" : "border-line hover:border-gold-300/30"
       } ${dragging ? "opacity-40" : ""}`}
     >
       {fileOver ? (
@@ -375,7 +375,7 @@ function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, appr
         </span>
       </header>
 
-      <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-gold-400/[0.12] bg-black/50">
+      <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-line bg-black/50">
         {hasVideo ? (
           <video
             key={item.url}
@@ -514,8 +514,8 @@ function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, appr
             onChange={(event) => actions.onUpdateDirection(item.id, event.target.value)}
             onBlur={() => actions.onSaveDirection(item.id)}
             placeholder={hasVideo ? "Describe the action…" : "Short is fine, e.g. puts the earbud in, eyes closed, enjoying it"}
-            maxLength={1200}
-            className="mt-1 min-h-14 rounded-xl border-gold-400/[0.12] bg-black/30 text-[11.5px] leading-relaxed text-white placeholder:text-white/30"
+            maxLength={20000}
+            className="mt-1 min-h-14 rounded-xl border-line bg-black/30 text-[11.5px] leading-relaxed text-white placeholder:text-white/30"
           />
         </label>
 
@@ -544,7 +544,7 @@ function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, appr
           ) : null}
         </div>
 
-        <details className="group/more rounded-xl border border-gold-400/[0.1] bg-black/20">
+        <details className="group/more rounded-xl border border-line bg-black/20">
           <summary className="flex cursor-pointer select-none list-none items-center justify-between px-2.5 py-1.5 text-[10.5px] text-white/50 hover:text-white/80 [&::-webkit-details-marker]:hidden">
             More options
             <ChevronDown className="h-3 w-3 transition group-open/more:rotate-180" />
@@ -567,8 +567,8 @@ function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, appr
                   value={item.enhancedPrompt}
                   onChange={(event) => actions.onPatchItem(item.id, { enhancedPrompt: event.target.value, enhancedFrom: direction.trim() }, false)}
                   onBlur={() => actions.onPatchItem(item.id, { enhancedPrompt: (item.enhancedPrompt || "").trim() || null })}
-                  maxLength={1200}
-                  className="mt-1 min-h-20 rounded-xl border-gold-400/[0.12] bg-black/30 text-[10.5px] leading-relaxed text-white/75"
+                  maxLength={20000}
+                  className="mt-1 min-h-20 rounded-xl border-line bg-black/30 text-[10.5px] leading-relaxed text-white/75"
                 />
               </label>
             ) : null}
@@ -589,7 +589,7 @@ function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, appr
             ) : null}
             <div className="flex items-center justify-between gap-2">
               <span className="text-[10.5px] text-white/45">Scene</span>
-              <div role="radiogroup" aria-label="Scene" className="inline-flex rounded-full border border-gold-400/[0.12] bg-black/30 p-0.5">
+              <div role="radiogroup" aria-label="Scene" className="inline-flex rounded-full border border-line bg-black/30 p-0.5">
                 {(["Scene A", "Scene B", "Scene C"] as const).map((group) => (
                   <button key={group} type="button" role="radio" aria-checked={item.sceneGroup === group} aria-label={group}
                     onClick={() => actions.onUpdateGroup(item.id, group)} disabled={isSyncing}
@@ -605,7 +605,7 @@ function ShotCard({ item, laterUses, shotNumber, previousNumber, isSyncing, appr
                 onChange={(event) => actions.onUpdateNote(item.id, event.target.value)}
                 onBlur={() => actions.onSaveNote(item.id)}
                 placeholder="Director note…"
-                className="min-h-12 rounded-xl border-gold-400/[0.12] bg-black/30 text-[11px] text-white placeholder:text-white/30"
+                className="min-h-12 rounded-xl border-line bg-black/30 text-[11px] text-white placeholder:text-white/30"
               />
             ) : (
               <button type="button" onClick={() => setNoteOpen(true)} className="inline-flex items-center gap-1 text-[10.5px] text-white/50 hover:text-gold-100">

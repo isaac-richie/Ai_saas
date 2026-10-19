@@ -64,7 +64,7 @@ export async function image(prompt, refs, file, { aspect = "16:9", prefer = "nan
 /** Publicly hosts a local asset so Kie can fetch it as a reference. */
 export async function host(file) {
   const body = fs.readFileSync(new URL(file, ASSETS))
-  const type = file.endsWith(".png") ? "image/png" : file.endsWith(".mp4") ? "video/mp4" : "image/jpeg"
+  const type = file.endsWith(".png") ? "image/png" : file.endsWith(".mp4") ? "video/mp4" : file.endsWith(".wav") ? "audio/wav" : "image/jpeg"
   const r = await fetch(`${SUPABASE.url}/storage/v1/object/renders/film/feature/${file}`, { method: "POST", headers: { apikey: SUPABASE.key, Authorization: `Bearer ${SUPABASE.key}`, "Content-Type": type, "x-upsert": "true" }, body })
   if (!r.ok) throw new Error(`host ${file}: ${r.status}`)
   return `${SUPABASE.url}/storage/v1/object/public/renders/film/feature/${file}`

@@ -70,7 +70,7 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search projects..."
                         aria-label="Search projects"
-                        className="h-9 rounded-xl border-gold-400/[0.12] bg-white/5 pl-9 text-white placeholder:text-white/35"
+                        className="h-9 rounded-xl border-line bg-white/5 pl-9 text-white placeholder:text-white/35"
                     />
                 </div>
                 <div className="flex items-center gap-2">
@@ -79,7 +79,7 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                         value={sortBy}
                         aria-label="Sort projects"
                         onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
-                        className="h-9 rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-xs text-white"
+                        className="h-9 rounded-xl border border-line bg-white/5 px-3 text-xs text-white"
                     >
                         <option value="updated_desc" className="bg-obsidian-900">Last Modified</option>
                         <option value="created_desc" className="bg-obsidian-900">Newest First</option>
@@ -88,13 +88,13 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                         <option value="shots_desc" className="bg-obsidian-900">Most Shots</option>
                     </select>
                 </div>
-                <span className="rounded-full border border-gold-400/15 bg-gold-400/[0.05] px-3 py-1 text-xs text-gold-200/80">
+                <span className="rounded-full border border-line bg-gold-400/[0.05] px-3 py-1 text-xs text-gold-200/80">
                     Showing {filteredProjects.length}
                 </span>
             </div>}
 
             {filteredProjects.length === 0 ? (
-                <div className="lux-fade flex h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-gold-400/15 bg-[#0f110f] text-center text-[#a3a59a]">
+                <div className="lux-fade flex h-40 flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-[#0f110f] text-center text-[#a3a59a]">
                     <p className="text-sm">No projects match this search.</p>
                     <p className="mt-1 text-xs text-white/45">Try another keyword or change sort.</p>
                 </div>
@@ -107,7 +107,7 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                 </div>
                 <Link href={`/dashboard/projects/${project.id}`} className="block h-full rounded-3xl">
                     <Card className="lux-lift lux-spotlight h-full gap-3 overflow-hidden rounded-3xl py-0 pb-4 text-white transition-colors group-hover:border-gold-400/35">
-                        <div className="relative aspect-[16/7] overflow-hidden border-b border-gold-400/10 bg-white/[0.02]">
+                        <div className="relative aspect-[16/7] overflow-hidden border-b border-line bg-white/[0.02]">
                             {project.thumbnail_url ? (
                                 project.thumbnail_url.endsWith(".mp4") ? (
                                     <video
@@ -134,7 +134,7 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                             )}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                             <div className="absolute inset-0 flex items-end justify-between p-4">
-                                <Badge className={project.status === "active" ? "border border-[#b6ddd3]/35 bg-[#b6ddd3]/10 capitalize text-[#d6efe8] backdrop-blur-md" : "border border-gold-400/[0.12] bg-black/40 capitalize text-white/80 backdrop-blur-md"}>
+                                <Badge className={project.status === "active" ? "border border-[#b6ddd3]/35 bg-[#b6ddd3]/10 capitalize text-[#d6efe8] backdrop-blur-md" : "border border-line bg-black/40 capitalize text-white/80 backdrop-blur-md"}>
                                     {project.status}
                                 </Badge>
                             </div>
@@ -144,7 +144,7 @@ export function ProjectList({ projects, limit }: ProjectListProps) {
                         </CardHeader>
                         <CardContent className="pb-4">
                             <p className="line-clamp-2 text-sm leading-relaxed text-[#a3a59a]">
-                                {project.description || `${project.scene_count ? `${project.scene_count} scene${project.scene_count === 1 ? "" : "s"}` : "Empty so far"}. Open it to ${project.shot_count ? "keep building" : "add your first scene"}.`}
+                                {project.description || `${project.scene_count ? `${project.scene_count} scene${project.scene_count === 1 ? "" : "s"}` : "Empty so far"}. Open it to ${project.shot_count ? "keep building" : project.scene_count ? "add your first shot" : "add your first scene"}.`}
                             </p>
                         </CardContent>
                         <CardFooter className="flex items-center gap-1.5 text-[12px] text-[#a3aab4]">

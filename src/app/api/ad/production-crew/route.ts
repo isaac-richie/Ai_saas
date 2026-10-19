@@ -5,7 +5,8 @@ import { checkStudioAdRateLimit } from "@/core/services/studio-ad/rate-limit"
 import { advanceProductionCrew } from "@/core/services/production-crew-runner"
 
 export const runtime = "nodejs"
-export const maxDuration = 180
+// Long films: one crew stage can take up to ~270 s for twelve shots.
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   const db = await createClient()

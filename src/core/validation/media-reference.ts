@@ -100,13 +100,28 @@ export function withRoles<T extends MediaReference>(ref: T, roles: string[]): T 
 }
 
 /**
- * Stamps @image1…, @video1…, @audio1… from the full panel order (stable IDs stay the
- * source of truth; labels re-derive after a removal). Stamp before filtering to applied,
- * so the tags in the prompt match the tags the creator sees.
+ * Gives every reference a stable tag (@image1…, @video1…, @audio1…). A tag, once given, stays with
+ * its file: removing another reference never renumbers it, so "@image2" in a prompt keeps pointing
+ * at the same image. New references take the lowest free number for their type.
  */
 export function labelReferences<T extends MediaReference>(refs: T[]): T[] {
-  const counts = { image: 0, video: 0, audio: 0 }
-  return refs.map((ref) => ({ ...ref, label: `@${ref.mediaType}${++counts[ref.mediaType]}` }))
+  const taken = { image: new Set<number>(), video: new Set<number>(), audio: new Set<number>() }
+  const kept = refs.map((ref) => {
+    const match = ref.label ? new RegExp(`^@${ref.mediaType}(\\d+)$`).exec(ref.label) : null
+    const n = match ? Number(match[1]) : 0
+    if (!n || taken[ref.mediaType].has(n)) return null
+    taken[ref.mediaType].add(n)
+    return n
+  })
+  return refs.map((ref, index) => {
+    let n = kept[index]
+    if (!n) {
+      n = 1
+      while (taken[ref.mediaType].has(n)) n += 1
+      taken[ref.mediaType].add(n)
+    }
+    return { ...ref, label: `@${ref.mediaType}${n}` }
+  })
 }
 
 /**
@@ -115,9 +130,16 @@ export function labelReferences<T extends MediaReference>(refs: T[]): T[] {
  * References left with no role drop out of this generation.
  */
 export function resolveLockedRoles<T extends MediaReference>(refs: T[], lockedRoleOwners: Record<string, string>): T[] {
+  const rank = { project: 0, scene: 1, shot: 2 }
+  const highest = new Map<string, number>()
+  for (const ref of refs.filter(ref => ref.applied)) {
+    for (const role of referenceRoles(ref)) highest.set(role, Math.max(highest.get(role) ?? -1, rank[ref.scope]))
+  }
   return refs.map((ref) => {
     if (!ref.applied) return ref
-    const roles = referenceRoles(ref).filter((role) => !lockedRoleOwners[role] || lockedRoleOwners[role] === ref.id)
+    const roles = referenceRoles(ref).filter((role) => lockedRoleOwners[role]
+      ? lockedRoleOwners[role] === ref.id
+      : rank[ref.scope] === highest.get(role))
     if (roles.length === referenceRoles(ref).length) return ref
     return roles.length ? withRoles(ref, roles) : { ...ref, applied: false }
   })
@@ -202,16 +224,18 @@ export function referencePrompt(refs: MediaReference[]) {
     }).join(" ")
 }
 
-export function referencePromptBudget(subject: string, refs: MediaReference[]) {
-  const limit = 1100
+/** Default budget when the model is unknown; callers pass the selected model's budget (see prompt-limits). */
+export const DEFAULT_PROMPT_BUDGET = 1100
+
+export function referencePromptBudget(subject: string, refs: MediaReference[], limit = DEFAULT_PROMPT_BUDGET) {
   const guidance = referencePrompt(refs)
   // Reserve room for the reference label, duration directive and separators.
   const used = subject.replace(/\s+/g, " ").trim().length + guidance.length + (guidance ? 30 : 0) + 80
   return { limit, used, overflow: Math.max(0, used - limit) }
 }
 
-export function referencePromptFits(subject: string, refs: MediaReference[]) {
-  return referencePromptBudget(subject, refs).overflow === 0
+export function referencePromptFits(subject: string, refs: MediaReference[], limit = DEFAULT_PROMPT_BUDGET) {
+  return referencePromptBudget(subject, refs, limit).overflow === 0
 }
 
 function shortenAtBoundary(value: string, limit: number) {
@@ -249,11 +273,11 @@ const INFLUENCE_RANK = { high: 0, medium: 1, low: 2 } as const
  * 3) only then shorten the shot prompt at a sentence boundary.
  * Deterministic, so the browser preview and the server agree exactly.
  */
-export function fitReferencePrompt(subject: string, refs: MediaReference[]): PromptFit {
+export function fitReferencePrompt(subject: string, refs: MediaReference[], limit = DEFAULT_PROMPT_BUDGET): PromptFit {
   let fittedSubject = subject.replace(/\s+/g, " ").trim()
   let fitted = refs.map((ref) => ({ ...ref, analysis: ref.analysis ? { ...ref.analysis } : undefined }))
   const notes: string[] = []
-  const fits = () => referencePromptFits(fittedSubject, fitted)
+  const fits = () => referencePromptFits(fittedSubject, fitted, limit)
   if (fits()) return { subject: fittedSubject, references: fitted, notes }
 
   const inPrompt = () => fitted.filter((ref) => ref.applied && ref.target === "director")
@@ -291,7 +315,7 @@ export function fitReferencePrompt(subject: string, refs: MediaReference[]): Pro
 
   // 3) Last resort: shorten the shot prompt to whatever room remains.
   if (!fits()) {
-    const { overflow } = referencePromptBudget(fittedSubject, fitted)
+    const { overflow } = referencePromptBudget(fittedSubject, fitted, limit)
     const before = fittedSubject.length
     fittedSubject = shortenAtBoundary(fittedSubject, Math.max(60, before - overflow))
     if (!fits()) {
@@ -306,7 +330,7 @@ export function fitReferencePrompt(subject: string, refs: MediaReference[]): Pro
     fitted = fitted.map((ref) => ref.applied && ref.target === "director" ? { ...ref, applied: false } : ref)
     if (remaining.length) notes.push(`Left ${describeReferences(remaining)} out of the text prompt to make room; the files stay attached.`)
   }
-  if (!fits()) fittedSubject = shortenAtBoundary(fittedSubject, referencePromptBudget("", []).limit - referencePromptBudget("", []).used)
+  if (!fits()) fittedSubject = shortenAtBoundary(fittedSubject, limit - referencePromptBudget("", [], limit).used)
   return { subject: fittedSubject, references: fitted, notes }
 }
 
@@ -315,4 +339,43 @@ export function validateOwnedReferences(input: unknown, userId: string) {
   if (!result.success) throw new Error(result.error.issues[0]?.message || "Invalid references")
   if (result.data.some((ref) => !ref.assetPath.startsWith(`${userId}/`))) throw new Error("Reference access denied.")
   return result.data
+}
+
+/** What actually reaches the video model for one reference. */
+export type ReferenceDelivery = "start-frame" | "image" | "text" | "not-used"
+
+/** Seedance takes up to 9 reference images, but only when no start frame is set (Kie: mutually exclusive). */
+export const SEEDANCE_REFERENCE_IMAGE_LIMIT = 9
+
+/**
+ * The single source of truth for reference delivery, shared by the panel and the server:
+ * - an unapplied reference is not used;
+ * - "Direct image-to-video" becomes the start frame unless a Start Frame already owns it;
+ * - Director-guidance images are sent as image references on Seedance when no start frame is set
+ *   (up to 9); otherwise they guide through their written direction only;
+ * - video and audio references always guide through text.
+ */
+export function planReferenceDelivery(
+  refs: MediaReference[],
+  context: { model: string; hasStartFrame: boolean; campaignImages?: boolean }
+): Record<string, ReferenceDelivery> {
+  const seedance = /seedance/i.test(context.model)
+  const plan: Record<string, ReferenceDelivery> = {}
+  let startFrameTaken = context.hasStartFrame
+  let imageSlots = seedance && !context.campaignImages ? SEEDANCE_REFERENCE_IMAGE_LIMIT : 0
+  for (const ref of refs) {
+    if (!ref.applied) { plan[ref.id] = "not-used"; continue }
+    if (ref.mediaType === "image" && ref.target === "provider" && !startFrameTaken) {
+      plan[ref.id] = "start-frame"
+      startFrameTaken = true
+    }
+  }
+  for (const ref of refs) {
+    if (plan[ref.id]) continue
+    if (ref.mediaType === "image" && !startFrameTaken && imageSlots > 0) {
+      plan[ref.id] = "image"
+      imageSlots -= 1
+    } else plan[ref.id] = "text"
+  }
+  return plan
 }

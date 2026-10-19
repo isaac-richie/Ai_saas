@@ -32,7 +32,7 @@
 .projectPicker { display: grid; gap: 5px; font-size: 9px; letter-spacing: .17em; color: #a3a59a; margin-right: auto; min-width: 0; width: min(440px, 65%); }
 .projectPicker select { background: transparent; border: 0; color: var(--ink); padding: 4px 0; font-size: 14px; letter-spacing: normal; width: 100%; text-overflow: ellipsis; }
 .projectPicker option { background: #151715; }
-.toolbar button { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 11px; font-size: 12px; }
+.toolbar > button { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 11px; font-size: 12px; }
 .desk button:not(:disabled), .desk summary, .desk a { cursor: pointer; }
 .desk button:disabled { opacity: .4; cursor: not-allowed; }
 .desk :is(button, a, textarea, select, summary):focus-visible { outline: 2px solid var(--mint); outline-offset: 4px; }
@@ -105,11 +105,11 @@
   padding-right: .06em;
 }
 .eyebrow::before { content: ''; width: 18px; height: 1px; background: linear-gradient(90deg, #d9c08a, transparent); }
-.toolbar button {
+.toolbar > button {
   background: #ffffff04;
   transition: border-color .3s, background .3s, color .3s, transform .3s cubic-bezier(.22, 1, .36, 1);
 }
-.toolbar button:hover:not(:disabled) { border-color: #d9c08a59; background: #d9c08a10; color: #f3e5c0; transform: translateY(-1px); }
+.toolbar > button:hover:not(:disabled) { border-color: #d9c08a59; background: #d9c08a10; color: #f3e5c0; transform: translateY(-1px); }
 .steps > * { position: relative; transition: color .35s, background .35s; }
 .steps > *::after {
   content: '';
@@ -179,4 +179,30 @@
 @keyframes breathe { 0%, 100% { opacity: .55; transform: scale(.95); } 50% { opacity: 1; transform: scale(1.05); } }
 @media (prefers-reduced-motion: reduce) {
   .desk, .header em, .shotStrip button, .emptyScreen::before, .departments details[open] > :not(summary) { animation: none; }
+}
+
+/* ── Calm pass: one type family, neutral structure, gold only where it means something ── */
+.desk { --line: rgba(255, 255, 255, .08); border-color: var(--line); border-radius: 22px; }
+.header { padding: clamp(20px, 3vw, 32px) clamp(20px, 3vw, 36px); background: radial-gradient(ellipse at 92% -30%, #d9c08a1a, transparent 55%); }
+.header h2 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .3em; font-family: inherit; font-weight: 300; font-size: clamp(24px, 2.4vw, 32px); line-height: 1.2; letter-spacing: -.03em; margin: 0 0 8px; }
+.header h2 svg { align-self: center; color: #d9c08a; margin-right: .15em; }
+.header em { font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif; font-style: italic; font-weight: 400; animation: none; }
+.intro { max-width: 620px; font-size: 13.5px; line-height: 1.65; color: #9aa1ab; }
+.toolbar { padding: 16px clamp(16px, 3vw, 28px); background: transparent; }
+.steps > * { font-size: 13px; color: #9aa1ab; }
+.steps > * > span { font-size: 12px; color: #8a9099; }
+@media (min-width: 851px) { .briefGrid { grid-template-columns: .75fr 1.25fr; gap: 36px; } }
+.briefGrid h3 { font-family: inherit; font-weight: 300; font-size: clamp(22px, 2vw, 28px); line-height: 1.2; letter-spacing: -.03em; margin: 0 0 12px; }
+.briefGrid p:not(.eyebrow) { font-size: 13.5px; line-height: 1.7; color: #9aa1ab; }
+.format { margin-top: 14px; font-size: 12.5px; letter-spacing: 0; color: #8a9099; }
+.productionTitle { font-family: inherit; font-weight: 300; letter-spacing: -.03em; }
+.emptyScreen p { font-family: inherit; }
+.departments details, .checkpoint, .progress, .shotStrip button, .emptyScreen { border-color: var(--line); }
+@media (max-width: 560px) {
+  .header { padding: 20px 16px 18px; }
+  .header h2 { font-size: 24px; }
+  .intro { font-size: 13px; }
+  .body { padding: 20px 16px; }
+  .briefGrid { gap: 18px; }
+  .briefGrid p:not(.eyebrow) { display: none; }
 }

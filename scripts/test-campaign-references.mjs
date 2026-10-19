@@ -117,7 +117,7 @@ vm.runInNewContext(transpile(read("../src/infrastructure/ai/providers/kie.provid
   module: kieModule, exports: kieModule.exports,
   require: (id) => {
     if (id === "../base.provider") return { BaseProvider: class { constructor(config) { this.config = config } } }
-    if (id === "./kie.models") return { DEFAULT_KIE_IMAGE_MODEL: "x", DEFAULT_KIE_VIDEO_MODEL_I2V: "kling-3.0/video", DEFAULT_KIE_VIDEO_MODEL_T2V: "t2v", inferKieOutputType: () => "video" }
+    if (id === "./kie.models") return { DEFAULT_KIE_IMAGE_MODEL: "x", DEFAULT_KIE_VIDEO_MODEL_I2V: "kling-3.0/video", DEFAULT_KIE_VIDEO_MODEL_T2V: "t2v", inferKieOutputType: () => "video", currentKieModel: (model) => model }
     if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
     if (id === "@/core/config/kie-video-models") return kieModels
     throw new Error(`Unexpected import: ${id}`)

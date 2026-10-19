@@ -9,7 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components
 import { Button } from "@/interface/components/ui/button"
 import { Input } from "@/interface/components/ui/input"
 import { Textarea } from "@/interface/components/ui/textarea"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/interface/components/ui/dialog"
 import { MentionTextarea } from "./MentionTextarea"
+import { speechFit } from "@/core/utils/ai/screen-text"
+import { normalizeReferenceImage } from "./normalize-image"
+import { promptBudgetFor } from "@/core/config/prompt-limits"
+import { LIP_SYNC_MAX_SECONDS, prepareLipSyncAudio } from "./lip-sync-audio"
 import { StudioAdPanel } from "@/interface/components/shots/StudioAdPanel"
 import {
   FAST_VIDEO_ASPECT_RATIOS,
@@ -22,6 +27,7 @@ import {
 import {
   DEFAULT_KIE_VIDEO_MODEL_FAMILY,
   KIE_VIDEO_MODEL_FAMILIES,
+  LIP_SYNC_MODEL,
   type KieVideoModelFamilyId,
   clampDurationForFamily,
   fastTrackUnitsForDuration,
@@ -61,6 +67,7 @@ import {
   ArrowRightLeft,
   ListChecks,
   ChevronDown,
+  SlidersHorizontal,
   Send,
   Copy,
   Pencil,
@@ -92,7 +99,7 @@ import { generationPrompt, needsEnhancement, referenceClassificationSchema } fro
 import { EMPTY_CAMPAIGN_REFERENCES, brandSafetyReviewed, type CampaignProvenance, campaignMode, campaignPlanSummary, campaignReferenceIssues, campaignReferencesSchema, recommendedCampaignModel, type CampaignReferences } from "@/core/validation/campaign-references"
 import { EMPTY_SHOT_FRAMES, frameDirective, frameIssues, hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 import { ReferenceLibrarySync } from "./ReferenceLibrarySync"
-import { MAX_REFERENCES, labelReferences, mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, resolveLockedRoles, type MediaReference } from "@/core/validation/media-reference"
+import { MAX_REFERENCES, labelReferences, referenceRoles, mediaReferenceSchema, mediaReferencesSchema, referenceCompatibility, referenceIsInContext, fitReferencePrompt, referencePromptBudget, resolveLockedRoles, type MediaReference } from "@/core/validation/media-reference"
 
 import {
   SceneShotOption,
@@ -112,6 +119,7 @@ import {
 } from "./fast-video-studio.model"
 
 export function FastVideoStudio({ projects }: FastVideoStudioProps) {
+  const [requestPreview, setRequestPreview] = useState<{ prompt: string; model: string | null; referenceDelivery: { label: string; as: string }[] } | null>(null)
   const router = useRouter()
   const { saveContinuity, loadContinuity } = useContinuitySync()
 
@@ -157,6 +165,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     colorGrade: "",
     cameraStyle: "",
   })
+  // Sync lips to audio: which applied audio reference drives the mouth (null = off).
+  const [lipSyncAudioId, setLipSyncAudioId] = useState<string | null>(null)
+  // Once the creator flips the switch themselves, we stop choosing for them.
+  const [lipSyncTouched, setLipSyncTouched] = useState(false)
   const [continuitySources, setContinuitySources] = useState<ContinuitySources>(EMPTY_CONTINUITY_SOURCES)
   const [activeSavedClipId, setActiveSavedClipId] = useState<string | null>(null)
   const [downloadName, setDownloadName] = useState<string>("")
@@ -251,6 +263,14 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   }, [activeModelFamily])
   // Tags (@image1…) come from the full panel order, so prompts match what the creator sees.
   const labelledReferences = useMemo(() => labelReferences(currentReferences), [currentReferences])
+  // Singing or speaking audio means the creator wants lips to follow it: switch lip-sync on by default.
+  const speechAudioId = labelledReferences.find((ref) => ref.mediaType === "audio" && ref.applied && referenceRoles(ref).some((role) => ["lip-sync", "dialogue", "voiceover"].includes(role)))?.id ?? null
+  // Lip-sync counts only while its audio is attached and applied; a removed or unapplied file is ignored.
+  const activeLipSyncId = lipSyncAudioId && labelledReferences.some((ref) => ref.id === lipSyncAudioId && ref.mediaType === "audio" && ref.applied) ? lipSyncAudioId : null
+  const lipSyncDefault = !lipSyncTouched && !activeLipSyncId ? speechAudioId : null
+  useEffect(() => {
+    if (lipSyncDefault) setLipSyncAudioId(lipSyncDefault)
+  }, [lipSyncDefault])
   const continuityClause = useMemo(
     () => buildContinuityClauseFromState(continuityEnabled, continuityLocks, continuityValues, continuitySources, labelledReferences),
     [continuityEnabled, continuityLocks, continuityValues, continuitySources, labelledReferences]
@@ -260,10 +280,18 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     resolveLockedRoles(labelledReferences, lockedRoleOwners(continuityEnabled, continuityLocks, continuitySources, labelledReferences))
       .filter((ref) => ref.applied)
   ), [labelledReferences, continuityEnabled, continuityLocks, continuitySources])
+  // Each model reads a different amount of prompt (Kling 3.0: 2,500; Seedance: ~20,000); budget for the one in use.
+  const budgetModel = activeLipSyncId ? LIP_SYNC_MODEL : activeModelFamily.i2vModel
   const promptBudget = useMemo(() => referencePromptBudget(
     continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(),
     buildGenerationReferences(),
-  ), [continuityClause, buildGenerationReferences, subject])
+    promptBudgetFor(budgetModel),
+  ), [continuityClause, buildGenerationReferences, subject, budgetModel])
+  // Long briefs are condensed by the AI director and shown for approval before anything is generated.
+  const [condenseReview, setCondenseReview] = useState<{ original: string; prompt: string; from: number; to: number; target: number; kept: string[]; dropped: string[]; structured: boolean } | null>(null)
+  const [isCondensing, setIsCondensing] = useState(false)
+  const condenseApprovedRef = useRef(false)
+  const [generateAfterCondense, setGenerateAfterCondense] = useState(0)
 
   const filteredStyles = useMemo(() => {
     const q = styleSearch.trim().toLowerCase()
@@ -689,6 +717,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     })
 
     setTakes((prev) => [...prev, {
+      snapshot: generationSnapshotRef.current ? structuredClone(generationSnapshotRef.current) : undefined,
       id: clip.id,
       takeNumber: prev.length + 1,
       prompt: clip.subject,
@@ -1562,17 +1591,52 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
   }
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (previewOnly: boolean | unknown = false) => {
+    previewOnly = previewOnly === true
     if (!subject.trim()) {
       toast.error("Describe your idea first, even one sentence works.")
       document.getElementById("fast-video-prompt")?.focus()
       return
     }
+    // Longer than the model can read: the AI director condenses it, and the creator approves first.
+    if (!previewOnly && promptBudget.overflow > 0 && !condenseApprovedRef.current) {
+      if (isCondensing) return
+      setIsCondensing(true)
+      try {
+        const reserve = promptBudget.used - subject.trim().length
+        const response = await fetch("/api/prompt/condense", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: subject.trim(), model: budgetModel, reserve: Math.max(0, reserve), purpose: activeLipSyncId ? "lip-sync" : "video" }),
+        })
+        const body = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(body.error || "Couldn't condense this brief.")
+        setCondenseReview({ original: subject.trim(), prompt: body.prompt, from: body.from, to: body.to, target: body.target, kept: body.kept ?? [], dropped: body.dropped ?? [], structured: Boolean(body.structured) })
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Couldn't condense this brief.", { id: "fast-video-condense", description: "We'll fit it automatically instead; tap Create video again to go ahead." })
+        condenseApprovedRef.current = true
+      } finally {
+        setIsCondensing(false)
+      }
+      return
+    }
+    condenseApprovedRef.current = false
     if (isUploading || isFrameBusy || isReferenceSyncing || isGenerating || status === "processing") {
       toast.message("Wait for the current upload, analysis or generation to finish.")
       return
     }
     const generationReferences = buildGenerationReferences()
+    const mentioned = [...new Set(subject.match(/@(?:image|video|audio)\d+/g) ?? [])]
+    const unresolved = mentioned.filter((tag) => !generationReferences.some((ref) => ref.label === tag))
+    if (unresolved.length) {
+      const missing = unresolved.filter((tag) => !labelledReferences.some((ref) => ref.label === tag))
+      toast.error(missing.length
+        ? `${missing.join(", ")} ${missing.length === 1 ? "isn't" : "aren't"} in your references any more.`
+        : `${unresolved.join(", ")} ${unresolved.length === 1 ? "isn't" : "aren't"} applied, so the model won't see ${unresolved.length === 1 ? "it" : "them"}.`, {
+        id: "fast-video-mentions",
+        description: missing.length ? "Remove the tag from your idea, or add the image again." : "Apply it in More options → Media references, or remove the tag.",
+      })
+      return
+    }
     const referenceIssues = referenceCompatibility(generationReferences)
     if (referenceIssues.length) { toast.error(referenceIssues.join(" ")); return }
     if (referenceImageUrl && generationReferences.some((ref) => ref.target === "provider")) { toast.error("Remove the legacy starting image before using another direct image."); return }
@@ -1585,9 +1649,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     const fitSubject = continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim()
     const promptFit = fitReferencePrompt(generationFrames ? `${frameDirective(generationFrames)}. ${fitSubject}` : fitSubject, generationReferences)
 
-    const storyboardTargetId = storyboardTargetRef.current
-    storyboardTargetRef.current = null
-    setGeneratingStoryboardId(storyboardTargetId)
+    const storyboardTargetId = previewOnly ? null : storyboardTargetRef.current
+    if (!previewOnly) {
+      storyboardTargetRef.current = null
+      setGeneratingStoryboardId(storyboardTargetId)
+    }
     // On a phone the preview sits below the form; bring it into view so progress is visible.
     const preview = document.getElementById("create-preview")
     if (preview && preview.getBoundingClientRect().top > window.innerHeight * 0.6) {
@@ -1595,14 +1661,16 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
 
     setIsGenerating(true)
+    if (!previewOnly) {
     setStatus("processing")
-    setStatusMessage("Initializing...")
+    setStatusMessage(subject.trim().length > promptBudgetFor(resolveKieVideoModelByFamily({ familyId: modelFamilyId, useImageToVideo: false })) ? "Fitting your long idea to the model…" : "Sending to the studio…")
     setVideoUrl(null)
     setUseDirectVideoUrl(false)
     setTaskId(null)
     setTraceId(null)
     setDebugEvents([])
     setActiveSavedClipId(null)
+    }
 
     const selectedModel = resolveKieVideoModelByFamily({
       familyId: modelFamilyId,
@@ -1613,7 +1681,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       ? `${subject.trim()}, ${continuityClause}`
       : subject.trim()
 
-    generationSnapshotRef.current = {
+    if (!previewOnly) generationSnapshotRef.current = {
       storyboardTargetId,
       mediaReferences: generationReferences,
       shotFrames: generationFrames,
@@ -1627,7 +1695,16 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     }
 
     try {
-      const res = await generateFastVideo({
+      // Lip-sync: cut the applied audio to its trim window and send the real waveform.
+      const lipSyncRef = activeLipSyncId ? generationReferences.find((ref) => ref.id === activeLipSyncId && ref.mediaType === "audio") : undefined
+      let lipSync: { audio_path?: string; audio_reference_id: string } | null = null
+      if (lipSyncRef && previewOnly) lipSync = { audio_reference_id: lipSyncRef.id }
+      if (lipSyncRef && !previewOnly) {
+        setStatusMessage("Preparing your audio for lip-sync...")
+        const prepared = await prepareLipSyncAudio(lipSyncRef)
+        lipSync = { audio_path: prepared.audioPath, audio_reference_id: lipSyncRef.id }
+      }
+      const request: import("@/core/validation/fast-video").FastVideoRequest = {
         request_type: "fast_video",
         project_id: selectedProjectId || null,
         scene_id: selectedSceneId || null,
@@ -1644,9 +1721,15 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         settings: {
           duration_seconds: durationSeconds,
           model: selectedModel,
+          ...(lipSync ? { lip_sync: lipSync } : {}),
         },
-      })
+      }
+      const res = await generateFastVideo(request, previewOnly === true)
 
+      if (res.data?.status === "preview") {
+        setRequestPreview({ prompt: res.data.prompt, model: res.data.model, referenceDelivery: res.data.referenceDelivery })
+        return
+      }
       if (res.error || !res.data) {
         setStatus("failed")
         setStatusMessage(res.error || "Generation failed")
@@ -1656,12 +1739,27 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (promptFit.notes.length) {
         toast.message("Fitted to the video model's prompt limit", { id: "fast-video-fit", description: promptFit.notes.join(" ") })
       }
+      // Request summary: exactly how each applied reference reached the model.
+      const sent = (res.data as { referenceDelivery?: { label: string; as: string }[] }).referenceDelivery ?? []
+      if (sent.length) {
+        const group = (as: string) => sent.filter((item) => item.as === as).map((item) => item.label)
+        const parts = [
+          group("start-frame").length ? `Start frame: ${group("start-frame").join(", ")}` : "",
+          group("image").length ? `Sent as images: ${group("image").join(", ")}` : "",
+          group("text").length ? `Text only: ${group("text").join(", ")}` : "",
+          group("waveform").length ? `Lip-synced to: ${group("waveform").join(", ")}` : "",
+          group("not-used").length ? `Not used after fitting: ${group("not-used").join(", ")}` : "",
+        ].filter(Boolean)
+        toast.message(`Sent to ${activeModelFamily.label}`, { id: "fast-video-delivery", description: parts.join(" · ") })
+      }
 
       const appliedDuration =
         typeof res.data.durationSeconds === "number" ? res.data.durationSeconds : durationSeconds
       const resolvedPrompt = res.data.prompt || subjectWithContinuity
 
       generationSnapshotRef.current = {
+        request,
+        delivery: res.data.referenceDelivery,
         storyboardTargetId,
         mediaReferences: generationReferences,
         shotFrames: generationFrames,
@@ -1917,6 +2015,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   const handleGenerateRef = useRef(handleGenerate)
   useEffect(() => { handleGenerateRef.current = handleGenerate })
+  // After the creator approves a condensed prompt, generate once that new prompt has rendered.
+  useEffect(() => {
+    if (generateAfterCondense) void handleGenerateRef.current()
+  }, [generateAfterCondense])
   // "Generate shot" on a storyboard card loads the builder first; generate once that state has rendered.
   useEffect(() => {
     if (!storyboardGenerateRequest) return
@@ -2089,8 +2191,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   }
 
   const handleAddStoryboardReferenceFiles = async (item: StoryboardItem, files: File[]) => {
-    const images = files.filter((file) => ["image/jpeg", "image/png", "image/webp"].includes(file.type))
-    if (!images.length) { toast.error("Drop JPG, PNG or WebP images.", { id: "storyboard-refs" }); return }
+    const candidates = files.filter((file) => file.type.startsWith("image/") || /\.(heic|heif|avif)$/i.test(file.name))
+    if (!candidates.length) { toast.error("Drop photos (JPG, PNG, WebP or HEIC).", { id: "storyboard-refs" }); return }
+    const images: File[] = []
+    for (const file of candidates) {
+      try { images.push(await normalizeReferenceImage(file)) } catch (cause) { toast.error(cause instanceof Error ? cause.message : "Couldn't use that image.", { id: "storyboard-refs" }) }
+    }
+    if (!images.length) return
     const existing = item.mediaReferences || []
     const room = MAX_REFERENCES - existing.length
     if (room <= 0) { toast.error(`A shot can use up to ${MAX_REFERENCES} references.`, { id: "storyboard-refs" }); return }
@@ -2196,7 +2303,27 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   }
 
   const handleRetryAsTake = () => {
-    handleGenerate()
+    toast.message("Generating with current settings", { description: "This uses the prompt and references currently shown in the editor." })
+    void handleGenerate()
+  }
+
+  const retrySavedTake = async (take: TakeItem) => {
+    const snapshot = take.snapshot
+    if (!snapshot?.request || isGenerating || status === "processing") return
+    setIsGenerating(true)
+    try {
+      const res = await generateFastVideo(structuredClone(snapshot.request))
+      if (res.error || !res.data) throw new Error(res.error || "Could not start this take.")
+      generationSnapshotRef.current = { ...structuredClone(snapshot), prompt: res.data.prompt, delivery: res.data.referenceDelivery }
+      setFinalPrompt(res.data.prompt)
+      setTaskId(res.data.taskId)
+      setVideoUrl(res.data.url)
+      setStatus(res.data.url ? "completed" : "processing")
+      setStatusMessage(res.data.url ? "Complete" : "Generating with saved settings")
+      if (res.data.url) saveClip({ ...snapshot, id: crypto.randomUUID(), taskId: res.data.taskId, url: res.data.url, prompt: res.data.prompt, createdAt: new Date().toISOString() })
+      toast.success("Started with this take's saved settings")
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Retry failed") }
+    finally { setIsGenerating(false) }
   }
 
   const handleClearAllClips = () => {
@@ -2281,12 +2408,51 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     `${optionBaseClass} ${
       active
         ? "border border-gold-300/40 bg-gold-400/12 text-gold-100 shadow-[inset_0_1px_0_rgba(217,192,138,0.15),0_8px_24px_-10px_rgba(217,192,138,0.25)] ring-1 ring-gold-400/20"
-        : "border border-gold-400/10 bg-white/[0.04] text-white/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:border-gold-400/20 hover:bg-white/[0.07] hover:text-white/80"
+        : "border border-line bg-white/[0.04] text-white/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] hover:border-gold-400/20 hover:bg-white/[0.07] hover:text-white/80"
     }`
   const subtlePanelClass = "rounded-xl border border-white/[0.06] bg-white/[0.02] p-4"
 
   return (
     <div className="workspace-workbench space-y-6">
+      <Dialog open={Boolean(condenseReview)} onOpenChange={(open) => { if (!open) setCondenseReview(null) }}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto border-gold-400/[0.16] bg-obsidian-900 text-white sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>Your idea, ready for {activeLipSyncId ? "Kling AI Avatar" : activeModelFamily.label}</DialogTitle>
+            <DialogDescription className="text-[#B0B8C4]">
+              {condenseReview ? `${condenseReview.from.toLocaleString()} characters${condenseReview.structured ? " of JSON" : ""} condensed to ${condenseReview.to.toLocaleString()} (this model reads up to ${condenseReview.target.toLocaleString()} with your references). Check it, edit anything, then create.` : null}
+            </DialogDescription>
+          </DialogHeader>
+          {condenseReview ? (
+            <div className="space-y-3">
+              <Textarea
+                aria-label="Condensed prompt"
+                value={condenseReview.prompt}
+                onChange={(event) => setCondenseReview({ ...condenseReview, prompt: event.target.value })}
+                className="min-h-56 rounded-xl text-[14px] leading-relaxed text-white"
+              />
+              <p className={`text-right text-[11.5px] ${condenseReview.prompt.length > condenseReview.target ? "text-amber-200" : "text-[#B0B8C4]"}`}>{condenseReview.prompt.length.toLocaleString()}/{condenseReview.target.toLocaleString()}</p>
+              {condenseReview.kept.length ? <p className="text-[12.5px] text-[#B0B8C4]"><span className="text-[#ece6d6]">Kept:</span> {condenseReview.kept.join(" · ")}</p> : null}
+              {condenseReview.dropped.length ? <p className="text-[12.5px] text-amber-100/90"><span className="text-amber-100">Left out:</span> {condenseReview.dropped.join(" · ")}</p> : null}
+            </div>
+          ) : null}
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" className="rounded-xl" onClick={() => setCondenseReview(null)}>Edit my original</Button>
+            <Button
+              className="rounded-xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a)] font-semibold text-[#1a160e]"
+              disabled={!condenseReview?.prompt.trim()}
+              onClick={() => {
+                if (!condenseReview) return
+                setSubject(condenseReview.prompt.trim())
+                setCondenseReview(null)
+                condenseApprovedRef.current = true
+                setGenerateAfterCondense((n) => n + 1)
+              }}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />Use this and create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {activeTab === "storyboard" || storyboardItems.length > 0 ? (
       <div className="workspace-builder-tabs flex flex-wrap items-center gap-2" role="group" aria-label="Create view">
         <Button
@@ -2317,8 +2483,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           <div className={sectionClass}>
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">
-                <label htmlFor="fast-video-prompt" className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Your idea</label>
-                {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite" title={promptBudget.overflow ? "Over the limit is fine: reference directions are condensed first, your prompt last." : undefined}>Prompt + references: {promptBudget.used}/{promptBudget.limit}{promptBudget.overflow ? " · will auto-fit" : ""}</span>}
+                <label htmlFor="fast-video-prompt" className="text-[13px] font-medium text-[#ece6d6]">Your idea</label>
+                {currentReferences.some((ref) => ref.applied) && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite">Prompt + references: {promptBudget.used.toLocaleString()}/{promptBudget.limit.toLocaleString()}{promptBudget.overflow ? " · we'll condense it for you" : ""}</span>}
+                {!currentReferences.some((ref) => ref.applied) && subject.length > 600 && <span className={`text-[10px] ${promptBudget.overflow ? "text-gold-300" : "text-white/40"}`} aria-live="polite">{subject.length.toLocaleString()}/{promptBudget.limit.toLocaleString()}{promptBudget.overflow ? " · we'll condense it for you" : ""}</span>}
+                {promptBudget.overflow > 0 && <details className="text-xs text-white/70"><summary>Review automatic shortening</summary><p className="whitespace-pre-wrap">{fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), buildGenerationReferences()).subject}</p><p>{fitReferencePrompt(continuityClause ? `${subject.trim()}, ${continuityClause}` : subject.trim(), buildGenerationReferences()).notes.join(" ")}</p><p>Additional frame, style and scene instructions are applied when the request is assembled.</p></details>}
               </div>
               <MentionTextarea
                 id="fast-video-prompt"
@@ -2329,14 +2497,14 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 className="studio-field min-h-32 resize-none rounded-xl text-[15px] text-white placeholder:text-white/40 leading-relaxed md:text-sm"
               />
             </div>
-            <details className="group/helper rounded-2xl border border-gold-400/[0.14] bg-white/[0.02]">
-              <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold-400/[0.08] text-gold-300"><WandSparkles className="size-4" /></span>
+            <details className="group/helper -mx-2 rounded-xl transition-colors open:bg-white/[0.02]">
+              <summary className="flex min-h-[52px] cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/[0.03] [&::-webkit-details-marker]:hidden">
+                <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><WandSparkles className="size-4" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[14px] font-medium text-[#ece6d6]">Help me write it</span>
-                  <span className="block text-[12px] text-[#B0B8C4]">Say it in your own words; the AI director turns it into a pro prompt.</span>
+                  <span className="block text-[13.5px] font-medium text-[#ece6d6]">Help me write it</span>
+                  <span className="block text-[12.5px] text-[#9aa1ab]">Say it your way. The AI director turns it into a pro prompt.</span>
                 </span>
-                <ChevronDown className="size-4 shrink-0 text-gold-300/70 transition-transform duration-300 group-open/helper:rotate-180" />
+                <ChevronDown className="size-4 shrink-0 text-[#9aa1ab] transition-transform duration-300 group-open/helper:rotate-180" />
               </summary>
               <div className="px-1 pb-1">
                 <StudioAdPanel
@@ -2348,11 +2516,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 />
               </div>
             </details>
-            <TemplateGallery
-              templates={PROMPT_TEMPLATES}
-              activeId={PROMPT_TEMPLATES.find((template) => template.prompt === subject.trim())?.id ?? null}
-              onApply={applyTemplate}
-            />
+            {!subject.trim() || PROMPT_TEMPLATES.some((template) => template.prompt === subject.trim()) ? (
+              <TemplateGallery
+                templates={PROMPT_TEMPLATES}
+                activeId={PROMPT_TEMPLATES.find((template) => template.prompt === subject.trim())?.id ?? null}
+                onApply={applyTemplate}
+              />
+            ) : null}
           </div>
 
           <ShotLookSection
@@ -2373,8 +2543,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           />
 
           <div className={sectionClass}>
-            <label className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Model and length</label>
-            <div className={`${subtlePanelClass} space-y-3`}>
+            <div className="space-y-3">
               <SegmentedPreset
                 label="AI model"
                 options={KIE_VIDEO_MODEL_FAMILIES.map((family) => family.id)}
@@ -2382,41 +2551,51 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 onChange={setModelFamilyId}
                 render={(id) => getKieVideoModelFamily(id).label}
               />
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-white/65">
-                  <span>Video length</span>
-                  <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2 py-0.5 text-white/80">{durationSeconds}s</span>
-                </div>
-                <input
-                  type="range"
-                  min={activeModelFamily.minSeconds}
-                  max={activeModelFamily.maxSeconds}
-                  step={1}
-                  value={durationSeconds}
-                  onChange={(event) => setDurationSeconds(Number(event.target.value))}
-                  aria-label="Video length in seconds"
-                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-gold-300"
-                />
-                <div className="flex items-center justify-between text-[11px] text-white/45">
-                  <span>{activeModelFamily.minSeconds}–{activeModelFamily.maxSeconds}s with {activeModelFamily.label}</span>
-                  <span>
-                    Uses {fastTrackUnitsForDuration(durationSeconds)} {fastTrackUnitsForDuration(durationSeconds) === 1 ? "generation" : "generations"}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="fast-video-length" className="text-[13px] font-medium text-[#ece6d6]">Length</label>
+                <span className="text-[13px] tabular-nums text-gold-100">{durationSeconds} seconds</span>
               </div>
+              <input
+                id="fast-video-length"
+                type="range"
+                min={activeModelFamily.minSeconds}
+                max={activeModelFamily.maxSeconds}
+                step={1}
+                value={durationSeconds}
+                onChange={(event) => setDurationSeconds(Number(event.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-gold-300"
+              />
+              <div className="flex items-center justify-between text-[12px] text-[#9aa1ab]">
+                <span>{activeModelFamily.minSeconds}–{activeModelFamily.maxSeconds}s with {activeModelFamily.label}</span>
+                <span>
+                  Uses {fastTrackUnitsForDuration(durationSeconds)} {fastTrackUnitsForDuration(durationSeconds) === 1 ? "generation" : "generations"}
+                </span>
+              </div>
+              {(() => {
+                // Spoken lines longer than the clip get rushed and fall out of lip-sync.
+                const fit = speechFit(subject, durationSeconds)
+                return fit.words && !fit.fits && !activeLipSyncId ? (
+                  <p role="status" className="text-[12.5px] leading-snug text-amber-100/90">
+                    Your lines have {fit.words} words; a {durationSeconds}-second video fits about {fit.maxWords}. Make it longer or trim the lines so the lips stay in sync.
+                  </p>
+                ) : null
+              })()}
             </div>
-            <Button
+            <button
               type="button"
-              variant="liquidMetal"
-              size="sm"
               onClick={() => setShowAdvanced((prev) => !prev)}
-              className="h-10 w-full text-xs"
+              aria-expanded={showAdvanced}
+              className="-mx-2 flex min-h-[52px] w-[calc(100%+16px)] items-center gap-3 rounded-xl px-2 text-left transition-colors hover:bg-white/[0.03]"
             >
-              {showAdvanced ? "Hide options" : "More options: size, references"}
-            </Button>
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><SlidersHorizontal className="size-4" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-medium text-[#ece6d6]">More options</span>
+                <span className="block text-[12.5px] text-[#9aa1ab]">Shape, references and frames</span>
+              </span>
+              <ChevronDown className={`size-4 shrink-0 text-[#9aa1ab] transition-transform duration-300 ${showAdvanced ? "rotate-180" : ""}`} />
+            </button>
             {showAdvanced ? (
               <div className={`${subtlePanelClass} space-y-3`}>
-                <p className="text-[12px] font-medium text-[#d6d0c0]">More options</p>
                 <SegmentedPreset
                   label="Video shape"
                   options={FAST_VIDEO_ASPECT_RATIOS}
@@ -2435,11 +2614,49 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   references={currentReferences}
                   onChange={updateCurrentReferences}
                   lockedRoles={lockedRoleOwners(continuityEnabled, continuityLocks, continuitySources, labelledReferences)}
+                  model={activeModelFamily.i2vModel}
+                  modelLabel={activeModelFamily.label}
+                  hasStartFrame={Boolean(shotFrames?.start) || Boolean(referenceImageUrl)}
                   projectId={selectedProjectId || null}
                   sceneId={selectedSceneId || null}
                   onBusy={setIsUploading}
                   disabled={isReferenceSyncing || isGenerating || status === "processing"}
                 />
+                {(() => {
+                  const audios = labelledReferences.filter((ref) => ref.mediaType === "audio" && ref.applied)
+                  if (!audios.length) return null
+                  const active = audios.find((ref) => ref.id === activeLipSyncId)
+                  return (
+                    <div className="space-y-2 rounded-xl border border-line bg-white/[0.02] p-3">
+                      <label className="flex cursor-pointer items-start gap-3">
+                        <input
+                          type="checkbox"
+                          className="mt-1 size-4 accent-[#d9c08a]"
+                          checked={Boolean(active)}
+                          onChange={(event) => { setLipSyncTouched(true); setLipSyncAudioId(event.target.checked ? audios[0].id : null) }}
+                        />
+                        <span>
+                          <span className="block text-[13.5px] font-medium text-[#ece6d6]">Sync lips to audio</span>
+                          <span className="block text-[12px] leading-snug text-[#B0B8C4]">
+                            {active
+                              ? <>On: the real sound drives the mouth (Kling AI Avatar Pro). Your Start Frame or Character image sings or speaks your audio, up to {LIP_SYNC_MAX_SECONDS}s, with the original audio in the final clip.</>
+                              : <><strong className="text-amber-200">Off: the audio only guides the prompt as text, so the lips won&rsquo;t follow the song.</strong> Turn on to lip-sync.</>}
+                          </span>
+                        </span>
+                      </label>
+                      {active && audios.length > 1 ? (
+                        <select
+                          aria-label="Audio to lip-sync"
+                          value={active.id}
+                          onChange={(event) => setLipSyncAudioId(event.target.value)}
+                          className="h-9 w-full rounded-lg border border-line bg-white/5 px-2 text-[12px] text-white [color-scheme:dark]"
+                        >
+                          {audios.map((ref) => <option key={ref.id} value={ref.id}>{ref.label} {ref.name}</option>)}
+                        </select>
+                      ) : null}
+                    </div>
+                  )
+                })()}
                 <ShotFramesPanel
                   frames={shotFrames}
                   onChange={setShotFrames}
@@ -2487,16 +2704,16 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             ) : null}
           </div>
 
-          <details className="group/campaign rounded-2xl border border-gold-400/[0.12] bg-white/[0.02]">
-            <summary className="flex min-h-[56px] cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
-              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-gold-400/[0.08] text-gold-300"><ListChecks className="size-4" /></span>
+          <details className="group/campaign -mx-2 rounded-xl transition-colors open:bg-white/[0.02]">
+            <summary className="flex min-h-[52px] cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/[0.03] [&::-webkit-details-marker]:hidden">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><ListChecks className="size-4" /></span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[14px] font-medium text-[#ece6d6]">Make a set of ads</span>
-                <span className="block text-[12px] text-[#B0B8C4]">Describe your product and get 2–5 social ad videos at once.</span>
+                <span className="block text-[13.5px] font-medium text-[#ece6d6]">Make a set of ads</span>
+                <span className="block text-[12.5px] text-[#9aa1ab]">Describe your product, get 2–5 social ads at once.</span>
               </span>
-              <ChevronDown className="size-4 shrink-0 text-gold-300/70 transition-transform duration-300 group-open/campaign:rotate-180" />
+              <ChevronDown className="size-4 shrink-0 text-[#9aa1ab] transition-transform duration-300 group-open/campaign:rotate-180" />
             </summary>
-            <div className="space-y-4 px-4 pb-4">
+            <div className="space-y-4 px-2 pb-3 pt-1">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-2">
               <label className="text-[12px] font-medium text-[#B0B8C4]">Your product or brief</label>
@@ -2510,19 +2727,19 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </div>
             </div>
             {campaignHistory.length > 0 ? (
-              <div className="space-y-1.5 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2">
+              <div className="space-y-1.5 rounded-xl border border-line bg-white/[0.03] p-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Recent Campaigns</p>
+                  <p className="text-[10.5px] font-medium uppercase tracking-[0.2em] text-gold-300/80">Recent ad sets</p>
                   <span className="text-[10px] text-white/40">{campaignHistory.length}</span>
                 </div>
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
                   {campaignHistory.map((campaign) => (
                     <div
                       key={campaign.id}
-                      className={`min-w-[190px] rounded-lg border p-2 ${
+                      className={`min-w-[190px] rounded-xl border p-2.5 transition ${
                         campaignId === campaign.id
                           ? "border-gold-300/35 bg-gold-500/10"
-                          : "border-gold-400/[0.12] bg-black/20"
+                          : "border-line bg-black/20"
                       }`}
                     >
                       <button type="button" onClick={() => openCampaign(campaign)} className="block w-full text-left">
@@ -2534,7 +2751,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                         variant="ghost"
                         size="sm"
                         onClick={() => void handleDeleteCampaign(campaign.id)}
-                        className="mt-2 h-7 rounded-md border border-rose-300/20 bg-rose-500/10 px-2 text-[10px] text-rose-100 hover:bg-rose-500/20"
+                        className="mt-2 h-7 rounded-lg px-2 text-[11px] text-[#9aa1ab] hover:bg-rose-500/15 hover:text-rose-200"
                       >
                         <Trash2 className="mr-1 h-3 w-3" />
                         Delete
@@ -2561,19 +2778,21 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               onBusy={setIsCampaignReferenceBusy}
               disabled={isPlanningCampaign || isGeneratingCampaign}
             />
-            <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-              <div className="space-y-1.5">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-white/45 font-medium">Assets</p>
-                <div className="grid grid-cols-4 gap-1.5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[12px] font-medium text-[#B0B8C4]">How many ads</p>
+                <div role="radiogroup" aria-label="How many ads" className="grid grid-cols-4 gap-1 rounded-xl border border-white/[0.07] bg-black/30 p-1">
                   {[2, 3, 4, 5].map((count) => (
                     <button
                       key={count}
                       type="button"
+                      role="radio"
+                      aria-checked={campaignAssetCount === count}
                       onClick={() => setCampaignAssetCount(count)}
-                      className={`h-9 rounded-lg border text-xs transition ${
+                      className={`h-8 min-w-10 rounded-lg text-[13px] font-medium transition ${
                         campaignAssetCount === count
-                          ? "border-gold-300/45 bg-gold-500/15 text-gold-100"
-                          : "border-gold-400/[0.12] bg-white/5 text-white/75 hover:bg-gold-400/[0.08]"
+                          ? "bg-[linear-gradient(135deg,#f3e5c0,#d9c08a)] text-[#1a160e] shadow-[0_8px_20px_-12px_rgba(217,192,138,0.9)]"
+                          : "text-[#B0B8C4] hover:bg-white/[0.05] hover:text-white"
                       }`}
                     >
                       {count}
@@ -2583,17 +2802,17 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               </div>
               <Button
                 type="button"
-                variant="liquidMetalCyan"
+                variant="studio"
                 onClick={handlePlanCampaign}
                 disabled={isPlanningCampaign}
-                className="h-9 px-3 text-xs"
+                className="h-11 w-full rounded-xl text-[13.5px]"
               >
-                {isPlanningCampaign ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ListChecks className="mr-1.5 h-3.5 w-3.5" />}
-                Plan
+                {isPlanningCampaign ? <Loader2 className="mr-2 size-4 animate-spin" /> : <ListChecks className="mr-2 size-4" />}
+                {isPlanningCampaign ? "Planning your ads…" : `Plan ${campaignAssetCount} ads`}
               </Button>
             </div>
             {campaignPlan ? (
-              <div className="space-y-2 rounded-xl border border-gold-400/[0.12] bg-white/[0.03] p-2.5">
+              <div className="space-y-2 rounded-xl border border-line bg-white/[0.03] p-2.5">
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
                   {campaignPlanSummary({
                     title: campaignPlan.campaignSummary.split(/(?<=[.!?])\s/)[0].slice(0, 90),
@@ -2616,7 +2835,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 {planDetailsOpen ? <p className="text-[11px] leading-relaxed text-white/50">{campaignPlan.creativeStrategy}</p> : null}
                 <div className="space-y-3">
                   {campaignItems.map((item, index) => (
-                    <article key={item.id} className="group/ugc overflow-hidden rounded-2xl border border-gold-400/[0.14] bg-gradient-to-b from-white/[0.035] to-black/30 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] transition hover:border-gold-300/30">
+                    <article key={item.id} className="group/ugc overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-white/[0.035] to-black/30 shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)] transition hover:border-gold-300/30">
                       <header className="flex items-center gap-2.5 px-3 pt-3">
                         <span className="grid size-7 shrink-0 place-items-center rounded-full border border-gold-300/35 bg-gold-400/10 font-serif text-[12px] text-gold-100">{index + 1}</span>
                         <div className="min-w-0 flex-1">
@@ -2638,7 +2857,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           {item.status}
                         </span>
                       </header>
-                      <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-gold-400/[0.12] bg-black/50">
+                      <div className="relative mx-3 mt-3 overflow-hidden rounded-xl border border-line bg-black/50">
                         {item.url ? (
                           <video src={`/api/media/proxy?url=${encodeURIComponent(item.url)}`} className="aspect-[4/5] w-full object-cover" controls playsInline preload="metadata" />
                         ) : (
@@ -2704,7 +2923,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                                 variant="ghost"
                                 size="sm"
                                 onClick={handleCancelEditPrompt}
-                                className="h-6 rounded-md border border-gold-400/[0.12] bg-white/5 px-2 text-[10px] text-white/60 hover:bg-gold-400/[0.1]"
+                                className="h-6 rounded-md border border-line bg-white/5 px-2 text-[10px] text-white/60 hover:bg-gold-400/[0.1]"
                               >
                                 <X className="mr-1 h-3 w-3" />
                                 Cancel
@@ -2767,7 +2986,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     type="button"
                     onClick={() => void handleAddCampaignToStoryboard()}
                     disabled={isAddingCampaignToStoryboard || campaignItems.every((item) => !item.url)}
-                    className="h-10 rounded-xl border border-gold-400/[0.12] bg-white/5 text-xs text-white/80 hover:bg-gold-400/[0.1]"
+                    className="h-10 rounded-xl border border-line bg-white/5 text-xs text-white/80 hover:bg-gold-400/[0.1]"
                   >
                     {isAddingCampaignToStoryboard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clapperboard className="mr-2 h-4 w-4" />}
                     Add All
@@ -2779,6 +2998,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             </div>
           </details>
 
+          <button type="button" disabled={isGenerating} onClick={() => void handleGenerate(true)} className="flex items-center gap-1.5 text-[12.5px] text-[#B0B8C4] underline decoration-gold-400/40 underline-offset-4 transition hover:text-gold-100">See exactly what will be sent (free preview)</button>
+          {requestPreview && <details open className="rounded-lg border border-white/20 p-3 text-sm"><summary>Request preview · {requestPreview.model}</summary><p className="whitespace-pre-wrap">{requestPreview.prompt}</p><ul>{requestPreview.referenceDelivery.map((item, index) => <li key={index}>{item.label}: {item.as}</li>)}</ul><p className="text-xs text-white/60">Preview reflects settings when requested. Refresh after editing.</p></details>}
           <div className="workspace-generate-bar sticky bottom-0 z-10 rounded-2xl bg-obsidian-950/95 p-4 shadow-[0_-20px_40px_-20px_rgba(0,0,0,0.95)] backdrop-blur-xl">
             <span className={`block rounded-2xl ${isGenerating ? "" : "lux-ring-glow"}`}>
               <Button
@@ -2788,8 +3009,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 disabled={isGenerating}
                 className="h-14 w-full rounded-2xl text-sm tracking-wide"
               >
-                {isGenerating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
-                Create video
+                {isGenerating || isCondensing ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
+                {isCondensing ? "Condensing your idea…" : "Create video"}
               </Button>
             </span>
           </div>
@@ -2797,7 +3018,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       </Card>
 
       <div className="space-y-6">
-        <Card id="create-preview" className="workspace-preview-panel min-w-0 scroll-mt-20 overflow-hidden">
+        <Card id="create-preview" data-idle={!videoUrl && status !== "processing" ? "true" : undefined} className="workspace-preview-panel min-w-0 scroll-mt-20 overflow-hidden">
           <CardHeader className="px-6 pt-6 pb-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -2809,7 +3030,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                   status === "completed" ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200/80" :
                   status === "processing" ? "border-gold-400/20 bg-gold-400/[0.08] text-gold-200/80" :
                   status === "failed" ? "border-rose-400/20 bg-rose-400/[0.08] text-rose-200/80" :
-                  "border-gold-400/10 bg-white/[0.04] text-white/60"
+                  "border-line bg-white/[0.04] text-white/60"
                 }`}>{renderStatusText()}</span>
               </div>
             </div>
@@ -2855,7 +3076,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     {status === "processing" ? (
                       <div className="lux-fade flex w-full max-w-md flex-col items-center gap-5">
                         <div className="relative grid size-20 place-items-center">
-                          <span className="absolute inset-0 rounded-full border border-gold-400/15" />
+                          <span className="absolute inset-0 rounded-full border border-line" />
                           <span className="absolute inset-0 animate-spin rounded-full border border-transparent border-t-gold-300 [animation-duration:1.6s] [box-shadow:0_0_30px_-8px_rgba(217,192,138,0.6)]" />
                           <span className="absolute inset-3 animate-spin rounded-full border border-transparent border-b-gold-500/70 [animation-direction:reverse] [animation-duration:2.4s]" />
                           <Sparkles className="h-5 w-5 text-gold-300" />
@@ -2864,7 +3085,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                           <span className="lux-live-dot" />
                           {statusMessage}
                         </div>
-                        <div className="lux-shimmer h-1.5 w-full rounded-full border border-gold-400/[0.12]" />
+                        <div className="lux-shimmer h-1.5 w-full rounded-full border border-line" />
                       </div>
                     ) : (
                       <div className="lux-fade relative flex h-full w-full items-center justify-center">
@@ -2911,7 +3132,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     {isMuted ? <VolumeX className="mr-1.5 h-3.5 w-3.5" /> : <Volume2 className="mr-1.5 h-3.5 w-3.5" />}
                     {isMuted ? "Muted" : "Sound"}
                   </Button>
-                  <div className="flex min-w-[130px] flex-1 items-center gap-2 rounded-lg border border-gold-400/10 bg-white/[0.03] px-2.5 py-1.5">
+                  <div className="flex min-w-[130px] flex-1 items-center gap-2 rounded-lg border border-line bg-white/[0.03] px-2.5 py-1.5">
                     <span className="text-[11px] text-white/45">Vol</span>
                     <input
                       type="range"
@@ -2954,7 +3175,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
 
             {videoUrl ? (
-              <div className="lux-rise rounded-2xl border border-gold-400/[0.14] bg-white/[0.02] p-4">
+              <div className="lux-rise rounded-2xl border border-line bg-white/[0.02] p-4">
                 <p className="mb-3 text-[13px] font-medium text-[#ece6d6]">Your video is ready</p>
                 <div className="grid grid-cols-2 gap-2.5">
                   <a
@@ -3048,6 +3269,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               onApproveTake={handleApproveTake}
               onDeleteTake={handleDeleteTake}
               onRetry={handleRetryAsTake}
+              onRetrySaved={(take) => void retrySavedTake(take)}
               isRetrying={isGenerating}
             />
 
@@ -3175,7 +3397,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={selectedProjectId}
                       onChange={(event) => setSelectedProjectId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-line bg-white/5 px-3 text-sm text-white"
                     >
                       {projects.map((project) => (
                         <option key={project.id} value={project.id} className="bg-obsidian-900">
@@ -3190,7 +3412,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={selectedSceneId}
                       onChange={(event) => setSelectedSceneId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-line bg-white/5 px-3 text-sm text-white"
                       disabled={destinationMode === "create_scene"}
                     >
                       {(selectedProject?.scenes || []).map((scene) => (
@@ -3209,7 +3431,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                       value={newSceneName}
                       onChange={(event) => setNewSceneName(event.target.value)}
                       placeholder="INT. SHOWROOM - GOLDEN HOUR"
-                      className="h-11 rounded-xl border-gold-400/[0.12] bg-white/5 text-white placeholder:text-white/35"
+                      className="h-11 rounded-xl border-line bg-white/5 text-white placeholder:text-white/35"
                     />
                   </div>
                 ) : null}
@@ -3223,7 +3445,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <select
                       value={replaceShotId}
                       onChange={(event) => setReplaceShotId(event.target.value)}
-                      className="h-11 w-full rounded-xl border border-gold-400/[0.12] bg-white/5 px-3 text-sm text-white"
+                      className="h-11 w-full rounded-xl border border-line bg-white/5 px-3 text-sm text-white"
                       disabled={isSceneShotsLoading || sceneShotOptions.length === 0}
                     >
                       {sceneShotOptions.length === 0 ? (
@@ -3268,7 +3490,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             </details>
 
             {process.env.NODE_ENV !== "production" ? (
-              <details className="rounded-xl border border-gold-400/[0.12] bg-black/30 p-3 text-xs text-white/70">
+              <details className="rounded-xl border border-line bg-black/30 p-3 text-xs text-white/70">
                 <summary className="cursor-pointer select-none text-white/80">
                   Developer Debug
                   {traceId ? ` · ${traceId.slice(0, 8)}` : ""}
@@ -3278,7 +3500,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     <p>No debug events yet.</p>
                   ) : (
                     debugEvents.map((event, index) => (
-                      <div key={`${event.at}-${event.step}-${index}`} className="rounded border border-gold-400/[0.12] bg-white/5 p-2">
+                      <div key={`${event.at}-${event.step}-${index}`} className="rounded border border-line bg-white/5 p-2">
                         <div className="text-gold-300">{event.step}</div>
                         <div className="text-white/40">{event.at}</div>
                         {event.details ? <pre className="mt-1 whitespace-pre-wrap break-words">{JSON.stringify(event.details, null, 2)}</pre> : null}

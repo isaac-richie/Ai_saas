@@ -33,7 +33,6 @@ export default async function DashboardPage() {
         <section id="projects" className="workspace-section">
           <div className="workspace-section-title">
             <div>
-              <span className="workspace-eyebrow">PICK UP WHERE YOU LEFT OFF</span>
               <h2>Your projects</h2>
             </div>
             <div className="flex items-center gap-3">

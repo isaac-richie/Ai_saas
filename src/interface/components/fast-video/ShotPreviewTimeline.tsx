@@ -188,7 +188,7 @@ export function ShotPreviewTimeline({
       {/* Scrub track */}
       <div
         ref={trackRef}
-        className="group relative h-8 cursor-pointer rounded-lg border border-gold-400/10 bg-white/[0.03]"
+        className="group relative h-8 cursor-pointer rounded-lg border border-line bg-white/[0.03]"
         onMouseDown={handleMouseDown}
       >
         <div

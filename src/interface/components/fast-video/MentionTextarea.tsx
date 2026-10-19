@@ -9,10 +9,13 @@ import { REFERENCE_BUCKET, referenceRoles, type MediaReference } from "@/core/va
 
 const thumbs = new Map<string, string>()
 
-function MentionThumb({ reference }: { reference: MediaReference }) {
-  const [url, setUrl] = useState(() => thumbs.get(reference.assetPath) ?? "")
+/** A mentionable item: a panel reference, or a film reference with a public preview URL. */
+export type MentionReference = MediaReference & { previewUrl?: string }
+
+function MentionThumb({ reference }: { reference: MentionReference }) {
+  const [url, setUrl] = useState(() => reference.previewUrl ?? thumbs.get(reference.assetPath) ?? "")
   useEffect(() => {
-    if (reference.mediaType !== "image" || thumbs.has(reference.assetPath)) return
+    if (reference.previewUrl || reference.mediaType !== "image" || thumbs.has(reference.assetPath)) return
     let cancelled = false
     void createClient().storage.from(REFERENCE_BUCKET).createSignedUrl(reference.assetPath, 3600).then(({ data }) => {
       if (cancelled || !data) return
@@ -20,7 +23,7 @@ function MentionThumb({ reference }: { reference: MediaReference }) {
       setUrl(data.signedUrl)
     })
     return () => { cancelled = true }
-  }, [reference.assetPath, reference.mediaType])
+  }, [reference.assetPath, reference.mediaType, reference.previewUrl])
   const Icon = reference.mediaType === "image" ? ImagePlus : reference.mediaType === "video" ? Film : AudioLines
   return (
     <span className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-md border border-gold-400/20 bg-black/40 text-gold-300">
@@ -63,11 +66,13 @@ function findMention(value: string, caret: number): Mention | null {
  * The idea box with @-mentions: typing "@" opens the panel's references (thumbnail, tag, roles)
  * at the caret; Enter/Tab or a tap inserts the tag (e.g. "@image1 ").
  */
-export function MentionTextarea({ value, onChange, references, className, ...props }: Omit<React.ComponentProps<"textarea">, "value" | "onChange"> & {
+export function MentionTextarea({ value, onChange, references, emptyHint, className, ...props }: Omit<React.ComponentProps<"textarea">, "value" | "onChange"> & {
   value: string
   onChange: (value: string) => void
   /** Labelled references (@image1…), in panel order. */
-  references: MediaReference[]
+  references: MentionReference[]
+  /** What the empty state tells people to do. */
+  emptyHint?: string
 }) {
   const ref = useRef<HTMLTextAreaElement>(null)
   const [mention, setMention] = useState<Mention | null>(null)
@@ -94,7 +99,7 @@ export function MentionTextarea({ value, onChange, references, className, ...pro
     setAnchor({ top: caret.top + caret.lineHeight + 4, left, above: room < 260 })
   }
 
-  const insert = (item: MediaReference) => {
+  const insert = (item: MentionReference) => {
     if (!mention || !item.label) return
     const caret = ref.current?.selectionStart ?? value.length
     const tag = `${item.label} `
@@ -151,7 +156,7 @@ export function MentionTextarea({ value, onChange, references, className, ...pro
           className="absolute z-50 w-[min(260px,100%)] overflow-hidden rounded-xl border border-gold-400/25 bg-[#121412]/98 p-1 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.95)] backdrop-blur-xl"
         >
           {references.length === 0 ? (
-            <p className="px-3 py-2.5 text-[12.5px] leading-snug text-[#B0B8C4]">No references added yet. Upload in the Media panel under More options.</p>
+            <p className="px-3 py-2.5 text-[12.5px] leading-snug text-[#B0B8C4]">{emptyHint ?? "No references added yet. Upload in the Media panel under More options."}</p>
           ) : options.length === 0 ? (
             <p className="px-3 py-2.5 text-[12.5px] text-[#B0B8C4]">No reference matches “{mention?.query}”.</p>
           ) : options.map((item, index) => (

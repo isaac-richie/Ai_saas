@@ -221,10 +221,10 @@ export function StudioAdPanel({
   const readinessState =
     readiness >= 90 ? 'excellent' : readiness >= 80 ? 'good' : readiness >= 65 ? 'fair' : 'weak';
   const rootClassName = embedded
-    ? 'space-y-3 rounded-xl border border-gold-400/[0.12] bg-black/20 p-3'
+    ? 'space-y-3 rounded-xl border border-line bg-black/20 p-3'
     : 'studio-card rounded-2xl p-5 text-white';
   const blockClassName = embedded
-    ? 'rounded-lg border border-gold-400/[0.12] bg-black/20 p-3'
+    ? 'rounded-lg border border-line bg-black/20 p-3'
     : 'studio-subcard rounded-xl p-3';
 
   return (
@@ -279,7 +279,7 @@ export function StudioAdPanel({
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
               <SelectValue placeholder="Mode" />
             </SelectTrigger>
-            <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
+            <SelectContent className="border-line bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
               {MODES.map((item) => (
                 <SelectItem
                   key={item.value}
@@ -315,7 +315,7 @@ export function StudioAdPanel({
         </Button>
       </div>
 
-      <details className="group/adv mt-3 rounded-xl border border-gold-400/[0.1] bg-black/20">
+      <details className="group/adv mt-3 rounded-xl border border-line bg-black/20">
         <summary className="flex cursor-pointer select-none list-none items-center justify-between px-3 py-2 text-[11px] text-white/50 hover:text-white/80 [&::-webkit-details-marker]:hidden">
           <span>Advanced</span>
           <span className="text-white/35">{PROVIDERS.find((item) => item.value === providerTarget)?.label ?? providerTarget} · {outputType === "video" ? "Video" : "Image"}</span>
@@ -330,7 +330,7 @@ export function StudioAdPanel({
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
               <SelectValue placeholder="Provider" />
             </SelectTrigger>
-            <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
+            <SelectContent className="border-line bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
               {PROVIDERS.map((item) => (
                 <SelectItem
                   key={item.value}
@@ -350,7 +350,7 @@ export function StudioAdPanel({
             <SelectTrigger className="studio-field min-w-0 rounded-xl text-white [&>span]:truncate">
               <SelectValue placeholder="Output" />
             </SelectTrigger>
-            <SelectContent className="border-gold-400/[0.12] bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
+            <SelectContent className="border-line bg-obsidian-900 text-white shadow-[0_24px_48px_-30px_rgba(0,0,0,0.95)]">
               <SelectItem value="image" className="text-white/85 focus:bg-gold-300/15 focus:text-gold-100">
                 Image
               </SelectItem>
@@ -388,10 +388,10 @@ export function StudioAdPanel({
               <ReadinessGauge value={packet.score.productionReadiness} />
             </div>
             <div className={embedded ? "mt-3 grid grid-cols-1 gap-2 text-xs text-white/70" : "mt-3 grid grid-cols-2 gap-2 text-xs text-white/70"}>
-              <div className="rounded-lg border border-gold-400/[0.12] bg-black/25 p-2">
+              <div className="rounded-lg border border-line bg-black/25 p-2">
                 Continuity: {packet.score.continuityConfidence}%
               </div>
-              <div className="rounded-lg border border-gold-400/[0.12] bg-black/25 p-2">
+              <div className="rounded-lg border border-line bg-black/25 p-2">
                 Technical: {packet.score.technicalClarity}%
               </div>
             </div>
@@ -467,7 +467,7 @@ export function StudioAdPanel({
             <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Variants</p>
             <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto pr-1 text-xs text-white/75">
               {packet.variants.map((variant, index) => (
-                <li key={`${index}-${variant.slice(0, 20)}`} className="rounded-lg border border-gold-400/[0.12] bg-black/20 p-2">
+                <li key={`${index}-${variant.slice(0, 20)}`} className="rounded-lg border border-line bg-black/20 p-2">
                   <div className="flex items-start justify-between gap-3">
                     <p className="flex-1">{variant}</p>
                     <Button
@@ -516,7 +516,7 @@ export function StudioAdPanel({
       ) : null}
 
       {showHistory ? (
-        <div className="mt-4 rounded-xl border border-gold-400/[0.12] bg-white/5 p-3">
+        <div className="mt-4 rounded-xl border border-line bg-white/5 p-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Recent Directs</p>
             {historyLoading ? <span className="text-[10px] text-white/45">Loading...</span> : null}
@@ -528,11 +528,11 @@ export function StudioAdPanel({
               {history.map((item) => (
                 <li
                   key={item.id}
-                  className="rounded-lg border border-gold-400/[0.12] bg-black/25 px-2.5 py-2 text-xs text-white/75"
+                  className="rounded-lg border border-line bg-black/25 px-2.5 py-2 text-xs text-white/75"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate pr-2">{item.user_intent}</span>
-                    <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2 py-0.5 text-[10px] text-gold-200">
+                    <span className="rounded-full border border-line bg-white/10 px-2 py-0.5 text-[10px] text-gold-200">
                       {item.production_readiness}%
                     </span>
                   </div>

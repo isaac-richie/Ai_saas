@@ -2,6 +2,7 @@ import { BaseProvider } from "../base.provider";
 import { GenerationRequest, GenerationResult } from "../types";
 import {
     DEFAULT_KIE_IMAGE_MODEL,
+    currentKieModel,
     DEFAULT_KIE_VIDEO_MODEL_I2V,
     DEFAULT_KIE_VIDEO_MODEL_T2V,
     inferKieOutputType,
@@ -68,21 +69,35 @@ export class KieProvider extends BaseProvider {
 
     private resolveModel(request: GenerationRequest): string {
         const explicitModel = request.model?.trim();
-        if (explicitModel) return this.resolveImageVariant(explicitModel, request);
+        if (explicitModel) return this.resolveImageVariant(currentKieModel(explicitModel), request);
 
         const requestedType =
             request.output_type
             || (request.image_prompt ? "video" : undefined)
             || "image";
 
-        if (requestedType !== "video") return this.resolveImageVariant(DEFAULT_KIE_IMAGE_MODEL, request);
-        return request.image_prompt ? DEFAULT_KIE_VIDEO_MODEL_I2V : DEFAULT_KIE_VIDEO_MODEL_T2V;
+        // Defaults can come from the environment, so they pass the same retired-slug check.
+        if (requestedType !== "video") return this.resolveImageVariant(currentKieModel(DEFAULT_KIE_IMAGE_MODEL), request);
+        return currentKieModel(request.image_prompt ? DEFAULT_KIE_VIDEO_MODEL_I2V : DEFAULT_KIE_VIDEO_MODEL_T2V);
     }
 
-    /** GPT Image 1.5 is two Kie models: text-to-image, or image-to-image when references are attached. */
+    /**
+     * GPT Image 1.5 is two Kie models: text-to-image, or image-to-image when references are attached.
+     * It only makes 1:1, 3:2 and 2:3, and a video follows its starting image's shape, so any other
+     * requested shape (16:9, 9:16, 21:9, 4:5…) goes to Nano Banana Pro, which makes it natively.
+     */
     private resolveImageVariant(model: string, request: GenerationRequest): string {
+        if (model.startsWith("gpt-image") && !KieProvider.gptImageMakesShape(request.aspect_ratio)) return "nano-banana-pro";
         if (model !== "gpt-image/1.5") return model;
         return request.reference_image_urls?.length ? "gpt-image/1.5-image-to-image" : "gpt-image/1.5-text-to-image";
+    }
+
+    /** True when GPT Image can produce the requested shape without cropping (or no shape was asked for). */
+    static gptImageMakesShape(aspect?: string): boolean {
+        const match = (aspect || "").match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
+        if (!match) return true;
+        const ratio = Number(match[1]) / Number(match[2]);
+        return [1, 3 / 2, 2 / 3].some((native) => Math.abs(ratio - native) < 0.01);
     }
 
     private resolveOutputType(request: GenerationRequest, model: string): "image" | "video" {
@@ -90,6 +105,19 @@ export class KieProvider extends BaseProvider {
         if (request.output_type) return request.output_type;
         if (inferred) return inferred;
         return request.image_prompt ? "video" : "image";
+    }
+
+    /** Kie's hard prompt caps (measured 2026-10-15). Budgets upstream stay below these; this is the last guard. */
+    static readonly HARD_PROMPT_LIMITS: [RegExp, number][] = [[/ai-avatar/i, 1000], [/kling/i, 2500], [/gpt-image/i, 3000], [/seedance|nano-banana/i, 20000]];
+
+    /** Never send a prompt the provider would reject for length: trim at the last sentence that fits. */
+    static clampPrompt(input: Record<string, unknown>, model: string): Record<string, unknown> {
+        const limit = KieProvider.HARD_PROMPT_LIMITS.find(([match]) => match.test(model))?.[1];
+        const prompt = typeof input.prompt === "string" ? input.prompt : "";
+        if (!limit || prompt.length <= limit) return input;
+        const cut = prompt.slice(0, limit);
+        const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+        return { ...input, prompt: (end > limit * 0.6 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(" "))).trimEnd() };
     }
 
     private buildMarketInput(request: GenerationRequest, model: string): Record<string, unknown> {
@@ -108,6 +136,14 @@ export class KieProvider extends BaseProvider {
             if (normalizedModel.endsWith("image-to-image") && request.reference_image_urls?.length) {
                 input.input_urls = request.reference_image_urls.slice(0, 8);
             }
+            return input;
+        }
+
+        // Lip-sync avatars take exactly a face image, the driving audio and an acting prompt.
+        if (normalizedModel.includes("ai-avatar")) {
+            if (request.image_prompt) input.image_url = request.image_prompt;
+            if (request.audio_url) input.audio_url = request.audio_url;
+            input.prompt = request.prompt.slice(0, 1000);
             return input;
         }
 
@@ -155,13 +191,20 @@ export class KieProvider extends BaseProvider {
             // Kling 3.0 expects `sound` instead of `is_generate_audio`.
             input.sound = request.is_generate_audio ?? true;
             const elements = request.reference_elements?.filter(element => element.image_urls.length >= 2 && element.image_urls.length <= 4).slice(0, 3) || [];
+            // Studio tags (@image1, @audio1, etc.) are textual labels, not
+            // Kling bindings. Only retain @ syntax for elements actually sent.
+            const boundNames = new Set(elements.map(element => element.name));
+            const prompt = request.prompt.replace(/@+([\w-]+)/g, (_tag, name: string) =>
+                boundNames.has(name) ? `@${name}` : name);
+            input.prompt = prompt;
             if (elements.length) {
                 input.kling_elements = elements.map(({ name, description, image_urls }) => ({
                     name,
                     description,
                     element_input_urls: image_urls,
                 }));
-                input.prompt = `${request.prompt} ${elements.map(element => `@${element.name}`).join(" ")}`.trim();
+                const missingTags = elements.filter(element => !prompt.match(/@[\w-]+/g)?.includes(`@${element.name}`));
+                input.prompt = `${prompt} ${missingTags.map(element => `@${element.name}`).join(" ")}`.trim();
             }
         }
 
@@ -389,7 +432,7 @@ export class KieProvider extends BaseProvider {
             const preparedRequest = await this.prepareRequest(request);
             const body: Record<string, unknown> = {
                 model,
-                input: this.buildMarketInput(preparedRequest, model),
+                input: KieProvider.clampPrompt(this.buildMarketInput(preparedRequest, model), model),
             };
 
             if (process.env.KIE_AI_CALLBACK_URL) {
@@ -448,10 +491,12 @@ export class KieProvider extends BaseProvider {
                 console.error("Kie.ai Provider Exception:", error);
             }
             const message = error instanceof Error ? error.message : "Kie.ai request failed";
+            const normalized = normalizeGenerationError(message, "Kie.ai request failed");
             return {
                 content_type: request.output_type || "image",
                 status: "failed",
-                error: normalizeGenerationError(message, "Kie.ai request failed"),
+                // Name the model when Kie rejects it, so a report says exactly which one.
+                error: /model.*not available/i.test(normalized) ? normalized.replace("Selected model", `The model "${this.resolveModel(request)}"`) : normalized,
                 debug: {
                     stage: "generate",
                     rawError: message,

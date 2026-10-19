@@ -61,6 +61,10 @@
   --color-gold-900: #463823;
   --color-gold-950: #261f14;
 
+  /* Neutral hairlines: structure stays quiet so gold can mark what matters (active, primary). */
+  --color-line: rgb(255 255 255 / 0.075);
+  --color-line-strong: rgb(255 255 255 / 0.13);
+
   --color-obsidian-700: #1c1f1c;
   --color-obsidian-800: #141614;
   --color-obsidian-900: #0e100e;
@@ -127,8 +131,8 @@
   --accent: #b6ddd3;
   --accent-foreground: #0f1714;
   --destructive: #e07a6a;
-  --border: #d9c08a1c;
-  --input: #d9c08a26;
+  --border: rgb(255 255 255 / 0.08);
+  --input: rgb(255 255 255 / 0.1);
   --ring: #d9c08a8c;
   --chart-1: #d9c08a;
   --chart-2: #b6ddd3;
@@ -141,7 +145,7 @@
   --sidebar-primary-foreground: #1a160e;
   --sidebar-accent: #d9c08a14;
   --sidebar-accent-foreground: #f2e6c8;
-  --sidebar-border: #d9c08a17;
+  --sidebar-border: rgb(255 255 255 / 0.07);
   --sidebar-ring: #d9c08a73;
 }
 
@@ -717,6 +721,26 @@
 
 .toaster [data-sonner-toast][data-type="error"] {
   border-color: rgba(224, 122, 106, 0.4) !important;
+}
+
+/* Keep app-wide feedback clear on wide screens and safely inside phone edges. */
+.toaster[data-sonner-toaster] {
+  --offset-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  --offset-right: 16px;
+}
+
+@media (max-width: 640px) {
+  .toaster[data-sonner-toaster] {
+    --width: min(420px, calc(100vw - 24px));
+    --offset-top: calc(env(safe-area-inset-top, 0px) + 12px);
+    --offset-right: max(12px, env(safe-area-inset-right, 0px));
+    --offset-left: max(12px, env(safe-area-inset-left, 0px));
+  }
+
+  .toaster [data-sonner-toast] {
+    width: min(420px, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════

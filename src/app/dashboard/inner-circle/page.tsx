@@ -76,7 +76,7 @@ export default async function InnerCircleDashboardPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5 py-2 md:py-3">
       <section className="grid gap-4 md:grid-cols-3">
-        <Card className="rounded-3xl border border-gold-400/[0.12] bg-obsidian-900 text-white">
+        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
           <CardHeader className="pb-1">
             <CardTitle className="text-sm font-medium text-white/55">Inner Circle Leads</CardTitle>
           </CardHeader>
@@ -86,7 +86,7 @@ export default async function InnerCircleDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-3xl border border-gold-400/[0.12] bg-obsidian-900 text-white">
+        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
           <CardHeader className="pb-1">
             <CardTitle className="text-sm font-medium text-white/55">Tracked Referrals</CardTitle>
           </CardHeader>
@@ -96,7 +96,7 @@ export default async function InnerCircleDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-3xl border border-gold-400/[0.12] bg-obsidian-900 text-white">
+        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
           <CardHeader className="pb-1">
             <CardTitle className="text-sm font-medium text-white/55">Top 10 Slots</CardTitle>
           </CardHeader>
@@ -108,7 +108,7 @@ export default async function InnerCircleDashboardPage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="rounded-3xl border border-gold-400/[0.12] bg-obsidian-900 text-white">
+        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
           <CardHeader>
             <CardTitle>Top Referral Leaderboard</CardTitle>
           </CardHeader>
@@ -117,7 +117,7 @@ export default async function InnerCircleDashboardPage() {
               <p className="text-sm text-white/55">No referrals yet.</p>
             ) : (
               topReferrals.map((entry, index) => (
-                <div key={entry.id} className="rounded-2xl border border-gold-400/[0.12] bg-white/5 p-3">
+                <div key={entry.id} className="rounded-2xl border border-line bg-white/5 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold">
@@ -136,7 +136,7 @@ export default async function InnerCircleDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-3xl border border-gold-400/[0.12] bg-obsidian-900 text-white">
+        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
           <CardHeader>
             <CardTitle>Latest Signups</CardTitle>
           </CardHeader>
@@ -145,7 +145,7 @@ export default async function InnerCircleDashboardPage() {
               <p className="text-sm text-white/55">No signups yet.</p>
             ) : (
               latest.map((entry) => (
-                <div key={entry.id} className="rounded-xl border border-gold-400/[0.12] bg-white/5 p-3 text-xs">
+                <div key={entry.id} className="rounded-xl border border-line bg-white/5 p-3 text-xs">
                   <p className="font-semibold text-white">{entry.full_name}</p>
                   <p className="text-white/55">{entry.email}</p>
                   <p className="text-white/55">Instagram: @{entry.instagram_handle} • {entry.social_handle.startsWith('x: @') ? entry.social_handle : `Social: @${entry.social_handle}`}</p>

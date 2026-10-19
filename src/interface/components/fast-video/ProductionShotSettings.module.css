@@ -120,3 +120,28 @@
 @media (max-width: 760px) { .setup { grid-template-columns: minmax(0, 1fr) auto; padding: 14px 16px; } .setup > div:last-child { grid-column: 1 / -1; } .chips[data-many="true"] { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @container (max-width: 650px) { .setup { grid-template-columns: minmax(0, 1fr) auto; } .setup > div:last-child { grid-column: 1 / -1; } }
 @media (prefers-reduced-motion: reduce) { .modelCards button, .lengths button { transition: none; } }
+
+/* ── Calm pass: neutral structure; selections read as a lighter surface, gold marks the main action ── */
+.console { border-color: rgba(255, 255, 255, .08); background: #111311; }
+.eyebrow { margin-top: 4px; font-size: 12.5px; letter-spacing: 0; color: #9aa1ab; }
+.heading { margin: 0; font-family: inherit; font-weight: 300; font-size: 22px; letter-spacing: -.025em; }
+.setup, .presets, .footnote { border-color: rgba(255, 255, 255, .06); }
+.lengths, .counter { border-color: rgba(255, 255, 255, .08); }
+.lengths button { font-size: 12.5px; }
+.lengths button[aria-pressed="true"], .models button[aria-pressed="true"], .chips button[aria-checked="true"] {
+  background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .16); color: #fff; font-weight: 500; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.models button, .chips button, .modelCards button { border-color: rgba(255, 255, 255, .09); }
+.chips button { font-size: 12.5px; }
+.modelCards button small { font-size: 11.5px; color: #9aa1ab; }
+.modelCards button[aria-checked="true"] { border-color: #d9c08a99; background: rgba(217, 192, 138, .07); box-shadow: none; }
+.shotTop { font-size: 12px; letter-spacing: 0; }
+.shot { border-color: rgba(255, 255, 255, .08); }
+.shot[aria-selected="true"] { background: rgba(217, 192, 138, .06); border-color: #d9c08a99; box-shadow: inset 0 2px #d9c08a; }
+.editor { border: 0; border-top: 1px solid rgba(255, 255, 255, .06); border-radius: 0; margin: 0; padding: 22px 28px; background: transparent; }
+.editorTitle > strong { margin-top: 0; }
+.label { font-size: 12.5px; color: #c9cdd3; }
+.footnote { font-size: 12px; color: #9aa1ab; }
+.runtime > span { font-size: 12px; color: #9aa1ab; }
+@media (max-width: 560px) { .editor { padding: 18px 16px; } }
+@container (max-width: 400px) { .editor { margin-inline: 0; padding: 18px 16px; } }

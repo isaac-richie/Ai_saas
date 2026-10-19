@@ -50,11 +50,11 @@ export function SequenceList({ sequences }: SequenceListProps) {
     return (
         <div className="grid gap-3">
             {sequences.map((sequence) => (
-                <Card key={sequence.id} className="rounded-2xl border border-gold-400/[0.12] bg-obsidian-950 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
+                <Card key={sequence.id} className="rounded-2xl border border-line bg-obsidian-950 text-white shadow-[0_20px_40px_-35px_rgba(0,0,0,0.9)]">
                     <CardHeader className="pb-2">
                         <CardTitle className="flex items-center justify-between text-base">
                             <span className="line-clamp-1">{sequence.name}</span>
-                            <Badge className="rounded-full border border-gold-400/[0.12] bg-white/10 text-[10px] uppercase tracking-[0.2em] text-white/70">
+                            <Badge className="rounded-full border border-line bg-white/10 text-[10px] uppercase tracking-[0.2em] text-white/70">
                                 {sequence.status}
                             </Badge>
                         </CardTitle>
@@ -64,7 +64,7 @@ export function SequenceList({ sequences }: SequenceListProps) {
                         <div className="flex gap-2">
                             <a
                                 href={`/dashboard/sequences/${sequence.id}`}
-                                className="rounded-lg border border-gold-400/[0.12] bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
+                                className="rounded-lg border border-line bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
                             >
                                 Open Builder
                             </a>
@@ -73,7 +73,7 @@ export function SequenceList({ sequences }: SequenceListProps) {
                                     href={sequence.output_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="rounded-lg border border-gold-400/[0.12] bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
+                                    className="rounded-lg border border-line bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
                                 >
                                     View Output
                                 </a>
@@ -82,7 +82,7 @@ export function SequenceList({ sequences }: SequenceListProps) {
                                 size="sm"
                                 onClick={() => handleStitch(sequence.id)}
                                 disabled={stitchingId === sequence.id}
-                                className="rounded-lg border border-gold-400/[0.12] bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
+                                className="rounded-lg border border-line bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
                             >
                                 {stitchingId === sequence.id ? "Rendering..." : "Stitch Video"}
                             </Button>

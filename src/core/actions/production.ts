@@ -1,7 +1,10 @@
 "use server"
 
+
+import { condensePrompt } from "@/core/services/prompt-condenser"
 import { z } from "zod"
 import { createClient } from "@/infrastructure/supabase/server"
+import { createAdminClient } from "@/infrastructure/supabase/admin"
 import { productionPlanSchema, canApproveProduction, productionBibleSchema, departmentDirectionSchema, crewShotsSchema, blockingFindings, findingsRepairUsed } from "@/core/validation/production-crew"
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
 import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
@@ -11,7 +14,7 @@ import { buildRevisionContext, revisionSaveError } from "@/core/utils/production
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 
 const updateSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(4000), assets: productionAssetsSchema.default([]), shotSettings: productionShotSettingsSchema }),
+  z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(50000), assets: productionAssetsSchema.default([]), shotSettings: productionShotSettingsSchema }),
   z.object({ action: z.literal("plan"), id: z.string().uuid(), plan: productionPlanSchema }),
   z.object({ action: z.literal("approve"), id: z.string().uuid(), acknowledgeFindings: z.boolean().optional() }),
 ])
@@ -30,7 +33,8 @@ export async function listProductions() {
   return { data }
 }
 
-export async function updateProduction(input: unknown) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function updateProduction(input: unknown): Promise<{ data?: any; error?: string; notice?: string }> {
   const parsed = updateSchema.safeParse(input)
   if (!parsed.success) return { error: "Please check the production details." }
   const db = await createClient()
@@ -49,15 +53,32 @@ export async function updateProduction(input: unknown) {
     : db.from("production_jobs").update(payload.action === "plan"
       ? { status: "awaiting_approval", plan: payload.plan }
       : { status: "approved" }).eq("id", payload.id).eq("user_id", user.id).eq("status", payload.action === "plan" ? "brief" : "awaiting_approval")
-  const { data, error } = await query.select("*").single()
+  let { data, error } = await query.select("*").single()
+  let notice: string | null = null
+  // Before migration 0043 the database caps briefs at 4,000 characters: condense a longer brief
+  // with the AI director (meaning kept, not cut off) and save that, instead of failing.
+  if (error?.code === "23514" && payload.action === "create" && payload.brief.length > 4000) {
+    try {
+      const condensed = await condensePrompt(payload.brief, 3900, "video")
+      ;({ data, error } = await db.from("production_jobs").insert({ user_id: user.id, brief: condensed.prompt, planning_context: { shotSettings: payload.shotSettings }, ...(payload.assets.length ? { reference_assets: payload.assets } : {}) }).select("*").single())
+      if (!error) notice = `Your brief was ${payload.brief.length.toLocaleString()} characters, so the crew condensed it to ${condensed.to.toLocaleString()} to save it. Apply migration 0043 to keep long briefs in full.`
+    } catch {
+      return { error: `Your brief is ${payload.brief.length.toLocaleString()} characters; this database stores up to 4,000 until migration 0043 is applied. Shorten it, or apply the migration.` }
+    }
+  }
   if (error && ["42703", "PGRST204"].includes(error.code || "")) return { error: "Reference storage is not configured yet. Apply migration 0026, then save your brief again. Your draft is still here." }
-  if (error) return { error: "Could not save this production. Refresh and try again; the plan may already have changed." }
-  return { data }
+  if (error) {
+    console.error("updateProduction failed", { action: payload.action, code: error.code, message: error.message })
+    return { error: payload.action === "create"
+      ? `Could not save this brief (${error.code ?? "unknown"}). Your draft is still here; try again.`
+      : "Could not save this production. Refresh and try again; the plan may already have changed." }
+  }
+  return { data, ...(notice ? { notice } : {}) }
 }
 
 const productionRevisionSchema = z.object({
   productionId: z.string().uuid(),
-  direction: z.string().trim().min(8).max(2000),
+  direction: z.string().trim().min(8).max(50000),
   repair: z.boolean().optional(),
   shotSettings: productionShotSettingsSchema.optional(),
 })
@@ -418,7 +439,16 @@ export async function queueProductionShot(input: unknown) {
     const { data: previousTake } = await db.from("shot_generations").select("last_frame_url").eq("id", previousShot.approved_take_id).eq("status", "completed").maybeSingle()
     if (!previousTake?.last_frame_url) return { error: "Inspect the approved previous take first so its ending frame can guide this shot." }
     continuityReferenceUrl = previousTake.last_frame_url
+    // The ending frame is the physical anchor; the film's @image references still hold identity,
+    // so a continued shot never drops them (Kling sends them as elements beside the opening frame).
+    const references = productionAssetsSchema.safeParse(production.reference_assets || [])
+    if (references.success) referenceElements = buildReferenceElements(references.data, user.id)
   }
+  // Conditioning order, stated for the model: opening frame (position, light, pose) first, then the
+  // references (who and what), then the shot's own action.
+  const continuationPrefix = shot.previous_shot_id
+    ? "Seamless continuation from the opening frame, which is the previous shot's final frame: keep its framing, lighting, positions and every character's identity, then perform this shot's action. "
+    : ""
   const family = shot.model === "seedance" ? "seedance" : "kling"
   const model = resolveKieVideoModelByFamily({ familyId: family, useImageToVideo: Boolean(continuityReferenceUrl) })
   const duration = Math.max(4, Math.min(15, shot.duration_target || 10))
@@ -439,7 +469,7 @@ export async function queueProductionShot(input: unknown) {
 
   const generated = await generateFastVideo({
     request_type: "fast_video", project_id: production.project_id, scene_id: production.scene_id, shot_id: shot.id,
-    prompt_inputs: { text_subject: shot.prompt_text || shot.description || shot.name, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
+    prompt_inputs: { text_subject: continuationPrefix + (shot.prompt_text || shot.description || shot.name), style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
     settings: { duration_seconds: duration, model },
   })
   if (generated.error || !generated.data) {
@@ -496,4 +526,37 @@ export async function pollProductionGeneration(generationJobId: string) {
     job.take_id ? db.from("shot_generations").update({ status: "completed", output_url: url }).eq("id", job.take_id) : Promise.resolve(),
   ])
   return { data: { ...job, status: "completed", progress: 100, output_url: url } }
+}
+
+/**
+ * Deletes the signed-in creator's productions (and every revision of each). Ownership is checked
+ * with the creator's own session first; the delete then runs with the server's admin connection,
+ * because production rows have no delete policy for regular sessions.
+ */
+export async function deleteProductions(ids: unknown): Promise<{ data?: { deleted: number; ids: string[] }; error?: string }> {
+  const parsed = z.array(z.string().uuid()).min(1).max(200).safeParse(ids)
+  if (!parsed.success) return { error: "Choose productions to delete." }
+  const db = await createClient()
+  const { data: { user } } = await db.auth.getUser()
+  if (!user) return { error: "Please sign in." }
+  // The list shows each film's latest revision, so deleting one means the whole film: resolve every
+  // chosen row to its original, then take the original and all of its revisions.
+  const { data: chosen, error: chosenError } = await db.from("production_jobs").select("id,parent_job_id").eq("user_id", user.id).in("id", parsed.data)
+  if (chosenError) return { error: "Couldn't load those productions. Try again." }
+  const roots = [...new Set((chosen || []).map((row) => (row.parent_job_id as string | null) || (row.id as string)))]
+  if (!roots.length) return { error: "Those productions no longer exist." }
+  const { data: owned, error } = await db.from("production_jobs").select("id").eq("user_id", user.id)
+    .or(`id.in.(${roots.join(",")}),parent_job_id.in.(${roots.join(",")})`)
+  if (error) return { error: "Couldn't load those productions. Try again." }
+  const targets = (owned || []).map((row) => row.id as string)
+  if (!targets.length) return { error: "Those productions no longer exist." }
+  const admin = createAdminClient()
+  // Revisions first (they point at their original), then the originals.
+  const { error: deleteError } = await admin.from("production_jobs").delete().in("id", targets).eq("user_id", user.id).not("parent_job_id", "is", null)
+  const { error: rootError } = deleteError ? { error: deleteError } : await admin.from("production_jobs").delete().in("id", targets).eq("user_id", user.id)
+  if (rootError) {
+    console.error("deleteProductions failed", { code: rootError.code, message: rootError.message })
+    return { error: `Couldn't delete (${rootError.code ?? "unknown"}). Try again.` }
+  }
+  return { data: { deleted: roots.length, ids: targets } }
 }
