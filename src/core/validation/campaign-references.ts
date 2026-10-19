@@ -133,12 +133,12 @@ export type ReferenceCapability = {
 export const REFERENCE_CAPABILITIES: Record<string, ReferenceCapability> = {
   seedance: {
     supported: true, characterReference: true, productReference: true, imageReference: true, videoReference: true,
-    maxReferences: 9, maxImageMb: 30, durations: "4 to 15 s", method: "reference images", minImagesPerReference: 1, maxImagesPerReference: 4,
+    maxReferences: 9, maxImageMb: 30, durations: "4 to 30 s", method: "reference images", minImagesPerReference: 1, maxImagesPerReference: 4,
     note: "Seedance receives every character and product image as a reference.",
   },
   kling: {
     supported: true, characterReference: true, productReference: true, imageReference: true, videoReference: false,
-    maxReferences: 3, maxImageMb: 10, durations: "5 or 10 s", method: "identity elements", minImagesPerReference: 2, maxImagesPerReference: 4,
+    maxReferences: 3, maxImageMb: 10, durations: "3 to 15 s", method: "identity elements", minImagesPerReference: 2, maxImagesPerReference: 4,
     note: "Kling needs 2 to 4 JPG or PNG images per reference and opens each video on the lead reference's first image.",
   },
 }

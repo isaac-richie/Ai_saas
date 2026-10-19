@@ -23,6 +23,8 @@ import {
   DEFAULT_KIE_VIDEO_MODEL_FAMILY,
   KIE_VIDEO_MODEL_FAMILIES,
   type KieVideoModelFamilyId,
+  clampDurationForFamily,
+  fastTrackUnitsForDuration,
   getKieVideoModelFamily,
   resolveKieVideoModelByFamily,
 } from "@/core/config/kie-video-models"
@@ -77,7 +79,7 @@ import { StoryboardExportPanel } from "./StoryboardExportPanel"
 import { MediaReferenceManager } from "./MediaReferenceManager"
 import { AspectGlyph, SegmentedPreset } from "./PresetPicker"
 import { orderPresets } from "./preset-order"
-import { ModelPicker, TemplateGallery } from "./StudioPickers"
+import { TemplateGallery } from "./StudioPickers"
 import { ShotLookSection } from "./ShotLookSection"
 import { PROMPT_TEMPLATES, type PromptTemplate } from "@/core/config/fast-video-templates"
 import { ShotFramesPanel } from "./ShotFramesPanel"
@@ -243,6 +245,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const hasStoryboardDestination = Boolean(selectedProjectId && selectedSceneId)
 
   const activeModelFamily = useMemo(() => getKieVideoModelFamily(modelFamilyId), [modelFamilyId])
+  // Each model accepts a different length range; keep the chosen length inside it.
+  useEffect(() => {
+    setDurationSeconds((current) => clampDurationForFamily(current, activeModelFamily))
+  }, [activeModelFamily])
   // Tags (@image1…) come from the full panel order, so prompts match what the creator sees.
   const labelledReferences = useMemo(() => labelReferences(currentReferences), [currentReferences])
   const continuityClause = useMemo(
@@ -2367,21 +2373,37 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           />
 
           <div className={sectionClass}>
-            <label className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Length</label>
-            <div className={`${subtlePanelClass} space-y-2`}>
-              <div className="flex items-center justify-between text-xs text-white/65">
-                <span>Video length</span>
-                <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2 py-0.5 text-white/80">{durationSeconds}s</span>
-              </div>
-              <input
-                type="range"
-                min={5}
-                max={15}
-                step={1}
-                value={durationSeconds}
-                onChange={(event) => setDurationSeconds(Number(event.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-gold-300"
+            <label className="text-[12px] font-medium tracking-wide text-[#d6d0c0]">Model and length</label>
+            <div className={`${subtlePanelClass} space-y-3`}>
+              <SegmentedPreset
+                label="AI model"
+                options={KIE_VIDEO_MODEL_FAMILIES.map((family) => family.id)}
+                value={modelFamilyId}
+                onChange={setModelFamilyId}
+                render={(id) => getKieVideoModelFamily(id).label}
               />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-white/65">
+                  <span>Video length</span>
+                  <span className="rounded-full border border-gold-400/[0.12] bg-white/10 px-2 py-0.5 text-white/80">{durationSeconds}s</span>
+                </div>
+                <input
+                  type="range"
+                  min={activeModelFamily.minSeconds}
+                  max={activeModelFamily.maxSeconds}
+                  step={1}
+                  value={durationSeconds}
+                  onChange={(event) => setDurationSeconds(Number(event.target.value))}
+                  aria-label="Video length in seconds"
+                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-gold-300"
+                />
+                <div className="flex items-center justify-between text-[11px] text-white/45">
+                  <span>{activeModelFamily.minSeconds}–{activeModelFamily.maxSeconds}s with {activeModelFamily.label}</span>
+                  <span>
+                    Uses {fastTrackUnitsForDuration(durationSeconds)} {fastTrackUnitsForDuration(durationSeconds) === 1 ? "generation" : "generations"}
+                  </span>
+                </div>
+              </div>
             </div>
             <Button
               type="button"
@@ -2390,12 +2412,11 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               onClick={() => setShowAdvanced((prev) => !prev)}
               className="h-10 w-full text-xs"
             >
-              {showAdvanced ? "Hide options" : "More options: size, AI model, references"}
+              {showAdvanced ? "Hide options" : "More options: size, references"}
             </Button>
             {showAdvanced ? (
               <div className={`${subtlePanelClass} space-y-3`}>
                 <p className="text-[12px] font-medium text-[#d6d0c0]">More options</p>
-                <ModelPicker families={KIE_VIDEO_MODEL_FAMILIES} value={modelFamilyId} onChange={setModelFamilyId} />
                 <SegmentedPreset
                   label="Video shape"
                   options={FAST_VIDEO_ASPECT_RATIOS}

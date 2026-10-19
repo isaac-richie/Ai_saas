@@ -109,6 +109,9 @@ test("the review checklist only asks about references that exist", () => {
 })
 
 // ─── Provider mapping ────────────────────────────────────────────────────
+const kieModelsModule = { exports: {} }
+vm.runInNewContext(transpile(read("../src/core/config/kie-video-models.ts")), { module: kieModelsModule, exports: kieModelsModule.exports })
+const kieModels = kieModelsModule.exports
 const kieModule = { exports: {} }
 vm.runInNewContext(transpile(read("../src/infrastructure/ai/providers/kie.provider.ts")), {
   module: kieModule, exports: kieModule.exports,
@@ -116,6 +119,7 @@ vm.runInNewContext(transpile(read("../src/infrastructure/ai/providers/kie.provid
     if (id === "../base.provider") return { BaseProvider: class { constructor(config) { this.config = config } } }
     if (id === "./kie.models") return { DEFAULT_KIE_IMAGE_MODEL: "x", DEFAULT_KIE_VIDEO_MODEL_I2V: "kling-3.0/video", DEFAULT_KIE_VIDEO_MODEL_T2V: "t2v", inferKieOutputType: () => "video" }
     if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
+    if (id === "@/core/config/kie-video-models") return kieModels
     throw new Error(`Unexpected import: ${id}`)
   },
 })

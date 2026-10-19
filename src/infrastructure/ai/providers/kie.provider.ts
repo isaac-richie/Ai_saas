@@ -7,6 +7,7 @@ import {
     inferKieOutputType,
 } from "./kie.models";
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
+import { clampDurationForFamily, getKieVideoModelFamilyByModel } from "@/core/config/kie-video-models";
 
 export class KieProvider extends BaseProvider {
     private baseUrl = "https://api.kie.ai/api/v1";
@@ -29,6 +30,10 @@ export class KieProvider extends BaseProvider {
     }
 
     private resolveDurationForModel(seconds: number | undefined, model: string): string | null {
+        // Current Fast Track models (Kling 3.0, Seedance 2.5) declare their own ranges.
+        const family = getKieVideoModelFamilyByModel(model);
+        if (family) return String(clampDurationForFamily(seconds, family));
+
         const duration = this.clampDuration(seconds);
         const normalizedModel = model.toLowerCase();
 

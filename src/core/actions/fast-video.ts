@@ -18,7 +18,7 @@ import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { REFERENCE_BUCKET, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
-import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
+import { KIE_VIDEO_MODEL_FAMILIES, MAX_FAST_TRACK_SECONDS, MIN_FAST_TRACK_SECONDS, clampDurationForFamily, fastTrackUnitsForDuration, getKieVideoModelFamilyByModel } from "@/core/config/kie-video-models"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
@@ -58,6 +58,8 @@ function nearestAllowedDuration(value: number, allowed: number[]): number {
 }
 
 function resolveModelAwareDuration(seconds: number, model?: string | null): number {
+  const family = getKieVideoModelFamilyByModel(model)
+  if (family) return clampDurationForFamily(seconds, family)
   const clamped = Math.max(5, Math.min(15, Math.floor(seconds)))
   const normalizedModel = (model || "").toLowerCase()
   if (!normalizedModel) return clamped
@@ -395,7 +397,7 @@ export async function generateFastVideo(input: unknown) {
   }
 
   const payload = parsed.data
-  const requestedDuration = Math.max(4, Math.min(15, payload.settings.duration_seconds || 5))
+  const requestedDuration = payload.settings.duration_seconds || 5
   const safeDuration = resolveModelAwareDuration(requestedDuration, payload.settings.model?.trim() || undefined)
   debug.push("request.validated", {
     hasReference: Boolean(payload.prompt_inputs.reference_image),
@@ -557,7 +559,8 @@ export async function generateFastVideo(input: unknown) {
     // deliberately separate from task creation: a bad asset must not cost a
     // generation or leave a remote render job behind.
     const preparedRequest = await provider.prepareRequest(generationRequest)
-    const quota = await reserveUsageQuota(supabase, user.id, "fast_video")
+    // Fast Track charges by length: one allowance unit per 10 seconds started.
+    const quota = await reserveUsageQuota(supabase, user.id, "fast_video", undefined, fastTrackUnitsForDuration(safeDuration))
     if (!quota.allowed) {
       debug.push("quota.denied", { feature: "fast_video", message: quota.message || null })
       return { error: quota.message || "Fast Track limit reached for your current plan." }
@@ -1195,7 +1198,7 @@ export async function compilePromptPreview(input: {
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
 
-  const safeDuration = Math.max(4, Math.min(15, input.durationSeconds || 5))
+  const safeDuration = Math.max(MIN_FAST_TRACK_SECONDS, Math.min(MAX_FAST_TRACK_SECONDS, input.durationSeconds || 5))
 
   const { sceneCtx, continuityCtx } = await fetchPromptContext(supabase, input.sceneId, input.shotId)
 

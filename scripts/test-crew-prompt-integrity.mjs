@@ -4,8 +4,12 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { z as settingsZod } from 'zod'
+// Pure config with no imports; the real model ranges, never a stub.
+const kieModelsModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/kie-video-models.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: kieModelsModule, exports: kieModelsModule.exports })
+const kieModels = kieModelsModule.exports
 const settingsModule = { exports: {} }
-vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/validation/production-settings.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: settingsModule, exports: settingsModule.exports, require: () => ({ z: settingsZod }) })
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/validation/production-settings.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: settingsModule, exports: settingsModule.exports, require: (name) => name === '@/core/config/kie-video-models' ? kieModels : { z: settingsZod } })
 const { productionShotSettingsSchema } = settingsModule.exports
 
 const source = readFileSync(new URL('../src/core/services/production-crew.ts', import.meta.url), 'utf8')
@@ -21,7 +25,7 @@ const approvalTree = ts.createSourceFile('production-crew-validation.ts', approv
 const approvalNames = new Set(['hasExecutableProviderPrompt', 'supportsRequestedTiming', 'canApproveProduction'])
 const approvalFunctions = approvalTree.statements.filter(node => ts.isFunctionDeclaration(node) && approvalNames.has(node.name?.text)).map(node => node.getText(approvalTree)).join('\n')
 const approvalModule = { exports: {} }
-vm.runInNewContext(ts.transpileModule(approvalFunctions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: approvalModule, exports: approvalModule.exports, productionPlanSchema: { safeParse: value => ({ success: true, data: value }) } })
+vm.runInNewContext(ts.transpileModule(approvalFunctions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: approvalModule, exports: approvalModule.exports, getKieVideoModelFamily: kieModels.getKieVideoModelFamily, productionPlanSchema: { safeParse: value => ({ success: true, data: value }) } })
 
 const errorModule = { exports: {} }
 const errorSource = readFileSync(new URL('../src/core/services/production-crew.ts', import.meta.url), 'utf8')
@@ -362,7 +366,7 @@ test('complete editorial repair notes survive crew and saved-plan validation wit
     const source = readFileSync(new URL(path, import.meta.url), 'utf8')
     vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
       module: result, exports: result.exports,
-      require: name => name === 'zod' ? { z } : dependencies[name],
+      require: name => name === 'zod' ? { z } : name === '@/core/config/kie-video-models' ? kieModels : dependencies[name],
     })
     return result.exports
   }
@@ -385,7 +389,8 @@ test('per-shot settings reject unsupported choices and reach the review compiler
   const settings = [{ model: 'seedance', durationSeconds: 5 }, { model: 'kling', durationSeconds: 10 }, { model: 'seedance', durationSeconds: 10 }]
   assert.equal(productionShotSettingsSchema.safeParse(settings).success, true)
   assert.equal(productionShotSettingsSchema.safeParse([{ model: 'sora', durationSeconds: 5 }, ...settings.slice(1)]).success, false)
-  assert.equal(productionShotSettingsSchema.safeParse([{ model: 'kling', durationSeconds: 7 }, ...settings.slice(1)]).success, false)
+  assert.equal(productionShotSettingsSchema.safeParse([{ model: 'kling', durationSeconds: 7 }, ...settings.slice(1)]).success, true)
+  assert.equal(productionShotSettingsSchema.safeParse([{ model: 'kling', durationSeconds: 16 }, ...settings.slice(1)]).success, false)
   assert.equal(productionShotSettingsSchema.safeParse(settings.slice(0, 1)).success, false)
   const shots = module.exports.compileCrewShotsForReview({}, { shots: settings.map(() => ({ prompt: 'Track the runner for the selected duration.', model: 'kling', continuity: null })) }, settings)
   assert.equal(shots[0].model, 'seedance')
@@ -408,25 +413,27 @@ test('saved production deliverables use the user model and duration rather than 
   assert.equal(plan.deliverables[2].modelFamilyId, 'seedance')
 })
 
-test('long film settings accept 12 shots and Seedance 4-15s but reject invalid model durations', () => {
-  for (const seconds of [4, 7, 12, 15]) {
+test('long film settings accept 12 shots, Seedance 4-30s and Kling 3-15s, and reject other durations', () => {
+  for (const seconds of [4, 7, 12, 15, 22, 30]) {
     assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 12 }, () => ({ model: 'seedance', durationSeconds: seconds }))).success, true)
   }
   assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 13 }, () => ({ model: 'seedance', durationSeconds: 15 }))).success, false)
-  for (const seconds of [4, 7, 15]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'kling', durationSeconds: seconds }))).success, false)
+  for (const seconds of [3, 31]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'seedance', durationSeconds: seconds }))).success, false)
+  for (const seconds of [3, 7, 15]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'kling', durationSeconds: seconds }))).success, true)
+  for (const seconds of [2, 16, 30]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'kling', durationSeconds: seconds }))).success, false)
 })
 
 test('Seedance duration survives action normalization and numeric provider payload without rounding', () => {
   const action = readFileSync(new URL('../src/core/actions/fast-video.ts', import.meta.url), 'utf8')
   const parsed = ts.createSourceFile('fast-video.ts', action, ts.ScriptTarget.Latest, true)
   const parts = parsed.statements.filter(node => ts.isFunctionDeclaration(node) && ['nearestAllowedDuration', 'resolveModelAwareDuration'].includes(node.name?.text)).map(node => node.getText(parsed)).join('\n')
-  const context = {}
+  const context = { ...kieModels }
   vm.runInNewContext(ts.transpileModule(parts, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, context)
   const providerSource = readFileSync(new URL('../src/infrastructure/ai/providers/kie.provider.ts', import.meta.url), 'utf8')
   const result = { exports: {} }
   vm.runInNewContext(ts.transpileModule(providerSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
     module: result, exports: result.exports,
-    require: name => name.endsWith('base.provider') ? { BaseProvider: class {} } : {},
+    require: name => name.endsWith('base.provider') ? { BaseProvider: class {} } : name === '@/core/config/kie-video-models' ? kieModels : {},
   })
   const provider = new result.exports.KieProvider()
   const reference = 'https://example.com/approved-last-frame.jpg'
@@ -447,6 +454,15 @@ test('Seedance duration survives action normalization and numeric provider paylo
     assert.equal(provider.buildMarketInput({ prompt: 'A running scene.', output_type: 'video', duration_seconds: applied }, 'bytedance/seedance-2').duration, duration)
   }
   assert.equal(provider.buildMarketInput({ prompt: 'Scene', output_type: 'video', duration_seconds: 10 }, 'kling/v2-5-turbo-text-to-video-pro').duration, '10')
+  // Current Fast Track models use Kie's full ranges: Seedance 2.5 4-30 s (number), Kling 3.0 3-15 s (string).
+  for (const [requested, expected] of [[2, 4], [4, 4], [22, 22], [30, 30], [45, 30]]) {
+    assert.equal(context.resolveModelAwareDuration(requested, 'bytedance/seedance-2-5'), expected)
+    assert.equal(provider.buildMarketInput({ prompt: 'A running scene.', output_type: 'video', duration_seconds: requested }, 'bytedance/seedance-2-5').duration, expected)
+  }
+  for (const [requested, expected] of [[1, 3], [3, 3], [7, 7], [15, 15], [30, 15]]) {
+    assert.equal(context.resolveModelAwareDuration(requested, 'kling-3.0/video'), expected)
+    assert.equal(provider.buildMarketInput({ prompt: 'A running scene.', output_type: 'video', duration_seconds: requested }, 'kling-3.0/video').duration, String(expected))
+  }
 })
 
 test('Kling reference preparation stages every element before a render task is created', async () => {
@@ -504,7 +520,7 @@ test('shot settings frontend renders twelve editable shots with model-specific d
   const source = readFileSync(new URL('../src/interface/components/fast-video/ProductionShotSettings.tsx', import.meta.url), 'utf8')
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
     module: result, exports: result.exports,
-    require: name => name === 'react' ? React : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : { productionShotSettingsSchema },
+    require: name => name === 'react' ? React : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : name === '@/core/config/kie-video-models' ? kieModels : { productionShotSettingsSchema },
   })
   const render = model => renderToStaticMarkup(React.createElement(result.exports.ProductionShotSettings, { value: Array.from({ length: 12 }, () => ({ model, durationSeconds: model === 'seedance' ? 15 : 10 })), onChange() {}, disabled: false }))
   const seedance = render('seedance')
@@ -512,11 +528,12 @@ test('shot settings frontend renders twelve editable shots with model-specific d
   assert.equal((seedance.match(/aria-label="Shot \d+ duration"/g) || []).length, 1)
   assert.match(seedance, /role="radio" aria-checked="true"[^>]*>15s</)
   assert.match(seedance, />4s</)
-  assert.equal((seedance.match(/>\d+s</g) || []).length, 12, 'Seedance offers 4 to 15 seconds')
+  assert.match(seedance, />30s</)
+  assert.equal((seedance.match(/>\d+s</g) || []).length, 27, 'Seedance offers 4 to 30 seconds')
   const kling = render('kling')
-  assert.doesNotMatch(kling, />15s</)
+  assert.doesNotMatch(kling, />16s</)
   assert.match(kling, /role="radio" aria-checked="true"[^>]*>10s</)
-  assert.equal((kling.match(/>\d+s</g) || []).length, 2, 'Kling offers 5 or 10 seconds')
+  assert.equal((kling.match(/>\d+s</g) || []).length, 13, 'Kling offers 3 to 15 seconds')
   assert.match(kling, /aria-label="Add a shot" disabled=""/, 'twelve shots is the maximum')
 })
 
@@ -527,7 +544,7 @@ test('sequence editor preserves other shots and keeps model timing valid', async
   const source = readFileSync(new URL('../src/interface/components/fast-video/ProductionShotSettings.tsx', import.meta.url), 'utf8')
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
     module: result, exports: result.exports,
-    require: name => name === 'react' ? { useId: () => 'sequence', useRef: () => ({ current: [] }), useState: () => [selection, next => { selection = next }] } : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : { productionShotSettingsSchema },
+    require: name => name === 'react' ? { useId: () => 'sequence', useRef: () => ({ current: [] }), useState: () => [selection, next => { selection = next }] } : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : name === '@/core/config/kie-video-models' ? kieModels : { productionShotSettingsSchema },
   })
   let value = [{ model: 'seedance', durationSeconds: 15 }, { model: 'kling', durationSeconds: 10 }, { model: 'kling', durationSeconds: 5 }]
   function render() {
@@ -545,10 +562,10 @@ test('sequence editor preserves other shots and keeps model timing valid', async
   const text = node => [].concat(node.props?.children ?? []).filter(child => typeof child === 'string' || typeof child === 'number').join('')
   const group = label => render().find(node => node.props?.['aria-label'] === label)
   const option = (label, name) => [].concat(group(label).props.children).find(node => text(node) === name)
-  // Switching a 15 s Seedance shot to Kling snaps to Kling's nearest length instead of an invalid one.
+  // Switching a 15 s Seedance shot to Kling keeps 15 s, which Kling 3.0 also accepts.
   option('Shot 1 model', 'Kling 3.0 Pro').props.onClick()
   assert.equal(value[0].model, 'kling')
-  assert.equal(value[0].durationSeconds, 10)
+  assert.equal(value[0].durationSeconds, 15)
   assert.equal(value[1].durationSeconds, 10, 'other shots are untouched')
   assert.equal(value[2].durationSeconds, 5)
   option('Shot 1 duration', '5s').props.onClick()
@@ -605,7 +622,7 @@ test('provider structured output contract requires exact shot count for 2 throug
   const { zodTextFormat } = await import('openai/helpers/zod')
   const load = (path, dependencies = {}) => {
     const module = { exports: {} }
-    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports, require: name => name === 'zod' ? { z } : dependencies[name] })
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports, require: name => name === 'zod' ? { z } : name === '@/core/config/kie-video-models' ? kieModels : dependencies[name] })
     return module.exports
   }
   const studio = load('../src/core/validation/studio-ad.ts', { './campaign-references': load('../src/core/validation/campaign-references.ts') })
@@ -665,7 +682,7 @@ for (const scenario of ['completed', 'lookup-error', 'active', 'active-error', '
 function loadCrewWithRealSchemas() {
   const load = (path, requireMap) => {
     const loaded = { exports: {} }
-    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports, require: name => requireMap[name] })
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports, require: name => name === '@/core/config/kie-video-models' ? kieModels : requireMap[name] })
     return loaded.exports
   }
   const studioAd = load('../src/core/validation/studio-ad.ts', { zod: { z: settingsZod }, './campaign-references': load('../src/core/validation/campaign-references.ts', { zod: { z: settingsZod } }) })

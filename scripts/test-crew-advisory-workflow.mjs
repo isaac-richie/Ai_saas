@@ -17,6 +17,7 @@ function loadModule(path, requireMap = {}, globals = {}) {
     module: loaded, exports: loaded.exports, console, process: { env: {} }, ...globals,
     require: name => {
       if (name === 'zod') return { z }
+      if (name === '@/core/config/kie-video-models') return loadModule('../src/core/config/kie-video-models.ts')
       const match = Object.keys(requireMap).find(key => name === key || name.endsWith(key))
       if (match) return requireMap[match]
       throw new Error(`Unexpected import ${name}`)

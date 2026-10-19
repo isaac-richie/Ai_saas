@@ -1,5 +1,6 @@
 import { z } from "zod"
 import { FAST_VIDEO_ASPECT_RATIOS, FAST_VIDEO_VARIATIONS } from "@/core/config/fast-video-presets"
+import { MAX_FAST_TRACK_SECONDS, MIN_FAST_TRACK_SECONDS } from "@/core/config/kie-video-models"
 import { mediaReferencesSchema } from "./media-reference"
 import { shotFramesSchema } from "./shot-frames"
 import { campaignReferencesSchema } from "./campaign-references"
@@ -28,7 +29,7 @@ export const fastVideoRequestSchema = z.object({
     variation_setting: z.enum(FAST_VIDEO_VARIATIONS),
   }),
   settings: z.object({
-    duration_seconds: z.number().int().min(4).max(15).default(5),
+    duration_seconds: z.number().int().min(MIN_FAST_TRACK_SECONDS).max(MAX_FAST_TRACK_SECONDS).default(5),
     model: z.string().optional().nullable(),
   }),
 })

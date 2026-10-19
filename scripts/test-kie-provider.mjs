@@ -4,6 +4,11 @@ import { readFileSync } from "node:fs"
 import vm from "node:vm"
 import ts from "typescript"
 
+// Pure config with no imports; the real model ranges, never a stub.
+const kieModelsModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/config/kie-video-models.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: kieModelsModule, exports: kieModelsModule.exports })
+const kieModels = kieModelsModule.exports
+
 const source = readFileSync(new URL("../src/infrastructure/ai/providers/kie.provider.ts", import.meta.url), "utf8")
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
@@ -18,6 +23,7 @@ const requireMock = (id) => {
     inferKieOutputType: () => "video",
   }
   if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
+  if (id === "@/core/config/kie-video-models") return kieModels
   throw new Error(`Unexpected import: ${id}`)
 }
 vm.runInNewContext(compiled, { module, exports: module.exports, require: requireMock })
