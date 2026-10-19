@@ -1746,6 +1746,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         const parts = [
           group("start-frame").length ? `Start frame: ${group("start-frame").join(", ")}` : "",
           group("image").length ? `Sent as images: ${group("image").join(", ")}` : "",
+          group("video").length ? `Sent as video: ${group("video").join(", ")}` : "",
           group("text").length ? `Text only: ${group("text").join(", ")}` : "",
           group("waveform").length ? `Lip-synced to: ${group("waveform").join(", ")}` : "",
           group("not-used").length ? `Not used after fitting: ${group("not-used").join(", ")}` : "",

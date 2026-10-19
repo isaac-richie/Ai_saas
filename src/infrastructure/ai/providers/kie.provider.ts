@@ -181,6 +181,10 @@ export class KieProvider extends BaseProvider {
         if (normalizedModel.includes("seedance-2") && !request.image_prompt && request.reference_image_urls?.length) {
             input.reference_image_urls = request.reference_image_urls.slice(0, 9);
         }
+        // Seedance 2.5 watches reference videos; like reference images they never ride with a first frame.
+        if (/seedance-2-5/.test(normalizedModel) && !request.image_prompt && request.reference_video_urls?.length) {
+            input.reference_video_urls = request.reference_video_urls.slice(0, 10);
+        }
 
         if (model.toLowerCase().includes("kling-3.0")) {
             // Kie's Kling 3.0 schema requires a mode; "pro" is Kling's best quality tier.

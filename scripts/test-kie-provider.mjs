@@ -148,3 +148,10 @@ test("the last guard never sends a prompt over a model's hard cap, and leaves sh
   const short = { prompt: "A short prompt." }
   assert.equal(module.exports.KieProvider.clampPrompt(short, "kling-3.0/video"), short)
 })
+
+test("Seedance 2.5 receives reference videos only when no first frame is set", () => {
+  const videos = ["https://example.com/v8.mp4"]
+  assert.deepEqual(provider.buildMarketInput({ prompt: "Recreate @video1", output_type: "video", reference_video_urls: videos }, "bytedance/seedance-2-5").reference_video_urls, videos)
+  assert.equal(provider.buildMarketInput({ prompt: "Recreate @video1", output_type: "video", image_prompt: "https://example.com/start.png", reference_video_urls: videos }, "bytedance/seedance-2-5").reference_video_urls, undefined)
+  assert.equal(provider.buildMarketInput({ prompt: "Recreate @video1", output_type: "video", reference_video_urls: videos }, "kling-3.0/video").reference_video_urls, undefined)
+})

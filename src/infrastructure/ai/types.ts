@@ -6,6 +6,7 @@ export interface GenerationRequest {
     audio_url?: string;
     end_image_prompt?: string; // Target last frame; only with image_prompt on models that support first+last frames
     reference_image_urls?: string[]; // Seedance multimodal references; never combined with first/last frames
+    reference_video_urls?: string[]; // Seedance 2.5 reference videos (2–30 s each, 30 s total); never with first/last frames
     reference_elements?: Array<{
         name: string;
         description: string;
