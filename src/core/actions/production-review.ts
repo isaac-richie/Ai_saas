@@ -8,6 +8,7 @@ import { createClient } from "@/infrastructure/supabase/server"
 import type { Json } from "@/core/types/db"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { resolveProductionModel } from "@/core/config/production-model-routing"
+import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 const inspectionSchema = z.object({
   takeId: z.string().uuid(), duration: z.number().positive().max(300), width: z.number().int().positive().max(16384),
@@ -87,6 +88,7 @@ export async function proposeTakeCorrection(input: unknown) {
   const db = await createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return { error: "Please sign in." }
+  if (!(await hasBetaAccess(user.email))) return { error: BETA_LOCKED_MESSAGE }
   const { data: take } = await db.from("shot_generations").select("id,shot_id,prompt,compiled_prompt,review_notes,media_inspection,shots!shot_generations_shot_id_fkey!inner(name,prompt_text,generation_settings,scene_id,scenes!inner(project_id,projects!inner(user_id)))").eq("id", parsed.data.takeId).eq("shots.scenes.projects.user_id", user.id).maybeSingle()
   if (!take) return { error: "Take not found." }
   if (parsed.data.referenceImageUrls.some((url) => !ownsAssetUrl(url, user.id))) return { error: "Attach images uploaded to your account." }

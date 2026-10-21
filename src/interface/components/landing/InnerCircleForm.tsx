@@ -55,7 +55,7 @@ export function InnerCircleForm({ referredByCode }: { referredByCode: string | n
       <div role="status" className="mt-8 flex items-start gap-3 rounded-2xl border border-gold-300/30 bg-gold-300/[0.06] p-5">
         <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-gold-300" />
         <p className="text-base leading-relaxed text-white/85">
-          You are on the Inner Circle list. Check your email for your private access invite.
+          You&apos;re on the waitlist. We&apos;ll contact you if you&apos;re selected for the beta.
         </p>
       </div>
     );

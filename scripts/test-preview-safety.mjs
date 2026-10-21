@@ -51,13 +51,14 @@ test("database quota denial is authoritative even below the former 50-use overri
 
 test("allowance reservations carry an ID and failed jobs request an idempotent release", async () => {
   const calls = []
-  const db = { rpc: async (name, args) => {
+  const db = { auth: { getUser: async () => ({ data: { user: { email: "creator@example.com" } } }) }, rpc: async (name, args) => {
     calls.push({ name, args })
     if (name === "reserve_usage_quota") return { data: { allowed: true, used_count: 1, max_count: 5, remaining: 4, reservation_id: args.p_reservation_id }, error: null }
     return { data: true, error: null }
   } }
   const { reserveUsageQuota, settleUsageQuota } = loadFunctions("../src/core/services/billing.ts", ["FEATURE_NAME", "reserveUsageQuota", "settleUsageQuota"], {
     hasSupabaseAdminEnv: () => true,
+    hasBetaAccess: async () => true,
     createAdminClient: () => db,
   })
   const reserved = await reserveUsageQuota(db, "user", "fast_video", "request-id")
@@ -74,13 +75,13 @@ test("Fast Track reserves one unit per 10 seconds started and explains a clip th
 
   const calls = []
   let remaining = 4
-  const db = { rpc: async (name, args) => {
+  const db = { auth: { getUser: async () => ({ data: { user: { email: "creator@example.com" } } }) }, rpc: async (name, args) => {
     calls.push({ name, args })
     if (args.p_units > remaining) return { data: { allowed: false, used_count: 18, max_count: 20, remaining: 2, reservation_id: null }, error: null }
     remaining -= args.p_units
     return { data: { allowed: true, used_count: 20 - remaining, max_count: 20, remaining, reservation_id: args.p_reservation_id }, error: null }
   } }
-  const { reserveUsageQuota } = loadFunctions("../src/core/services/billing.ts", ["FEATURE_NAME", "reserveUsageQuota"], { hasSupabaseAdminEnv: () => true, console })
+  const { reserveUsageQuota } = loadFunctions("../src/core/services/billing.ts", ["FEATURE_NAME", "reserveUsageQuota"], { hasSupabaseAdminEnv: () => true, hasBetaAccess: async () => true, console })
   const ok = await reserveUsageQuota(db, "user", "fast_video", "clip-a", 2)
   assert.equal(ok.allowed, true)
   assert.equal(calls[0].args.p_units, 2)
@@ -91,16 +92,28 @@ test("Fast Track reserves one unit per 10 seconds started and explains a clip th
 
 test("before migration 0042 the one-unit reserve function is still used instead of blocking generations", async () => {
   const calls = []
-  const db = { rpc: async (name, args) => {
+  const db = { auth: { getUser: async () => ({ data: { user: { email: "creator@example.com" } } }) }, rpc: async (name, args) => {
     calls.push(args)
     if ("p_units" in args) return { data: null, error: { code: "PGRST202", message: "Could not find the function" } }
     return { data: { allowed: true, used_count: 1, max_count: null, remaining: null, reservation_id: args.p_reservation_id }, error: null }
   } }
-  const { reserveUsageQuota } = loadFunctions("../src/core/services/billing.ts", ["FEATURE_NAME", "reserveUsageQuota"], { hasSupabaseAdminEnv: () => true, console: { warn() {} } })
+  const { reserveUsageQuota } = loadFunctions("../src/core/services/billing.ts", ["FEATURE_NAME", "reserveUsageQuota"], { hasSupabaseAdminEnv: () => true, hasBetaAccess: async () => true, console: { warn() {} } })
   const reserved = await reserveUsageQuota(db, "user", "fast_video", "clip", 3)
   assert.equal(reserved.allowed, true)
   assert.equal(calls.length, 2)
   assert.equal("p_units" in calls[1], false)
+})
+
+test("private beta: people without studio access are refused before any allowance is reserved", async () => {
+  const calls = []
+  const db = { auth: { getUser: async () => ({ data: { user: { email: "waiting@example.com" } } }) }, rpc: async (name) => { calls.push(name); return { data: null, error: null } } }
+  const { reserveUsageQuota } = loadFunctions("../src/core/services/billing.ts", ["FEATURE_NAME", "reserveUsageQuota"], {
+    hasSupabaseAdminEnv: () => true, hasBetaAccess: async (email) => email === "admin@example.com", BETA_LOCKED_MESSAGE: "private beta", console,
+  })
+  const denied = await reserveUsageQuota(db, "user", "fast_video", "clip", 1)
+  assert.equal(denied.allowed, false)
+  assert.equal(denied.message, "private beta")
+  assert.equal(calls.length, 0, "nothing is reserved")
 })
 
 test("migration 0042 reserves and releases exactly the units a clip took", () => {

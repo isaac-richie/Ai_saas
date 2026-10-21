@@ -4,6 +4,7 @@ import { StudioAdService } from '@/core/services/studio-ad/studio-ad.service';
 import { checkStudioAdRateLimit } from '@/core/services/studio-ad/rate-limit';
 import { studioAdCampaignRequestSchema } from '@/core/validation/studio-ad';
 import { createClient } from '@/infrastructure/supabase/server';
+import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 export const runtime = 'nodejs';
 
@@ -26,6 +27,9 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ ok: false, error: 'Unauthorized. Please sign in.' }, { status: 401 });
+    }
+    if (!(await hasBetaAccess(user.email))) {
+      return NextResponse.json({ ok: false, error: BETA_LOCKED_MESSAGE }, { status: 403 });
     }
 
     const throttle = checkStudioAdRateLimit(`studio-ad-campaign:${user.id}`);
