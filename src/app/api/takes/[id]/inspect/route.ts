@@ -11,6 +11,7 @@ import { REFERENCE_BUCKET, validateOwnedReferences } from "@/core/validation/med
 import { readBoundedBody, readBoundedBytes } from "@/core/utils/security/bounded-body"
 import { MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
 import { resolveProductionModel } from "@/core/config/production-model-routing"
+import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 const execFileAsync = promisify(execFile)
 export const runtime = "nodejs"
@@ -83,6 +84,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const db = await createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 })
+  if (!(await hasBetaAccess(user.email))) return NextResponse.json({ error: BETA_LOCKED_MESSAGE }, { status: 403 })
   const { data: take } = await db.from("shot_generations").select("id,shot_id,output_url,aspect_ratio,prompt,compiled_prompt,parameters,media_inspection,shots!shot_generations_shot_id_fkey!inner(name,prompt_text,generation_settings,previous_shot_id,scene_id,scenes!inner(project_id,projects!inner(user_id)))").eq("id", id).eq("status", "completed").eq("shots.scenes.projects.user_id", user.id).maybeSingle()
   if (!take?.output_url) return NextResponse.json({ error: "Completed take not found." }, { status: 404 })
   if (!process.env.OPENAI_API_KEY) return NextResponse.json({ error: "The director connection is not configured." }, { status: 503 })

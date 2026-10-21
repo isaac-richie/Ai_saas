@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/interface/components
 import { AnimatedCounter } from '@/interface/components/ui/AnimatedCounter';
 import { Badge } from '@/interface/components/ui/badge';
 import { Users, Trophy, UserPlus } from 'lucide-react';
+import { isAdminEmail } from '@/core/services/beta-access';
+import { setInnerCircleAccess } from '@/core/actions/inner-circle';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,24 +34,13 @@ function handles(entry: WaitlistRow): string {
   return parts.join(' • ') || 'No handle given';
 }
 
-function getAdminAllowlist(): string[] {
-  const raw = process.env.INNER_CIRCLE_ADMIN_EMAILS || process.env.ADMIN_EMAILS || '';
-  return raw
-    .split(',')
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 export default async function InnerCircleDashboardPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const viewerEmail = user?.email?.toLowerCase() || '';
-  const allowlist = getAdminAllowlist();
-
-  if (!viewerEmail || !allowlist.includes(viewerEmail)) {
+  if (!isAdminEmail(user?.email)) {
     redirect('/dashboard');
   }
 
@@ -66,7 +57,7 @@ export default async function InnerCircleDashboardPage() {
       .from('inner_circle_waitlist')
       .select('id, full_name, instagram_handle, social_handle, feedback_text, status, email, referral_code, referred_by_code, referral_count, created_at')
       .order('created_at', { ascending: false })
-      .limit(20),
+      .limit(100),
     admin.from('inner_circle_waitlist').select('id', { count: 'exact', head: true }),
   ]);
 
@@ -149,7 +140,7 @@ export default async function InnerCircleDashboardPage() {
 
         <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
           <CardHeader>
-            <CardTitle>Latest Signups</CardTitle>
+            <CardTitle>Latest Signups · grant studio access</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {latest.length === 0 ? (
@@ -161,7 +152,26 @@ export default async function InnerCircleDashboardPage() {
                   <p className="text-white/55">{entry.email}</p>
                   <p className="text-white/55">{handles(entry)}</p>
                   {entry.feedback_text ? <p className="mt-1 text-white/75">&ldquo;{entry.feedback_text}&rdquo;</p> : null}
-                  <p className="text-white/45">Code: {entry.referral_code}{entry.status ? ` · ${entry.status}` : ''}</p>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p className="text-white/45">
+                      Code: {entry.referral_code} ·{' '}
+                      <span className={entry.status === 'active' ? 'text-emerald-300' : 'text-white/60'}>
+                        {entry.status === 'active' ? 'has studio access' : 'waiting'}
+                      </span>
+                    </p>
+                    <form action={setInnerCircleAccess}>
+                      <input type="hidden" name="id" value={entry.id} />
+                      <input type="hidden" name="status" value={entry.status === 'active' ? 'pending' : 'active'} />
+                      <button
+                        type="submit"
+                        className={entry.status === 'active'
+                          ? 'rounded-full border border-white/15 px-3 py-1.5 text-white/70 hover:border-white/30'
+                          : 'rounded-full bg-gold-300 px-3 py-1.5 font-semibold text-black hover:opacity-90'}
+                      >
+                        {entry.status === 'active' ? 'Remove access' : 'Grant access'}
+                      </button>
+                    </form>
+                  </div>
                 </div>
               ))
             )}

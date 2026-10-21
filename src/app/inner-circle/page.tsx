@@ -44,7 +44,7 @@ export default async function InnerCirclePage({
           <InnerCircleForm referredByCode={referredByCode} />
 
           <p className="mt-4 text-xs text-white/45">
-            By joining, you agree to receive early access updates and beta invitations.
+            By joining, you agree that we may contact you about the beta.
           </p>
         </div>
       </section>

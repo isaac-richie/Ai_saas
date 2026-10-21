@@ -13,6 +13,7 @@ import { checkRateLimit } from "@/core/utils/security/rate-limit"
 import { readBoundedBody } from "@/core/utils/security/bounded-body"
 import { MediaRuntimeUnavailableError, requireMediaRuntime } from "@/core/utils/security/media-runtime"
 import { MAX_REFERENCE_BYTES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, referenceAnalysisSchema, validateOwnedReferences } from "@/core/validation/media-reference"
+import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 export const runtime = "nodejs"
 export const maxDuration = 180
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
   const db = await createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 })
+  if (!(await hasBetaAccess(user.email))) return NextResponse.json({ error: BETA_LOCKED_MESSAGE }, { status: 403 })
   if (!checkRateLimit(`reference-analysis:${user.id}`, { max: 6, windowMs: 60_000 }).allowed) {
     return NextResponse.json({ error: "Please wait a minute before analysing more references." }, { status: 429 })
   }

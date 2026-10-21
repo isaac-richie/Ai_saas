@@ -8,6 +8,7 @@ import { readBoundedBody } from "@/core/utils/security/bounded-body"
 import { resolveProductionModel } from "@/core/config/production-model-routing"
 import { REFERENCE_BUCKET } from "@/core/validation/media-reference"
 import { referenceClassificationSchema } from "@/core/validation/storyboard-direction"
+import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
   const db = await createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 })
+  if (!(await hasBetaAccess(user.email))) return NextResponse.json({ error: BETA_LOCKED_MESSAGE }, { status: 403 })
   if (!checkRateLimit(`storyboard-classify:${user.id}`, { max: 12, windowMs: 60_000 }).allowed) {
     return NextResponse.json({ error: "Please wait a moment before adding more images." }, { status: 429 })
   }

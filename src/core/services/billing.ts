@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createAdminClient, hasSupabaseAdminEnv } from "@/infrastructure/supabase/admin"
+import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 type SupabaseLike = SupabaseClient
 
@@ -97,6 +98,11 @@ export async function reserveUsageQuota(
   if (!hasSupabaseAdminEnv()) return {
     allowed: false, usedCount: 0, maxCount: null, remaining: null,
     message: "Generation allowance settlement is not configured. Please contact the studio owner.",
+  }
+  // Private beta: generation is only for admins and approved Inner Circle members.
+  const { data: { user: viewer } } = await supabase.auth.getUser()
+  if (!(await hasBetaAccess(viewer?.email))) return {
+    allowed: false, usedCount: 0, maxCount: null, remaining: null, message: BETA_LOCKED_MESSAGE,
   }
   const wholeUnits = Math.max(1, Math.floor(units))
   let { data, error } = await supabase.rpc("reserve_usage_quota", {
