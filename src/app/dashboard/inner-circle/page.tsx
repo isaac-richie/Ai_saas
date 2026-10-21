@@ -12,14 +12,25 @@ export const dynamic = 'force-dynamic';
 type WaitlistRow = {
   id: string;
   full_name: string;
-  instagram_handle: string;
-  social_handle: string;
+  instagram_handle: string | null;
+  social_handle: string | null;
+  feedback_text: string | null;
+  status: string | null;
   email: string;
   referral_code: string;
   referred_by_code: string | null;
   referral_count: number;
   created_at: string;
 };
+
+/** Older rows have Instagram plus X/TikTok; newer rows have one optional handle. */
+function handles(entry: WaitlistRow): string {
+  const parts = [
+    entry.instagram_handle && entry.instagram_handle !== 'not-provided' ? `Instagram: @${entry.instagram_handle}` : '',
+    entry.social_handle && entry.social_handle !== 'not-provided' ? entry.social_handle.startsWith('x: @') ? entry.social_handle : `Social: ${entry.social_handle.startsWith('@') ? '' : '@'}${entry.social_handle}` : '',
+  ].filter(Boolean);
+  return parts.join(' • ') || 'No handle given';
+}
 
 function getAdminAllowlist(): string[] {
   const raw = process.env.INNER_CIRCLE_ADMIN_EMAILS || process.env.ADMIN_EMAILS || '';
@@ -47,13 +58,13 @@ export default async function InnerCircleDashboardPage() {
   const [topReferralsResult, latestResult, totalResult] = await Promise.all([
     admin
       .from('inner_circle_waitlist')
-      .select('id, full_name, instagram_handle, social_handle, email, referral_code, referred_by_code, referral_count, created_at')
+      .select('id, full_name, instagram_handle, social_handle, feedback_text, status, email, referral_code, referred_by_code, referral_count, created_at')
       .order('referral_count', { ascending: false })
       .order('created_at', { ascending: true })
       .limit(10),
     admin
       .from('inner_circle_waitlist')
-      .select('id, full_name, instagram_handle, social_handle, email, referral_code, referred_by_code, referral_count, created_at')
+      .select('id, full_name, instagram_handle, social_handle, feedback_text, status, email, referral_code, referred_by_code, referral_count, created_at')
       .order('created_at', { ascending: false })
       .limit(20),
     admin.from('inner_circle_waitlist').select('id', { count: 'exact', head: true }),
@@ -123,7 +134,7 @@ export default async function InnerCircleDashboardPage() {
                       <p className="text-sm font-semibold">
                         #{index + 1} {entry.full_name}
                       </p>
-                      <p className="text-xs text-white/55">Instagram: @{entry.instagram_handle} • {entry.social_handle.startsWith('x: @') ? entry.social_handle : `Social: @${entry.social_handle}`}</p>
+                      <p className="text-xs text-white/55">{handles(entry)}</p>
                     </div>
                     <Badge className="rounded-full border border-gold-300/30 bg-gold-300/10 text-gold-200">
                       {entry.referral_count} referrals
@@ -148,8 +159,9 @@ export default async function InnerCircleDashboardPage() {
                 <div key={entry.id} className="rounded-xl border border-line bg-white/5 p-3 text-xs">
                   <p className="font-semibold text-white">{entry.full_name}</p>
                   <p className="text-white/55">{entry.email}</p>
-                  <p className="text-white/55">Instagram: @{entry.instagram_handle} • {entry.social_handle.startsWith('x: @') ? entry.social_handle : `Social: @${entry.social_handle}`}</p>
-                  <p className="text-white/45">Code: {entry.referral_code}</p>
+                  <p className="text-white/55">{handles(entry)}</p>
+                  {entry.feedback_text ? <p className="mt-1 text-white/75">&ldquo;{entry.feedback_text}&rdquo;</p> : null}
+                  <p className="text-white/45">Code: {entry.referral_code}{entry.status ? ` · ${entry.status}` : ''}</p>
                 </div>
               ))
             )}

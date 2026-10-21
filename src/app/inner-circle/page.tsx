@@ -38,7 +38,7 @@ export default async function InnerCirclePage({
             THE INNER CIRCLE: <span className="text-gold-300">BETA ACCESS</span>
           </h1>
           <p className="mt-5 max-w-2xl text-sm leading-relaxed text-white/70 sm:text-base">
-            We&apos;re building in silence. Be the first to see the tech, the design, and the future of Visiowave Studios.
+            Limited spots available. Direct cinematic multi-shot films with true character continuity and 1:1 acoustic lip-sync.
           </p>
 
           <InnerCircleForm referredByCode={referredByCode} />
