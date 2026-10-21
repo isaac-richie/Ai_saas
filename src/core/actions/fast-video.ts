@@ -18,8 +18,8 @@ import * as ShotRepo from "@/infrastructure/repositories/shot.repository"
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization"
 import { reserveUsageQuota, settleUsageQuota } from "@/core/services/billing"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
-import { REFERENCE_BUCKET, referencePromptBudget, referenceRoles as referenceRolesOf, planReferenceDelivery, type ReferenceDelivery, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
-import { KIE_VIDEO_MODEL_FAMILIES, LIP_SYNC_MODEL } from "@/core/config/kie-video-models"
+import { REFERENCE_BUCKET, referencePromptBudget, referenceRoles as referenceRolesOf, planReferenceDelivery, type ReferenceDelivery, fitReferencePrompt, referenceCompatibility, referenceIsInContext, referencePrompt, unseenVideoReferences, validateOwnedReferences, type MediaReference } from "@/core/validation/media-reference"
+import { KIE_VIDEO_MODEL_FAMILIES, LIP_SYNC_MODEL, MAX_FAST_TRACK_SECONDS, MIN_FAST_TRACK_SECONDS, clampDurationForFamily, fastTrackUnitsForDuration, getKieVideoModelFamilyByModel } from "@/core/config/kie-video-models"
 import { promptBudgetFor } from "@/core/config/prompt-limits"
 import { NO_SCREEN_TEXT_DIRECTIVE, SCREEN_TEXT_NEGATIVES, speechDirective, wantsOnScreenText } from "@/core/utils/ai/screen-text"
 import { condensePrompt } from "@/core/services/prompt-condenser"
@@ -62,6 +62,8 @@ function nearestAllowedDuration(value: number, allowed: number[]): number {
 }
 
 function resolveModelAwareDuration(seconds: number, model?: string | null): number {
+  const family = getKieVideoModelFamilyByModel(model)
+  if (family) return clampDurationForFamily(seconds, family)
   const clamped = Math.max(5, Math.min(15, Math.floor(seconds)))
   const normalizedModel = (model || "").toLowerCase()
   if (!normalizedModel) return clamped
@@ -405,7 +407,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
   }
 
   const payload = parsed.data
-  const requestedDuration = Math.max(4, Math.min(15, payload.settings.duration_seconds || 5))
+  const requestedDuration = payload.settings.duration_seconds || 5
   const safeDuration = resolveModelAwareDuration(requestedDuration, payload.settings.model?.trim() || undefined)
   debug.push("request.validated", {
     hasReference: Boolean(payload.prompt_inputs.reference_image),
@@ -425,6 +427,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
   let endFramePrompt: string | undefined
   let shotFrames: ShotFrames | null = null
   let referenceImageUrls: string[] | undefined
+  let referenceVideoUrls: string[] | undefined
   let campaignRefs: CampaignReferences | null = null
   let delivery: { label: string; name: string; as: ReferenceDelivery | "waveform" }[] = []
   let lipSyncAudioUrl: string | undefined
@@ -564,13 +567,33 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
         referenceImageUrls.push(data.signedUrl)
       }
     }
+    // A video the model can neither watch nor read about would be silently ignored, and the clip
+    // would ignore it too. Stop before anything is charged and say what to do instead.
+    const unseen = lipSyncAudioUrl ? [] : unseenVideoReferences(deliveryRefs, plan)
+    if (unseen.length) {
+      const tags = unseen.map((ref) => ref.label ?? ref.name).join(", ")
+      const seedance = /seedance/i.test(payload.settings.model || "")
+      return { error: seedance
+        ? `${tags} can't be sent to Seedance as a video here (it needs to be 2 to 30 seconds, 30 seconds in total, with no start frame). Analyse it or write what it shows, then retry; nothing was charged.`
+        : `The selected model can't watch ${tags}. Switch to Seedance 2.5 to send the video itself, or analyse it so its content is described. Nothing was charged.` }
+    }
+    const sentVideos = deliveryRefs.filter((ref) => plan[ref.id] === "video")
+    if (sentVideos.length) {
+      referenceVideoUrls = []
+      for (const ref of sentVideos) {
+        const { data, error } = await supabase.storage.from(REFERENCE_BUCKET).createSignedUrl(ref.assetPath, 3600)
+        if (error || !data) return { error: `${ref.name} is unavailable. Re-add it, then retry; nothing was charged.` }
+        referenceVideoUrls.push(data.signedUrl)
+      }
+    }
     delivery = deliveryRefs.filter((ref) => ref.applied).map((ref) => ({ label: ref.label ?? ref.name, name: ref.name, as: plan[ref.id] }))
     if (lipSyncAudioUrl) {
       // On the avatar route only the face image and the waveform are sent; the rest guide the acting prompt.
       delivery = delivery.map((item) => item.label === lipSyncAudioLabel ? { ...item, as: "waveform" as const }
         : item.label === lipSyncFace ? { ...item, as: "start-frame" as const }
-          : item.as === "image" ? { ...item, as: "text" as const } : item)
+          : item.as === "image" || item.as === "video" ? { ...item, as: "text" as const } : item)
       referenceImageUrls = undefined
+      referenceVideoUrls = undefined
     }
     debug.push("references.delivery", { delivery })
     // Long briefs (pasted scripts, JSON scene breakdowns) are condensed by the AI director to the
@@ -644,6 +667,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
       end_image_prompt: endFramePrompt,
       audio_url: lipSyncAudioUrl,
       reference_image_urls: referenceImageUrls,
+      reference_video_urls: referenceVideoUrls,
       reference_elements: payload.prompt_inputs.reference_elements,
       output_type: "video" as const,
       aspect_ratio: payload.prompt_inputs.aspect_ratio,
@@ -654,7 +678,8 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     // deliberately separate from task creation: a bad asset must not cost a
     // generation or leave a remote render job behind.
     const preparedRequest = await provider.prepareRequest(generationRequest)
-    const quota = await reserveUsageQuota(supabase, user.id, "fast_video")
+    // Fast Track charges by length: one allowance unit per 10 seconds started.
+    const quota = await reserveUsageQuota(supabase, user.id, "fast_video", undefined, fastTrackUnitsForDuration(safeDuration))
     if (!quota.allowed) {
       debug.push("quota.denied", { feature: "fast_video", message: quota.message || null })
       return { error: quota.message || "Fast Track limit reached for your current plan." }
@@ -1295,7 +1320,7 @@ export async function compilePromptPreview(input: {
   const { supabase, user } = await ensureSession()
   if (!user) return { error: "Unauthorized" }
 
-  const safeDuration = Math.max(4, Math.min(15, input.durationSeconds || 5))
+  const safeDuration = Math.max(MIN_FAST_TRACK_SECONDS, Math.min(MAX_FAST_TRACK_SECONDS, input.durationSeconds || 5))
 
   const { sceneCtx, continuityCtx } = await fetchPromptContext(supabase, input.sceneId, input.shotId)
 

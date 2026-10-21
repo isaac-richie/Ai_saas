@@ -356,6 +356,29 @@ test("document prompt boundaries all fit deterministically", () => {
   }
 })
 
+test("Seedance 2.5 watches reference videos within Kie's limits; other models and start frames fall back to text", () => {
+  const clip = (n, duration, extra = {}) => ({ ...base, id: uid(n), mediaType: "video", role: "camera movement", name: `v${n}.mp4`, assetPath: `${user}/${uid(n)}.mp4`, duration, trimEnd: Math.min(duration, 10), ...extra })
+  const plan = (refs, model, hasStartFrame = false) => Object.values(module.exports.planReferenceDelivery(labelReferences(refs), { model, hasStartFrame }))
+  same(plan([clip(1, 8)], "bytedance/seedance-2-5"), ["video"])
+  same(plan([clip(1, 8)], "kling-3.0/video"), ["text"])
+  same(plan([clip(1, 8)], "bytedance/seedance-2-5", true), ["text"], "never alongside a first frame")
+  same(plan([clip(1, 1.5)], "bytedance/seedance-2-5"), ["text"], "shorter than 2 s")
+  same(plan([clip(1, 20), clip(2, 15)], "bytedance/seedance-2-5"), ["video", "text"], "30 s in total")
+})
+
+test("an unanalysed video the model cannot see is reported instead of silently ignored", () => {
+  const video = { ...base, id: uid(1), mediaType: "video", role: "camera movement", name: "v8.mp4", assetPath: `${user}/${uid(1)}.mp4`, duration: 8, trimEnd: 8, analysis: undefined }
+  const unseen = (ref, model) => {
+    const refs = labelReferences([ref])
+    return module.exports.unseenVideoReferences(refs, module.exports.planReferenceDelivery(refs, { model, hasStartFrame: false })).length
+  }
+  assert.equal(unseen(video, "kling-3.0/video"), 1, "Kling cannot watch it and nothing describes it")
+  assert.equal(unseen(video, "bytedance/seedance-2-5"), 0, "Seedance receives the file")
+  assert.equal(unseen({ ...video, analysis: base.analysis }, "kling-3.0/video"), 0, "analysis describes it")
+  assert.equal(unseen({ ...video, manualGuidance: "A man reads on a park bench." }, "kling-3.0/video"), 0, "written guidance describes it")
+  assert.equal(unseen({ ...video, applied: false }, "kling-3.0/video"), 0, "not applied")
+})
+
 test("delivery sends Seedance images only without a starting frame", () => {
   const refs = labelReferences([{ ...base, id: uid(1) }, { ...base, id: uid(2) }])
   same(Object.values(module.exports.planReferenceDelivery(refs, { model: "bytedance/seedance-2-5", hasStartFrame: false })), ["image", "image"])

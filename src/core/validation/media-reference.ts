@@ -342,7 +342,7 @@ export function validateOwnedReferences(input: unknown, userId: string) {
 }
 
 /** What actually reaches the video model for one reference. */
-export type ReferenceDelivery = "start-frame" | "image" | "text" | "not-used"
+export type ReferenceDelivery = "start-frame" | "image" | "video" | "text" | "not-used"
 
 /** Seedance takes up to 9 reference images, but only when no start frame is set (Kie: mutually exclusive). */
 export const SEEDANCE_REFERENCE_IMAGE_LIMIT = 9
@@ -370,12 +370,36 @@ export function planReferenceDelivery(
       startFrameTaken = true
     }
   }
+  // Seedance 2.5 can watch reference videos, but never alongside a first frame (docs.kie.ai).
+  let videoSlots = /seedance-?2[-.]?5|^seedance$/i.test(context.model) ? SEEDANCE_REFERENCE_VIDEO_LIMIT : 0
+  let videoSecondsLeft = SEEDANCE_REFERENCE_VIDEO_TOTAL_SECONDS
   for (const ref of refs) {
     if (plan[ref.id]) continue
     if (ref.mediaType === "image" && !startFrameTaken && imageSlots > 0) {
       plan[ref.id] = "image"
       imageSlots -= 1
+    } else if (ref.mediaType === "video" && !startFrameTaken && videoSlots > 0 && fitsSeedanceVideo(ref, videoSecondsLeft)) {
+      plan[ref.id] = "video"
+      videoSlots -= 1
+      videoSecondsLeft -= ref.duration ?? 0
     } else plan[ref.id] = "text"
   }
   return plan
+}
+
+/** Seedance 2.5 reference videos: up to 10, each 2–30 s, 30 s in total. */
+export const SEEDANCE_REFERENCE_VIDEO_LIMIT = 10
+export const SEEDANCE_REFERENCE_VIDEO_TOTAL_SECONDS = 30
+
+function fitsSeedanceVideo(ref: MediaReference, secondsLeft: number) {
+  const seconds = ref.duration
+  return typeof seconds === "number" && seconds >= 2 && seconds <= 30 && seconds <= secondsLeft
+}
+
+/**
+ * Applied videos the model will neither watch nor read a description of: no analysis and no
+ * written guidance, so only the bare tag would reach it. Generating would ignore the video.
+ */
+export function unseenVideoReferences(refs: MediaReference[], plan: Record<string, ReferenceDelivery>) {
+  return refs.filter((ref) => ref.applied && ref.mediaType === "video" && plan[ref.id] === "text" && !ref.analysis && !ref.manualGuidance?.trim())
 }

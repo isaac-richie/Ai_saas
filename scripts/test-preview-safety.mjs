@@ -68,6 +68,50 @@ test("allowance reservations carry an ID and failed jobs request an idempotent r
   assert.equal(calls[1].args.p_commit, false)
 })
 
+test("Fast Track reserves one unit per 10 seconds started and explains a clip that does not fit", async () => {
+  const kie = loadFunctions("../src/core/config/kie-video-models.ts", ["FAST_TRACK_SECONDS_PER_UNIT", "fastTrackUnitsForDuration"])
+  for (const [seconds, units] of [[3, 1], [10, 1], [11, 2], [20, 2], [21, 3], [30, 3]]) assert.equal(kie.fastTrackUnitsForDuration(seconds), units, `${seconds}s`)
+
+  const calls = []
+  let remaining = 4
+  const db = { rpc: async (name, args) => {
+    calls.push({ name, args })
+    if (args.p_units > remaining) return { data: { allowed: false, used_count: 18, max_count: 20, remaining: 2, reservation_id: null }, error: null }
+    remaining -= args.p_units
+    return { data: { allowed: true, used_count: 20 - remaining, max_count: 20, remaining, reservation_id: args.p_reservation_id }, error: null }
+  } }
+  const { reserveUsageQuota } = loadFunctions("../src/core/services/billing.ts", ["FEATURE_NAME", "reserveUsageQuota"], { hasSupabaseAdminEnv: () => true, console })
+  const ok = await reserveUsageQuota(db, "user", "fast_video", "clip-a", 2)
+  assert.equal(ok.allowed, true)
+  assert.equal(calls[0].args.p_units, 2)
+  const denied = await reserveUsageQuota(db, "user", "fast_video", "clip-b", 3)
+  assert.equal(denied.allowed, false)
+  assert.match(denied.message, /uses 3 Fast Track generations and you have 2 left/)
+})
+
+test("before migration 0042 the one-unit reserve function is still used instead of blocking generations", async () => {
+  const calls = []
+  const db = { rpc: async (name, args) => {
+    calls.push(args)
+    if ("p_units" in args) return { data: null, error: { code: "PGRST202", message: "Could not find the function" } }
+    return { data: { allowed: true, used_count: 1, max_count: null, remaining: null, reservation_id: args.p_reservation_id }, error: null }
+  } }
+  const { reserveUsageQuota } = loadFunctions("../src/core/services/billing.ts", ["FEATURE_NAME", "reserveUsageQuota"], { hasSupabaseAdminEnv: () => true, console: { warn() {} } })
+  const reserved = await reserveUsageQuota(db, "user", "fast_video", "clip", 3)
+  assert.equal(reserved.allowed, true)
+  assert.equal(calls.length, 2)
+  assert.equal("p_units" in calls[1], false)
+})
+
+test("migration 0042 reserves and releases exactly the units a clip took", () => {
+  const sql = readFileSync(new URL("../src/infrastructure/supabase/migrations/0042_usage_quota_units.sql", import.meta.url), "utf8")
+  assert.match(sql, /drop function if exists public\.reserve_usage_quota\(uuid, text, uuid\)/)
+  assert.match(sql, /p_units integer default 1/)
+  assert.match(sql, /v_used \+ v_units > v_max/)
+  assert.match(sql, /fast_video_generations_used \+ v_units/)
+  assert.match(sql, /fast_video_generations_used - v_reservation\.units/)
+})
+
 test("failed durable copy does not masquerade as a saved provider URL", async () => {
   const { persistRemoteMedia } = loadFunctions("../src/core/actions/fast-video.ts", ["persistRemoteMedia"], {
     fetch: async () => ({ ok: true, headers: { get: () => "video/mp4" }, arrayBuffer: async () => new Uint8Array([1]).buffer }),

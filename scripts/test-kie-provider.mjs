@@ -4,6 +4,11 @@ import { readFileSync } from "node:fs"
 import vm from "node:vm"
 import ts from "typescript"
 
+// Pure config with no imports; the real model ranges, never a stub.
+const kieModelsModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/config/kie-video-models.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: kieModelsModule, exports: kieModelsModule.exports })
+const kieModels = kieModelsModule.exports
+
 const source = readFileSync(new URL("../src/infrastructure/ai/providers/kie.provider.ts", import.meta.url), "utf8")
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
@@ -19,6 +24,7 @@ const requireMock = (id) => {
     currentKieModel: (model) => model,
   }
   if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
+  if (id === "@/core/config/kie-video-models") return kieModels
   throw new Error(`Unexpected import: ${id}`)
 }
 vm.runInNewContext(compiled, { module, exports: module.exports, require: requireMock })
@@ -141,4 +147,11 @@ test("the last guard never sends a prompt over a model's hard cap, and leaves sh
   }
   const short = { prompt: "A short prompt." }
   assert.equal(module.exports.KieProvider.clampPrompt(short, "kling-3.0/video"), short)
+})
+
+test("Seedance 2.5 receives reference videos only when no first frame is set", () => {
+  const videos = ["https://example.com/v8.mp4"]
+  assert.deepEqual(provider.buildMarketInput({ prompt: "Recreate @video1", output_type: "video", reference_video_urls: videos }, "bytedance/seedance-2-5").reference_video_urls, videos)
+  assert.equal(provider.buildMarketInput({ prompt: "Recreate @video1", output_type: "video", image_prompt: "https://example.com/start.png", reference_video_urls: videos }, "bytedance/seedance-2-5").reference_video_urls, undefined)
+  assert.equal(provider.buildMarketInput({ prompt: "Recreate @video1", output_type: "video", reference_video_urls: videos }, "kling-3.0/video").reference_video_urls, undefined)
 })

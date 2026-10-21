@@ -62,11 +62,11 @@ export function TemplateGallery({ templates, activeId, onApply }: {
 
 const MODEL_FACTS: Record<KieVideoModelFamilyId, { icon: React.ReactNode; text: string }[]> = {
   kling: [
-    { icon: <Clock className="h-3 w-3" />, text: "Text-only shots: 5 or 10 s" },
+    { icon: <Clock className="h-3 w-3" />, text: "3 to 15 s" },
     { icon: <Images className="h-3 w-3" />, text: "Multi-image references" },
   ],
   seedance: [
-    { icon: <Clock className="h-3 w-3" />, text: "4 to 15 s" },
+    { icon: <Clock className="h-3 w-3" />, text: "4 to 30 s" },
     { icon: <Volume2 className="h-3 w-3" />, text: "Generates audio" },
   ],
 }

@@ -23,6 +23,8 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   const reducedChecked = useRef(false);
+  // Set when the visitor pauses the film themselves, so we never fight them by restarting it.
+  const userPaused = useRef(false);
   const video = useRef<HTMLVideoElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const destination = isAuthenticated ? '/dashboard/fast-video' : '/signup';
@@ -55,6 +57,37 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
     return () => {
       observer.disconnect();
       elements.forEach((element) => element.classList.remove('cinema-awaiting'));
+    };
+  }, []);
+
+  // Browsers pause muted autoplay when it is off screen or the tab is hidden, and some never
+  // start it at all. Keep nudging it to play whenever it is visible, unless the visitor paused it.
+  useEffect(() => {
+    const film = video.current;
+    if (!film || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let visible = false;
+    const resume = () => {
+      if (visible && film.paused && !userPaused.current && document.visibilityState === 'visible') {
+        void film.play().catch(() => null);
+      }
+    };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+        resume();
+      },
+      { threshold: 0.25 }
+    );
+    observer.observe(film);
+    film.addEventListener('canplay', resume);
+    document.addEventListener('visibilitychange', resume);
+    if (document.readyState === 'complete') resume();
+    else window.addEventListener('load', resume, { once: true });
+    return () => {
+      observer.disconnect();
+      film.removeEventListener('canplay', resume);
+      document.removeEventListener('visibilitychange', resume);
+      window.removeEventListener('load', resume);
     };
   }, []);
 
@@ -95,7 +128,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               </a>
             ))}
           </nav>
-          <Link href={destination} className="cinema-nav-cta">
+          <Link href={destination} prefetch className="cinema-nav-cta">
             Enter the studio
             <ArrowUpRight size={16} />
           </Link>
@@ -177,12 +210,22 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                   if (!reducedChecked.current && window.matchMedia('(prefers-reduced-motion: reduce)').matches) event.currentTarget.pause();
                   reducedChecked.current = true;
                 }}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
+                onPlay={() => {
+                  userPaused.current = false;
+                  setPlaying(true);
+                }}
+                onPause={(event) => {
+                  // Only a pause the visitor asked for while the page is in view counts as theirs.
+                  if (document.visibilityState === 'visible' && !event.currentTarget.ended) {
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    if (rect.bottom > 0 && rect.top < window.innerHeight) userPaused.current = true;
+                  }
+                  setPlaying(false);
+                }}
                 onEnded={() => setPlaying(false)}
                 aria-label="Visiowave cinematic showcase"
-                aria-describedby="film-description"
               >
+                <source src="/landing-720.mp4?v=20261013" type="video/mp4" media="(max-width: 760px)" />
                 <source src="/landing.mp4?v=20260912-audio" type="video/mp4" />
               </video>
               {!playing && (
@@ -210,14 +253,6 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <span>IMAGINATION, GIVEN FORM.</span>
               <span>TEXT TO VIDEO / IMAGE TO VIDEO</span>
             </div>
-            <details className="cinema-transcript">
-              <summary>Film description</summary>
-              <p id="film-description">
-                A sports car&apos;s headlights cut through rain on a night road. From above, cars weave
-                across a wet highway, then stream past glowing city towers. The film ends inside a
-                lit tunnel as a single car approaches.
-              </p>
-            </details>
           </section>
           <section id="craft" className="cinema-craft cinema-wrap">
             <div className="cinema-section-heading">
@@ -324,7 +359,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
               <br />
               <em>worth feeling.</em>
             </h2>
-            <Link href={destination} className="cinema-button cinema-primary">
+            <Link href={destination} prefetch className="cinema-button cinema-primary">
               Enter the studio
               <ArrowUpRight size={20} />
             </Link>
@@ -366,6 +401,9 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
           </div>
           <div className="cinema-footer-bottom">
             <span>© {new Date().getFullYear()} Visiowave Studios</span>
+            <span>
+              <Link href="/privacy">Privacy</Link> · <Link href="/terms">Terms</Link>
+            </span>
             <span>IMAGINE. DIRECT. CREATE.</span>
           </div>
         </footer>

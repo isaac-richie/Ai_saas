@@ -83,22 +83,38 @@ export async function consumeUsageQuota(
   }
 }
 
-/** Reserve one application allowance unit. This is not a Kie credit charge. */
+/**
+ * Reserve application allowance units (one by default). These are not Kie credit charges.
+ * Fast Track passes more than one unit for longer clips.
+ */
 export async function reserveUsageQuota(
   supabase: SupabaseLike,
   userId: string,
   feature: BillingFeature,
-  reservationId = crypto.randomUUID()
+  reservationId = crypto.randomUUID(),
+  units = 1
 ): Promise<UsageQuotaResult> {
   if (!hasSupabaseAdminEnv()) return {
     allowed: false, usedCount: 0, maxCount: null, remaining: null,
     message: "Generation allowance settlement is not configured. Please contact the studio owner.",
   }
-  const { data, error } = await supabase.rpc("reserve_usage_quota", {
+  const wholeUnits = Math.max(1, Math.floor(units))
+  let { data, error } = await supabase.rpc("reserve_usage_quota", {
     p_user_id: userId,
     p_feature: feature,
     p_reservation_id: reservationId,
+    p_units: wholeUnits,
   })
+  // Until migration 0042 is applied the database only has the one-unit function.
+  // Fall back to it rather than block every generation.
+  if (error?.code === "PGRST202") {
+    console.warn("reserve_usage_quota(p_units) is missing; apply migration 0042. Reserving one unit.")
+    ;({ data, error } = await supabase.rpc("reserve_usage_quota", {
+      p_user_id: userId,
+      p_feature: feature,
+      p_reservation_id: reservationId,
+    }))
+  }
   if (error) return {
     allowed: false, usedCount: 0, maxCount: null, remaining: null,
     message: "Unable to reserve your generation allowance right now. Please try again.",
@@ -111,7 +127,9 @@ export async function reserveUsageQuota(
     allowed: false, usedCount, maxCount, remaining,
     message: maxCount == null
       ? `Unable to reserve the ${FEATURE_NAME[feature]} allowance right now. Please try again.`
-      : `${FEATURE_NAME[feature]} limit reached (${usedCount}/${maxCount}).`,
+      : remaining != null && remaining > 0 && remaining < wholeUnits
+        ? `This clip uses ${wholeUnits} ${FEATURE_NAME[feature]} generations and you have ${remaining} left. Choose a shorter length.`
+        : `${FEATURE_NAME[feature]} limit reached (${usedCount}/${maxCount}).`,
   }
   return { allowed: true, usedCount, maxCount, remaining, reservationId: String(row.reservation_id) }
 }

@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState } from "react"
 import { productionShotSettingsSchema, type ProductionShotSettings as Settings } from "@/core/validation/production-settings"
+import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
 import styles from "./ProductionShotSettings.module.css"
 
 export type ShotSettingDraft = { model: string; durationSeconds: number }
@@ -10,10 +11,14 @@ export const emptyShotSettings = (): ShotSettingDraft[] => Array.from({ length: 
 const modelName = (model: string) => model === "seedance" ? "Seedance 2.5" : model === "kling" ? "Kling 3.0 Pro" : "Pick a model"
 const runtime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
 const MODELS = ["kling", "seedance"] as const
-const MODEL_NOTES: Record<string, string> = { kling: "Steady realism · 5 or 10 s", seedance: "Punchy, stylised · 4 to 15 s" }
+const MODEL_NOTES: Record<string, string> = { kling: "Steady realism · 3 to 15 s", seedance: "Punchy, stylised · 4 to 30 s" }
 const MIN_SHOTS = 2
 const MAX_SHOTS = 12
-export const durationsFor = (model: string) => model === "seedance" ? Array.from({ length: 12 }, (_, i) => i + 4) : model === "kling" ? [5, 10] : []
+/** Every whole-second length the model accepts on Kie (Kling 3.0: 3–15 s, Seedance 2.5: 4–30 s). */
+export const durationsFor = (model: string) => {
+  const family = KIE_VIDEO_MODEL_FAMILIES.find((item) => item.id === model)
+  return family ? Array.from({ length: family.maxSeconds - family.minSeconds + 1 }, (_, i) => family.minSeconds + i) : []
+}
 
 /** Keeps a shot ready when its model changes: unsupported timing snaps to the nearest allowed length. */
 export function retimeForModel(model: string, seconds: number) {

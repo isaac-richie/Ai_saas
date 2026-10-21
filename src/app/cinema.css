@@ -926,9 +926,20 @@
     font-size: 34px;
   }
   .cinema-play {
-    top: 16px;
-    right: 16px;
-    padding: 10px 14px;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    gap: 0;
+    justify-content: center;
+  }
+  .cinema-play svg {
+    width: 16px;
+    height: 16px;
+  }
+  .cinema-play span {
+    display: none;
   }
   .cinema-frame-label {
     display: none;
@@ -1102,22 +1113,3 @@
   transition: none !important;
 }
 
-.cinema-transcript {
-  margin-top: 14px;
-  color: var(--cinema-muted);
-  font-size: 13px;
-}
-.cinema-transcript summary {
-  cursor: pointer;
-  width: fit-content;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.cinema-transcript p {
-  max-width: 62ch;
-  margin-top: 8px;
-  font-size: 14px;
-  line-height: 1.6;
-}

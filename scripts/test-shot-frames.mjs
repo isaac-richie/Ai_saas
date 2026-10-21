@@ -83,6 +83,10 @@ test("influence and transition become an explicit director directive", () => {
 })
 
 // ─── Provider mapping ────────────────────────────────────────────────────
+// Pure config with no imports; the real model ranges, never a stub.
+const kieModelsModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/config/kie-video-models.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: kieModelsModule, exports: kieModelsModule.exports })
+const kieModels = kieModelsModule.exports
 const kieModule = { exports: {} }
 vm.runInNewContext(transpile(read("../src/infrastructure/ai/providers/kie.provider.ts")), {
   module: kieModule, exports: kieModule.exports,
@@ -90,6 +94,7 @@ vm.runInNewContext(transpile(read("../src/infrastructure/ai/providers/kie.provid
     if (id === "../base.provider") return { BaseProvider: class { constructor(config) { this.config = config } } }
     if (id === "./kie.models") return { DEFAULT_KIE_IMAGE_MODEL: "x", DEFAULT_KIE_VIDEO_MODEL_I2V: "kling-3.0/video", DEFAULT_KIE_VIDEO_MODEL_T2V: "t2v", inferKieOutputType: () => "video", currentKieModel: (model) => model }
     if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
+    if (id === "@/core/config/kie-video-models") return kieModels
     throw new Error(`Unexpected import: ${id}`)
   },
 })

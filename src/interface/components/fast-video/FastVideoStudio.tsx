@@ -29,6 +29,8 @@ import {
   KIE_VIDEO_MODEL_FAMILIES,
   LIP_SYNC_MODEL,
   type KieVideoModelFamilyId,
+  clampDurationForFamily,
+  fastTrackUnitsForDuration,
   getKieVideoModelFamily,
   resolveKieVideoModelByFamily,
 } from "@/core/config/kie-video-models"
@@ -84,7 +86,7 @@ import { StoryboardExportPanel } from "./StoryboardExportPanel"
 import { MediaReferenceManager } from "./MediaReferenceManager"
 import { AspectGlyph, SegmentedPreset } from "./PresetPicker"
 import { orderPresets } from "./preset-order"
-import { ModelPicker, TemplateGallery } from "./StudioPickers"
+import { TemplateGallery } from "./StudioPickers"
 import { ShotLookSection } from "./ShotLookSection"
 import { PROMPT_TEMPLATES, type PromptTemplate } from "@/core/config/fast-video-templates"
 import { ShotFramesPanel } from "./ShotFramesPanel"
@@ -255,6 +257,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const hasStoryboardDestination = Boolean(selectedProjectId && selectedSceneId)
 
   const activeModelFamily = useMemo(() => getKieVideoModelFamily(modelFamilyId), [modelFamilyId])
+  // Each model accepts a different length range; keep the chosen length inside it.
+  useEffect(() => {
+    setDurationSeconds((current) => clampDurationForFamily(current, activeModelFamily))
+  }, [activeModelFamily])
   // Tags (@image1…) come from the full panel order, so prompts match what the creator sees.
   const labelledReferences = useMemo(() => labelReferences(currentReferences), [currentReferences])
   // Singing or speaking audio means the creator wants lips to follow it: switch lip-sync on by default.
@@ -1740,6 +1746,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         const parts = [
           group("start-frame").length ? `Start frame: ${group("start-frame").join(", ")}` : "",
           group("image").length ? `Sent as images: ${group("image").join(", ")}` : "",
+          group("video").length ? `Sent as video: ${group("video").join(", ")}` : "",
           group("text").length ? `Text only: ${group("text").join(", ")}` : "",
           group("waveform").length ? `Lip-synced to: ${group("waveform").join(", ")}` : "",
           group("not-used").length ? `Not used after fitting: ${group("not-used").join(", ")}` : "",
@@ -2538,6 +2545,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
           <div className={sectionClass}>
             <div className="space-y-3">
+              <SegmentedPreset
+                label="AI model"
+                options={KIE_VIDEO_MODEL_FAMILIES.map((family) => family.id)}
+                value={modelFamilyId}
+                onChange={setModelFamilyId}
+                render={(id) => getKieVideoModelFamily(id).label}
+              />
               <div className="flex items-center justify-between">
                 <label htmlFor="fast-video-length" className="text-[13px] font-medium text-[#ece6d6]">Length</label>
                 <span className="text-[13px] tabular-nums text-gold-100">{durationSeconds} seconds</span>
@@ -2545,13 +2559,19 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               <input
                 id="fast-video-length"
                 type="range"
-                min={5}
-                max={15}
+                min={activeModelFamily.minSeconds}
+                max={activeModelFamily.maxSeconds}
                 step={1}
                 value={durationSeconds}
                 onChange={(event) => setDurationSeconds(Number(event.target.value))}
                 className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-gold-300"
               />
+              <div className="flex items-center justify-between text-[12px] text-[#9aa1ab]">
+                <span>{activeModelFamily.minSeconds}–{activeModelFamily.maxSeconds}s with {activeModelFamily.label}</span>
+                <span>
+                  Uses {fastTrackUnitsForDuration(durationSeconds)} {fastTrackUnitsForDuration(durationSeconds) === 1 ? "generation" : "generations"}
+                </span>
+              </div>
               {(() => {
                 // Spoken lines longer than the clip get rushed and fall out of lip-sync.
                 const fit = speechFit(subject, durationSeconds)
@@ -2571,13 +2591,12 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><SlidersHorizontal className="size-4" /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[13.5px] font-medium text-[#ece6d6]">More options</span>
-                <span className="block text-[12.5px] text-[#9aa1ab]">Shape, AI model, references and frames</span>
+                <span className="block text-[12.5px] text-[#9aa1ab]">Shape, references and frames</span>
               </span>
               <ChevronDown className={`size-4 shrink-0 text-[#9aa1ab] transition-transform duration-300 ${showAdvanced ? "rotate-180" : ""}`} />
             </button>
             {showAdvanced ? (
               <div className={`${subtlePanelClass} space-y-3`}>
-                <ModelPicker families={KIE_VIDEO_MODEL_FAMILIES} value={modelFamilyId} onChange={setModelFamilyId} />
                 <SegmentedPreset
                   label="Video shape"
                   options={FAST_VIDEO_ASPECT_RATIOS}

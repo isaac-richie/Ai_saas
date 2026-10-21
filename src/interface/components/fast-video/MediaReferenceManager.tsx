@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 import { ImagePlus, Film, AudioLines, LockKeyhole, ChevronDown, Loader2, Check } from "lucide-react"
 import { toast } from "sonner"
 import { createClient } from "@/infrastructure/supabase/client"
-import { continueWithoutAnalysisTarget, labelReferences, planReferenceDelivery, type ReferenceDelivery, MAX_REFERENCE_BYTES, MAX_REFERENCES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, ROLE_CONTROLS, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, referenceRoles, withRoles, type MediaReference } from "@/core/validation/media-reference"
+import { continueWithoutAnalysisTarget, labelReferences, planReferenceDelivery, type ReferenceDelivery, MAX_REFERENCE_BYTES, MAX_REFERENCES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, ROLE_CONTROLS, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, referenceRoles, unseenVideoReferences, withRoles, type MediaReference } from "@/core/validation/media-reference"
 import styles from "./MediaReferenceManager.module.css"
 import { normalizeReferenceImage } from "./normalize-image"
 
@@ -103,10 +103,11 @@ function ReferencePreview({ reference }: { reference: MediaReference }) {
   </div>
 }
 
-const DELIVERY_LABEL: Record<ReferenceDelivery, string> = { "start-frame": "Start frame", image: "Sent as image", text: "Text only", "not-used": "Not used" }
+const DELIVERY_LABEL: Record<ReferenceDelivery, string> = { "start-frame": "Start frame", image: "Sent as image", video: "Sent as video", text: "Text only", "not-used": "Not used" }
 const DELIVERY_HELP: Record<ReferenceDelivery, string> = {
   "start-frame": "This exact image becomes the first frame of the video.",
   image: "The image itself is sent to the model as a visual reference.",
+  video: "The video itself is sent to Seedance 2.5, which watches it as a reference.",
   text: "Only this reference's written direction reaches the model; the file stays attached.",
   "not-used": "Not applied, so nothing from it is sent.",
 }
@@ -311,21 +312,27 @@ export function MediaReferenceManager({ references, onChange, projectId, sceneId
   const full = references.length >= MAX_REFERENCES
   const appliedCount = references.filter((ref) => ref.applied).length
   const delivery = planReferenceDelivery(resolveLockedRoles(labelled, lockedRoles), { model, hasStartFrame })
-  const counts = { start: 0, image: 0, text: 0 }
+  const counts = { start: 0, image: 0, video: 0, text: 0 }
   for (const ref of labelled) {
     const as = delivery[ref.id]
     if (as === "start-frame") counts.start += 1
     else if (as === "image") counts.image += 1
+    else if (as === "video") counts.video += 1
     else if (as === "text") counts.text += 1
   }
   const seedance = /seedance/i.test(model)
+  // Same rule the server enforces: these would reach the model as a bare tag and be ignored.
+  const unseen = unseenVideoReferences(labelled, delivery).map((ref) => ref.label ?? ref.name)
   return <section className={styles.manager} aria-label="Media references">
     <div className={styles.header}><h3>Media references</h3><span className={styles.count} aria-live="polite">{appliedCount} applied / {references.length} added</span></div>
     <p className={styles.hint}>Give each reference one job. Review the direction, then apply it to your next shot.</p>
     {appliedCount > 0 && <p className={styles.delivery} role="status">
-      Sent to {modelLabel}: {[counts.start && "1 start frame", counts.image && `${counts.image} image${counts.image === 1 ? "" : "s"}`, counts.text && `${counts.text} as written direction only`].filter(Boolean).join(" · ") || "nothing yet"}.
+      Sent to {modelLabel}: {[counts.start && "1 start frame", counts.image && `${counts.image} image${counts.image === 1 ? "" : "s"}`, counts.video && `${counts.video} video${counts.video === 1 ? "" : "s"}`, counts.text && `${counts.text} as written direction only`].filter(Boolean).join(" · ") || "nothing yet"}.
       {counts.text > 0 && !seedance ? " This model takes one image (the start frame); other references guide it by text." : null}
-      {counts.text > 0 && seedance && (hasStartFrame || counts.start > 0) ? " Seedance can't take reference images alongside a start frame, so these guide by text." : null}
+      {counts.text > 0 && seedance && (hasStartFrame || counts.start > 0) ? " Seedance can't take reference images or videos alongside a start frame, so these guide by text." : null}
+    </p>}
+    {unseen.length > 0 && <p className={styles.warning} role="alert">
+      {modelLabel} can&apos;t see {unseen.join(", ")}: {seedance ? "it can't be sent as a video here (2 to 30 seconds, 30 seconds in total, no start frame)" : "only Seedance 2.5 can watch a reference video"}. Analyse it or write what it shows{seedance ? "" : ", or switch to Seedance 2.5"}, or generating will stop before anything is charged.
     </p>}
     <div className={styles.toolbar}>
       <button type="button" disabled={disabled || !!busy || full} onClick={() => pick("image")}><ImagePlus size={14} /> Add Image</button>

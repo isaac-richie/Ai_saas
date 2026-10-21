@@ -1,3 +1,4 @@
+import { MAX_FAST_TRACK_SECONDS, MIN_FAST_TRACK_SECONDS, getKieVideoModelFamily } from "@/core/config/kie-video-models"
 import { z } from "zod"
 import { studioAdCampaignPlanSchema, studioAdCampaignDeliverableSchema } from "./studio-ad"
 
@@ -85,7 +86,7 @@ export const crewMetadataSchema = z.object({
 export const productionPlanSchema = studioAdCampaignPlanSchema.extend({
   // Editorial notes are not provider prompts and need room for complete cut/compositing instructions.
   deliverables: z.array(studioAdCampaignDeliverableSchema.extend({
-    durationSeconds: z.number().int().min(4).max(15),
+    durationSeconds: z.number().int().min(MIN_FAST_TRACK_SECONDS).max(MAX_FAST_TRACK_SECONDS),
     productionNotes: z.array(z.string().min(3).max(1200)).max(5).default([]),
   })).min(2).max(12),
   crew: crewMetadataSchema.optional(),
@@ -103,9 +104,9 @@ function hasExecutableProviderPrompt(prompt: string) {
 }
 
 function supportsRequestedTiming(model: string, durationSeconds: number) {
-  return model === "seedance"
-    ? durationSeconds >= 4 && durationSeconds <= 15
-    : model === "kling" && [5, 10].includes(durationSeconds)
+  if (model !== "seedance" && model !== "kling") return false
+  const family = getKieVideoModelFamily(model)
+  return durationSeconds >= family.minSeconds && durationSeconds <= family.maxSeconds
 }
 
 export function canApproveProduction(plan: unknown): boolean {
