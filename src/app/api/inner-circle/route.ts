@@ -192,11 +192,11 @@ async function sendWelcomeEmail(email: string) {
     body: JSON.stringify({
       from,
       to: [email],
-      subject: 'You are on the Visiowave Inner Circle list',
+      subject: 'You are on the Visiowave Inner Circle waitlist',
       text: [
-        'You are on the VIP Inner Circle list for Visiowave Studios.',
+        'You are on the Inner Circle waitlist for Visiowave Studios.',
         '',
-        'Spots are limited. When yours opens, your private access invite will arrive at this address.',
+        'Spots are limited. We will contact you at this address if you are selected for the beta.',
         '',
         'Visiowave Studios',
       ].join('\n'),
@@ -260,6 +260,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       referralCode: result.referralCode,
+      isNew: Boolean(result.isNew),
     });
   } catch (error) {
     const isEnvError = error instanceof Error && error.message.toLowerCase().includes('supabase');
