@@ -4,18 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Check, Copy, Loader2, Mail, Share2 } from 'lucide-react';
 import styles from '@/app/inner-circle/inner-circle.module.css';
+import { INNER_CIRCLE_ANSWER_SEPARATOR, INNER_CIRCLE_PROBLEMS as PROBLEMS } from '@/core/config/inner-circle';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const FEEDBACK_LIMIT = 1000;
-
-/** One tap answers the optional question; most people would otherwise skip it. */
-const PROBLEMS = [
-  'Characters change between shots',
-  'Lip-sync looks off',
-  'Clips are too short',
-  'Hard to control the camera',
-  'Too expensive',
-];
 
 const COMMON_DOMAINS = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'live.com', 'aol.com', 'proton.me'];
 
@@ -64,7 +56,7 @@ export function InnerCircleForm({ referredByCode }: { referredByCode: string | n
 
   const suggestion = useMemo(() => (emailTouched ? suggestEmail(email) : null), [email, emailTouched]);
   const emailInvalid = Boolean(error) && !EMAIL_PATTERN.test(email.trim());
-  const answer = [...problems, feedback.trim()].filter(Boolean).join('; ').slice(0, FEEDBACK_LIMIT);
+  const answer = [...problems, feedback.trim()].filter(Boolean).join(INNER_CIRCLE_ANSWER_SEPARATOR).slice(0, FEEDBACK_LIMIT);
 
   // Focus the email field on desktop only; on phones it would pop the keyboard over the headline.
   useEffect(() => {
