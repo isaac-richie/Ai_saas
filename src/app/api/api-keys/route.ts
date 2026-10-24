@@ -1,6 +1,7 @@
 import { createClient } from '@/infrastructure/supabase/server';
 import { NextResponse } from 'next/server';
 import { encryptApiKey } from '@/lib/encryption';
+import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 export async function POST(request: Request) {
     const supabase = await createClient();
@@ -8,6 +9,9 @@ export async function POST(request: Request) {
 
     if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!(await hasBetaAccess(user.email))) {
+        return NextResponse.json({ error: BETA_LOCKED_MESSAGE }, { status: 403 });
     }
 
     const { provider_id, api_key, nickname } = await request.json();
@@ -40,6 +44,9 @@ export async function GET() {
 
     if (!user) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!(await hasBetaAccess(user.email))) {
+        return NextResponse.json({ error: BETA_LOCKED_MESSAGE }, { status: 403 });
     }
 
     const { data, error } = await supabase

@@ -1,5 +1,6 @@
 import { createClient } from "@/infrastructure/supabase/server"
 import { NextResponse } from "next/server"
+import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 // SVG is intentionally excluded because the bucket is public and SVG can carry executable script.
 const ALLOWED_MIME_TYPES: Record<string, string> = {
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
 
     if (!user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    if (!(await hasBetaAccess(user.email))) {
+        return NextResponse.json({ error: BETA_LOCKED_MESSAGE }, { status: 403 })
     }
 
     try {

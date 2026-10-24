@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/infrastructure/supabase/server"
+import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 const MAX_CAPTION_BYTES = 1024 * 1024
 
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
   const db = await createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!(await hasBetaAccess(user.email))) return NextResponse.json({ error: BETA_LOCKED_MESSAGE }, { status: 403 })
   try {
     const form = await request.formData()
     const file = form.get("file")

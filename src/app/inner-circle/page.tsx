@@ -79,13 +79,14 @@ export default async function InnerCirclePage({ searchParams }: { searchParams: 
 
       <div className="relative z-10 mx-auto flex min-h-svh w-full max-w-6xl flex-col px-4 sm:px-8">
         <header className={`${styles.rise} flex h-20 items-center justify-between gap-4 sm:h-24`} style={{ ['--i' as string]: 0 }}>
-          <Link href="/" className="inline-flex items-center gap-3" aria-label="Visiowave Studios home">
+          {/* Private beta: no way from here into the rest of the site. */}
+          <div className="inline-flex items-center gap-3" aria-label="Visiowave Studios">
             <AnimatedBrandMark />
             <span className="text-[13px] font-semibold leading-tight tracking-[0.14em] text-[var(--ic-paper)]">
               VISIOWAVE
               <small className="block text-[8px] font-normal tracking-[0.46em] text-white/60">STUDIOS</small>
             </span>
-          </Link>
+          </div>
           <span className="inline-flex items-center gap-2.5 rounded-full border border-[var(--ic-line)] bg-black/30 px-3.5 py-2 text-[11px] uppercase tracking-[0.16em] text-[var(--ic-gold-soft)] backdrop-blur">
             <span className={styles.live} aria-hidden="true" />
             Applications open
@@ -149,7 +150,6 @@ export default async function InnerCirclePage({ searchParams }: { searchParams: 
           <nav aria-label="Legal" className="flex gap-5">
             <Link href="/privacy" className="hover:text-white">Privacy</Link>
             <Link href="/terms" className="hover:text-white">Terms</Link>
-            <Link href="/" className="hover:text-white">visiowaveai.com</Link>
           </nav>
         </footer>
       </div>
