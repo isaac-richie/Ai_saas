@@ -319,9 +319,6 @@ function Success({ joined }: { joined: Joined }) {
         </div>
       ) : null}
 
-      <Link href="/" className="mt-6 inline-block text-[14px] text-white/60 underline-offset-4 hover:text-white hover:underline">
-        Explore Visiowave
-      </Link>
     </div>
   );
 }
