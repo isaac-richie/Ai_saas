@@ -2,182 +2,31 @@ import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/infrastructure/supabase/admin';
 import { createClient } from '@/infrastructure/supabase/server';
 import { getAppBaseUrl } from '@/core/utils/app-url';
-import { Card, CardContent, CardHeader, CardTitle } from '@/interface/components/ui/card';
-import { AnimatedCounter } from '@/interface/components/ui/AnimatedCounter';
-import { Badge } from '@/interface/components/ui/badge';
-import { Users, Trophy, UserPlus } from 'lucide-react';
 import { isAdminEmail } from '@/core/services/beta-access';
-import { setInnerCircleAccess } from '@/core/actions/inner-circle';
+import type { WaitlistRow } from '@/core/utils/inner-circle/insights';
+import { InnerCircleAdminView } from '@/interface/components/admin/InnerCircleAdminView';
 
 export const dynamic = 'force-dynamic';
+export const metadata = { title: 'Inner Circle' };
 
-type WaitlistRow = {
-  id: string;
-  full_name: string;
-  instagram_handle: string | null;
-  social_handle: string | null;
-  feedback_text: string | null;
-  status: string | null;
-  email: string;
-  referral_code: string;
-  referred_by_code: string | null;
-  referral_count: number;
-  created_at: string;
-};
+const COLUMNS = 'id, full_name, instagram_handle, social_handle, feedback_text, status, email, referral_code, referred_by_code, referral_count, created_at';
 
-/** Older rows have Instagram plus X/TikTok; newer rows have one optional handle. */
-function handles(entry: WaitlistRow): string {
-  const parts = [
-    entry.instagram_handle && entry.instagram_handle !== 'not-provided' ? `Instagram: @${entry.instagram_handle}` : '',
-    entry.social_handle && entry.social_handle !== 'not-provided' ? entry.social_handle.startsWith('x: @') ? entry.social_handle : `Social: ${entry.social_handle.startsWith('@') ? '' : '@'}${entry.social_handle}` : '',
-  ].filter(Boolean);
-  return parts.join(' • ') || 'No handle given';
+/** Server component: rendered once per request, so reading the clock here is safe. */
+function requestTime() {
+  return Date.now();
 }
 
 export default async function InnerCircleDashboardPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!isAdminEmail(user?.email)) redirect('/dashboard');
 
-  if (!isAdminEmail(user?.email)) {
-    redirect('/dashboard');
-  }
+  const { data, error } = await createAdminClient()
+    .from('inner_circle_waitlist')
+    .select(COLUMNS)
+    .order('created_at', { ascending: false })
+    .limit(5000);
+  if (error) throw new Error(error.message);
 
-  const admin = createAdminClient();
-
-  const [topReferralsResult, latestResult, totalResult] = await Promise.all([
-    admin
-      .from('inner_circle_waitlist')
-      .select('id, full_name, instagram_handle, social_handle, feedback_text, status, email, referral_code, referred_by_code, referral_count, created_at')
-      .order('referral_count', { ascending: false })
-      .order('created_at', { ascending: true })
-      .limit(10),
-    admin
-      .from('inner_circle_waitlist')
-      .select('id, full_name, instagram_handle, social_handle, feedback_text, status, email, referral_code, referred_by_code, referral_count, created_at')
-      .order('created_at', { ascending: false })
-      .limit(100),
-    admin.from('inner_circle_waitlist').select('id', { count: 'exact', head: true }),
-  ]);
-
-  if (topReferralsResult.error) {
-    throw new Error(topReferralsResult.error.message);
-  }
-
-  if (latestResult.error) {
-    throw new Error(latestResult.error.message);
-  }
-
-  const topReferrals = (topReferralsResult.data || []) as WaitlistRow[];
-  const latest = (latestResult.data || []) as WaitlistRow[];
-  const totalLeads = totalResult.count || 0;
-  const totalReferrals = latest.reduce((sum, row) => sum + (row.referral_count || 0), 0);
-  const siteBaseUrl = getAppBaseUrl();
-
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-5 py-2 md:py-3">
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm font-medium text-white/55">Inner Circle Leads</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <p className="text-3xl font-semibold"><AnimatedCounter end={totalLeads} /></p>
-            <Users className="h-5 w-5 text-white/45" />
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm font-medium text-white/55">Tracked Referrals</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <p className="text-3xl font-semibold"><AnimatedCounter end={totalReferrals} /></p>
-            <UserPlus className="h-5 w-5 text-white/45" />
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-sm font-medium text-white/55">Top 10 Slots</CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-end justify-between">
-            <p className="text-3xl font-semibold">10</p>
-            <Trophy className="h-5 w-5 text-white/45" />
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
-          <CardHeader>
-            <CardTitle>Top Referral Leaderboard</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {topReferrals.length === 0 ? (
-              <p className="text-sm text-white/55">No referrals yet.</p>
-            ) : (
-              topReferrals.map((entry, index) => (
-                <div key={entry.id} className="rounded-2xl border border-line bg-white/5 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold">
-                        #{index + 1} {entry.full_name}
-                      </p>
-                      <p className="text-xs text-white/55">{handles(entry)}</p>
-                    </div>
-                    <Badge className="rounded-full border border-gold-300/30 bg-gold-300/10 text-gold-200">
-                      {entry.referral_count} referrals
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-xs text-white/45">{siteBaseUrl}/inner-circle?ref={entry.referral_code}</p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-3xl border border-line bg-obsidian-900 text-white">
-          <CardHeader>
-            <CardTitle>Latest Signups · grant studio access</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {latest.length === 0 ? (
-              <p className="text-sm text-white/55">No signups yet.</p>
-            ) : (
-              latest.map((entry) => (
-                <div key={entry.id} className="rounded-xl border border-line bg-white/5 p-3 text-xs">
-                  <p className="font-semibold text-white">{entry.full_name}</p>
-                  <p className="text-white/55">{entry.email}</p>
-                  <p className="text-white/55">{handles(entry)}</p>
-                  {entry.feedback_text ? <p className="mt-1 text-white/75">&ldquo;{entry.feedback_text}&rdquo;</p> : null}
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <p className="text-white/45">
-                      Code: {entry.referral_code} ·{' '}
-                      <span className={entry.status === 'active' ? 'text-emerald-300' : 'text-white/60'}>
-                        {entry.status === 'active' ? 'has studio access' : 'waiting'}
-                      </span>
-                    </p>
-                    <form action={setInnerCircleAccess}>
-                      <input type="hidden" name="id" value={entry.id} />
-                      <input type="hidden" name="status" value={entry.status === 'active' ? 'pending' : 'active'} />
-                      <button
-                        type="submit"
-                        className={entry.status === 'active'
-                          ? 'rounded-full border border-white/15 px-3 py-1.5 text-white/70 hover:border-white/30'
-                          : 'rounded-full bg-gold-300 px-3 py-1.5 font-semibold text-black hover:opacity-90'}
-                      >
-                        {entry.status === 'active' ? 'Remove access' : 'Grant access'}
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </section>
-    </div>
-  );
+  return <InnerCircleAdminView rows={(data || []) as WaitlistRow[]} now={requestTime()} siteBaseUrl={getAppBaseUrl()} />;
 }
