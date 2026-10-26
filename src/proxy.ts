@@ -1,7 +1,25 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
+/**
+ * Shared Inner Circle links get mangled: phones auto-capitalise ("Inner-Circle"), people drop the
+ * dash or type a space. Every variant lands on the real page, keeping ?ref= invite codes.
+ */
+const INNER_CIRCLE_ALIASES = /^\/(?:inner[-_ ]?circle|join|waitlist|beta)\/?$/i
+
 export async function proxy(request: NextRequest) {
+    let path = request.nextUrl.pathname
+    try {
+        path = decodeURIComponent(path)
+    } catch {
+        // A malformed escape (a stray "%") is simply not an alias.
+    }
+    if (path !== "/inner-circle" && INNER_CIRCLE_ALIASES.test(path)) {
+        const target = request.nextUrl.clone()
+        target.pathname = "/inner-circle"
+        return NextResponse.redirect(target, 308)
+    }
+
     let response = NextResponse.next({
         request: {
             headers: request.headers,
