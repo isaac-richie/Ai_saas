@@ -34,8 +34,8 @@ export function VerifyOtpForm({ email, nextPath, mode }: VerifyOtpFormProps) {
 
   async function onVerify(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (!/^\d{6}$/.test(code.trim())) {
-      setError("Enter the 6-digit OTP code sent to your email.")
+    if (!/^\d{6,8}$/.test(code.trim())) {
+      setError("Enter the OTP code sent to your email.")
       return
     }
 
@@ -99,7 +99,7 @@ export function VerifyOtpForm({ email, nextPath, mode }: VerifyOtpFormProps) {
         <div>
           <CardTitle className="text-3xl font-semibold tracking-tight text-white">Enter OTP code</CardTitle>
           <CardDescription className="mt-2 text-sm text-white/60">
-            We sent a 6-digit code to <span className="font-medium text-white/85">{normalizedEmail}</span>.
+            We sent a code to <span className="font-medium text-white/85">{normalizedEmail}</span>.
           </CardDescription>
         </div>
       </CardHeader>
@@ -120,7 +120,7 @@ export function VerifyOtpForm({ email, nextPath, mode }: VerifyOtpFormProps) {
             <label className="text-sm text-white/75">One-time password</label>
             <Input
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 8))}
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="123456"

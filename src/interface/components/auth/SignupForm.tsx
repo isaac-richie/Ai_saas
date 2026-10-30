@@ -106,7 +106,7 @@ export function SignupForm() {
         return;
       }
 
-      setOtpInfo('OTP sent. Enter the 6-digit code to complete signup.');
+      setOtpInfo('OTP sent. Enter the code from your email to complete signup.');
       router.push(
         `/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent('/dashboard')}&mode=signup`
       );

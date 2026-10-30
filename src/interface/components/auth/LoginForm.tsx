@@ -113,7 +113,7 @@ export function LoginForm({ nextPath = "/dashboard" }: { nextPath?: string }) {
                 return
             }
 
-            setOtpInfo("OTP sent. Enter the 6-digit code to continue.")
+            setOtpInfo("OTP sent. Enter the code from your email to continue.")
             router.push(`/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent(nextPath)}&mode=signin`)
         } catch {
             setError(humanizeAuthError("fetch failed"))
