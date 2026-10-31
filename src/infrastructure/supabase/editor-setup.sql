@@ -1,5 +1,5 @@
 -- VisioWave video editor: everything the editor needs, in one script.
--- Combines migrations 0044–0048. Safe to run more than once: it only adds what is missing.
+-- Combines migrations 0044–0049. Safe to run more than once: it only adds what is missing.
 -- Paste into Supabase → SQL Editor → Run.
 
 -- ============================================================
@@ -212,3 +212,28 @@ CREATE POLICY "Owners read notes on their shares" ON video_share_notes FOR ALL
   WITH CHECK (EXISTS (SELECT 1 FROM video_shares s WHERE s.id = video_share_notes.share_id AND s.user_id = auth.uid()));
 
 CREATE INDEX IF NOT EXISTS idx_video_share_notes_share ON video_share_notes(share_id, created_at);
+
+-- ============================================================
+-- 7. Saved versions of a cut (migration 0049)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS timeline_revisions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  timeline_id UUID REFERENCES timeline_projects(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  label TEXT NOT NULL DEFAULT 'Before an AI edit' CHECK (length(label) <= 200),
+  -- The shots row and the look: { grade, clips: [...] }.
+  snapshot JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE timeline_revisions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Owners manage their revisions" ON timeline_revisions;
+CREATE POLICY "Owners manage their revisions" ON timeline_revisions FOR ALL
+  USING (user_id = auth.uid())
+  WITH CHECK (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM timeline_projects tp JOIN projects p ON p.id = tp.project_id
+      WHERE tp.id = timeline_revisions.timeline_id AND p.user_id = auth.uid()));
+
+CREATE INDEX IF NOT EXISTS idx_timeline_revisions_timeline ON timeline_revisions(timeline_id, created_at DESC);

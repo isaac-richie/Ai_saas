@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, ImagePlus, Keyboard, Loader2, Maximize, MessageSquare, Music2, Palette, Pause,
+  ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, History, ImagePlus, Keyboard, Loader2, Maximize, MessageSquare, Music2, Palette, Pause,
   Play, Proportions, Redo2, Scissors, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Trash2, Type, Undo2, Wand2, X, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
@@ -11,8 +11,10 @@ import { useMediaQuery } from '@/interface/hooks/use-media-query';
 import { outputToTimelineMs, syncVideoToSong } from '@/core/services/timeline-ops';
 import type { OwnerShare } from '@/core/actions/video-review';
 import { ReviewsSheet } from './ReviewsSheet';
+import { VersionsSheet } from './VersionsSheet';
+import type { RevisionSummary } from '@/core/actions/timeline-revisions';
 import { getGradeById } from '@/core/services/color-grading';
-import { MIN_CLIP_MS } from '@/core/services/edit-agent';
+import { MIN_CLIP_MS, isClipLocked } from '@/core/services/edit-agent';
 import { PreviewPlayer } from './PreviewPlayer';
 import { TimelinePanel, ZOOM_LIMITS } from './TimelinePanel';
 import { AgentPanel, type AgentReply } from './AgentPanel';
@@ -61,12 +63,15 @@ export interface EditorWorkspaceProps {
   onRegenerate?: (clipId: string, options: { durationSec?: number; note?: string }) => Promise<void>;
   takeStatus?: Record<string, TakeStatus>;
   /** One-tap first cut in a style. */
-  onAutoEdit?: (style: AutoEditStyle) => Promise<AgentReply>;
+  onAutoEdit?: (style: AutoEditStyle, options: { title: boolean }) => Promise<AgentReply>;
   /** Review links for this video and what reviewers said. */
   reviews?: OwnerShare[];
   onShareForReview?: () => Promise<string | null>;
   onResolveNote?: (noteId: string, resolved: boolean) => void;
   onTurnOffLink?: (shareId: string) => void;
+  /** Saved versions (one before every AI edit). */
+  onListVersions?: () => Promise<RevisionSummary[]>;
+  onRestoreVersion?: (revisionId: string) => Promise<boolean>;
 }
 
 type Tab = 'ai' | 'clip' | 'look' | 'format' | 'music' | 'text';
@@ -114,6 +119,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [reviewsOpen, setReviewsOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const [fitSignal, setFitSignal] = useState(0);
   const [mode, setMode] = useEditorModeState();
   const pro = mode === 'pro';
@@ -127,8 +133,10 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   const selected = clips.find((c) => c.id === selected_clip_id);
   const selectedTrack = tracks.find((t) => t.id === selected?.track_id);
   const song = clips.find((c) => tracks.find((t) => t.id === c.track_id)?.track_type === 'audio');
+  // A shot can't be changed when its row is locked or it was approved and locked itself.
+  const selectedLocked = Boolean(selectedTrack?.locked || isClipLocked(selected));
   const canSplit = Boolean(
-    selected && selectedTrack?.track_type === 'video' && !selectedTrack.locked &&
+    selected && selectedTrack?.track_type === 'video' && !selectedLocked &&
       playhead_ms > selected.start_ms + MIN_CLIP_MS && playhead_ms < selected.end_ms - MIN_CLIP_MS,
   );
 
@@ -208,7 +216,16 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   };
 
   const panel = (id: Tab) => {
-    if (id === 'ai') return <AgentPanel onSend={props.onAgent} onAutoEdit={props.onAutoEdit} hasShots={shots.length > 0} />;
+    if (id === 'ai')
+      return (
+        <AgentPanel
+          onSend={props.onAgent}
+          onAutoEdit={props.onAutoEdit}
+          onNewTake={props.onRegenerate ? (clipId, note) => void props.onRegenerate!(clipId, { note }) : undefined}
+          onRestoreVersion={props.onRestoreVersion}
+          hasShots={shots.length > 0}
+        />
+      );
     if (id === 'clip') return <ClipPanel onSyncToBeat={syncToBeat} onRegenerate={props.onRegenerate} takeStatus={props.takeStatus} />;
     if (id === 'look') return <ColorGradePicker selectedId={timeline?.color_grade_id || 'natural'} onSelect={store.setGrade} row={!desktop} />;
     if (id === 'format') return <FormatPanel />;
@@ -291,6 +308,11 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         <button onClick={store.redo} disabled={history.future.length === 0} className={iconButton} aria-label="Redo" title="Redo (⇧⌘Z)">
           <Redo2 size={18} />
         </button>
+        {props.onListVersions && (
+          <button onClick={() => setVersionsOpen(true)} className={iconButton} aria-label="Saved versions" title="Saved versions">
+            <History size={18} />
+          </button>
+        )}
         {desktop && pro && (
           <button onClick={() => setShortcutsOpen(true)} className={iconButton} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
             <Keyboard size={18} />
@@ -363,7 +385,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
           <section className="min-w-0 space-y-2">
             <div className="flex items-center gap-1">
               <ToolbarButton icon={Scissors} label="Split" title="Split at the playhead (S)" disabled={!canSplit} onClick={() => selected && store.split(selected.id, playhead_ms)} />
-              <ToolbarButton icon={Trash2} label="Delete" title="Delete (⌫)" disabled={!selected || selectedTrack?.locked} onClick={() => selected && store.removeClip(selected.id)} />
+              <ToolbarButton icon={Trash2} label="Delete" title="Delete (⌫)" disabled={!selected || selectedLocked} onClick={() => selected && store.removeClip(selected.id)} />
               <span className="mx-1 h-5 w-px bg-line" />
               <ToolbarButton icon={Type} label="Add text" onClick={() => { void props.onAddText(); }} disabled={shots.length === 0} />
               <ToolbarButton icon={Music2} label={song ? 'Music' : 'Add music'} onClick={() => setTab('music')} />
@@ -415,7 +437,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
           {selected && selectedTrack ? (
             <ContextBar
               kind={selectedTrack.track_type}
-              locked={selectedTrack.locked}
+              locked={selectedLocked}
               canSplit={canSplit}
               position={shots.findIndex((c) => c.id === selected.id)}
               shotCount={shots.length}
@@ -473,6 +495,9 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
           setReviewsOpen(true);
         }}
       />
+      {props.onListVersions && props.onRestoreVersion && (
+        <VersionsSheet open={versionsOpen} onClose={() => setVersionsOpen(false)} onList={props.onListVersions} onRestore={props.onRestoreVersion} />
+      )}
       <ReviewsSheet
         open={reviewsOpen}
         onClose={() => setReviewsOpen(false)}

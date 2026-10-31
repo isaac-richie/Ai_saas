@@ -10,6 +10,7 @@ import {
 import { FILMSTRIP_FRAMES, useFilmstrip, useWaveform } from '@/interface/lib/media-thumbs';
 import { TRANSITION_LABELS, formatClock, formatTime } from './labels';
 import { useIsPro } from '@/interface/hooks/use-editor-mode';
+import { isClipLocked } from '@/core/services/edit-agent';
 
 const MIN_PPMS = 0.004;
 const MAX_PPMS = 0.8;
@@ -213,7 +214,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
 
   function startClipDrag(e: React.PointerEvent, clip: TimelineClip, track: TimelineTrack, edge?: 'start' | 'end') {
     e.stopPropagation();
-    if (track.locked) {
+    if (track.locked || isClipLocked(clip)) {
       selectClip(clip.id);
       return;
     }
@@ -467,7 +468,9 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
   onSelect: () => void;
 }) {
   const kind = track.track_type;
-  const meta = (clip.metadata || {}) as { name?: string; text?: string; shot?: { subject?: string } };
+  const meta = (clip.metadata || {}) as { name?: string; text?: string; shot?: { subject?: string }; review_note?: unknown };
+  const hasUpdate = useTimelineStore((s) => Boolean(s.storyboardUpdates[clip.id]));
+  const needsReview = kind === 'video' && (typeof meta.review_note === 'string' || hasUpdate);
   // A shot is named by what it shows; the number chip already says which one it is.
   const subject = typeof meta.shot?.subject === 'string' ? meta.shot.subject.trim() : '';
   const label = kind === 'video' ? subject || `Shot ${number}` : kind === 'audio' ? meta.name || 'Music' : meta.text || 'Text';
@@ -495,7 +498,7 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
       onPointerDown={(e) => onDown(e)}
       className={`group absolute inset-y-[3px] overflow-hidden rounded-lg border ${tone} ${
         selected ? 'z-10 border-gold-200 shadow-[0_0_0_1px_#e3cf9f,0_0_22px_-4px_rgba(217,192,138,0.75)]' : 'hover:border-white/25'
-      } ${dragDx !== null ? 'z-20 opacity-85 shadow-2xl' : ''} ${track.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
+      } ${dragDx !== null ? 'z-20 opacity-85 shadow-2xl' : ''} ${track.locked || isClipLocked(clip) ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
       style={{ left, width, transform: dragDx !== null ? `translateX(${dragDx}px)` : undefined }}
     >
       {kind === 'video' && <Filmstrip clip={clip} width={width} ppm={ppm} height={rowHeight - 8} />}
@@ -513,6 +516,14 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
               {width > 22 && (
                 <span className="grid h-4 min-w-4 place-items-center rounded-[5px] bg-black/55 px-1 text-[10px] font-semibold tabular-nums text-white backdrop-blur-sm">
                   {number}
+                </span>
+              )}
+              {needsReview && (
+                <span className="size-2.5 rounded-full bg-amber-300 ring-2 ring-black/50" title="Something to check on this shot" />
+              )}
+              {isClipLocked(clip) && width > 40 && (
+                <span className="grid size-4 place-items-center rounded-[5px] bg-gold-300/90 text-[#1a160e]" title="Approved and locked">
+                  <Lock size={10} strokeWidth={2.6} />
                 </span>
               )}
               {clipSpeed(clip) !== 1 && width > 56 && (
@@ -541,7 +552,7 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
         )}
       </div>
 
-      {!track.locked &&
+      {!track.locked && !isClipLocked(clip) &&
         (['start', 'end'] as const).map((edge) => (
           <span
             key={edge}

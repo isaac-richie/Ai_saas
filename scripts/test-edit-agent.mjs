@@ -167,8 +167,12 @@ describe('applyEditCommands', () => {
 
 describe('agent plan schema', () => {
   it('accepts a valid plan', () => {
-    const plan = agentPlanSchema.parse({ summary: 'ok', commands: [{ type: 'set_transition', clip: 1, transition: 'fade_black', duration_ms: 800 }] });
+    const plan = agentPlanSchema.parse({ summary: 'ok', commands: [{ type: 'set_transition', clip: 1, transition: 'fade_black', duration_ms: 800 }], new_shots: [] });
     assert.equal(plan.commands.length, 1);
+  });
+  it('accepts a request for new footage, capped at three', () => {
+    assert.equal(agentPlanSchema.parse({ summary: 'needs a shot', commands: [], new_shots: [{ clip: null, what: 'close-up' }] }).new_shots.length, 1);
+    assert.throws(() => agentPlanSchema.parse({ summary: '', commands: [], new_shots: Array.from({ length: 4 }, () => ({ clip: 1, what: 'x' })) }));
   });
   it('rejects unknown transitions, grades and profiles', () => {
     assert.throws(() => agentPlanSchema.parse({ summary: '', commands: [{ type: 'set_transition', clip: 1, transition: 'explode', duration_ms: 1 }] }));

@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, AudioWaveform, Blend, Magnet, Loader2, MousePointerClick, MoveHorizontal, RefreshCw, Scissors, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AudioWaveform, Blend, Magnet, Loader2, Lock, MousePointerClick, MoveHorizontal, RefreshCw, Scissors, Trash2, Unlock } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { TRANSITION_REGISTRY } from '@/core/services/transitions';
 import { CAPTION_STYLES, type CaptionStyle } from '@/core/services/captions';
@@ -10,6 +10,7 @@ import { useFilmstrip } from '@/interface/lib/media-thumbs';
 import { applyTake, rippleFrom, type Take } from '@/core/services/take-regenerate';
 import { SPEEDS, clipSpeed, trimClip } from '@/core/services/timeline-ops';
 import { useIsPro } from '@/interface/hooks/use-editor-mode';
+import { isClipLocked } from '@/core/services/edit-agent';
 import { CAPTION_PREVIEW_CLASS, TRANSITION_LABELS, formatClock, formatTime } from './labels';
 
 const TRANSITIONS = Object.keys(TRANSITION_REGISTRY) as TransitionType[];
@@ -83,7 +84,8 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
     );
   }
 
-  const locked = track.locked;
+  // A shot is fixed when its row is locked or the creator approved and locked it.
+  const locked = track.locked || isClipLocked(clip);
   const duration = clip.end_ms - clip.start_ms;
 
   if (track.track_type === 'caption') return <TextClip clip={clip} locked={locked} />;
@@ -126,6 +128,8 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
   return (
     <div className="space-y-6 p-4">
       <ShotHeader clip={clip} position={position} count={shots.length} duration={duration} />
+      <LockToggle clip={clip} rowLocked={track.locked} />
+      <ReviewFlags clip={clip} locked={locked} />
       {pro && <ExactLength clip={clip} locked={locked} />}
 
       <div className="grid grid-cols-4 gap-2">
@@ -310,6 +314,93 @@ function TakeThumb({ take, disabled, onUse }: { take: Take; disabled: boolean; o
         {strip?.frames[0] && <img src={strip.frames[Math.floor(strip.frames.length / 3)]} alt="" className="h-full w-full object-cover" />}
       </div>
       <p className="px-1.5 py-1 text-[11px] text-[#d6d0c0] group-hover:text-gold-100">Use · {Math.round(take.source_duration_ms / 1000)}s</p>
+    </button>
+  );
+}
+
+/** Things to check on this shot: a shorter new take, or a newer version waiting in the storyboard. */
+function ReviewFlags({ clip, locked }: { clip: TimelineClip; locked: boolean }) {
+  const { clips, updateClip, commitClips, storyboardUpdates, setStoryboardUpdates } = useTimelineStore();
+  const note = (clip.metadata as { review_note?: unknown } | null)?.review_note;
+  const update = storyboardUpdates[clip.id];
+  const forget = () => {
+    const rest = { ...storyboardUpdates };
+    delete rest[clip.id];
+    setStoryboardUpdates(rest);
+  };
+  if (typeof note !== 'string' && !update) return null;
+  return (
+    <div className="space-y-2">
+      {typeof note === 'string' && (
+        <div className="rounded-xl border border-amber-300/40 bg-amber-400/10 px-3.5 py-3 text-sm text-amber-50">
+          <p>{note}</p>
+          <button
+            onClick={() => {
+              const meta = { ...((clip.metadata as Record<string, unknown>) || {}) };
+              delete meta.review_note;
+              updateClip(clip.id, { metadata: meta }, `review-note:${clip.id}`);
+            }}
+            disabled={locked}
+            className="mt-2 rounded-lg border border-amber-200/40 px-2.5 py-1 text-xs hover:bg-amber-400/10 disabled:opacity-40"
+          >
+            Checked it
+          </button>
+        </div>
+      )}
+      {update && (
+        <div className="rounded-xl border border-gold-400/40 bg-gold-500/10 px-3.5 py-3 text-sm text-gold-50">
+          <p>Your storyboard has a newer version of this shot.</p>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={() => {
+                const swapped = applyTake(clip, { url: update.url, source_duration_ms: update.duration_ms, created_at: new Date().toISOString() }, { keepLength: true });
+                const shots = rippleFrom(clips.filter((c) => c.track_id === clip.track_id).map((c) => (c.id === clip.id ? swapped : c)));
+                commitClips([...clips.filter((c) => c.track_id !== clip.track_id), ...shots], `storyboard-update:${clip.id}:${update.url}`);
+                forget();
+              }}
+              disabled={locked}
+              className="rounded-lg bg-gold-200 px-3 py-1.5 text-xs font-semibold text-[#1a160e] disabled:opacity-40"
+            >
+              Use the new version
+            </button>
+            <button
+              onClick={() => {
+                updateClip(clip.id, { metadata: { ...((clip.metadata as Record<string, unknown>) || {}), ignored_storyboard_url: update.url } }, `ignore-update:${clip.id}`);
+                forget();
+              }}
+              disabled={locked}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-[#e8e2d2] hover:bg-white/5 disabled:opacity-40"
+            >
+              Keep this one
+            </button>
+          </div>
+          {locked && <p className="mt-2 text-xs text-[#b0b8c4]">Unlock the shot to change it.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Approve and lock a shot so nothing changes it by accident, or unlock it to edit again. */
+function LockToggle({ clip, rowLocked }: { clip: TimelineClip; rowLocked: boolean }) {
+  const toggleClipLock = useTimelineStore((s) => s.toggleClipLock);
+  const on = isClipLocked(clip);
+  return (
+    <button
+      onClick={() => toggleClipLock(clip.id)}
+      disabled={rowLocked}
+      aria-pressed={on}
+      className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors disabled:opacity-40 ${
+        on ? 'border-gold-300/70 bg-gold-500/10' : 'border-line bg-white/[0.02] hover:border-white/25'
+      }`}
+    >
+      <span className={`grid size-8 shrink-0 place-items-center rounded-lg ${on ? 'bg-gold-300 text-[#1a160e]' : 'bg-white/[0.06] text-[#d6d0c0]'}`}>
+        {on ? <Lock size={15} /> : <Unlock size={15} />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm text-white">{on ? 'Approved and locked' : 'Approve and lock this shot'}</span>
+        <span className="block text-xs text-[#9aa3ad]">{on ? 'Nothing can change it, not even the AI. Tap to unlock.' : 'Keeps it exactly as it is while you or the AI edit the rest.'}</span>
+      </span>
     </button>
   );
 }
