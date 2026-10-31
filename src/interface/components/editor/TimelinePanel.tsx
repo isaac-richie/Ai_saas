@@ -9,6 +9,7 @@ import {
 } from '@/core/services/timeline-ops';
 import { FILMSTRIP_FRAMES, useFilmstrip, useWaveform } from '@/interface/lib/media-thumbs';
 import { TRANSITION_LABELS, formatClock, formatTime } from './labels';
+import { useIsPro } from '@/interface/hooks/use-editor-mode';
 
 const MIN_PPMS = 0.004;
 const MAX_PPMS = 0.8;
@@ -44,6 +45,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
   const programmatic = useRef<number | null>(null);
   const pinch = useRef<{ dist: number; ppm: number } | null>(null);
   const fitted = useRef<number | null>(null);
+  const pro = useIsPro();
   const [viewport, setViewport] = useState(0);
   const [panelHeight, setPanelHeight] = useState(0);
   const root = useRef<HTMLDivElement>(null);
@@ -255,7 +257,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
   const x = (ms: number) => pad + ms * ppm;
 
   return (
-    <div ref={root} className={`relative flex min-h-0 select-none overflow-hidden rounded-2xl border border-line bg-[#0b0c0b] ${roomy ? 'h-full' : ''}`}>
+    <div ref={root} className={`relative flex min-h-0 select-none overflow-hidden rounded-2xl border border-line bg-[#0c0d0c]/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] ${roomy ? 'h-full' : ''}`}>
       <div className={`${centered ? 'w-10' : 'w-11 md:w-[9.5rem]'} shrink-0 border-r border-line bg-obsidian-900`}>
         <div className="h-7 border-b border-line" />
         {visibleTracks.map((track) => {
@@ -264,7 +266,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
             <div key={track.id} style={{ height: rowHeight[track.track_type] }} className="flex items-center gap-1.5 border-b border-line px-2.5">
               <Icon size={14} className={`shrink-0 ${track.muted ? 'text-white/30' : 'text-gold-300/80'}`} aria-hidden />
               <span className={`${centered ? 'hidden' : 'hidden md:block'} flex-1 truncate text-[13px] text-[#d6d0c0]`}>{TRACK_LABEL[track.track_type]}</span>
-              <div className={`${centered ? 'hidden' : 'hidden md:flex'} items-center`}>
+              <div className={`${centered || !pro ? 'hidden' : 'hidden md:flex'} items-center`}>
                 {track.track_type !== 'caption' && (
                   <button
                     onClick={() => toggleTrackMute(track.id)}
@@ -327,6 +329,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
             >
               {ticks.map((t) => {
                 const major = t % step === 0;
+                if (!major && !pro) return null;
                 return (
                   <div key={t} className="absolute bottom-0" style={{ left: x(t) }}>
                     <div className={`w-px ${major ? 'h-2.5 bg-white/30' : 'h-1.5 bg-white/12'}`} />
@@ -334,9 +337,10 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
                   </div>
                 );
               })}
-              {beatMarks.map((ms, i) => (
-                <div key={i} className="absolute bottom-0 h-1 w-1 -translate-x-1/2 rounded-full bg-gold-300/70" style={{ left: x(ms) }} />
-              ))}
+              {pro &&
+                beatMarks.map((ms, i) => (
+                  <div key={i} className="absolute bottom-0 h-1 w-1 -translate-x-1/2 rounded-full bg-gold-300/70" style={{ left: x(ms) }} />
+                ))}
             </div>
 
             {visibleTracks.map((track) => (
@@ -463,8 +467,10 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
   onSelect: () => void;
 }) {
   const kind = track.track_type;
-  const meta = (clip.metadata || {}) as { name?: string; text?: string };
-  const label = kind === 'video' ? `Shot ${number}` : kind === 'audio' ? meta.name || 'Music' : meta.text || 'Text';
+  const meta = (clip.metadata || {}) as { name?: string; text?: string; shot?: { subject?: string } };
+  // A shot is named by what it shows; the number chip already says which one it is.
+  const subject = typeof meta.shot?.subject === 'string' ? meta.shot.subject.trim() : '';
+  const label = kind === 'video' ? subject || `Shot ${number}` : kind === 'audio' ? meta.name || 'Music' : meta.text || 'Text';
   const tone =
     kind === 'video'
       ? 'border-white/10 bg-[#1b1a16]'
@@ -477,7 +483,7 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      aria-label={`${label}, ${formatTime(clip.end_ms - clip.start_ms)} long`}
+      aria-label={`${label}, ${((clip.end_ms - clip.start_ms) / 1000).toFixed(1)} seconds long`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -515,8 +521,8 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
                 </span>
               )}
             </span>
-            {width > 130 && (
-              <span className={`absolute bottom-1.5 max-w-[55%] truncate text-[11px] font-medium text-white/95 ${selected ? 'left-5' : 'left-2.5'}`}>{label}</span>
+            {subject && width > 130 && (
+              <span className={`absolute bottom-1.5 max-w-[60%] truncate text-[11px] font-medium text-white/95 ${selected ? 'left-5' : 'left-2.5'}`}>{subject}</span>
             )}
             {width > 88 && (
               <span className={`absolute bottom-1.5 text-[10px] tabular-nums text-white/75 ${selected ? 'right-5' : 'right-3'}`}>{formatClock(clip.end_ms - clip.start_ms, true)}</span>
@@ -524,7 +530,13 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
           </>
         ) : (
           width > 34 && (
-            <span className={`truncate px-2.5 text-[11px] font-medium ${kind === 'audio' ? 'text-[#dff1ec]' : 'text-[#ece4fa]'}`}>{label}</span>
+            <span
+              className={`relative mx-2 truncate rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
+                kind === 'audio' ? 'bg-[#0f1716]/85 text-[#dff1ec] backdrop-blur-sm' : 'text-[#ece4fa]'
+              }`}
+            >
+              {label}
+            </span>
           )
         )}
       </div>
