@@ -21,6 +21,7 @@ import { TextPanel } from './TextPanel';
 import { ExportSheet } from './ExportSheet';
 import { FormatPanel } from './FormatPanel';
 import { formatFor } from '@/core/services/video-format';
+import { parseResolution } from '@/core/services/timeline-render';
 import type { AutoEditStyle } from '@/core/services/auto-edit';
 import { formatClock } from './labels';
 
@@ -82,6 +83,9 @@ const SHORTCUTS: [string, string][] = [
 
 const iconButton =
   'grid size-10 place-items-center rounded-xl text-[#d6d0c0] transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-30 disabled:hover:bg-transparent';
+// Phones and tablets: tools float in a glass dock above the safe area.
+const dockClass =
+  'mx-3 mb-[max(0.75rem,env(safe-area-inset-bottom))] mt-2 flex shrink-0 items-center gap-1 rounded-2xl border border-line-strong bg-obsidian-900/85 p-1.5 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.95)] backdrop-blur-xl';
 const goldButton =
   'bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[#1a160e] shadow-[0_10px_30px_-12px_rgba(217,192,138,0.8)]';
 
@@ -102,6 +106,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   const [fitSignal, setFitSignal] = useState(0);
 
   const busy = props.render.status === 'queued' || props.render.status === 'rendering';
+  const [frameW, frameH] = parseResolution(timeline?.resolution);
   const videoTrack = tracks.find((t) => t.track_type === 'video');
   const shots = clips.filter((c) => c.track_id === videoTrack?.id).sort((a, b) => a.start_ms - b.start_ms);
   const endMs = shots.length ? shots[shots.length - 1].end_ms : 0;
@@ -346,18 +351,27 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         </div>
       ) : (
         <div className="relative flex min-h-0 flex-1 flex-col">
-          <div className="min-h-[180px] flex-1 px-3 pt-3">
-            <PreviewPlayer emptyHint={emptyHint} />
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2">
-            <div className="flex-1">{timecode}</div>
-            {playButton('md')}
-            <div className="flex flex-1 justify-end">
-              <button onClick={() => setFitSignal((n) => n + 1)} className={iconButton} aria-label="Fit the whole video"><Maximize size={17} /></button>
+          <div className="flex min-h-0 flex-1 flex-col gap-2.5 px-3 pt-3">
+            {/* The stage is only as tall as the picture (at most about half the screen); the timeline gets the rest. */}
+            <section className="shrink-0 rounded-2xl border border-line bg-[radial-gradient(ellipse_at_50%_35%,rgba(217,192,138,0.08),rgba(0,0,0,0.4)_72%)] p-2 sm:p-3">
+              <div style={{ height: `min(46dvh, calc((100vw - ${phone ? 44 : 50}px) * ${frameH / frameW}))` }}>
+                <PreviewPlayer emptyHint={emptyHint} />
+              </div>
+              <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1 px-1">
+                <div>{timecode}</div>
+                <div className="flex items-center gap-0.5">
+                  <button onClick={() => jumpShot(-1)} className={iconButton} aria-label="Previous shot"><ChevronLeft size={19} /></button>
+                  {playButton('md')}
+                  <button onClick={() => jumpShot(1)} className={iconButton} aria-label="Next shot"><ChevronLeft size={19} className="rotate-180" /></button>
+                </div>
+                <div className="flex justify-end">
+                  <button onClick={() => setFitSignal((n) => n + 1)} className={iconButton} aria-label="Fit the whole video on the timeline" title="Fit"><Maximize size={16} /></button>
+                </div>
+              </div>
+            </section>
+            <div className="min-h-[170px] flex-1">
+              <TimelinePanel centered={phone} roomy fitSignal={fitSignal} onAdd={addFrom} />
             </div>
-          </div>
-          <div className="px-2 pb-2">
-            <TimelinePanel centered={phone} fitSignal={fitSignal} onAdd={addFrom} />
           </div>
 
           {selected && selectedTrack ? (
@@ -374,10 +388,12 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
               onSettings={() => setSheet('clip')}
             />
           ) : (
-            <nav aria-label="Editing tools" className="flex shrink-0 items-center gap-1 border-t border-line bg-obsidian-950/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
+            <nav aria-label="Editing tools" className={dockClass}>
               {TABS.filter((t) => t.id !== 'clip').map(({ id, label, icon: Icon }) => (
-                <button key={id} onClick={() => setSheet(id)} className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-xs text-[#d6d0c0] active:bg-white/5">
-                  <Icon size={20} strokeWidth={1.7} className={id === 'ai' ? 'text-gold-200' : ''} />
+                <button key={id} onClick={() => setSheet(id)} className="group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1 text-[11px] font-medium text-[#c9c3b4] active:scale-95">
+                  <span className={`grid size-9 place-items-center rounded-xl transition-colors group-hover:bg-white/[0.06] ${id === 'ai' ? 'bg-gold-500/15 text-gold-200' : 'text-[#e8e2d2]'}`}>
+                    <Icon size={19} strokeWidth={1.7} />
+                  </span>
                   {label}
                 </button>
               ))}
@@ -486,13 +502,14 @@ function ContextBar({ kind, locked, canSplit, position, shotCount, onDone, onSpl
   onDone: () => void; onSplit: () => void; onDelete: () => void; onMove: (dir: -1 | 1) => void; onSettings: () => void;
 }) {
   const item = (Icon: typeof Scissors, label: string, onClick: () => void, disabled = false, danger = false) => (
-    <button key={label} onClick={onClick} disabled={disabled || locked} className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-xs active:bg-white/5 disabled:opacity-30 ${danger ? 'text-red-200' : 'text-[#e8e2d2]'}`}>
-      <Icon size={20} strokeWidth={1.7} /> {label}
+    <button key={label} onClick={onClick} disabled={disabled || locked} className={`group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1 text-[11px] font-medium active:scale-95 disabled:opacity-30 ${danger ? 'text-red-200' : 'text-[#e8e2d2]'}`}>
+      <span className="grid size-9 place-items-center rounded-xl group-hover:bg-white/[0.06]"><Icon size={19} strokeWidth={1.7} /></span>
+      {label}
     </button>
   );
   return (
-    <nav aria-label="Selected item" className="flex shrink-0 items-center gap-1 border-t border-gold-400/25 bg-obsidian-900/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
-      <button onClick={onDone} aria-label="Done" className="grid h-12 w-10 shrink-0 place-items-center rounded-xl text-gold-200 active:bg-white/5">
+    <nav aria-label="Selected item" className={`${dockClass} border-gold-400/35`}>
+      <button onClick={onDone} aria-label="Done" className="grid h-12 w-10 shrink-0 place-items-center rounded-xl bg-gold-500/15 text-gold-200 active:scale-95">
         <ChevronLeft size={22} />
       </button>
       {kind === 'video' && (
