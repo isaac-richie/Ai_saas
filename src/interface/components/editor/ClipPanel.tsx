@@ -8,6 +8,7 @@ import type { TimelineClip, TransitionType } from '@/core/types/timeline';
 import { useRef, useState } from 'react';
 import { useFilmstrip } from '@/interface/lib/media-thumbs';
 import { applyTake, rippleFrom, type Take } from '@/core/services/take-regenerate';
+import { SPEEDS, clipSpeed } from '@/core/services/timeline-ops';
 import { CAPTION_PREVIEW_CLASS, TRANSITION_LABELS, formatTime } from './labels';
 
 const TRANSITIONS = Object.keys(TRANSITION_REGISTRY) as TransitionType[];
@@ -47,7 +48,7 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
   onRegenerate?: (clipId: string, options: { durationSec?: number; note?: string }) => Promise<void>;
   takeStatus?: Record<string, TakeStatus>;
 }) {
-  const { clips, tracks, selected_clip_id, playhead_ms, updateClip, removeClip, reorder, split } = useTimelineStore();
+  const { clips, tracks, selected_clip_id, playhead_ms, updateClip, removeClip, reorder, split, setSpeed } = useTimelineStore();
   const clip = clips.find((c) => c.id === selected_clip_id);
   const track = tracks.find((t) => t.id === clip?.track_id);
 
@@ -161,6 +162,35 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
             ))}
           </div>
         )}
+      </Section>
+
+      <Section title="Speed">
+        <div className="grid grid-cols-6 gap-1.5" role="radiogroup" aria-label="Speed">
+          {SPEEDS.map((speed) => {
+            const active = clipSpeed(clip) === speed;
+            return (
+              <button
+                key={speed}
+                role="radio"
+                aria-checked={active}
+                disabled={locked}
+                onClick={() => setSpeed(clip.id, speed)}
+                className={`rounded-lg border py-2 text-sm tabular-nums transition-colors disabled:opacity-40 ${
+                  active ? 'border-gold-400/60 bg-gold-500/15 text-gold-50' : 'border-line bg-white/[0.02] text-[#d6d0c0] hover:border-white/20'
+                }`}
+              >
+                {speed}×
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-[#9aa3ad]">
+          {clipSpeed(clip) < 1
+            ? 'Slow motion: the shot gets longer to fit the same footage.'
+            : clipSpeed(clip) > 1
+              ? 'Sped up: the shot gets shorter.'
+              : 'Below 1× is slow motion; above 1× speeds it up.'}
+        </p>
       </Section>
 
       {onRegenerate && (

@@ -5,7 +5,7 @@ import { Blend, Film, Lock, Music, Plus, Type, Unlock, Volume2, VolumeX } from '
 import type { TimelineClip, TimelineTrack } from '@/core/types/timeline';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import {
-  dropIndex, moveFreeClip, outputToTimelineMs, reorderClip, timelineToOutputMs, trimClip, trimFreeClip,
+  clipSpeed, dropIndex, moveFreeClip, outputToTimelineMs, reorderClip, timelineToOutputMs, trimClip, trimFreeClip,
 } from '@/core/services/timeline-ops';
 import { FILMSTRIP_FRAMES, useFilmstrip, useWaveform } from '@/interface/lib/media-thumbs';
 import { TRANSITION_LABELS, formatClock, formatTime } from './labels';
@@ -486,6 +486,9 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
             {kind === 'video' ? (width > 80 ? label : number) : label}
           </span>
         )}
+        {kind === 'video' && clipSpeed(clip) !== 1 && width > 60 && (
+          <span className="absolute left-1.5 top-1 rounded bg-black/60 px-1 text-[10px] font-semibold tabular-nums text-gold-200">{clipSpeed(clip)}×</span>
+        )}
         {kind === 'video' && width > 110 && (
           <span className="ml-auto shrink-0 px-2 pb-1 text-[10px] tabular-nums text-white/70">{formatClock(clip.end_ms - clip.start_ms, true)}</span>
         )}
@@ -518,7 +521,7 @@ function Filmstrip({ clip, width, ppm }: { clip: TimelineClip; width: number; pp
   return (
     <div className="absolute inset-0 flex">
       {Array.from({ length: count }, (_, k) => {
-        const sec = (clip.trim_start_ms + ((k + 0.5) * tileW) / ppm) / 1000;
+        const sec = (clip.trim_start_ms + (((k + 0.5) * tileW) / ppm) * clipSpeed(clip)) / 1000;
         const index = Math.max(0, Math.min(FILMSTRIP_FRAMES - 1, Math.floor((sec / strip.durationSec) * FILMSTRIP_FRAMES)));
         // eslint-disable-next-line @next/next/no-img-element
         return <img key={k} src={strip.frames[index]} alt="" draggable={false} className="h-full shrink-0 object-cover opacity-90" style={{ width: tileW }} />;

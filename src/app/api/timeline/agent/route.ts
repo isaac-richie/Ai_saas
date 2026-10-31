@@ -177,7 +177,8 @@ export async function POST(request: Request) {
       prev.volume === clip.volume &&
       prev.transition_out === clip.transition_out &&
       prev.transition_out_ms === clip.transition_out_ms &&
-      (prev.color_grade_id ?? null) === (clip.color_grade_id ?? null)
+      (prev.color_grade_id ?? null) === (clip.color_grade_id ?? null) &&
+      JSON.stringify(prev.metadata ?? null) === JSON.stringify(clip.metadata ?? null)
     ) continue;
     const { error } = await supabase
       .from('timeline_clips')
@@ -188,6 +189,8 @@ export async function POST(request: Request) {
         transition_out: clip.transition_out,
         transition_out_ms: clip.transition_out_ms,
         color_grade_id: clip.color_grade_id ?? null,
+        // A speed change lives in metadata.
+        metadata: clip.metadata ?? {},
         updated_at: now,
       })
       .eq('id', clip.id);

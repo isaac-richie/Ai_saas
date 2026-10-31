@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Clapperboard, Maximize2, Play } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
-import { timelineToOutputMs } from '@/core/services/timeline-ops';
+import { clipSpeed, timelineToOutputMs } from '@/core/services/timeline-ops';
 import { isCaptionStyle } from '@/core/services/captions';
 import { parseResolution } from '@/core/services/timeline-render';
 import { getGradeById } from '@/core/services/color-grading';
@@ -70,8 +70,11 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !current) return;
-    const target = (playhead_ms - current.start_ms + current.trim_start_ms) / 1000;
-    if (Math.abs(video.currentTime - target) > 0.25) video.currentTime = target;
+    // Timeline time × speed = footage time.
+    const speed = clipSpeed(current);
+    const target = (current.trim_start_ms + (playhead_ms - current.start_ms) * speed) / 1000;
+    if (Math.abs(video.currentTime - target) > 0.25 * Math.max(1, speed)) video.currentTime = target;
+    if (video.playbackRate !== speed) video.playbackRate = speed;
     video.volume = Math.max(0, Math.min(1, current.volume));
     video.muted = Boolean(videoTrack?.muted);
     if (is_playing && video.paused) video.play().catch(() => {});
@@ -80,6 +83,7 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
     const back = backRef.current;
     if (back) {
       if (Math.abs(back.currentTime - video.currentTime) > 0.15) back.currentTime = video.currentTime;
+      if (back.playbackRate !== video.playbackRate) back.playbackRate = video.playbackRate;
       if (is_playing && back.paused) back.play().catch(() => {});
       if (!is_playing && !back.paused) back.pause();
     }

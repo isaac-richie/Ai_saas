@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { TimelineProject, TimelineTrack, TimelineClip, TransitionType } from '@/core/types/timeline';
-import { reorderClip, removeAndRipple, splitClip } from '@/core/services/timeline-ops';
+import { reorderClip, removeAndRipple, setClipSpeed, splitClip } from '@/core/services/timeline-ops';
 import { emptyHistory, record, undo, redo, type History } from '@/interface/lib/history';
 import { DEFAULT_FRAME_FIT } from '@/core/services/video-format';
 
@@ -35,6 +35,8 @@ interface TimelineStore {
   split: (id: string, atMs: number) => void;
   setTransition: (clipId: string, type: TransitionType, duration_ms: number) => void;
   setGrade: (gradeId: string) => void;
+  /** Slow motion or fast motion for one shot; the shots after it move to fit. */
+  setSpeed: (id: string, speed: number) => void;
   /** Changes the frame shape and/or how footage fills it. */
   setFormat: (patch: { resolution?: string; fit?: string }) => void;
   addClip: (c: TimelineClip) => void;
@@ -155,6 +157,14 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
     const s = get();
     if (!s.timeline || s.timeline.color_grade_id === gradeId) return;
     edit(get, set, `grade:${Date.now()}`, { timeline: { ...s.timeline, color_grade_id: gradeId } });
+  },
+
+  setSpeed: (id, speed) => {
+    const s = get();
+    const clip = s.clips.find((c) => c.id === id);
+    if (!clip || isLocked(s, clip.track_id)) return;
+    const next = setClipSpeed(s.clips, id, speed);
+    if (next !== s.clips) edit(get, set, `speed:${id}:${speed}`, { clips: next });
   },
 
   setFormat: ({ resolution, fit }) => {
