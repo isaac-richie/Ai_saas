@@ -1,35 +1,41 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUp, Clapperboard, Eye, Loader2, Music2, Sparkles, Sun, Timer, Undo2 } from 'lucide-react';
+import { ArrowUp, Eye, Loader2, Music2, Sparkles, Sun, Timer, Undo2, Wand2 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
+import { AUTO_EDIT_STYLES, type AutoEditStyle } from '@/core/services/auto-edit';
 
 export type AgentReply = { ok: true; summary: string; applied: number; rejected: string[] } | { ok: false; error: string };
 /** `undoAt` is the undo-history length right after the AI's edit; Undo is offered while nothing has happened since. */
 type Message = { role: 'user' | 'agent'; text: string; tone?: 'error' | 'warning'; undoAt?: number };
 
 const SUGGESTIONS = [
-  { text: 'Make it feel like a movie trailer', icon: Clapperboard },
   { text: 'Cut it to the beat of the music', icon: Music2 },
   { text: 'Give it a warm golden-hour look', icon: Sun },
   { text: 'Tighten it up for a 15-second short', icon: Timer },
   { text: 'Open on the widest shot and end on a close-up', icon: Eye },
 ];
 
-export function AgentPanel({ onSend }: { onSend: (instruction: string) => Promise<AgentReply> }) {
+export function AgentPanel({ onSend, onAutoEdit, hasShots = true }: {
+  onSend: (instruction: string) => Promise<AgentReply>;
+  onAutoEdit?: (style: AutoEditStyle) => Promise<AgentReply>;
+  hasShots?: boolean;
+}) {
   const historyLength = useTimelineStore((s) => s.history.past.length);
   const undo = useTimelineStore((s) => s.undo);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
 
-  async function send(text: string) {
+  const [style, setStyle] = useState<AutoEditStyle>('trailer');
+
+  async function send(text: string, auto?: AutoEditStyle) {
     const instruction = text.trim();
     if (!instruction || busy) return;
     setDraft('');
     setBusy(true);
     setMessages((m) => [...m, { role: 'user', text: instruction }]);
-    const reply = await onSend(instruction);
+    const reply = auto && onAutoEdit ? await onAutoEdit(auto) : await onSend(instruction);
     setBusy(false);
     if (!reply.ok) {
       setMessages((m) => [...m, { role: 'agent', text: reply.error, tone: 'error' }]);
@@ -46,16 +52,48 @@ export function AgentPanel({ onSend }: { onSend: (instruction: string) => Promis
       <div className="flex-1 space-y-2.5 overflow-y-auto p-4" aria-live="polite">
         {messages.length === 0 && (
           <div className="space-y-3">
-            <div className="rounded-2xl border border-gold-400/20 bg-[linear-gradient(160deg,rgba(217,192,138,0.12),transparent_70%)] p-4">
-              <span className="grid size-9 place-items-center rounded-full bg-gold-500/20 text-gold-200">
-                <Sparkles size={16} />
+            <div className="flex items-start gap-3 px-1">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-gold-500/20 text-gold-200">
+                <Sparkles size={15} />
               </span>
-              <p className="mt-3 text-[15px] font-medium text-white">Your AI editor</p>
-              <p className="mt-1 text-sm leading-relaxed text-[#d6d0c0]">
-                I can see your shots. Say how the video should feel, or point at a shot by what&apos;s in it. I&apos;ll trim, reorder, colour and time them, and you can undo anything.
+              <p className="text-sm leading-relaxed text-[#d6d0c0]">
+                <span className="font-medium text-white">Your AI editor can see your shots.</span> Let it cut the whole video, or ask for any change. You can undo anything.
               </p>
             </div>
-            <p className="px-1 pt-1 text-xs font-medium uppercase tracking-[0.14em] text-[#9aa3ad]">Try</p>
+            {onAutoEdit && (
+              <div className="space-y-3 rounded-2xl border border-line bg-white/[0.02] p-4">
+                <div>
+                  <p className="text-[15px] font-medium text-white">Edit it for me</p>
+                  <p className="mt-0.5 text-sm text-[#b0b8c4]">
+                    {hasShots ? 'A complete first cut in one tap. Tweak anything after.' : 'Brings in your storyboard shots and cuts them in one tap.'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Style">
+                  {AUTO_EDIT_STYLES.map((s) => (
+                    <button
+                      key={s.id}
+                      role="radio"
+                      aria-checked={style === s.id}
+                      onClick={() => setStyle(s.id)}
+                      className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                        style === s.id ? 'border-gold-300/80 bg-gold-500/10' : 'border-line hover:border-white/25'
+                      }`}
+                    >
+                      <span className="block text-sm text-white">{s.label}</span>
+                      <span className="block text-xs leading-snug text-[#9aa3ad]">{s.hint}</span>
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => send(`Edit it for me: ${AUTO_EDIT_STYLES.find((s) => s.id === style)!.label}`, style)}
+                  disabled={busy}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] py-3 text-sm font-semibold text-[#1a160e] disabled:opacity-50"
+                >
+                  <Wand2 size={16} /> Edit it for me
+                </button>
+              </div>
+            )}
+            <p className="px-1 pt-1 text-xs font-medium uppercase tracking-[0.14em] text-[#9aa3ad]">Or ask for something</p>
             <div className="grid gap-2">
               {SUGGESTIONS.map(({ text, icon: Icon }) => (
                 <button

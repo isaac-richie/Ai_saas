@@ -23,6 +23,7 @@ import { diffTimeline, isEmptyDiff } from '@/interface/lib/timeline-diff';
 import { timelineToOutputMs } from '@/core/services/timeline-ops';
 import type { TimelineClip, TimelineProject, TimelineTrack } from '@/core/types/timeline';
 import { DEFAULT_FRAME_FIT } from '@/core/services/video-format';
+import { autoEditInstruction, openingTitle, type AutoEditStyle } from '@/core/services/auto-edit';
 import { EditorWorkspace, type RenderState } from './EditorWorkspace';
 import type { AgentReply } from './AgentPanel';
 import type { TakeStatus } from './ClipPanel';
@@ -307,24 +308,25 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     return null;
   };
 
-  const onAddText = async () => {
+  /** Puts text on screen; `at` is in finished-video time. Returns false when the text row can't be made. */
+  const addText = async (at: number | null, text: string, style: string, select: boolean) => {
     const s = useTimelineStore.getState();
-    if (!s.timeline) return;
+    if (!s.timeline) return false;
     let track = s.tracks.find((t) => t.track_type === 'caption');
     if (!track) {
       const res = await addTimelineTrack(s.timeline.id, 'Text', 'caption');
       if (!res.track) {
         setError(res.error || 'Could not add text.');
-        return;
+        return false;
       }
       track = res.track;
       saved.current = { ...saved.current, tracks: [...saved.current.tracks, track] };
       addTrack(track);
     }
     const videoTrack = s.tracks.find((t) => t.track_type === 'video');
-    let start = Math.round(timelineToOutputMs(s.clips.filter((c) => c.track_id === videoTrack?.id), s.playhead_ms));
+    let start = at ?? Math.round(timelineToOutputMs(s.clips.filter((c) => c.track_id === videoTrack?.id), s.playhead_ms));
     // Start after any text already on screen so two captions never stack.
-    const existing = s.clips.filter((c) => c.track_id === track!.id).sort((a, b) => a.start_ms - b.start_ms);
+    const existing = useTimelineStore.getState().clips.filter((c) => c.track_id === track!.id).sort((a, b) => a.start_ms - b.start_ms);
     for (const c of existing) if (c.start_ms <= start && c.end_ms > start) start = c.end_ms;
     const clip: TimelineClip = {
       id: crypto.randomUUID(),
@@ -343,13 +345,41 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       transition_out: null,
       transition_out_ms: 0,
       color_grade_id: null,
-      metadata: { text: 'Your text here', style: 'standard', source: 'manual' },
+      metadata: { text, style, source: 'manual' },
       order_index: 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     addClip(clip);
-    selectClip(clip.id);
+    if (select) selectClip(clip.id);
+    return true;
+  };
+
+  const onAddText = async () => {
+    await addText(null, 'Your text here', 'standard', true);
+  };
+
+  /** One tap to a first cut: bring in the storyboard if needed, title it, then let the AI edit it in the chosen style. */
+  const onAutoEdit = async (style: AutoEditStyle): Promise<AgentReply> => {
+    const shotsNow = () => {
+      const s = useTimelineStore.getState();
+      const video = s.tracks.find((t) => t.track_type === 'video');
+      return s.clips.filter((c) => c.track_id === video?.id);
+    };
+    if (shotsNow().length === 0) {
+      await flush();
+      const res = await importStoryboardToTimeline(projectId);
+      if ('error' in res && res.error) return { ok: false, error: res.error };
+      await loadTimeline(`import:${Date.now()}`);
+      if (shotsNow().length === 0) return { ok: false, error: 'Your storyboard has no finished shots yet.' };
+    }
+    const s = useTimelineStore.getState();
+    const name = openingTitle(title);
+    const hasText = s.clips.some((c) => s.tracks.find((t) => t.id === c.track_id)?.track_type === 'caption');
+    if (name && !hasText) await addText(0, name, 'bold_center', false);
+    const music = s.clips.find((c) => s.tracks.find((t) => t.id === c.track_id && t.track_type === 'audio' && !t.muted));
+    const beats = (music?.metadata as { beats?: unknown[] } | undefined)?.beats;
+    return onAgent(autoEditInstruction(style, Array.isArray(beats) && beats.length >= 2));
   };
 
   const onRegenerate = async (clipId: string, options: { durationSec?: number; note?: string }) => {
@@ -406,6 +436,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       onAddText={onAddText}
       onAutoCaptions={onAutoCaptions}
       onRegenerate={onRegenerate}
+      onAutoEdit={onAutoEdit}
       takeStatus={takeStatus}
     />
   );

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, ImagePlus, Keyboard, Loader2, Maximize, Music2, Palette, Pause,
-  Play, Proportions, Redo2, Scissors, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Trash2, Type, Undo2, X, ZoomIn, ZoomOut,
+  Play, Proportions, Redo2, Scissors, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Trash2, Type, Undo2, Wand2, X, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useMediaQuery } from '@/interface/hooks/use-media-query';
@@ -21,6 +21,7 @@ import { TextPanel } from './TextPanel';
 import { ExportSheet } from './ExportSheet';
 import { FormatPanel } from './FormatPanel';
 import { formatFor } from '@/core/services/video-format';
+import type { AutoEditStyle } from '@/core/services/auto-edit';
 import { formatClock } from './labels';
 
 export type RenderState = {
@@ -55,6 +56,8 @@ export interface EditorWorkspaceProps {
   /** Makes a new take of a shot with the generator; absent where generation isn't available. */
   onRegenerate?: (clipId: string, options: { durationSec?: number; note?: string }) => Promise<void>;
   takeStatus?: Record<string, TakeStatus>;
+  /** One-tap first cut in a style. */
+  onAutoEdit?: (style: AutoEditStyle) => Promise<AgentReply>;
 }
 
 type Tab = 'ai' | 'clip' | 'look' | 'format' | 'music' | 'text';
@@ -186,7 +189,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   };
 
   const panel = (id: Tab) => {
-    if (id === 'ai') return <AgentPanel onSend={props.onAgent} />;
+    if (id === 'ai') return <AgentPanel onSend={props.onAgent} onAutoEdit={props.onAutoEdit} hasShots={shots.length > 0} />;
     if (id === 'clip') return <ClipPanel onSyncToBeat={syncToBeat} onRegenerate={props.onRegenerate} takeStatus={props.takeStatus} />;
     if (id === 'look') return <ColorGradePicker selectedId={timeline?.color_grade_id || 'natural'} onSelect={store.setGrade} />;
     if (id === 'format') return <FormatPanel />;
@@ -200,6 +203,14 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
       <button onClick={props.onImport} disabled={props.importing} className="inline-flex items-center gap-2 rounded-xl border border-gold-400/50 px-4 py-2.5 text-sm text-gold-100 hover:bg-gold-500/10 disabled:opacity-50">
         {props.importing ? <Loader2 size={15} className="animate-spin" /> : <ImagePlus size={15} />} Add my storyboard shots
       </button>
+      {props.onAutoEdit && (
+        <button
+          onClick={() => (desktop ? setTab('ai') : setSheet('ai'))}
+          className="mx-auto flex items-center gap-2 text-sm text-[#b0b8c4] hover:text-gold-100"
+        >
+          <Wand2 size={14} /> Or let AI cut it for you
+        </button>
+      )}
     </div>
   );
 
