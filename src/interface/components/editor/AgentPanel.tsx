@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUp, Clapperboard, Loader2, Music2, Sparkles, Sun, Timer, Undo2 } from 'lucide-react';
+import { ArrowUp, Clapperboard, Eye, Loader2, Music2, Sparkles, Sun, Timer, Undo2 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 
 export type AgentReply = { ok: true; summary: string; applied: number; rejected: string[] } | { ok: false; error: string };
@@ -13,6 +13,7 @@ const SUGGESTIONS = [
   { text: 'Cut it to the beat of the music', icon: Music2 },
   { text: 'Give it a warm golden-hour look', icon: Sun },
   { text: 'Tighten it up for a 15-second short', icon: Timer },
+  { text: 'Open on the widest shot and end on a close-up', icon: Eye },
 ];
 
 export function AgentPanel({ onSend }: { onSend: (instruction: string) => Promise<AgentReply> }) {
@@ -51,7 +52,7 @@ export function AgentPanel({ onSend }: { onSend: (instruction: string) => Promis
               </span>
               <p className="mt-3 text-[15px] font-medium text-white">Your AI editor</p>
               <p className="mt-1 text-sm leading-relaxed text-[#d6d0c0]">
-                Say how the video should feel. I&apos;ll trim, reorder, colour and time your shots, and you can undo anything.
+                I can see your shots. Say how the video should feel, or point at a shot by what&apos;s in it. I&apos;ll trim, reorder, colour and time them, and you can undo anything.
               </p>
             </div>
             <p className="px-1 pt-1 text-xs font-medium uppercase tracking-[0.14em] text-[#9aa3ad]">Try</p>

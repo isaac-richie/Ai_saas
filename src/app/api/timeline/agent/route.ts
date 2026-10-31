@@ -15,14 +15,35 @@ import {
   type AgentClip,
 } from '@/core/services/edit-agent';
 import { songBeatsOutputSec } from '@/core/services/timeline-ops';
+import { requireMediaRuntime } from '@/core/utils/security/media-runtime';
+import { describeShot, frameAt, isOwnStorageUrl, mapLimited, shotInfoFromStoryboard, type ShotInfo } from '@/core/services/shot-context';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 const requestSchema = z.object({
   timeline_id: z.string().uuid(),
   instruction: z.string().trim().min(1).max(2000),
 });
+
+const MAX_FRAMES = 16;
+
+/** Mid-shot frames for up to MAX_FRAMES shots; shots outside our storage or slow to read get none. */
+async function shotFrames(clips: { asset_url: string | null; trim_start_ms: number; start_ms: number; end_ms: number }[]) {
+  if (clips.length > MAX_FRAMES) return [];
+  let ffmpeg: string;
+  try {
+    ffmpeg = await requireMediaRuntime();
+  } catch {
+    return [];
+  }
+  const sorted = [...clips].sort((a, b) => a.start_ms - b.start_ms);
+  return mapLimited(sorted, 4, (c) =>
+    isOwnStorageUrl(c.asset_url, process.env.NEXT_PUBLIC_SUPABASE_URL)
+      ? frameAt(ffmpeg, c.asset_url, (c.trim_start_ms + (c.end_ms - c.start_ms) / 2) / 1000)
+      : Promise.resolve(null),
+  );
+}
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -64,10 +85,10 @@ export async function POST(request: Request) {
 
   const { data: rows } = await supabase
     .from('timeline_clips')
-    .select('id, start_ms, end_ms, volume, transition_out, transition_out_ms, metadata, color_grade_id')
+    .select('id, start_ms, end_ms, trim_start_ms, asset_url, volume, transition_out, transition_out_ms, metadata, color_grade_id')
     .eq('track_id', track.id)
     .order('start_ms');
-  const clips = (rows || []) as AgentClip[];
+  const clips = (rows || []) as (AgentClip & { asset_url: string | null; trim_start_ms: number })[];
   if (clips.length === 0) {
     return NextResponse.json({ error: 'Add clips to the timeline before asking the agent.' }, { status: 400 });
   }
@@ -82,6 +103,25 @@ export async function POST(request: Request) {
     .limit(1)
     .maybeSingle();
   const beats = songBeatsOutputSec(music ?? undefined);
+
+  // What each shot shows: saved at import, or looked up from the storyboard for older timelines.
+  const missing = clips.filter((c) => !(c.metadata as { shot?: ShotInfo } | null)?.shot && c.asset_url).map((c) => c.asset_url!);
+  const fromStoryboard = new Map<string, ShotInfo>();
+  if (missing.length) {
+    const { data: items } = await supabase
+      .from('fast_video_storyboard_items')
+      .select('url, subject, prompt, enhanced_prompt')
+      .in('url', missing.slice(0, 100));
+    for (const item of items || []) fromStoryboard.set(item.url, shotInfoFromStoryboard(item));
+  }
+  for (const c of clips) {
+    const info = (c.metadata as { shot?: ShotInfo } | null)?.shot ?? (c.asset_url ? fromStoryboard.get(c.asset_url) : undefined);
+    c.shows = describeShot(info) || undefined;
+    c.scene = info?.scene;
+  }
+
+  // One real frame from the middle of each shot, so the AI sees the footage, not only the prompt.
+  const frames = await shotFrames(clips);
 
   const state = { clips, timeline_grade_id: timeline.color_grade_id || 'natural', beats };
 
@@ -99,7 +139,15 @@ export async function POST(request: Request) {
           content: [{
             type: 'input_text',
             text: JSON.stringify({ request: input.instruction, timeline: describeTimelineForAgent(state) }),
-          }],
+          },
+          ...frames.flatMap((url, i) =>
+            url
+              ? [
+                  { type: 'input_text' as const, text: `Frame from clip ${i + 1}:` },
+                  { type: 'input_image' as const, image_url: url, detail: 'low' as const },
+                ]
+              : [],
+          )],
         }],
         text: { format: zodTextFormat(agentPlanSchema, 'edit_plan') },
       },

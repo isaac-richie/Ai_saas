@@ -40,6 +40,14 @@ export interface RenderContext {
   fetchClip?: (url: string) => Promise<Buffer>;
 }
 
+/** A transition set on the last shot means "end the film this way": a fade out. */
+function endingFade(clip: TimelineClip): { sec: number; color: 'black' | 'white' } | undefined {
+  const t = clip.transition_out;
+  if (!t || t === 'cut' || !TRANSITION_REGISTRY[t as TransitionType]) return undefined;
+  const sec = (clip.transition_out_ms || TRANSITION_REGISTRY[t as TransitionType].default_duration_ms) / 1000;
+  return { sec: Math.max(0.2, Math.min(3, sec)), color: t === 'fade_white' ? 'white' : 'black' };
+}
+
 /** Storage paths for uploads must sit in the user's own folder. */
 export function ownStoragePath(path: unknown, userId: string): string | null {
   if (typeof path !== 'string' || !path.startsWith(`${userId}/`) || path.includes('..') || path.length > 400) return null;
@@ -116,6 +124,7 @@ export async function renderTimeline(ctx: RenderContext): Promise<{ url: string;
         hasAudio: info.hasAudio,
         volume: clip.volume,
         fit,
+        fadeOut: i === clips.length - 1 ? endingFade(clip) : undefined,
       }), { maxBuffer: 16 * 1024 * 1024 });
       normalized.push(outPath);
       durations.push(durationSec);

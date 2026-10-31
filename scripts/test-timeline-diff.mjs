@@ -25,8 +25,14 @@ describe('diffTimeline', () => {
 
   it('ignores fields that are not saved', () => {
     const saved = { clips: [clip('a')], tracks: [] };
-    const current = { clips: [clip('a', 't1', { updated_at: 'later', metadata: { x: 1 } })], tracks: [] };
+    const current = { clips: [clip('a', 't1', { updated_at: 'later' })], tracks: [] };
     assert.ok(isEmptyDiff(diffTimeline(saved, current)));
+  });
+
+  it('saves metadata changes (text, music fades, takes)', () => {
+    const saved = { clips: [clip('a')], tracks: [] };
+    const current = { clips: [clip('a', 't1', { metadata: { x: 1 } })], tracks: [] };
+    assert.deepEqual(diffTimeline(saved, current).clipUpdates, [{ id: 'a', patch: { metadata: { x: 1 } } }]);
   });
 
   it('treats null and undefined as equal', () => {

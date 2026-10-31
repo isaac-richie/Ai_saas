@@ -3,6 +3,8 @@ import type { TimelineClip, TimelineTrack } from '@/core/types/timeline';
 export const SAVED_CLIP_FIELDS = [
   'start_ms', 'end_ms', 'trim_start_ms', 'trim_end_ms', 'volume', 'opacity',
   'transition_in', 'transition_in_ms', 'transition_out', 'transition_out_ms', 'color_grade_id',
+  // Text wording and style, music fades, and a shot's chosen take live here.
+  'metadata', 'asset_url',
 ] as const;
 const SAVED_TRACK_FIELDS = ['muted', 'locked', 'visible'] as const;
 
@@ -21,9 +23,12 @@ export interface TimelineDiff {
   format: { resolution: string; frame_fit: string } | null;
 }
 
+const same = (a: unknown, b: unknown) =>
+  a === b || (typeof a === 'object' && typeof b === 'object' && a !== null && b !== null && JSON.stringify(a) === JSON.stringify(b));
+
 function changed<T extends object, K extends keyof T>(before: T, after: T, keys: readonly K[]) {
   const patch: Partial<T> = {};
-  for (const key of keys) if ((before[key] ?? null) !== (after[key] ?? null)) patch[key] = after[key];
+  for (const key of keys) if (!same(before[key] ?? null, after[key] ?? null)) patch[key] = after[key];
   return patch;
 }
 

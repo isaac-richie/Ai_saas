@@ -25,6 +25,7 @@ import type { TimelineClip, TimelineProject, TimelineTrack } from '@/core/types/
 import { DEFAULT_FRAME_FIT } from '@/core/services/video-format';
 import { EditorWorkspace, type RenderState } from './EditorWorkspace';
 import type { AgentReply } from './AgentPanel';
+import type { TakeStatus } from './ClipPanel';
 
 type Snapshot = { clips: TimelineClip[]; tracks: TimelineTrack[]; grade: string; resolution: string; fit: string };
 const IDLE: RenderState = { status: 'idle', progress: 0, stage: '', url: null, storageKey: null, error: null };
@@ -50,7 +51,7 @@ async function postJson(url: string, body: unknown) {
   }
 }
 
-export function EditorView({ projectId }: { projectId: string }) {
+export function EditorView({ projectId, title }: { projectId: string; title?: string }) {
   const { load, addTrack, addClip, selectClip } = useTimelineStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +66,8 @@ export function EditorView({ projectId }: { projectId: string }) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pollId = useRef(0);
+  const [takeStatus, setTakeStatus] = useState<Record<string, TakeStatus>>({});
+  const takePolls = useRef(new Set<string>());
 
   const current = (): Snapshot => {
     const s = useTimelineStore.getState();
@@ -183,16 +186,57 @@ export function EditorView({ projectId }: { projectId: string }) {
     }
   }, []);
 
+  /** Checks a shot's new take until it is placed or fails; one loop per shot. */
+  const pollTake = useCallback(async (clipId: string) => {
+    if (takePolls.current.has(clipId)) return;
+    takePolls.current.add(clipId);
+    try {
+      for (let attempt = 0; attempt < 400; attempt++) {
+        await new Promise((r) => setTimeout(r, attempt < 3 ? 4000 : 6000));
+        let body: { status?: string; error?: string; message?: string } = {};
+        try {
+          const res = await fetch(`/api/timeline/regenerate?clip_id=${clipId}`, { cache: 'no-store' });
+          body = await res.json().catch(() => ({}));
+          if (res.status === 404) return setTakeStatus((t) => ({ ...t, [clipId]: { state: 'idle' } }));
+          if (!res.ok) continue;
+        } catch {
+          continue; // A dropped connection doesn't end the wait; the take keeps going.
+        }
+        if (body.status === 'completed') {
+          await flush();
+          await loadTimeline(`take:${clipId}:${Date.now()}`);
+          setTakeStatus((t) => ({ ...t, [clipId]: { state: 'idle' } }));
+          setNotice('Your new take is in. The earlier one is kept under Takes.');
+          return;
+        }
+        if (body.status === 'failed' || body.status === 'idle') {
+          setTakeStatus((t) => ({ ...t, [clipId]: body.status === 'failed' ? { state: 'failed', message: body.error || 'The new take could not be made.' } : { state: 'idle' } }));
+          return;
+        }
+        setTakeStatus((t) => ({ ...t, [clipId]: { state: 'working', message: body.message } }));
+      }
+    } finally {
+      takePolls.current.delete(clipId);
+    }
+  }, [flush, loadTimeline]);
+
   useEffect(() => {
     (async () => {
       const timeline = await loadTimeline();
       if (!timeline) return;
+      // Takes still being made when the editor was last closed carry on here.
+      for (const c of useTimelineStore.getState().clips) {
+        if ((c.metadata as { pending_take?: unknown } | null)?.pending_take) {
+          setTakeStatus((t) => ({ ...t, [c.id]: { state: 'working' } }));
+          void pollTake(c.id);
+        }
+      }
       const { job } = await getLatestRenderJob(timeline.id);
       if (!job) return;
       setRender({ status: job.status, progress: job.progress, stage: job.stage, url: job.output_url, storageKey: job.storage_key, error: job.error_message });
       if (job.status === 'queued' || job.status === 'rendering') void pollRender(job.id);
     })();
-  }, [loadTimeline, pollRender]);
+  }, [loadTimeline, pollRender, pollTake]);
 
   useEffect(() => {
     if (!notice) return;
@@ -308,6 +352,22 @@ export function EditorView({ projectId }: { projectId: string }) {
     selectClip(clip.id);
   };
 
+  const onRegenerate = async (clipId: string, options: { durationSec?: number; note?: string }) => {
+    await flush();
+    setTakeStatus((t) => ({ ...t, [clipId]: { state: 'working', message: 'Sending to the studio…' } }));
+    const { ok, data } = await postJson('/api/timeline/regenerate', { clip_id: clipId, duration_sec: options.durationSec, note: options.note || undefined });
+    if (!ok) {
+      setTakeStatus((t) => ({ ...t, [clipId]: { state: 'failed', message: data.error || 'Could not start a new take.' } }));
+      return;
+    }
+    if (data.status === 'completed') {
+      await loadTimeline(`take:${clipId}:${Date.now()}`);
+      setTakeStatus((t) => ({ ...t, [clipId]: { state: 'idle' } }));
+      return;
+    }
+    void pollTake(clipId);
+  };
+
   const onAutoCaptions = async (): Promise<string | null> => {
     if (!render.storageKey) return 'Make your video first.';
     await flush();
@@ -328,6 +388,7 @@ export function EditorView({ projectId }: { projectId: string }) {
   return (
     <EditorWorkspace
       backHref="/dashboard/fast-video"
+      title={title}
       saving={saving}
       saveFailed={saveFailed}
       error={error}
@@ -344,6 +405,8 @@ export function EditorView({ projectId }: { projectId: string }) {
       onUploadMusic={onUploadMusic}
       onAddText={onAddText}
       onAutoCaptions={onAutoCaptions}
+      onRegenerate={onRegenerate}
+      takeStatus={takeStatus}
     />
   );
 }

@@ -11,7 +11,9 @@ const PROFILE_IDS = Object.keys(PACING_PROFILES) as [string, ...string[]];
 export const MIN_CLIP_MS = 300;
 
 // Clips are referenced by 1-based position on the video track so the model never handles raw ids.
-export const editCommandSchema = z.discriminatedUnion('type', [
+// A plain union, not discriminatedUnion: that becomes JSON Schema `oneOf`, which OpenAI's
+// structured outputs reject outright; a union becomes `anyOf`, which it accepts.
+export const editCommandSchema = z.union([
   z.object({ type: z.literal('trim_clip'), clip: z.number().int(), duration_sec: z.number() }),
   z.object({ type: z.literal('remove_clip'), clip: z.number().int() }),
   z.object({ type: z.literal('move_clip'), clip: z.number().int(), to_position: z.number().int() }),
@@ -38,7 +40,12 @@ export type AgentPlan = z.infer<typeof agentPlanSchema>;
 export type AgentClip = Pick<
   TimelineClip,
   'id' | 'start_ms' | 'end_ms' | 'volume' | 'transition_out' | 'transition_out_ms' | 'metadata'
-> & { color_grade_id?: string | null };
+> & {
+  color_grade_id?: string | null;
+  /** What the shot shows, from its storyboard prompt. */
+  shows?: string;
+  scene?: string;
+};
 
 export interface AgentState {
   clips: AgentClip[];
@@ -247,6 +254,8 @@ export function describeTimelineForAgent(state: AgentState) {
         transition_out: clip.transition_out || 'cut',
         volume: clip.volume,
         color_grade: clip.color_grade_id || null,
+        ...(clip.shows ? { shows: clip.shows } : {}),
+        ...(clip.scene ? { scene: clip.scene } : {}),
       })),
   };
 }
@@ -255,6 +264,7 @@ export const AGENT_INSTRUCTIONS = [
   'You are the VisioWave edit agent, a senior film editor. You turn a creator\'s plain-language request into precise timeline edit commands.',
   'Clips are numbered by their current position on the video track, starting at 1. Always use those numbers as they appear in the timeline you are given, even after earlier commands in your plan.',
   'Clips cannot be made longer than max_duration_sec. Prefer the fewest commands that achieve the request.',
+  'Each clip may say what it shows and which scene it belongs to, and you may also see one still frame per clip, labelled with its number. Use them to find the shots the creator describes by content ("the close-up", "the sunset shot", "where she turns") and to judge order, emotion and continuity. Trust the frame over the description when they disagree. If no clip matches what the creator describes, change nothing and say so.',
   'Editing judgement follows Walter Murch\'s rule of six: emotion first, then story, rhythm, eye trace, screen direction and spatial continuity.',
   `Transitions: ${Object.entries(TRANSITION_REGISTRY).map(([id, s]) => `${id} (${s.description})`).join('; ')}.`,
   `Color grades: ${BUILT_IN_GRADES.map((g) => `${g.id} (${g.description})`).join('; ')}. Use clip null to grade the whole timeline.`,

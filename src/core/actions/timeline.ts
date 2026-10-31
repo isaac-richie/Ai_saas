@@ -2,7 +2,9 @@
 
 import { createClient } from '@/infrastructure/supabase/server';
 import type { TimelineProject, TimelineTrack, TimelineClip } from '@/core/types/timeline';
-import { isFormatResolution, isFrameFit } from '@/core/services/video-format';
+import { shotInfoFromStoryboard } from '@/core/services/shot-context';
+import { validClipValue } from '@/core/services/clip-validation';
+import { VIDEO_FORMATS, isFormatResolution, isFrameFit } from '@/core/services/video-format';
 
 export async function getOrCreateTimeline(projectId: string) {
   const supabase = await createClient();
@@ -20,9 +22,12 @@ export async function getOrCreateTimeline(projectId: string) {
   const existing = await findExisting();
   if (existing) return { timeline: existing };
 
+  // A new edit starts in the project's own shape (a vertical storyboard makes a vertical video).
+  const { data: project } = await supabase.from('projects').select('aspect_ratio').eq('id', projectId).maybeSingle();
+  const format = VIDEO_FORMATS.find((f) => f.ratio === project?.aspect_ratio);
   const { data: created, error } = await supabase
     .from('timeline_projects')
-    .insert({ project_id: projectId })
+    .insert({ project_id: projectId, ...(format ? { resolution: format.resolution } : {}) })
     .select()
     .single();
 
@@ -96,13 +101,18 @@ export async function addClipToTrack(clip: {
 const CLIP_PATCH_KEYS = [
   'start_ms', 'end_ms', 'trim_start_ms', 'trim_end_ms', 'volume', 'opacity',
   'transition_in', 'transition_in_ms', 'transition_out', 'transition_out_ms', 'color_grade_id',
+  'metadata', 'asset_url',
 ] as const;
 type ClipPatch = Partial<Pick<TimelineClip, (typeof CLIP_PATCH_KEYS)[number]>>;
 
 export async function updateTimelineClip(clipId: string, patch: ClipPatch) {
   // Server actions are callable with any payload, so only known editable columns are written.
   const safe: Record<string, unknown> = {};
-  for (const key of CLIP_PATCH_KEYS) if (key in patch) safe[key] = patch[key];
+  for (const key of CLIP_PATCH_KEYS) {
+    if (!(key in patch)) continue;
+    if (!validClipValue(key, patch[key])) return { error: 'That change could not be saved.' };
+    safe[key] = patch[key];
+  }
   if (Object.keys(safe).length === 0) return { success: true };
   const supabase = await createClient();
   const { error } = await supabase
@@ -124,11 +134,16 @@ const INSERT_CLIP_KEYS = [
 export async function upsertTimelineClips(clips: TimelineClip[]) {
   if (!Array.isArray(clips) || clips.length === 0) return { success: true };
   if (clips.length > 200) return { error: 'Too many clips' };
-  const rows = clips.map((clip) => {
+  const rows = [];
+  for (const clip of clips) {
     const row: Record<string, unknown> = {};
-    for (const key of INSERT_CLIP_KEYS) if (key in clip) row[key] = clip[key];
-    return row;
-  });
+    for (const key of INSERT_CLIP_KEYS) {
+      if (!(key in clip)) continue;
+      if (!validClipValue(key, clip[key])) return { error: 'That change could not be saved.' };
+      row[key] = clip[key];
+    }
+    rows.push(row);
+  }
   const supabase = await createClient();
   const { error } = await supabase.from('timeline_clips').upsert(rows, { onConflict: 'id' });
   if (error) return { error: error.message };
@@ -225,18 +240,35 @@ export async function importStoryboardToTimeline(projectId: string) {
 
   const { data: items } = await supabase
     .from('fast_video_storyboard_items')
-    .select('url, duration_seconds, order_index, scene_id')
+    .select('id, url, duration_seconds, order_index, scene_id, subject, prompt, enhanced_prompt')
     .eq('project_id', projectId)
     .eq('status', 'ready')
     .order('order_index');
 
   if (!items?.length) return { error: 'No ready storyboard clips to import yet.' };
 
+  // A project can hold several scenes: keep each scene together, in story order.
+  const { data: scenes } = await supabase.from('scenes').select('id, name, sequence_order, created_at').eq('project_id', projectId);
+  const sceneRank = new Map(
+    (scenes || [])
+      .sort((a, b) => a.sequence_order - b.sequence_order || a.created_at.localeCompare(b.created_at))
+      .map((sc, i) => [sc.id, i]),
+  );
+  const sceneName = new Map((scenes || []).map((sc) => [sc.id, sc.name as string]));
+  items.sort((a, b) => (sceneRank.get(a.scene_id) ?? 1e6) - (sceneRank.get(b.scene_id) ?? 1e6) || a.order_index - b.order_index);
+
   const { data: existing } = await supabase
     .from('timeline_clips')
-    .select('asset_url, end_ms')
+    .select('asset_url, end_ms, metadata')
     .eq('track_id', videoTrack.id);
-  const onTrack = new Set((existing || []).map((c) => c.asset_url).filter(Boolean));
+  // A shot counts as already here by its link, its storyboard id, or any of its earlier takes.
+  const onTrack = new Set<string>();
+  for (const c of existing || []) {
+    const meta = (c.metadata || {}) as { storyboard_item_id?: unknown; takes?: unknown };
+    if (c.asset_url) onTrack.add(c.asset_url);
+    if (typeof meta.storyboard_item_id === 'string') onTrack.add(`id:${meta.storyboard_item_id}`);
+    if (Array.isArray(meta.takes)) for (const t of meta.takes) if (t && typeof t.url === 'string') onTrack.add(t.url);
+  }
   let cursor_ms = Math.max(0, ...(existing || []).map((c) => c.end_ms));
 
   const clips: Array<{
@@ -250,7 +282,7 @@ export async function importStoryboardToTimeline(projectId: string) {
 
   for (const item of items) {
     // Re-importing only adds storyboard clips that are not on the timeline yet.
-    if (!item.url || onTrack.has(item.url)) continue;
+    if (!item.url || onTrack.has(item.url) || onTrack.has(`id:${item.id}`)) continue;
     onTrack.add(item.url);
     const dur = Math.max(1, item.duration_seconds || 5) * 1000;
     clips.push({
@@ -259,7 +291,8 @@ export async function importStoryboardToTimeline(projectId: string) {
       clip_type: 'video',
       start_ms: cursor_ms,
       end_ms: cursor_ms + dur,
-      metadata: { source_duration_ms: dur },
+      // What the shot shows, so the AI editor can find shots by their content.
+      metadata: { source_duration_ms: dur, storyboard_item_id: item.id, shot: shotInfoFromStoryboard(item, sceneName.get(item.scene_id)) },
     });
     cursor_ms += dur;
   }
