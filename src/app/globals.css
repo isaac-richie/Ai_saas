@@ -535,6 +535,29 @@
   }
 }
 
+/* Editor: the shot name on the preview shows, then fades. */
+@keyframes stage-badge {
+  0%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Editor: bottom sheets rise into place on phones. */
+@keyframes sheet-rise {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 @keyframes auroraShift {
   0% {
     transform: translate3d(-10%, -6%, 0) scale(1);

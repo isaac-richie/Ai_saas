@@ -15,6 +15,7 @@ const ECONOMY_ROLES = new Set([
   "keyframe-inspection",
   "reference-classifier",
   "shot-enhancer",
+  "reframe-tracker",
 ])
 
 const BALANCED_ROLES = new Set([
@@ -23,6 +24,7 @@ const BALANCED_ROLES = new Set([
   "shot-editor",
   "continuity-reviewer",
   "take-correction",
+  "timeline-editor",
 ])
 
 export function productionModelTier(role: string): ProductionModelTier {

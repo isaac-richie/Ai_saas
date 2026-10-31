@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
     "/api/takes/*/inspect": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/ad/production-crew": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/production/worker": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/timeline/render": ["./node_modules/ffmpeg-static/ffmpeg", "./assets/fonts/**"],
+    "/api/timeline/reframe": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/timeline/music": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/timeline/captions": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
   images: {
     remotePatterns: [

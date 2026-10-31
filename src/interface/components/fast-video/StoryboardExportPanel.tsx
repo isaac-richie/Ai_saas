@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { Button } from "@/interface/components/ui/button"
-import { Film, Loader2 } from "lucide-react"
+import { Film, Loader2, Wand2 } from "lucide-react"
 import { toast } from "sonner"
 import { approvedForRender, type ShotReview } from "./storyboard-continuity"
 import { queueGalleryExport, type ExportProfile } from "@/core/actions/exports"
@@ -24,7 +25,7 @@ const PROFILES: { id: ExportProfile; label: string }[] = [
   { id: "square_1_1", label: "1:1 Square" },
 ]
 
-export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanelProps) {
+export function StoryboardExportPanel({ storyboardItems, projectId }: StoryboardExportPanelProps) {
   const [selectedProfile, setSelectedProfile] = useState<ExportProfile>("master_16_9")
   const [isExporting, setIsExporting] = useState(false)
 
@@ -75,6 +76,22 @@ export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanel
   if (storyboardItems.length === 0) return null
 
   return (
+    <div className="space-y-3">
+    {projectId && (
+      <Link
+        href={`/dashboard/editor?project=${encodeURIComponent(projectId)}`}
+        className="lux-glass group flex items-center gap-3.5 rounded-3xl p-4 transition-colors hover:border-gold-300/40"
+      >
+        <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[#1a160e]">
+          <Wand2 className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-medium text-white">Edit video</span>
+          <span className="block text-[13px] text-[#b0b8c4]">Add music, text and a look, trim your shots, or let AI edit it for you.</span>
+        </span>
+        <span aria-hidden className="text-gold-200 transition-transform group-hover:translate-x-0.5">→</span>
+      </Link>
+    )}
     <div className="rounded-3xl border border-line bg-gradient-to-b from-white/[0.035] to-black/30 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -110,6 +127,7 @@ export function StoryboardExportPanel({ storyboardItems }: StoryboardExportPanel
         {isExporting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Film className="mr-1.5 h-3.5 w-3.5" />}
         {isExporting ? "Queuing…" : "Render approved shots"}
       </Button>
+    </div>
     </div>
   )
 }
