@@ -7,6 +7,7 @@ import {
   addTimelineTrack,
   getLatestRenderJob,
   getOrCreateTimeline,
+  getStoryboardUpdates,
   getTimelineClips,
   getTimelineTracks,
   importStoryboardToTimeline,
@@ -23,6 +24,7 @@ import { diffTimeline, isEmptyDiff } from '@/interface/lib/timeline-diff';
 import { timelineToOutputMs } from '@/core/services/timeline-ops';
 import type { TimelineClip, TimelineProject, TimelineTrack } from '@/core/types/timeline';
 import { DEFAULT_FRAME_FIT } from '@/core/services/video-format';
+import { listTimelineRevisions, restoreTimelineRevision } from '@/core/actions/timeline-revisions';
 import { createReviewLink, listReviewLinks, setReviewNoteResolved, turnOffReviewLink, type OwnerShare } from '@/core/actions/video-review';
 import { autoEditInstruction, openingTitle, type AutoEditStyle } from '@/core/services/auto-edit';
 import { EditorWorkspace, type RenderState } from './EditorWorkspace';
@@ -227,6 +229,10 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     (async () => {
       const timeline = await loadTimeline();
       if (!timeline) return;
+      // Shots regenerated in Create since they were brought in are flagged, never swapped.
+      void getStoryboardUpdates(timeline.id)
+        .then(({ updates }) => useTimelineStore.getState().setStoryboardUpdates(Object.fromEntries(updates.map((u) => [u.clip_id, { url: u.url, duration_ms: u.duration_ms }]))))
+        .catch(() => {});
       // Takes still being made when the editor was last closed carry on here.
       for (const c of useTimelineStore.getState().clips) {
         if ((c.metadata as { pending_take?: unknown } | null)?.pending_take) {
@@ -312,7 +318,15 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     const { ok, data } = await postJson('/api/timeline/agent', { timeline_id: timelineId(), instruction });
     if (!ok) return { ok: false, error: data.error || 'Something went wrong.' };
     if (data.applied > 0) await loadTimeline(`agent:${Date.now()}`);
-    return { ok: true, summary: data.summary, applied: data.applied, rejected: data.rejected || [] };
+    return {
+      ok: true,
+      summary: data.summary,
+      applied: data.applied,
+      rejected: data.rejected || [],
+      changes: data.changes || [],
+      revisionId: data.revision_id ?? null,
+      newShots: data.new_shots || [],
+    };
   };
 
   const onRender = async () => {
@@ -405,8 +419,8 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     await addText(null, 'Your text here', 'standard', true);
   };
 
-  /** One tap to a first cut: bring in the storyboard if needed, title it, then let the AI edit it in the chosen style. */
-  const onAutoEdit = async (style: AutoEditStyle): Promise<AgentReply> => {
+  /** One tap to a first cut: bring in the storyboard if needed, title it only if asked, then let the AI edit it in the chosen style. */
+  const onAutoEdit = async (style: AutoEditStyle, options: { title: boolean }): Promise<AgentReply> => {
     const shotsNow = () => {
       const s = useTimelineStore.getState();
       const video = s.tracks.find((t) => t.track_type === 'video');
@@ -422,7 +436,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     const s = useTimelineStore.getState();
     const name = openingTitle(title);
     const hasText = s.clips.some((c) => s.tracks.find((t) => t.id === c.track_id)?.track_type === 'caption');
-    if (name && !hasText) await addText(0, name, 'bold_center', false);
+    if (options.title && name && !hasText) await addText(0, name, 'bold_center', false);
     const music = s.clips.find((c) => s.tracks.find((t) => t.id === c.track_id && t.track_type === 'audio' && !t.muted));
     const beats = (music?.metadata as { beats?: unknown[] } | undefined)?.beats;
     return onAgent(autoEditInstruction(style, Array.isArray(beats) && beats.length >= 2));
@@ -442,6 +456,24 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       return;
     }
     void pollTake(clipId);
+  };
+
+  const onListVersions = async () => {
+    const id = timelineId();
+    return id ? (await listTimelineRevisions(id)).revisions : [];
+  };
+
+  /** Puts a saved version back; the current cut is saved as a version first. */
+  const onRestoreVersion = async (revisionId: string): Promise<boolean> => {
+    await flush();
+    const res = await restoreTimelineRevision(revisionId);
+    if ('error' in res) {
+      setError(res.error);
+      return false;
+    }
+    await loadTimeline(`restore:${Date.now()}`);
+    setNotice('Restored that version. Your previous cut was saved under Versions.');
+    return true;
   };
 
   const onAutoCaptions = async (): Promise<string | null> => {
@@ -483,6 +515,8 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       onAutoCaptions={onAutoCaptions}
       onRegenerate={onRegenerate}
       onAutoEdit={onAutoEdit}
+      onListVersions={onListVersions}
+      onRestoreVersion={onRestoreVersion}
       reviews={reviews}
       onShareForReview={onShareForReview}
       onResolveNote={onResolveNote}

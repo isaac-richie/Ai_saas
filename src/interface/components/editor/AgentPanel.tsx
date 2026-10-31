@@ -1,13 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUp, Eye, Loader2, Music2, Sparkles, Sun, Timer, Undo2, Wand2 } from 'lucide-react';
+import { ArrowUp, Check, Eye, History, Loader2, Music2, RefreshCw, Sparkles, Sun, Timer, Undo2, Wand2 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { AUTO_EDIT_STYLES, type AutoEditStyle } from '@/core/services/auto-edit';
 
-export type AgentReply = { ok: true; summary: string; applied: number; rejected: string[] } | { ok: false; error: string };
-/** `undoAt` is the undo-history length right after the AI's edit; Undo is offered while nothing has happened since. */
-type Message = { role: 'user' | 'agent'; text: string; tone?: 'error' | 'warning'; undoAt?: number };
+export type NewShotNeed = { clip_id: string | null; position: number | null; what: string };
+export type AgentReply =
+  | { ok: true; summary: string; applied: number; rejected: string[]; changes?: string[]; revisionId?: string | null; newShots?: NewShotNeed[] }
+  | { ok: false; error: string };
+/**
+ * `undoAt` is the undo-history length right after the AI's edit: Keep / Undo are offered while
+ * nothing has happened since. After that, the saved version (`revisionId`) can still be restored.
+ */
+type Message = {
+  role: 'user' | 'agent';
+  text: string;
+  tone?: 'error' | 'warning';
+  undoAt?: number;
+  changes?: string[];
+  revisionId?: string | null;
+  reviewed?: 'kept' | 'undone' | 'restored';
+  newShots?: NewShotNeed[];
+  started?: string[];
+};
 
 const SUGGESTIONS = [
   { text: 'Cut it to the beat of the music', icon: Music2 },
@@ -16,9 +32,12 @@ const SUGGESTIONS = [
   { text: 'Open on the widest shot and end on a close-up', icon: Eye },
 ];
 
-export function AgentPanel({ onSend, onAutoEdit, hasShots = true }: {
+export function AgentPanel({ onSend, onAutoEdit, onNewTake, onRestoreVersion, hasShots = true }: {
   onSend: (instruction: string) => Promise<AgentReply>;
-  onAutoEdit?: (style: AutoEditStyle) => Promise<AgentReply>;
+  onAutoEdit?: (style: AutoEditStyle, options: { title: boolean }) => Promise<AgentReply>;
+  /** Starts a new take of a shot; only after the creator taps, since it costs a generation. */
+  onNewTake?: (clipId: string, note: string) => void;
+  onRestoreVersion?: (revisionId: string) => Promise<boolean>;
   hasShots?: boolean;
 }) {
   const historyLength = useTimelineStore((s) => s.history.past.length);
@@ -28,6 +47,11 @@ export function AgentPanel({ onSend, onAutoEdit, hasShots = true }: {
   const [busy, setBusy] = useState(false);
 
   const [style, setStyle] = useState<AutoEditStyle>('trailer');
+  // No on-screen text unless the creator asks for it.
+  const [withTitle, setWithTitle] = useState(false);
+
+  const review = (index: number, outcome: NonNullable<Message['reviewed']>) =>
+    setMessages((all) => all.map((m, k) => (k === index ? { ...m, reviewed: outcome } : m)));
 
   async function send(text: string, auto?: AutoEditStyle) {
     const instruction = text.trim();
@@ -35,14 +59,21 @@ export function AgentPanel({ onSend, onAutoEdit, hasShots = true }: {
     setDraft('');
     setBusy(true);
     setMessages((m) => [...m, { role: 'user', text: instruction }]);
-    const reply = auto && onAutoEdit ? await onAutoEdit(auto) : await onSend(instruction);
+    const reply = auto && onAutoEdit ? await onAutoEdit(auto, { title: withTitle }) : await onSend(instruction);
     setBusy(false);
     if (!reply.ok) {
       setMessages((m) => [...m, { role: 'agent', text: reply.error, tone: 'error' }]);
       return;
     }
     const undoAt = reply.applied > 0 ? useTimelineStore.getState().history.past.length : undefined;
-    const next: Message[] = [{ role: 'agent', text: reply.summary || 'Done.', undoAt }];
+    const next: Message[] = [{
+      role: 'agent',
+      text: reply.summary || 'Done.',
+      undoAt,
+      changes: reply.applied > 0 ? reply.changes : undefined,
+      revisionId: reply.revisionId,
+      newShots: reply.newShots?.length ? reply.newShots : undefined,
+    }];
     if (reply.rejected.length) next.push({ role: 'agent', text: `I skipped: ${reply.rejected.join('; ')}`, tone: 'warning' });
     setMessages((m) => [...m, ...next]);
   }
@@ -84,6 +115,10 @@ export function AgentPanel({ onSend, onAutoEdit, hasShots = true }: {
                     </button>
                   ))}
                 </div>
+                <label className="flex items-center gap-2 text-sm text-[#b0b8c4]">
+                  <input type="checkbox" checked={withTitle} onChange={(e) => setWithTitle(e.target.checked)} className="accent-[#d9c08a]" />
+                  Add the project name as an opening title
+                </label>
                 <button
                   onClick={() => send(`Edit it for me: ${AUTO_EDIT_STYLES.find((s) => s.id === style)!.label}`, style)}
                   disabled={busy}
@@ -123,11 +158,73 @@ export function AgentPanel({ onSend, onAutoEdit, hasShots = true }: {
             }`}
           >
             {m.text}
-            {m.undoAt !== undefined && m.undoAt === historyLength && (
-              <button onClick={undo} className="mt-2 flex items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-[#e8e2d2] hover:bg-white/5">
-                <Undo2 size={13} /> Undo this edit
+            {m.changes && m.changes.length > 0 && (
+              <ul className="mt-2 space-y-1 border-t border-white/10 pt-2 text-[13px] text-[#d6d0c0]">
+                {m.changes.map((c, j) => (
+                  <li key={j} className="flex gap-2"><span className="text-gold-300">·</span>{c}</li>
+                ))}
+                <li className="pt-1 text-xs text-[#9aa3ad]">Uses your existing footage. No new generation.</li>
+              </ul>
+            )}
+            {m.undoAt !== undefined && !m.reviewed && m.undoAt === historyLength && (
+              <div className="mt-2.5 flex gap-2">
+                <button onClick={() => review(i, 'kept')} className="flex items-center gap-1.5 rounded-lg bg-gold-200 px-3 py-1.5 text-xs font-semibold text-[#1a160e]">
+                  <Check size={13} /> Keep
+                </button>
+                <button
+                  onClick={() => {
+                    undo();
+                    review(i, 'undone');
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-[#e8e2d2] hover:bg-white/5"
+                >
+                  <Undo2 size={13} /> Undo
+                </button>
+              </div>
+            )}
+            {m.undoAt !== undefined && !m.reviewed && m.undoAt !== historyLength && m.revisionId && onRestoreVersion && (
+              <button
+                onClick={async () => {
+                  if (await onRestoreVersion(m.revisionId!)) review(i, 'restored');
+                }}
+                className="mt-2 flex items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-[#e8e2d2] hover:bg-white/5"
+              >
+                <History size={13} /> Go back to before this edit
               </button>
             )}
+            {m.reviewed && (
+              <p className="mt-2 text-xs text-[#9aa3ad]">
+                {m.reviewed === 'kept' ? 'Kept.' : m.reviewed === 'undone' ? 'Undone.' : 'Restored the version from before this edit.'}
+              </p>
+            )}
+            {m.newShots?.map((n, j) => (
+              <div key={j} className="mt-2.5 rounded-xl border border-gold-400/30 bg-gold-500/10 p-3">
+                <p className="text-[13px] text-gold-50">
+                  {n.clip_id ? `This needs a new take of shot ${n.position}: ` : 'This needs a brand-new shot: '}
+                  <span className="text-white">{n.what}</span>
+                </p>
+                {n.clip_id && onNewTake ? (
+                  m.started?.includes(n.clip_id) ? (
+                    <p className="mt-1.5 text-xs text-[#b0b8c4]">Making it now. It drops in when ready; the old take is kept.</p>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-xs text-[#b0b8c4]">Uses one generation from your allowance. Nothing starts until you tap.</p>
+                      <button
+                        onClick={() => {
+                          onNewTake(n.clip_id!, n.what);
+                          setMessages((all) => all.map((x, k) => (k === i ? { ...x, started: [...(x.started || []), n.clip_id!] } : x)));
+                        }}
+                        className="mt-2 flex items-center gap-1.5 rounded-lg bg-gold-200 px-3 py-1.5 text-xs font-semibold text-[#1a160e]"
+                      >
+                        <RefreshCw size={13} /> Make new take
+                      </button>
+                    </>
+                  )
+                ) : (
+                  <p className="mt-1 text-xs text-[#b0b8c4]">Add it to your storyboard and generate it, then bring it in with the + at the end of your shots.</p>
+                )}
+              </div>
+            ))}
           </div>
         ))}
         {busy && (

@@ -7,8 +7,11 @@ import { checkRateLimit } from '@/core/utils/security/rate-limit';
 import { readBoundedBody } from '@/core/utils/security/bounded-body';
 import { resolveProductionModel } from '@/core/config/production-model-routing';
 import { BETA_LOCKED_MESSAGE, hasBetaAccess } from '@/core/services/beta-access';
+import { saveRevision } from '@/core/services/timeline-revisions';
+import { getGradeById } from '@/core/services/color-grading';
 import {
   AGENT_INSTRUCTIONS,
+  describeCommand,
   agentPlanSchema,
   applyEditCommands,
   describeTimelineForAgent,
@@ -160,6 +163,12 @@ export async function POST(request: Request) {
   }
 
   const outcome = applyEditCommands(state, plan.commands);
+
+  // A saved version before the AI changes anything, so it can be restored later. Best effort:
+  // if versions aren't set up, the edit still goes ahead (undo in the editor still works).
+  const revisionId = outcome.applied.length
+    ? await saveRevision(supabase, { userId: user.id, timelineId: timeline.id, trackId: track.id, label: `Before the AI: "${input.instruction.slice(0, 120)}"` }).catch(() => null)
+    : null;
   const now = new Date().toISOString();
   const before = new Map(clips.map((c) => [c.id, c]));
 
@@ -218,6 +227,14 @@ export async function POST(request: Request) {
       summary: plan.summary,
       applied: outcome.applied.length,
       rejected: outcome.rejected.map((r) => r.reason),
+      changes: outcome.applied.map((c) => describeCommand(c, (id) => getGradeById(id)?.name ?? id)),
+      revision_id: revisionId,
+      // Footage the request needs that no shot has; nothing is generated until the creator says so.
+      new_shots: (plan.new_shots || []).slice(0, 3).map((n) => {
+        const ordered = [...clips].sort((a, b) => a.start_ms - b.start_ms);
+        const target = n.clip !== null && n.clip >= 1 && n.clip <= ordered.length ? ordered[n.clip - 1] : null;
+        return { clip_id: target?.id ?? null, position: target ? n.clip : null, what: n.what.slice(0, 200) };
+      }),
     },
     { headers: { 'Cache-Control': 'no-store' } },
   );

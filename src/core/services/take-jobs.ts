@@ -56,6 +56,7 @@ export async function startTake(
   if (track.track_type !== 'video') return { status: 400, body: { error: 'Only shots can be made again.' } };
   if (track.locked) return { status: 409, body: { error: 'Your shots are locked. Unlock them first.' } };
   const meta = clip.metadata || {};
+  if (meta.locked === true) return { status: 409, body: { error: 'This shot is approved and locked. Unlock it to make a new take.' } };
   if (!isPendingStale(meta.pending_take as PendingTake | undefined)) {
     return { status: 409, body: { error: 'A new take of this shot is already being made.' } };
   }

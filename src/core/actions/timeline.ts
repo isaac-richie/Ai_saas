@@ -321,3 +321,32 @@ export async function getLatestRenderJob(timelineId: string) {
     .maybeSingle();
   return { job: data };
 }
+
+/**
+ * Shots whose storyboard has a newer version than the one on the timeline (regenerated in Create
+ * after it was brought in). Nothing is swapped: the editor asks the creator.
+ */
+export async function getStoryboardUpdates(timelineId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(timelineId)) return { updates: [] as { clip_id: string; url: string; duration_ms: number }[] };
+  const supabase = await createClient();
+  const { data: tracks } = await supabase.from('timeline_tracks').select('id').eq('timeline_id', timelineId).eq('track_type', 'video');
+  if (!tracks?.length) return { updates: [] };
+  const { data: clips } = await supabase.from('timeline_clips').select('id, asset_url, metadata').in('track_id', tracks.map((t) => t.id));
+  const linked = (clips || []).filter((c) => typeof (c.metadata as { storyboard_item_id?: unknown } | null)?.storyboard_item_id === 'string');
+  if (!linked.length) return { updates: [] };
+  const ids = [...new Set(linked.map((c) => (c.metadata as { storyboard_item_id: string }).storyboard_item_id))];
+  const { data: items } = await supabase
+    .from('fast_video_storyboard_items')
+    .select('id, url, duration_seconds, status')
+    .in('id', ids.slice(0, 200));
+  const byId = new Map((items || []).filter((i) => i.status === 'ready' && i.url).map((i) => [i.id, i]));
+  const updates = [];
+  for (const c of linked) {
+    const meta = (c.metadata || {}) as { storyboard_item_id: string; takes?: { url?: string }[]; ignored_storyboard_url?: string };
+    const item = byId.get(meta.storyboard_item_id);
+    if (!item) continue;
+    const known = new Set([c.asset_url, meta.ignored_storyboard_url, ...(Array.isArray(meta.takes) ? meta.takes.map((t) => t?.url) : [])]);
+    if (!known.has(item.url)) updates.push({ clip_id: c.id, url: item.url as string, duration_ms: Math.max(1, item.duration_seconds || 5) * 1000 });
+  }
+  return { updates };
+}

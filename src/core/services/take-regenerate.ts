@@ -101,10 +101,17 @@ export function applyTake<C extends { asset_url: string | null; start_ms: number
     });
   }
   delete meta.pending_take;
+  delete meta.review_note;
   // A slowed or sped-up shot plays its new footage at the same speed.
   const speed = Number(meta.speed) > 0 ? Math.max(0.25, Math.min(4, Number(meta.speed))) : 1;
   const fullLength = take.source_duration_ms / speed;
   const length = options.keepLength ? Math.min(clip.end_ms - clip.start_ms, fullLength) : fullLength;
+  // A shorter take quietly shortens the cut; flag it so the creator checks the timing.
+  const before = clip.end_ms - clip.start_ms;
+  const after = Math.round(Math.max(300, length));
+  if (options.keepLength && after < before - 50) {
+    meta.review_note = `The new take is shorter, so this shot is now ${(after / 1000).toFixed(1)}s instead of ${(before / 1000).toFixed(1)}s. Check the timing around it.`;
+  }
   return {
     ...clip,
     asset_url: take.url,

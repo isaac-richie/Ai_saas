@@ -3,6 +3,7 @@ import type { TimelineProject, TimelineTrack, TimelineClip, TransitionType } fro
 import { reorderClip, removeAndRipple, setClipSpeed, splitClip } from '@/core/services/timeline-ops';
 import { emptyHistory, record, undo, redo, type History } from '@/interface/lib/history';
 import { DEFAULT_FRAME_FIT } from '@/core/services/video-format';
+import { isClipLocked } from '@/core/services/edit-agent';
 
 export interface TimelineSnapshot {
   clips: TimelineClip[];
@@ -22,6 +23,9 @@ interface TimelineStore {
   selected_clip_id: string | null;
   is_playing: boolean;
   history: History<TimelineSnapshot>;
+  /** Shots whose storyboard has a newer version, keyed by clip id. Not part of undo. */
+  storyboardUpdates: Record<string, { url: string; duration_ms: number }>;
+  setStoryboardUpdates: (u: Record<string, { url: string; duration_ms: number }>) => void;
 
   /** Replaces everything with server data. Pass `recordAs` to make the previous state undoable. */
   load: (data: { timeline: TimelineProject; tracks: TimelineTrack[]; clips: TimelineClip[] }, recordAs?: string) => void;
@@ -37,6 +41,8 @@ interface TimelineStore {
   setGrade: (gradeId: string) => void;
   /** Slow motion or fast motion for one shot; the shots after it move to fit. */
   setSpeed: (id: string, speed: number) => void;
+  /** Approves and locks a shot (or unlocks it); locked shots can't be changed by hand or by the AI. */
+  toggleClipLock: (id: string) => void;
   /** Changes the frame shape and/or how footage fills it. */
   setFormat: (patch: { resolution?: string; fit?: string }) => void;
   addClip: (c: TimelineClip) => void;
@@ -96,6 +102,8 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   selected_clip_id: null,
   is_playing: false,
   history: emptyHistory(),
+  storyboardUpdates: {},
+  setStoryboardUpdates: (u) => set({ storyboardUpdates: u }),
 
   load: ({ timeline, tracks, clips }, recordAs) => {
     const s = get();
@@ -113,7 +121,7 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   updateClip: (id, patch, key) => {
     const s = get();
     const clip = s.clips.find((c) => c.id === id);
-    if (!clip || isLocked(s, clip.track_id)) return;
+    if (!clip || isLocked(s, clip.track_id) || isClipLocked(clip)) return;
     edit(get, set, key ?? `update:${id}:${Object.keys(patch).join(',')}`, {
       clips: s.clips.map((c) => (c.id === id ? { ...c, ...patch } : c)),
     });
@@ -126,7 +134,7 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   removeClip: (id) => {
     const s = get();
     const clip = s.clips.find((c) => c.id === id);
-    if (!clip || isLocked(s, clip.track_id)) return;
+    if (!clip || isLocked(s, clip.track_id) || isClipLocked(clip)) return;
     // Only the video row closes gaps; music and text stay where they were placed.
     const isVideo = s.tracks.find((t) => t.id === clip.track_id)?.track_type === 'video';
     edit(get, set, `remove:${id}`, {
@@ -138,14 +146,14 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   reorder: (id, toIndex) => {
     const s = get();
     const clip = s.clips.find((c) => c.id === id);
-    if (!clip || isLocked(s, clip.track_id)) return;
+    if (!clip || isLocked(s, clip.track_id) || isClipLocked(clip)) return;
     edit(get, set, `reorder:${id}:${Date.now()}`, { clips: reorderClip(s.clips, id, toIndex) });
   },
 
   split: (id, atMs) => {
     const s = get();
     const clip = s.clips.find((c) => c.id === id);
-    if (!clip || isLocked(s, clip.track_id)) return;
+    if (!clip || isLocked(s, clip.track_id) || isClipLocked(clip)) return;
     const next = splitClip(s.clips, id, atMs, crypto.randomUUID());
     if (next !== s.clips) edit(get, set, `split:${id}:${Date.now()}`, { clips: next });
   },
@@ -162,9 +170,19 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
   setSpeed: (id, speed) => {
     const s = get();
     const clip = s.clips.find((c) => c.id === id);
-    if (!clip || isLocked(s, clip.track_id)) return;
+    if (!clip || isLocked(s, clip.track_id) || isClipLocked(clip)) return;
     const next = setClipSpeed(s.clips, id, speed);
     if (next !== s.clips) edit(get, set, `speed:${id}:${speed}`, { clips: next });
+  },
+
+  toggleClipLock: (id) => {
+    const s = get();
+    const clip = s.clips.find((c) => c.id === id);
+    if (!clip || isLocked(s, clip.track_id)) return;
+    const meta = { ...((clip.metadata as Record<string, unknown>) || {}) };
+    if (meta.locked === true) delete meta.locked;
+    else meta.locked = true;
+    edit(get, set, `lock-clip:${id}:${Date.now()}`, { clips: s.clips.map((c) => (c.id === id ? { ...c, metadata: meta } : c)) });
   },
 
   setFormat: ({ resolution, fit }) => {
