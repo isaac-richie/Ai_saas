@@ -71,6 +71,15 @@ export function DevEditor() {
       }}
       onAutoCaptions={async () => { await wait(800); return 'Preview only: auto captions need a finished video.'; }}
       takeStatus={takeStatus}
+      onAutoEdit={async (style) => {
+        // Preview only: a canned cut so the flow can be seen without OpenAI.
+        await wait(1500);
+        const s = useTimelineStore.getState();
+        s.setGrade(style === 'story' ? 'warm-film' : 'teal-orange');
+        const shots = s.clips.filter((c) => c.track_id === 'v').sort((a, b) => a.start_ms - b.start_ms);
+        s.updateClip(shots[shots.length - 1].id, { transition_out: 'fade_black', transition_out_ms: 800 }, 'auto-ending');
+        return { ok: true, summary: `Preview: cut as a ${style}, with a new look and a fade to black at the end.`, applied: 2, rejected: [] };
+      }}
       onRegenerate={async (clipId) => {
         // Preview only: pretends to generate by swapping in another sample shot.
         setTakeStatus((t) => ({ ...t, [clipId]: { state: 'working', message: 'Preview: pretending to generate…' } }));
