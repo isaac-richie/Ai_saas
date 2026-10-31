@@ -9,6 +9,32 @@ export function sourceDurationMs(clip: Clip): number | null {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+export const SPEEDS = [0.25, 0.5, 1, 1.5, 2, 4] as const;
+export const MIN_SPEED = 0.25;
+export const MAX_SPEED = 4;
+
+/** How fast a clip plays its footage: 0.5 is slow motion, 2 is double speed. Missing means 1. */
+export function clipSpeed(clip: Pick<TimelineClip, 'metadata'>): number {
+  const value = Number((clip.metadata as Record<string, unknown> | null)?.speed);
+  return Number.isFinite(value) && value > 0 ? Math.max(MIN_SPEED, Math.min(MAX_SPEED, value)) : 1;
+}
+
+/**
+ * Changes a clip's speed. The same stretch of footage plays, so the clip gets longer when
+ * slowed and shorter when sped up, and the shots after it move to close the gap.
+ */
+export function setClipSpeed<T extends Clip>(clips: T[], id: string, speed: number): T[] {
+  const clip = clips.find((c) => c.id === id);
+  if (!clip || !Number.isFinite(speed)) return clips;
+  const next = Math.max(MIN_SPEED, Math.min(MAX_SPEED, speed));
+  const old = clipSpeed(clip);
+  if (next === old) return clips;
+  const footageMs = (clip.end_ms - clip.start_ms) * old;
+  const duration = Math.round(Math.max(MIN_CLIP_MS, footageMs / next));
+  const updated = { ...clip, end_ms: clip.start_ms + duration, metadata: { ...((clip.metadata as object) || {}), speed: next } };
+  return rippleTrack(clips.map((c) => (c.id === id ? updated : c)), clip.track_id);
+}
+
 function rippleTrack<T extends Clip>(clips: T[], trackId: string): T[] {
   const onTrack = clips.filter((c) => c.track_id === trackId).sort((a, b) => a.start_ms - b.start_ms);
   const laid = new Map(rippleClips(onTrack).map((c) => [c.id, c]));
@@ -24,17 +50,19 @@ export function trimClip<T extends Clip>(clips: T[], id: string, edge: 'start' |
   if (!clip || !Number.isFinite(deltaMs)) return clips;
   const duration = clip.end_ms - clip.start_ms;
   const source = sourceDurationMs(clip);
+  // Timeline time × speed = footage time; trims and limits are worked out in footage time.
+  const speed = clipSpeed(clip);
   let next: T;
 
   if (edge === 'end') {
-    const maxDuration = source !== null ? source - clip.trim_start_ms : duration;
-    const newDuration = Math.round(Math.max(MIN_CLIP_MS, Math.min(maxDuration, duration + deltaMs)));
+    const maxDuration = source !== null ? (source - clip.trim_start_ms) / speed : duration;
+    const newDuration = Math.round(Math.max(MIN_CLIP_MS, Math.min(Math.max(maxDuration, MIN_CLIP_MS), duration + deltaMs)));
     next = { ...clip, end_ms: clip.start_ms + newDuration };
   } else {
-    const tail = clip.trim_start_ms + duration;
+    const tail = clip.trim_start_ms + duration * speed;
     // The in-point can move back to the start of the footage, or forward until the minimum length.
-    const newTrim = Math.round(Math.max(0, Math.min(tail - MIN_CLIP_MS, clip.trim_start_ms + deltaMs)));
-    next = { ...clip, trim_start_ms: newTrim, end_ms: clip.start_ms + (tail - newTrim) };
+    const newTrim = Math.round(Math.max(0, Math.min(tail - MIN_CLIP_MS * speed, clip.trim_start_ms + deltaMs * speed)));
+    next = { ...clip, trim_start_ms: newTrim, end_ms: clip.start_ms + Math.round((tail - newTrim) / speed) };
   }
 
   return rippleTrack(clips.map((c) => (c.id === id ? next : c)), clip.track_id);
@@ -75,7 +103,7 @@ export function splitClip<T extends Clip>(clips: T[], id: string, atMs: number, 
   const offset = Math.round(atMs - clip.start_ms);
   if (offset < MIN_CLIP_MS || clip.end_ms - clip.start_ms - offset < MIN_CLIP_MS) return clips;
   const left = { ...clip, end_ms: clip.start_ms + offset };
-  const right = { ...clip, id: newId, start_ms: clip.start_ms + offset, trim_start_ms: clip.trim_start_ms + offset };
+  const right = { ...clip, id: newId, start_ms: clip.start_ms + offset, trim_start_ms: clip.trim_start_ms + Math.round(offset * clipSpeed(clip)) };
   return clips.flatMap((c) => (c.id === id ? [left, right] : [c]));
 }
 

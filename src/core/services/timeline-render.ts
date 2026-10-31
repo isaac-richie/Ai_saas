@@ -13,6 +13,8 @@ export interface NormalizeOptions {
   volume: number;
   /** How footage of another shape fills the frame; black bars when not given. */
   fit?: FrameFit;
+  /** Plays the footage faster (2) or in slow motion (0.5); 1 when not given. */
+  speed?: number;
   /** Fades picture and sound out at the end of this clip (used for the last shot). */
   fadeOut?: { sec: number; color: 'black' | 'white' };
 }
@@ -30,6 +32,16 @@ export function effectiveDurationSec(requestedSec: number, probedSec: number, tr
   const remaining = probedSec - Math.max(0, trimStartSec);
   if (!Number.isFinite(remaining) || remaining <= 0.05) return 0;
   return Math.min(Math.max(0.05, requestedSec), remaining);
+}
+
+/** atempo only takes 0.5–2 per step, so wider changes are chained (0.25 = 0.5 × 0.5). */
+export function atempoChain(speed: number): string[] {
+  const steps: string[] = [];
+  let rest = Math.max(0.25, Math.min(4, speed));
+  while (rest > 2 + 1e-9) { steps.push('atempo=2'); rest /= 2; }
+  while (rest < 0.5 - 1e-9) { steps.push('atempo=0.5'); rest /= 0.5; }
+  if (Math.abs(rest - 1) > 1e-9) steps.push(`atempo=${rest.toFixed(4)}`);
+  return steps;
 }
 
 /** The whole-number frame rate a render uses. */
@@ -55,7 +67,10 @@ export function clipFrames(startMs: number, endMs: number, footageSec: number, f
 export function buildNormalizeArgs(o: NormalizeOptions): string[] {
   const fps = renderFps(o.fps);
   const endFade = o.fadeOut && o.fadeOut.sec > 0 ? Math.min(o.fadeOut.sec, o.durationSec / 2) : 0;
+  const speed = Number.isFinite(o.speed) && o.speed! > 0 ? Math.max(0.25, Math.min(4, o.speed!)) : 1;
   const vf = [
+    // Retime first, so the frame rate and padding below work on the new timing.
+    ...(speed !== 1 ? [`setpts=PTS/${speed.toFixed(4)}`] : []),
     buildFrameFilter(o.width, o.height, o.fit ?? 'fit'),
     'setsar=1',
     `fps=${fps}`,
@@ -69,6 +84,7 @@ export function buildNormalizeArgs(o: NormalizeOptions): string[] {
   // apad + -t makes the sound exactly as long as the picture, so joined clips stay in sync.
   const af = [
     `volume=${volume.toFixed(3)}`, 'aresample=48000', 'aformat=channel_layouts=stereo',
+    ...(speed !== 1 && o.hasAudio ? atempoChain(speed) : []),
     ...(endFade ? [`afade=t=out:st=${(o.durationSec - endFade).toFixed(3)}:d=${endFade.toFixed(3)}`] : []),
     'apad',
   ].join(',');

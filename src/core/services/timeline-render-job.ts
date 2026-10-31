@@ -19,6 +19,7 @@ import {
 import { buildCaptionBurnInArgs, isCaptionStyle, segmentsToAss, type CaptionWord } from '@/core/services/captions';
 import { probeMedia } from '@/core/services/media-probe';
 import { fetchPublicBytes } from '@/core/utils/security/safe-fetch';
+import { clipSpeed } from '@/core/services/timeline-ops';
 import { DEFAULT_FRAME_FIT, isFrameFit } from '@/core/services/video-format';
 
 const execFileAsync = promisify(execFile);
@@ -106,9 +107,12 @@ export async function renderTimeline(ctx: RenderContext): Promise<{ url: string;
       const info = await probeMedia(ffmpeg, sourcePath);
       if (!info.hasVideo) throw new RenderError(`Clip ${i + 1} is not a playable video.`);
       const trimStartSec = Math.max(0, clip.trim_start_ms) / 1000;
-      const usableSec = effectiveDurationSec((clip.end_ms - clip.start_ms) / 1000, info.durationSec, trimStartSec);
+      // Footage plays at the clip's speed: a 2 s clip at 0.5× uses 1 s of footage.
+      const speed = clipSpeed(clip);
+      const footageLeftSec = (info.durationSec - trimStartSec) / speed;
+      const usableSec = effectiveDurationSec((clip.end_ms - clip.start_ms) / 1000, footageLeftSec + trimStartSec, trimStartSec);
       if (usableSec <= 0) throw new RenderError(`Clip ${i + 1} has no usable footage after its trim point.`);
-      const durationSec = clipFrames(clip.start_ms, clip.start_ms + usableSec * 1000, info.durationSec - trimStartSec, fps) / fps;
+      const durationSec = clipFrames(clip.start_ms, clip.start_ms + usableSec * 1000, footageLeftSec, fps) / fps;
 
       const grade = getGradeById(clip.color_grade_id || timeline.color_grade_id || 'natural');
       const outPath = join(tmpDir, `norm-${i}.mov`);
@@ -124,6 +128,7 @@ export async function renderTimeline(ctx: RenderContext): Promise<{ url: string;
         hasAudio: info.hasAudio,
         volume: clip.volume,
         fit,
+        speed,
         fadeOut: i === clips.length - 1 ? endingFade(clip) : undefined,
       }), { maxBuffer: 16 * 1024 * 1024 });
       normalized.push(outPath);

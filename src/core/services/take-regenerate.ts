@@ -101,12 +101,15 @@ export function applyTake<C extends { asset_url: string | null; start_ms: number
     });
   }
   delete meta.pending_take;
-  const length = options.keepLength ? Math.min(clip.end_ms - clip.start_ms, take.source_duration_ms) : take.source_duration_ms;
+  // A slowed or sped-up shot plays its new footage at the same speed.
+  const speed = Number(meta.speed) > 0 ? Math.max(0.25, Math.min(4, Number(meta.speed))) : 1;
+  const fullLength = take.source_duration_ms / speed;
+  const length = options.keepLength ? Math.min(clip.end_ms - clip.start_ms, fullLength) : fullLength;
   return {
     ...clip,
     asset_url: take.url,
     trim_start_ms: 0,
-    end_ms: clip.start_ms + Math.max(300, length),
+    end_ms: clip.start_ms + Math.round(Math.max(300, length)),
     metadata: { ...meta, source_duration_ms: take.source_duration_ms, take_created_at: take.created_at, takes: takes.slice(0, MAX_TAKES) },
   };
 }
