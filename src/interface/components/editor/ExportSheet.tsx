@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { Check, Clapperboard, Download, Loader2, RotateCcw, Smartphone, Square, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, Clapperboard, Download, Loader2, MessageSquare, RotateCcw, Share2, Smartphone, Square, X } from 'lucide-react';
+import type { OwnerShare } from '@/core/actions/video-review';
+import { ShareLinkRow } from './ReviewsSheet';
 import type { RenderState } from './EditorWorkspace';
 import { formatClock } from './labels';
 
@@ -19,7 +21,7 @@ const gold =
   'bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[#1a160e] shadow-[0_10px_30px_-12px_rgba(217,192,138,0.8)]';
 
 /** Make video: what will be made, how it's going, and the finished file. */
-export function ExportSheet({ open, onClose, render, summary, reframes, reframing, onRender, onReframe }: {
+export function ExportSheet({ open, onClose, render, summary, reframes, reframing, onRender, onReframe, review, onShareForReview, onOpenReviews }: {
   open: boolean;
   onClose: () => void;
   render: RenderState;
@@ -28,7 +30,13 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
   reframing: boolean;
   onRender: () => void;
   onReframe: () => void;
+  /** The review link for this finished video, once shared. */
+  review?: OwnerShare | null;
+  onShareForReview?: () => Promise<string | null>;
+  onOpenReviews?: () => void;
 }) {
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -99,6 +107,37 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
                 )}
               </div>
             </div>
+            )}
+            {onShareForReview && (
+              <div className="rounded-2xl border border-line bg-white/[0.02] p-4">
+                <p className="text-sm font-medium text-white">Get feedback</p>
+                <p className="mt-0.5 text-sm text-[#b0b8c4]">Send a private link. Anyone with it can watch, pin notes to moments and approve, no account needed.</p>
+                <div className="mt-3">
+                  {review ? (
+                    <div className="space-y-2">
+                      <ShareLinkRow share={review} />
+                      {onOpenReviews && (
+                        <button onClick={onOpenReviews} className="flex items-center gap-1.5 text-sm text-gold-100 hover:underline">
+                          <MessageSquare size={14} /> {review.notes.length ? `${review.notes.length} note${review.notes.length === 1 ? '' : 's'}` : 'See notes as they arrive'}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={async () => {
+                        setSharing(true);
+                        setShareError(await onShareForReview());
+                        setSharing(false);
+                      }}
+                      disabled={sharing}
+                      className="flex items-center gap-2 rounded-xl border border-gold-400/40 px-3.5 py-2.5 text-sm text-gold-100 hover:bg-gold-500/10 disabled:opacity-50"
+                    >
+                      {sharing ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} />} Share for review
+                    </button>
+                  )}
+                  {shareError && <p role="alert" className="mt-2 text-sm text-red-200">{shareError}</p>}
+                </div>
+              </div>
             )}
             <button onClick={onRender} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm text-[#b0b8c4] hover:bg-white/5 hover:text-white">
               <RotateCcw size={14} /> Made more changes? Make it again

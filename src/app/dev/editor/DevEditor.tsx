@@ -6,6 +6,7 @@ import { EditorWorkspace, type RenderState } from '@/interface/components/editor
 import type { TimelineClip, TimelineTrack } from '@/core/types/timeline';
 import type { TakeStatus } from '@/interface/components/editor/ClipPanel';
 import { applyTake, rippleFrom } from '@/core/services/take-regenerate';
+import type { OwnerShare } from '@/core/actions/video-review';
 
 const base = { take_id: null, trim_start_ms: 0, trim_end_ms: null, volume: 1, opacity: 1, transition_in: null, transition_in_ms: 0, transition_out: null, transition_out_ms: 0, color_grade_id: null, order_index: 0, created_at: '', updated_at: '' };
 const clip = (c: Partial<TimelineClip> & Pick<TimelineClip, 'id' | 'track_id' | 'start_ms' | 'end_ms'>): TimelineClip =>
@@ -31,6 +32,7 @@ export function DevEditor() {
   const [render, setRender] = useState<RenderState>({ status: 'idle', progress: 0, stage: '', url: null, storageKey: null, error: null });
   const [notice, setNotice] = useState<string | null>(null);
   const [takeStatus, setTakeStatus] = useState<Record<string, TakeStatus>>({});
+  const [reviews, setReviews] = useState<OwnerShare[]>([]);
 
   useEffect(() => {
     useTimelineStore.getState().load(sample);
@@ -71,6 +73,21 @@ export function DevEditor() {
       }}
       onAutoCaptions={async () => { await wait(800); return 'Preview only: auto captions need a finished video.'; }}
       takeStatus={takeStatus}
+      reviews={reviews}
+      onShareForReview={async () => {
+        // Preview only: a pretend link with two sample notes from a client.
+        await wait(600);
+        setReviews([{
+          id: 'share-1', token: 'd'.repeat(43), title: 'Golden Hour — teaser', status: 'changes_requested', created_at: new Date().toISOString(), storage_key: 'dev',
+          notes: [
+            { id: 'n1', author_name: 'Maya (client)', kind: 'note', body: 'Can the sky hold a second longer?', at_ms: 5200, resolved: false, created_at: '' },
+            { id: 'n2', author_name: 'Maya (client)', kind: 'changes_requested', body: 'Close. Just the sky shot.', at_ms: null, resolved: false, created_at: '' },
+          ],
+        }]);
+        return null;
+      }}
+      onResolveNote={(id, resolved) => setReviews((all) => all.map((r) => ({ ...r, notes: r.notes.map((n) => (n.id === id ? { ...n, resolved } : n)) })))}
+      onTurnOffLink={(id) => setReviews((all) => all.filter((r) => r.id !== id))}
       onAutoEdit={async (style) => {
         // Preview only: a canned cut so the flow can be seen without OpenAI.
         await wait(1500);
