@@ -2,6 +2,7 @@
 
 import { createClient } from '@/infrastructure/supabase/server';
 import type { TimelineProject, TimelineTrack, TimelineClip } from '@/core/types/timeline';
+import { shotInfoFromStoryboard } from '@/core/services/shot-context';
 import { VIDEO_FORMATS, isFormatResolution, isFrameFit } from '@/core/services/video-format';
 
 export async function getOrCreateTimeline(projectId: string) {
@@ -228,7 +229,7 @@ export async function importStoryboardToTimeline(projectId: string) {
 
   const { data: items } = await supabase
     .from('fast_video_storyboard_items')
-    .select('url, duration_seconds, order_index, scene_id')
+    .select('url, duration_seconds, order_index, scene_id, subject, prompt, enhanced_prompt')
     .eq('project_id', projectId)
     .eq('status', 'ready')
     .order('order_index');
@@ -236,12 +237,13 @@ export async function importStoryboardToTimeline(projectId: string) {
   if (!items?.length) return { error: 'No ready storyboard clips to import yet.' };
 
   // A project can hold several scenes: keep each scene together, in story order.
-  const { data: scenes } = await supabase.from('scenes').select('id, sequence_order, created_at').eq('project_id', projectId);
+  const { data: scenes } = await supabase.from('scenes').select('id, name, sequence_order, created_at').eq('project_id', projectId);
   const sceneRank = new Map(
     (scenes || [])
       .sort((a, b) => a.sequence_order - b.sequence_order || a.created_at.localeCompare(b.created_at))
       .map((sc, i) => [sc.id, i]),
   );
+  const sceneName = new Map((scenes || []).map((sc) => [sc.id, sc.name as string]));
   items.sort((a, b) => (sceneRank.get(a.scene_id) ?? 1e6) - (sceneRank.get(b.scene_id) ?? 1e6) || a.order_index - b.order_index);
 
   const { data: existing } = await supabase
@@ -271,7 +273,8 @@ export async function importStoryboardToTimeline(projectId: string) {
       clip_type: 'video',
       start_ms: cursor_ms,
       end_ms: cursor_ms + dur,
-      metadata: { source_duration_ms: dur },
+      // What the shot shows, so the AI editor can find shots by their content.
+      metadata: { source_duration_ms: dur, shot: shotInfoFromStoryboard(item, sceneName.get(item.scene_id)) },
     });
     cursor_ms += dur;
   }

@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
     "/api/timeline/reframe": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/timeline/music": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/timeline/captions": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/timeline/agent": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
   images: {
     remotePatterns: [
