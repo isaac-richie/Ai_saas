@@ -14,7 +14,7 @@ import { MIN_CLIP_MS } from '@/core/services/edit-agent';
 import { PreviewPlayer } from './PreviewPlayer';
 import { TimelinePanel, ZOOM_LIMITS } from './TimelinePanel';
 import { AgentPanel, type AgentReply } from './AgentPanel';
-import { ClipPanel } from './ClipPanel';
+import { ClipPanel, type TakeStatus } from './ClipPanel';
 import { ColorGradePicker } from './ColorGradePicker';
 import { MusicPanel } from './MusicPanel';
 import { TextPanel } from './TextPanel';
@@ -52,6 +52,9 @@ export interface EditorWorkspaceProps {
   onUploadMusic: (file: File) => Promise<string | null>;
   onAddText: () => Promise<void>;
   onAutoCaptions: () => Promise<string | null>;
+  /** Makes a new take of a shot with the generator; absent where generation isn't available. */
+  onRegenerate?: (clipId: string, options: { durationSec?: number; note?: string }) => Promise<void>;
+  takeStatus?: Record<string, TakeStatus>;
 }
 
 type Tab = 'ai' | 'clip' | 'look' | 'format' | 'music' | 'text';
@@ -184,7 +187,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
 
   const panel = (id: Tab) => {
     if (id === 'ai') return <AgentPanel onSend={props.onAgent} />;
-    if (id === 'clip') return <ClipPanel onSyncToBeat={syncToBeat} />;
+    if (id === 'clip') return <ClipPanel onSyncToBeat={syncToBeat} onRegenerate={props.onRegenerate} takeStatus={props.takeStatus} />;
     if (id === 'look') return <ColorGradePicker selectedId={timeline?.color_grade_id || 'natural'} onSelect={store.setGrade} />;
     if (id === 'format') return <FormatPanel />;
     if (id === 'music') return <MusicPanel onUpload={props.onUploadMusic} onSyncToBeat={syncToBeat} />;

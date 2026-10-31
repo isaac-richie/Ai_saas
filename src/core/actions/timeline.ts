@@ -3,6 +3,7 @@
 import { createClient } from '@/infrastructure/supabase/server';
 import type { TimelineProject, TimelineTrack, TimelineClip } from '@/core/types/timeline';
 import { shotInfoFromStoryboard } from '@/core/services/shot-context';
+import { validClipValue } from '@/core/services/clip-validation';
 import { VIDEO_FORMATS, isFormatResolution, isFrameFit } from '@/core/services/video-format';
 
 export async function getOrCreateTimeline(projectId: string) {
@@ -100,13 +101,18 @@ export async function addClipToTrack(clip: {
 const CLIP_PATCH_KEYS = [
   'start_ms', 'end_ms', 'trim_start_ms', 'trim_end_ms', 'volume', 'opacity',
   'transition_in', 'transition_in_ms', 'transition_out', 'transition_out_ms', 'color_grade_id',
+  'metadata', 'asset_url',
 ] as const;
 type ClipPatch = Partial<Pick<TimelineClip, (typeof CLIP_PATCH_KEYS)[number]>>;
 
 export async function updateTimelineClip(clipId: string, patch: ClipPatch) {
   // Server actions are callable with any payload, so only known editable columns are written.
   const safe: Record<string, unknown> = {};
-  for (const key of CLIP_PATCH_KEYS) if (key in patch) safe[key] = patch[key];
+  for (const key of CLIP_PATCH_KEYS) {
+    if (!(key in patch)) continue;
+    if (!validClipValue(key, patch[key])) return { error: 'That change could not be saved.' };
+    safe[key] = patch[key];
+  }
   if (Object.keys(safe).length === 0) return { success: true };
   const supabase = await createClient();
   const { error } = await supabase
@@ -128,11 +134,16 @@ const INSERT_CLIP_KEYS = [
 export async function upsertTimelineClips(clips: TimelineClip[]) {
   if (!Array.isArray(clips) || clips.length === 0) return { success: true };
   if (clips.length > 200) return { error: 'Too many clips' };
-  const rows = clips.map((clip) => {
+  const rows = [];
+  for (const clip of clips) {
     const row: Record<string, unknown> = {};
-    for (const key of INSERT_CLIP_KEYS) if (key in clip) row[key] = clip[key];
-    return row;
-  });
+    for (const key of INSERT_CLIP_KEYS) {
+      if (!(key in clip)) continue;
+      if (!validClipValue(key, clip[key])) return { error: 'That change could not be saved.' };
+      row[key] = clip[key];
+    }
+    rows.push(row);
+  }
   const supabase = await createClient();
   const { error } = await supabase.from('timeline_clips').upsert(rows, { onConflict: 'id' });
   if (error) return { error: error.message };
@@ -229,7 +240,7 @@ export async function importStoryboardToTimeline(projectId: string) {
 
   const { data: items } = await supabase
     .from('fast_video_storyboard_items')
-    .select('url, duration_seconds, order_index, scene_id, subject, prompt, enhanced_prompt')
+    .select('id, url, duration_seconds, order_index, scene_id, subject, prompt, enhanced_prompt')
     .eq('project_id', projectId)
     .eq('status', 'ready')
     .order('order_index');
@@ -248,9 +259,16 @@ export async function importStoryboardToTimeline(projectId: string) {
 
   const { data: existing } = await supabase
     .from('timeline_clips')
-    .select('asset_url, end_ms')
+    .select('asset_url, end_ms, metadata')
     .eq('track_id', videoTrack.id);
-  const onTrack = new Set((existing || []).map((c) => c.asset_url).filter(Boolean));
+  // A shot counts as already here by its link, its storyboard id, or any of its earlier takes.
+  const onTrack = new Set<string>();
+  for (const c of existing || []) {
+    const meta = (c.metadata || {}) as { storyboard_item_id?: unknown; takes?: unknown };
+    if (c.asset_url) onTrack.add(c.asset_url);
+    if (typeof meta.storyboard_item_id === 'string') onTrack.add(`id:${meta.storyboard_item_id}`);
+    if (Array.isArray(meta.takes)) for (const t of meta.takes) if (t && typeof t.url === 'string') onTrack.add(t.url);
+  }
   let cursor_ms = Math.max(0, ...(existing || []).map((c) => c.end_ms));
 
   const clips: Array<{
@@ -264,7 +282,7 @@ export async function importStoryboardToTimeline(projectId: string) {
 
   for (const item of items) {
     // Re-importing only adds storyboard clips that are not on the timeline yet.
-    if (!item.url || onTrack.has(item.url)) continue;
+    if (!item.url || onTrack.has(item.url) || onTrack.has(`id:${item.id}`)) continue;
     onTrack.add(item.url);
     const dur = Math.max(1, item.duration_seconds || 5) * 1000;
     clips.push({
@@ -274,7 +292,7 @@ export async function importStoryboardToTimeline(projectId: string) {
       start_ms: cursor_ms,
       end_ms: cursor_ms + dur,
       // What the shot shows, so the AI editor can find shots by their content.
-      metadata: { source_duration_ms: dur, shot: shotInfoFromStoryboard(item, sceneName.get(item.scene_id)) },
+      metadata: { source_duration_ms: dur, storyboard_item_id: item.id, shot: shotInfoFromStoryboard(item, sceneName.get(item.scene_id)) },
     });
     cursor_ms += dur;
   }

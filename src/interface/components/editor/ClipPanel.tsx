@@ -1,11 +1,13 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, AudioWaveform, Blend, Magnet, MousePointerClick, MoveHorizontal, Scissors, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AudioWaveform, Blend, Magnet, Loader2, MousePointerClick, MoveHorizontal, RefreshCw, Scissors, Trash2 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { TRANSITION_REGISTRY } from '@/core/services/transitions';
 import { CAPTION_STYLES, type CaptionStyle } from '@/core/services/captions';
 import type { TimelineClip, TransitionType } from '@/core/types/timeline';
+import { useRef, useState } from 'react';
 import { useFilmstrip } from '@/interface/lib/media-thumbs';
+import { applyTake, rippleFrom, type Take } from '@/core/services/take-regenerate';
 import { CAPTION_PREVIEW_CLASS, TRANSITION_LABELS, formatTime } from './labels';
 
 const TRANSITIONS = Object.keys(TRANSITION_REGISTRY) as TransitionType[];
@@ -38,7 +40,13 @@ const pill = (active: boolean) =>
     active ? 'border-gold-400/60 bg-gold-500/15 text-gold-50' : 'border-line bg-white/[0.02] text-[#d6d0c0] hover:border-white/20'
   }`;
 
-export function ClipPanel({ onSyncToBeat }: { onSyncToBeat: () => void }) {
+export type TakeStatus = { state: 'idle' | 'working' | 'failed'; message?: string };
+
+export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
+  onSyncToBeat: () => void;
+  onRegenerate?: (clipId: string, options: { durationSec?: number; note?: string }) => Promise<void>;
+  takeStatus?: Record<string, TakeStatus>;
+}) {
   const { clips, tracks, selected_clip_id, playhead_ms, updateClip, removeClip, reorder, split } = useTimelineStore();
   const clip = clips.find((c) => c.id === selected_clip_id);
   const track = tracks.find((t) => t.id === clip?.track_id);
@@ -155,10 +163,121 @@ export function ClipPanel({ onSyncToBeat }: { onSyncToBeat: () => void }) {
         )}
       </Section>
 
+      {onRegenerate && (
+        <TakesSection clip={clip} locked={locked} status={takeStatus?.[clip.id]} onRegenerate={onRegenerate} />
+      )}
+
       <Section title="Sound">
         <Slider label="Shot volume" value={clip.volume} min={0} max={2} step={0.05} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => updateClip(clip.id, { volume: v })} />
       </Section>
     </div>
+  );
+}
+
+/** Make the shot again with the generator, or go back to an earlier take. */
+function TakesSection({ clip, locked, status, onRegenerate }: {
+  clip: TimelineClip;
+  locked: boolean;
+  status?: TakeStatus;
+  onRegenerate: (clipId: string, options: { durationSec?: number; note?: string }) => Promise<void>;
+}) {
+  const { clips, tracks, commitClips } = useTimelineStore();
+  const meta = (clip.metadata || {}) as { takes?: Take[]; pending_take?: unknown; source_duration_ms?: number; storyboard_item_id?: string };
+  const takes = Array.isArray(meta.takes) ? meta.takes : [];
+  const currentSec = Math.round((clip.end_ms - clip.start_ms) / 1000);
+  const [seconds, setSeconds] = useState(Math.min(15, Math.max(3, currentSec)));
+  const [note, setNote] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const takeSwitches = useRef(0);
+  const working = status?.state === 'working' || (Boolean(meta.pending_take) && status?.state !== 'failed');
+
+  const chooseTake = (take: Take) => {
+    const track = tracks.find((t) => t.id === clip.track_id);
+    if (!track || track.locked) return;
+    const swapped = applyTake(clip, take, { keepLength: true });
+    const rest = clips.filter((c) => c.track_id !== clip.track_id);
+    const shots = rippleFrom(clips.filter((c) => c.track_id === clip.track_id).map((c) => (c.id === clip.id ? swapped : c)));
+    commitClips([...rest, ...shots], `use-take:${clip.id}:${++takeSwitches.current}`);
+  };
+
+  return (
+    <Section title="New take">
+      {working ? (
+        <div role="status" className="flex items-start gap-3 rounded-xl border border-gold-400/30 bg-gold-500/10 px-3.5 py-3">
+          <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin text-gold-200" />
+          <div className="text-sm leading-relaxed">
+            <p className="text-gold-50">Making a new take of this shot…</p>
+            <p className="text-[#b0b8c4]">{status?.message || 'Usually 1 to 3 minutes. Keep editing; it drops in when ready.'}</p>
+          </div>
+        </div>
+      ) : confirming ? (
+        <div className="space-y-3 rounded-xl border border-line bg-white/[0.02] p-3.5">
+          <label className="block">
+            <span className="flex justify-between text-sm text-[#d6d0c0]">
+              Length <span className="tabular-nums text-[#b0b8c4]">{seconds}s</span>
+            </span>
+            <input type="range" min={3} max={15} step={1} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} className="mt-2 w-full accent-[#d9c08a]" />
+          </label>
+          <label className="block">
+            <span className="text-sm text-[#d6d0c0]">What should change? <span className="text-[#9aa3ad]">(optional)</span></span>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 300))}
+              placeholder="e.g. slower camera, closer on her face"
+              className="mt-1.5 w-full rounded-xl border border-line bg-obsidian-800/80 px-3 py-2.5 text-[15px] text-white placeholder:text-[#8f97a1] focus:border-gold-400/50 focus:outline-none"
+            />
+          </label>
+          <p className="text-xs leading-relaxed text-[#9aa3ad]">Same prompt, references and starting frame as the original, so it still fits the shots around it. Uses one generation from your allowance.</p>
+          <div className="flex gap-2">
+            <button onClick={() => setConfirming(false)} className="flex-1 rounded-xl border border-line py-2.5 text-sm text-[#d6d0c0] hover:bg-white/5">Cancel</button>
+            <button
+              onClick={() => {
+                setConfirming(false);
+                void onRegenerate(clip.id, { durationSec: seconds !== currentSec ? seconds : undefined, note: note.trim() || undefined });
+                setNote('');
+              }}
+              className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] py-2.5 text-sm font-semibold text-[#1a160e]"
+            >
+              <RefreshCw size={15} /> Make new take
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setConfirming(true)}
+          disabled={locked}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-gold-400/40 py-2.5 text-sm text-gold-100 hover:bg-gold-500/10 disabled:opacity-40"
+        >
+          <RefreshCw size={15} /> Make this shot again
+        </button>
+      )}
+      {status?.state === 'failed' && !working && (
+        <p role="alert" className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-100">{status.message}</p>
+      )}
+      {takes.length > 0 && (
+        <div className="space-y-2 pt-1">
+          <p className="text-xs text-[#9aa3ad]">Earlier takes</p>
+          <div className="grid grid-cols-3 gap-2">
+            {takes.map((take) => (
+              <TakeThumb key={take.url} take={take} disabled={locked || working} onUse={() => chooseTake(take)} />
+            ))}
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function TakeThumb({ take, disabled, onUse }: { take: Take; disabled: boolean; onUse: () => void }) {
+  const strip = useFilmstrip(take.url);
+  return (
+    <button onClick={onUse} disabled={disabled} title={take.note ? `Change asked: ${take.note}` : 'Use this take'} className="group overflow-hidden rounded-lg border border-line text-left hover:border-gold-300/60 disabled:opacity-40">
+      <div className="aspect-video bg-[linear-gradient(135deg,rgba(217,192,138,0.28),rgba(138,108,62,0.16))]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {strip?.frames[0] && <img src={strip.frames[Math.floor(strip.frames.length / 3)]} alt="" className="h-full w-full object-cover" />}
+      </div>
+      <p className="px-1.5 py-1 text-[11px] text-[#d6d0c0] group-hover:text-gold-100">Use · {Math.round(take.source_duration_ms / 1000)}s</p>
+    </button>
   );
 }
 

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { EditorWorkspace, type RenderState } from '@/interface/components/editor/EditorWorkspace';
 import type { TimelineClip, TimelineTrack } from '@/core/types/timeline';
+import type { TakeStatus } from '@/interface/components/editor/ClipPanel';
+import { applyTake, rippleFrom } from '@/core/services/take-regenerate';
 
 const base = { take_id: null, trim_start_ms: 0, trim_end_ms: null, volume: 1, opacity: 1, transition_in: null, transition_in_ms: 0, transition_out: null, transition_out_ms: 0, color_grade_id: null, order_index: 0, created_at: '', updated_at: '' };
 const clip = (c: Partial<TimelineClip> & Pick<TimelineClip, 'id' | 'track_id' | 'start_ms' | 'end_ms'>): TimelineClip =>
@@ -28,6 +30,7 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function DevEditor() {
   const [render, setRender] = useState<RenderState>({ status: 'idle', progress: 0, stage: '', url: null, storageKey: null, error: null });
   const [notice, setNotice] = useState<string | null>(null);
+  const [takeStatus, setTakeStatus] = useState<Record<string, TakeStatus>>({});
 
   useEffect(() => {
     useTimelineStore.getState().load(sample);
@@ -67,6 +70,22 @@ export function DevEditor() {
         s.selectClip(id);
       }}
       onAutoCaptions={async () => { await wait(800); return 'Preview only: auto captions need a finished video.'; }}
+      takeStatus={takeStatus}
+      onRegenerate={async (clipId) => {
+        // Preview only: pretends to generate by swapping in another sample shot.
+        setTakeStatus((t) => ({ ...t, [clipId]: { state: 'working', message: 'Preview: pretending to generate…' } }));
+        await wait(2500);
+        const s = useTimelineStore.getState();
+        const c = s.clips.find((x) => x.id === clipId);
+        if (!c) return;
+        const others = ['/__dev/shot1.mp4', '/__dev/shot2.mp4', '/__dev/shot3.mp4'].filter((u) => u !== c.asset_url);
+        const next = applyTake({ ...c, asset_url: c.asset_url && c.asset_url.startsWith('/') ? `https://preview.local${c.asset_url}` : c.asset_url }, { url: others[0], source_duration_ms: 4000, created_at: new Date().toISOString() }, { keepLength: true });
+        const fixed = { ...next, metadata: { ...(next.metadata as object), takes: ((next.metadata as { takes: { url: string }[] }).takes).map((t) => ({ ...t, url: t.url.replace('https://preview.local', '') })) } };
+        const shots = rippleFrom(s.clips.filter((x) => x.track_id === c.track_id).map((x) => (x.id === clipId ? (fixed as TimelineClip) : x)));
+        s.commitClips([...s.clips.filter((x) => x.track_id !== c.track_id), ...shots], `take:${clipId}:${Math.random()}`);
+        setTakeStatus((t) => ({ ...t, [clipId]: { state: 'idle' } }));
+        setNotice('Preview: new take placed. The earlier one is under Earlier takes.');
+      }}
     />
   );
 }
