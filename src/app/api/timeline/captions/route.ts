@@ -72,6 +72,8 @@ export async function POST(request: Request) {
         file: await toFile(await readFile(audio), 'speech.mp3'),
         model: process.env.TRANSCRIBE_MODEL || 'whisper-1',
         response_format: 'verbose_json',
+        // Spelling hint so the brand name comes out right.
+        prompt: 'VisioWave',
         timestamp_granularities: ['word'],
       },
       { signal: AbortSignal.timeout(120_000) },

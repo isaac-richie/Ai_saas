@@ -13,6 +13,8 @@ export interface NormalizeOptions {
   volume: number;
   /** How footage of another shape fills the frame; black bars when not given. */
   fit?: FrameFit;
+  /** Fades picture and sound out at the end of this clip (used for the last shot). */
+  fadeOut?: { sec: number; color: 'black' | 'white' };
 }
 
 export function parseResolution(resolution: string | null | undefined): [number, number] {
@@ -52,6 +54,7 @@ export function clipFrames(startMs: number, endMs: number, footageSec: number, f
  */
 export function buildNormalizeArgs(o: NormalizeOptions): string[] {
   const fps = renderFps(o.fps);
+  const endFade = o.fadeOut && o.fadeOut.sec > 0 ? Math.min(o.fadeOut.sec, o.durationSec / 2) : 0;
   const vf = [
     buildFrameFilter(o.width, o.height, o.fit ?? 'fit'),
     'setsar=1',
@@ -59,11 +62,16 @@ export function buildNormalizeArgs(o: NormalizeOptions): string[] {
     // Holds the last frame if the picture ends before the sound, so every clip is exactly -t long.
     'tpad=stop_mode=clone:stop=-1',
     ...(o.colorFilter ? [o.colorFilter] : []),
+    ...(endFade ? [`fade=t=out:st=${(o.durationSec - endFade).toFixed(3)}:d=${endFade.toFixed(3)}:color=${o.fadeOut!.color}`] : []),
   ].join(',');
 
   const volume = Number.isFinite(o.volume) ? Math.max(0, Math.min(2, o.volume)) : 1;
   // apad + -t makes the sound exactly as long as the picture, so joined clips stay in sync.
-  const af = [`volume=${volume.toFixed(3)}`, 'aresample=48000', 'aformat=channel_layouts=stereo', 'apad'].join(',');
+  const af = [
+    `volume=${volume.toFixed(3)}`, 'aresample=48000', 'aformat=channel_layouts=stereo',
+    ...(endFade ? [`afade=t=out:st=${(o.durationSec - endFade).toFixed(3)}:d=${endFade.toFixed(3)}`] : []),
+    'apad',
+  ].join(',');
 
   const args = ['-y'];
   if (o.trimStartSec > 0) args.push('-ss', o.trimStartSec.toFixed(3));

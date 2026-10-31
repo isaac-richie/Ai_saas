@@ -50,7 +50,7 @@ async function postJson(url: string, body: unknown) {
   }
 }
 
-export function EditorView({ projectId }: { projectId: string }) {
+export function EditorView({ projectId, title }: { projectId: string; title?: string }) {
   const { load, addTrack, addClip, selectClip } = useTimelineStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -328,6 +328,7 @@ export function EditorView({ projectId }: { projectId: string }) {
   return (
     <EditorWorkspace
       backHref="/dashboard/fast-video"
+      title={title}
       saving={saving}
       saveFailed={saveFailed}
       error={error}

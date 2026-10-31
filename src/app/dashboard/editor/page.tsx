@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { EditorView } from '@/interface/components/editor/EditorView';
+import { createClient } from '@/infrastructure/supabase/server';
 
 export const metadata = { title: 'Edit video' };
 
@@ -17,5 +18,7 @@ export default async function EditorPage({ searchParams }: { searchParams: Promi
       </div>
     );
   }
-  return <EditorView key={project} projectId={project} />;
+  const supabase = await createClient();
+  const { data } = await supabase.from('projects').select('name').eq('id', project).maybeSingle();
+  return <EditorView key={project} projectId={project} title={data?.name ?? undefined} />;
 }

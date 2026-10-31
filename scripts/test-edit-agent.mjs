@@ -262,3 +262,12 @@ describe('beat sync', () => {
     for (const cut of outputCuts(r.clips)) assert.ok(near(cut) <= 1);
   });
 });
+
+describe('the plan format OpenAI is asked to follow', () => {
+  it('uses no oneOf, which OpenAI structured outputs reject', async () => {
+    const { zodTextFormat } = await import('openai/helpers/zod');
+    const format = zodTextFormat(agentPlanSchema, 'edit_plan');
+    assert.ok(!JSON.stringify(format.schema).includes('"oneOf"'));
+    assert.ok(JSON.stringify(format.schema).includes('"anyOf"'));
+  });
+});

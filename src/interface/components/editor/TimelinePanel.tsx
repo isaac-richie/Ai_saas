@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Blend, Film, Lock, Music, Type, Unlock, Volume2, VolumeX } from 'lucide-react';
+import { Blend, Film, Lock, Music, Plus, Type, Unlock, Volume2, VolumeX } from 'lucide-react';
 import type { TimelineClip, TimelineTrack } from '@/core/types/timeline';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import {
@@ -25,7 +25,12 @@ type Drag =
 
 const byStart = (a: TimelineClip, b: TimelineClip) => a.start_ms - b.start_ms;
 
-export function TimelinePanel({ centered = false, fitSignal = 0 }: { centered?: boolean; fitSignal?: number }) {
+export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
+  centered?: boolean;
+  fitSignal?: number;
+  /** Opens the right tool from the timeline: more shots, a song, or text. */
+  onAdd?: (kind: 'shots' | 'music' | 'text') => void;
+}) {
   const {
     tracks, clips, playhead_ms, pixels_per_ms: ppm, selected_clip_id, is_playing,
     setZoom, setPlayhead, selectClip, commitClips, toggleTrackMute, toggleTrackLock, setPlaying,
@@ -54,7 +59,7 @@ export function TimelinePanel({ centered = false, fitSignal = 0 }: { centered?: 
     [videoClips, videoTrack?.id],
   );
   const endMs = Math.max(1000, videoEnd, ...clips.map((c) => place(c).end));
-  const contentMs = endMs + (centered ? 0 : 1500);
+  const contentMs = endMs + (centered ? 0 : 1500) + (onAdd ? 60 / Math.max(ppm, 0.004) : 0);
   const pad = centered ? viewport / 2 : 12;
 
   const beatMarks = useMemo(() => {
@@ -366,6 +371,29 @@ export function TimelinePanel({ centered = false, fitSignal = 0 }: { centered?: 
                       </button>
                     );
                   })}
+
+                {onAdd && !track.locked && track.track_type === 'video' && (
+                  <button
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); onAdd('shots'); }}
+                    className="absolute inset-y-[3px] flex w-11 items-center justify-center rounded-lg border border-dashed border-white/20 text-white/50 transition-colors hover:border-gold-300/60 hover:bg-gold-500/10 hover:text-gold-100"
+                    style={{ left: x(videoEnd) + 8 }}
+                    aria-label="Add more shots from your storyboard"
+                    title="Add more shots from your storyboard"
+                  >
+                    <Plus size={18} />
+                  </button>
+                )}
+                {onAdd && !track.locked && track.track_type !== 'video' && !clips.some((c) => c.track_id === track.id) && (
+                  <button
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); onAdd(track.track_type === 'caption' ? 'text' : 'music'); }}
+                    className="absolute inset-y-[3px] flex items-center gap-1.5 rounded-lg border border-dashed border-white/15 px-3 text-xs text-white/55 transition-colors hover:border-gold-300/60 hover:bg-gold-500/10 hover:text-gold-100"
+                    style={{ left: x(0), width: Math.max(140, Math.min(260, videoEnd * ppm)) }}
+                  >
+                    <Plus size={14} /> {track.track_type === 'caption' ? 'Add text' : 'Add a song'}
+                  </button>
+                )}
 
                 {moveOffset && moveOffset.dropAt !== null && track.track_type === 'video' && (
                   <div className="absolute inset-y-0 z-30 w-0.5 bg-gold-200 shadow-[0_0_8px_rgba(243,229,192,0.9)]" style={{ left: x(moveOffset.dropAt) }} />

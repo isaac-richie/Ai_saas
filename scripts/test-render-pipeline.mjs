@@ -125,6 +125,22 @@ describe('full timeline render', () => {
     assert.ok(Math.abs(videoSec - expected) < 1.5 / fps, `picture ${videoSec}s vs timeline ${expected}s`);
   });
 
+  it('a fade to black on the last shot ends the video on black', async () => {
+    const { ctx, uploads } = scenario({
+      timeline_tracks: [track('v', 'video', 0)],
+      timeline_clips: [clip('c1', 'v', 0, 2000, { asset_url: 'https://x/voiced.mp4', transition_out: 'fade_black', transition_out_ms: 800 })],
+    });
+    const result = await renderTimeline(ctx);
+    const out = join(dir, 'ending.mp4');
+    await writeFile(out, uploads[`renders/${result.storageKey}`]);
+    const brightness = async (at) => {
+      const { stdout } = await run(ffmpeg, ['-v', 'error', '-ss', String(at), '-i', out, '-frames:v', '1', '-vf', 'scale=32:18,format=gray', '-f', 'rawvideo', '-'], { encoding: 'buffer' });
+      return stdout.reduce((s, v) => s + v, 0) / stdout.length;
+    };
+    assert.ok((await brightness(0.5)) > 40, 'picture visible early on');
+    assert.ok((await brightness(1.95)) < 12, 'black at the very end');
+  });
+
   it('muting the video track and removing music gives a silent file', async () => {
     const { ctx, uploads } = scenario({
       timeline_tracks: [track('v', 'video', 0, { muted: true })],

@@ -36,6 +36,7 @@ export function DevEditor() {
   return (
     <EditorWorkspace
       backHref="/dashboard"
+      title="Golden Hour — teaser"
       saving={false}
       error={null}
       notice={notice}

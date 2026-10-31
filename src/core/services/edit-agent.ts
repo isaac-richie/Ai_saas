@@ -11,7 +11,9 @@ const PROFILE_IDS = Object.keys(PACING_PROFILES) as [string, ...string[]];
 export const MIN_CLIP_MS = 300;
 
 // Clips are referenced by 1-based position on the video track so the model never handles raw ids.
-export const editCommandSchema = z.discriminatedUnion('type', [
+// A plain union, not discriminatedUnion: that becomes JSON Schema `oneOf`, which OpenAI's
+// structured outputs reject outright; a union becomes `anyOf`, which it accepts.
+export const editCommandSchema = z.union([
   z.object({ type: z.literal('trim_clip'), clip: z.number().int(), duration_sec: z.number() }),
   z.object({ type: z.literal('remove_clip'), clip: z.number().int() }),
   z.object({ type: z.literal('move_clip'), clip: z.number().int(), to_position: z.number().int() }),

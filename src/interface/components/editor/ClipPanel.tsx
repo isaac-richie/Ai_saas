@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, AudioWaveform, Scissors, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AudioWaveform, Blend, Magnet, MousePointerClick, MoveHorizontal, Scissors, Trash2 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { TRANSITION_REGISTRY } from '@/core/services/transitions';
 import { CAPTION_STYLES, type CaptionStyle } from '@/core/services/captions';
@@ -45,8 +45,29 @@ export function ClipPanel({ onSyncToBeat }: { onSyncToBeat: () => void }) {
 
   if (!clip || !track) {
     return (
-      <div className="grid h-full min-h-[12rem] place-items-center p-6 text-center text-sm text-[#b0b8c4]">
-        Tap a shot, song or text on the timeline to change it.
+      <div className="space-y-5 p-5">
+        <div className="text-center">
+          <span className="mx-auto grid size-12 place-items-center rounded-2xl border border-gold-400/25 bg-gold-500/10 text-gold-200">
+            <MousePointerClick size={20} />
+          </span>
+          <p className="mt-3 text-[15px] font-medium text-white">Pick something to change</p>
+          <p className="mt-1 text-sm text-[#b0b8c4]">Tap a shot, song or text on the timeline.</p>
+        </div>
+        <ul className="space-y-2.5">
+          {[
+            [MoveHorizontal, 'Drag a shot to move it; drag its edges to make it shorter or longer.'],
+            [Blend, 'Tap the circle between two shots to change how one becomes the next.'],
+            [Magnet, 'Edges snap to the playhead, to cuts and to the gold beat dots.'],
+          ].map(([Icon, text], i) => {
+            const I = Icon as typeof Blend;
+            return (
+              <li key={i} className="flex items-start gap-3 rounded-xl border border-line bg-white/[0.02] px-3.5 py-3 text-sm leading-relaxed text-[#d6d0c0]">
+                <I size={16} className="mt-0.5 shrink-0 text-gold-300" />
+                {text as string}
+              </li>
+            );
+          })}
+        </ul>
       </div>
     );
   }
@@ -102,9 +123,21 @@ export function ClipPanel({ onSyncToBeat }: { onSyncToBeat: () => void }) {
         <button onClick={() => removeClip(clip.id)} disabled={locked} aria-label="Delete shot" className="grid place-items-center rounded-xl border border-red-400/30 text-red-200 hover:bg-red-500/10 disabled:opacity-35"><Trash2 size={16} /></button>
       </div>
 
-      <Section title={isLast ? 'Ending' : 'Into the next shot'}>
+      <Section title={isLast ? 'How the video ends' : 'Into the next shot'}>
         {isLast ? (
-          <p className="text-sm text-[#b0b8c4]">This is your last shot. Music fades out with it automatically.</p>
+          <div className="grid grid-cols-3 gap-2">
+            {([['cut', 'Just end'], ['fade_black', 'Fade to black'], ['fade_white', 'Fade to white']] as const).map(([t, label]) => (
+              <button
+                key={t}
+                disabled={locked}
+                onClick={() => updateClip(clip.id, { transition_out: t, transition_out_ms: TRANSITION_REGISTRY[t].default_duration_ms }, `transition:${clip.id}:${Date.now()}`)}
+                className={pill((clip.transition_out || 'cut') === t || (t === 'fade_black' && !['cut', 'fade_white', null, undefined].includes(clip.transition_out)))}
+                aria-pressed={(clip.transition_out || 'cut') === t}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
             {TRANSITIONS.map((t) => (

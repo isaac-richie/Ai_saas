@@ -34,6 +34,8 @@ export type RenderState = {
 
 export interface EditorWorkspaceProps {
   backHref: string;
+  /** The project's name, shown in the top bar. */
+  title?: string;
   saving: boolean;
   saveFailed?: boolean;
   error: string | null;
@@ -172,6 +174,14 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
     }
   };
 
+  // The timeline's empty rows and its "+" tile lead straight to the right tool.
+  const addFrom = (kind: 'shots' | 'music' | 'text') => {
+    if (kind === 'shots') props.onImport();
+    else if (kind === 'text') void props.onAddText();
+    else if (desktop) setTab('music');
+    else setSheet('music');
+  };
+
   const panel = (id: Tab) => {
     if (id === 'ai') return <AgentPanel onSend={props.onAgent} />;
     if (id === 'clip') return <ClipPanel onSyncToBeat={syncToBeat} />;
@@ -227,7 +237,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         </Link>
         <div className="min-w-0 flex-1 px-1">
           <h1 className="truncate text-base font-light tracking-tight text-white md:text-lg">
-            Edit <span className="lux-serif text-gold-200">video</span>
+            {props.title ? props.title : <>Edit <span className="lux-serif text-gold-200">video</span></>}
           </h1>
           <SaveStatus saving={props.saving} failed={Boolean(props.saveFailed)} />
         </div>
@@ -317,7 +327,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
                 </button>
               </div>
             </div>
-            <TimelinePanel fitSignal={fitSignal} />
+            <TimelinePanel fitSignal={fitSignal} onAdd={addFrom} />
           </section>
         </div>
       ) : (
@@ -333,7 +343,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
             </div>
           </div>
           <div className="px-2 pb-2">
-            <TimelinePanel centered={phone} fitSignal={fitSignal} />
+            <TimelinePanel centered={phone} fitSignal={fitSignal} onAdd={addFrom} />
           </div>
 
           {selected && selectedTrack ? (

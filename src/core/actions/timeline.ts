@@ -2,7 +2,7 @@
 
 import { createClient } from '@/infrastructure/supabase/server';
 import type { TimelineProject, TimelineTrack, TimelineClip } from '@/core/types/timeline';
-import { isFormatResolution, isFrameFit } from '@/core/services/video-format';
+import { VIDEO_FORMATS, isFormatResolution, isFrameFit } from '@/core/services/video-format';
 
 export async function getOrCreateTimeline(projectId: string) {
   const supabase = await createClient();
@@ -20,9 +20,12 @@ export async function getOrCreateTimeline(projectId: string) {
   const existing = await findExisting();
   if (existing) return { timeline: existing };
 
+  // A new edit starts in the project's own shape (a vertical storyboard makes a vertical video).
+  const { data: project } = await supabase.from('projects').select('aspect_ratio').eq('id', projectId).maybeSingle();
+  const format = VIDEO_FORMATS.find((f) => f.ratio === project?.aspect_ratio);
   const { data: created, error } = await supabase
     .from('timeline_projects')
-    .insert({ project_id: projectId })
+    .insert({ project_id: projectId, ...(format ? { resolution: format.resolution } : {}) })
     .select()
     .single();
 
@@ -231,6 +234,15 @@ export async function importStoryboardToTimeline(projectId: string) {
     .order('order_index');
 
   if (!items?.length) return { error: 'No ready storyboard clips to import yet.' };
+
+  // A project can hold several scenes: keep each scene together, in story order.
+  const { data: scenes } = await supabase.from('scenes').select('id, sequence_order, created_at').eq('project_id', projectId);
+  const sceneRank = new Map(
+    (scenes || [])
+      .sort((a, b) => a.sequence_order - b.sequence_order || a.created_at.localeCompare(b.created_at))
+      .map((sc, i) => [sc.id, i]),
+  );
+  items.sort((a, b) => (sceneRank.get(a.scene_id) ?? 1e6) - (sceneRank.get(b.scene_id) ?? 1e6) || a.order_index - b.order_index);
 
   const { data: existing } = await supabase
     .from('timeline_clips')
