@@ -136,8 +136,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     const isPublicRoute = pathname === "/" || pathname === "/inner-circle" || pathname.startsWith("/inner-circle/") || pathname === "/privacy" || pathname === "/terms"
 
-    // The editor is a full-screen workspace with its own navigation, like any video editor.
-    if (pathname.startsWith("/dashboard/editor") || pathname.startsWith("/dev/editor")) {
+    // The editor and review links are full-screen pages with their own navigation.
+    if (pathname.startsWith("/dashboard/editor") || pathname.startsWith("/dev/editor") || pathname.startsWith("/dev/review") || pathname.startsWith("/v/")) {
         return (
             <div ref={shellRef} className="h-dvh overflow-hidden bg-obsidian-950 text-white">
                 <main id="main-content" ref={mainRef} className="h-full">

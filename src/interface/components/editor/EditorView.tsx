@@ -23,6 +23,7 @@ import { diffTimeline, isEmptyDiff } from '@/interface/lib/timeline-diff';
 import { timelineToOutputMs } from '@/core/services/timeline-ops';
 import type { TimelineClip, TimelineProject, TimelineTrack } from '@/core/types/timeline';
 import { DEFAULT_FRAME_FIT } from '@/core/services/video-format';
+import { createReviewLink, listReviewLinks, setReviewNoteResolved, turnOffReviewLink, type OwnerShare } from '@/core/actions/video-review';
 import { autoEditInstruction, openingTitle, type AutoEditStyle } from '@/core/services/auto-edit';
 import { EditorWorkspace, type RenderState } from './EditorWorkspace';
 import type { AgentReply } from './AgentPanel';
@@ -68,6 +69,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pollId = useRef(0);
   const [takeStatus, setTakeStatus] = useState<Record<string, TakeStatus>>({});
+  const [reviews, setReviews] = useState<OwnerShare[]>([]);
   const takePolls = useRef(new Set<string>());
 
   const current = (): Snapshot => {
@@ -238,6 +240,50 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       if (job.status === 'queued' || job.status === 'rendering') void pollRender(job.id);
     })();
   }, [loadTimeline, pollRender, pollTake]);
+
+  // Notes from reviewers arrive while the creator works.
+  const refreshReviews = useCallback(async () => {
+    const id = useTimelineStore.getState().timeline?.id;
+    if (!id) return;
+    try {
+      const { shares } = await listReviewLinks(id);
+      setReviews(shares);
+    } catch {
+      // Feedback is a nice-to-have here; editing carries on.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    void refreshReviews();
+    const id = setInterval(() => void refreshReviews(), 30000);
+    return () => clearInterval(id);
+  }, [loading, refreshReviews]);
+
+  const onShareForReview = async (): Promise<string | null> => {
+    const id = timelineId();
+    if (!id) return 'Open a project first.';
+    const res = await createReviewLink(id);
+    if ('error' in res) return res.error;
+    await refreshReviews();
+    return null;
+  };
+
+  const onResolveNote = async (noteId: string, resolved: boolean) => {
+    setReviews((all) => all.map((r) => ({ ...r, notes: r.notes.map((n) => (n.id === noteId ? { ...n, resolved } : n)) })));
+    const res = await setReviewNoteResolved(noteId, resolved);
+    if ('error' in res) {
+      setError(res.error ?? 'Could not update the note.');
+      void refreshReviews();
+    }
+  };
+
+  const onTurnOffLink = async (shareId: string) => {
+    const res = await turnOffReviewLink(shareId);
+    if ('error' in res) return setError(res.error ?? 'Could not turn the link off.');
+    setReviews((all) => all.filter((r) => r.id !== shareId));
+    setNotice('Link turned off. Anyone who has it now sees that it was turned off.');
+  };
 
   useEffect(() => {
     if (!notice) return;
@@ -437,6 +483,10 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       onAutoCaptions={onAutoCaptions}
       onRegenerate={onRegenerate}
       onAutoEdit={onAutoEdit}
+      reviews={reviews}
+      onShareForReview={onShareForReview}
+      onResolveNote={onResolveNote}
+      onTurnOffLink={onTurnOffLink}
       takeStatus={takeStatus}
     />
   );

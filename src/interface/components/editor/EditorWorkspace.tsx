@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, ImagePlus, Keyboard, Loader2, Maximize, Music2, Palette, Pause,
+  ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, ImagePlus, Keyboard, Loader2, Maximize, MessageSquare, Music2, Palette, Pause,
   Play, Proportions, Redo2, Scissors, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Trash2, Type, Undo2, Wand2, X, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useMediaQuery } from '@/interface/hooks/use-media-query';
-import { syncVideoToSong } from '@/core/services/timeline-ops';
+import { outputToTimelineMs, syncVideoToSong } from '@/core/services/timeline-ops';
+import type { OwnerShare } from '@/core/actions/video-review';
+import { ReviewsSheet } from './ReviewsSheet';
 import { getGradeById } from '@/core/services/color-grading';
 import { MIN_CLIP_MS } from '@/core/services/edit-agent';
 import { PreviewPlayer } from './PreviewPlayer';
@@ -60,6 +62,11 @@ export interface EditorWorkspaceProps {
   takeStatus?: Record<string, TakeStatus>;
   /** One-tap first cut in a style. */
   onAutoEdit?: (style: AutoEditStyle) => Promise<AgentReply>;
+  /** Review links for this video and what reviewers said. */
+  reviews?: OwnerShare[];
+  onShareForReview?: () => Promise<string | null>;
+  onResolveNote?: (noteId: string, resolved: boolean) => void;
+  onTurnOffLink?: (shareId: string) => void;
 }
 
 type Tab = 'ai' | 'clip' | 'look' | 'format' | 'music' | 'text';
@@ -106,11 +113,13 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   const [sheet, setSheet] = useState<Tab | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [reviewsOpen, setReviewsOpen] = useState(false);
   const [fitSignal, setFitSignal] = useState(0);
   const [mode, setMode] = useEditorModeState();
   const pro = mode === 'pro';
 
   const busy = props.render.status === 'queued' || props.render.status === 'rendering';
+  const openNotes = (props.reviews ?? []).reduce((n, r) => n + r.notes.filter((x) => x.kind === 'note' && !x.resolved).length, 0);
   const [frameW, frameH] = parseResolution(timeline?.resolution);
   const videoTrack = tracks.find((t) => t.track_type === 'video');
   const shots = clips.filter((c) => c.track_id === videoTrack?.id).sort((a, b) => a.start_ms - b.start_ms);
@@ -287,6 +296,15 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
             <Keyboard size={18} />
           </button>
         )}
+        {(props.reviews?.length ?? 0) > 0 && (
+          <button
+            onClick={() => setReviewsOpen(true)}
+            className={`ml-1 flex h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] hover:bg-white/5 ${openNotes > 0 ? 'border-gold-300/50 text-gold-100' : 'border-line-strong text-[#d6d0c0]'}`}
+            title="Review notes"
+          >
+            <MessageSquare size={14} /> {openNotes > 0 ? `${openNotes} note${openNotes === 1 ? '' : 's'}` : phone ? '' : 'Notes'}
+          </button>
+        )}
         {props.render.status !== 'idle' && (
           <RenderPill render={props.render} onClick={() => setExportOpen(true)} />
         )}
@@ -448,6 +466,24 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         reframing={props.reframing}
         onRender={props.onRender}
         onReframe={props.onReframe}
+        review={props.reviews?.find((r) => r.storage_key === props.render.storageKey) ?? null}
+        onShareForReview={props.onShareForReview}
+        onOpenReviews={() => {
+          setExportOpen(false);
+          setReviewsOpen(true);
+        }}
+      />
+      <ReviewsSheet
+        open={reviewsOpen}
+        onClose={() => setReviewsOpen(false)}
+        shares={props.reviews ?? []}
+        onJump={(atMs) => {
+          // Notes are pinned to the finished video; find that moment among the shots.
+          store.setPlaying(false);
+          store.setPlayhead(outputToTimelineMs(shots, atMs));
+        }}
+        onResolve={(id, resolved) => props.onResolveNote?.(id, resolved)}
+        onTurnOff={(id) => props.onTurnOffLink?.(id)}
       />
       {shortcutsOpen && <ShortcutsCard onClose={() => setShortcutsOpen(false)} />}
     </div>
