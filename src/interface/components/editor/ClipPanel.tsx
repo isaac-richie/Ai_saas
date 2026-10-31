@@ -8,8 +8,9 @@ import type { TimelineClip, TransitionType } from '@/core/types/timeline';
 import { useRef, useState } from 'react';
 import { useFilmstrip } from '@/interface/lib/media-thumbs';
 import { applyTake, rippleFrom, type Take } from '@/core/services/take-regenerate';
-import { SPEEDS, clipSpeed } from '@/core/services/timeline-ops';
-import { CAPTION_PREVIEW_CLASS, TRANSITION_LABELS, formatTime } from './labels';
+import { SPEEDS, clipSpeed, trimClip } from '@/core/services/timeline-ops';
+import { useIsPro } from '@/interface/hooks/use-editor-mode';
+import { CAPTION_PREVIEW_CLASS, TRANSITION_LABELS, formatClock, formatTime } from './labels';
 
 const TRANSITIONS = Object.keys(TRANSITION_REGISTRY) as TransitionType[];
 
@@ -49,6 +50,7 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
   takeStatus?: Record<string, TakeStatus>;
 }) {
   const { clips, tracks, selected_clip_id, playhead_ms, updateClip, removeClip, reorder, split, setSpeed } = useTimelineStore();
+  const pro = useIsPro();
   const clip = clips.find((c) => c.id === selected_clip_id);
   const track = tracks.find((t) => t.id === clip?.track_id);
 
@@ -124,6 +126,7 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
   return (
     <div className="space-y-6 p-4">
       <ShotHeader clip={clip} position={position} count={shots.length} duration={duration} />
+      {pro && <ExactLength clip={clip} locked={locked} />}
 
       <div className="grid grid-cols-4 gap-2">
         <button onClick={() => reorder(clip.id, position - 1)} disabled={locked || position === 0} aria-label="Move earlier" className={`${pill(false)} grid place-items-center disabled:opacity-35`}><ArrowLeft size={16} /></button>
@@ -311,8 +314,42 @@ function TakeThumb({ take, disabled, onUse }: { take: Take; disabled: boolean; o
   );
 }
 
+/** Pro: type a shot's length to the tenth of a second; it stops where the footage runs out. */
+function ExactLength({ clip, locked }: { clip: TimelineClip; locked: boolean }) {
+  const { clips, commitClips } = useTimelineStore();
+  const seconds = (clip.end_ms - clip.start_ms) / 1000;
+  const [draft, setDraft] = useState<string | null>(null);
+  const apply = () => {
+    const value = Number(draft);
+    setDraft(null);
+    if (!Number.isFinite(value) || value <= 0) return;
+    commitClips(trimClip(clips, clip.id, 'end', Math.round(value * 1000) - (clip.end_ms - clip.start_ms)), `exact-length:${clip.id}:${value}`);
+  };
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-xl border border-line bg-white/[0.02] px-3.5 py-2.5">
+      <span className="text-sm text-[#d6d0c0]">Exact length</span>
+      <span className="flex items-center gap-1.5">
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0.3}
+          step={0.1}
+          disabled={locked}
+          value={draft ?? seconds.toFixed(1)}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={apply}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          className="w-20 rounded-lg border border-line bg-obsidian-800/80 px-2 py-1 text-right font-mono text-sm tabular-nums text-white focus:border-gold-400/50 focus:outline-none"
+        />
+        <span className="text-sm text-[#9aa3ad]">s</span>
+      </span>
+    </label>
+  );
+}
+
 function ShotHeader({ clip, position, count, duration }: { clip: TimelineClip; position: number; count: number; duration: number }) {
   const strip = useFilmstrip(clip.asset_url);
+  const subject = String((clip.metadata as { shot?: { subject?: unknown } } | null)?.shot?.subject ?? '').trim();
   return (
     <div className="flex items-center gap-3">
       <div className="aspect-video w-24 shrink-0 overflow-hidden rounded-lg border border-line bg-[linear-gradient(135deg,rgba(217,192,138,0.28),rgba(138,108,62,0.16))]">
@@ -320,8 +357,10 @@ function ShotHeader({ clip, position, count, duration }: { clip: TimelineClip; p
         {strip?.frames[0] && <img src={strip.frames[Math.floor(strip.frames.length / 3)]} alt="" className="h-full w-full object-cover" />}
       </div>
       <div className="min-w-0">
-        <p className="text-[15px] font-medium text-white">Shot {position + 1} <span className="text-[#b0b8c4]">of {count}</span></p>
-        <p className="text-sm tabular-nums text-[#b0b8c4]">{formatTime(duration)} long</p>
+        <p className="truncate text-[15px] font-medium text-white">{subject || `Shot ${position + 1}`}</p>
+        <p className="text-sm tabular-nums text-[#b0b8c4]">
+          {subject ? `Shot ${position + 1} of ${count} · ` : `of ${count} · `}{formatClock(duration, true)} long
+        </p>
       </div>
     </div>
   );

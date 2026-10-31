@@ -21,8 +21,10 @@ import { TextPanel } from './TextPanel';
 import { ExportSheet } from './ExportSheet';
 import { FormatPanel } from './FormatPanel';
 import { formatFor } from '@/core/services/video-format';
+import { parseResolution } from '@/core/services/timeline-render';
 import type { AutoEditStyle } from '@/core/services/auto-edit';
-import { formatClock } from './labels';
+import { formatClock, formatTime } from './labels';
+import { EditorModeContext, useEditorModeState, type EditorMode } from '@/interface/hooks/use-editor-mode';
 
 export type RenderState = {
   status: 'idle' | 'queued' | 'rendering' | 'completed' | 'failed';
@@ -82,6 +84,11 @@ const SHORTCUTS: [string, string][] = [
 
 const iconButton =
   'grid size-10 place-items-center rounded-xl text-[#d6d0c0] transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-30 disabled:hover:bg-transparent';
+// Phones and tablets: tools float in a glass dock above the safe area.
+const dockClass =
+  'mx-3 mb-[max(0.75rem,env(safe-area-inset-bottom))] mt-2 flex shrink-0 items-center gap-1 rounded-2xl border border-line-strong bg-obsidian-900/85 p-1.5 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.95)] backdrop-blur-xl';
+// One surface for every panel: stage, tools and timeline read as a single, calm workspace.
+const surface = 'rounded-2xl border border-line bg-[#0c0d0c]/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_20px_40px_-30px_rgba(0,0,0,0.9)]';
 const goldButton =
   'bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[#1a160e] shadow-[0_10px_30px_-12px_rgba(217,192,138,0.8)]';
 
@@ -100,8 +107,11 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [fitSignal, setFitSignal] = useState(0);
+  const [mode, setMode] = useEditorModeState();
+  const pro = mode === 'pro';
 
   const busy = props.render.status === 'queued' || props.render.status === 'rendering';
+  const [frameW, frameH] = parseResolution(timeline?.resolution);
   const videoTrack = tracks.find((t) => t.track_type === 'video');
   const shots = clips.filter((c) => c.track_id === videoTrack?.id).sort((a, b) => a.start_ms - b.start_ms);
   const endMs = shots.length ? shots[shots.length - 1].end_ms : 0;
@@ -191,7 +201,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   const panel = (id: Tab) => {
     if (id === 'ai') return <AgentPanel onSend={props.onAgent} onAutoEdit={props.onAutoEdit} hasShots={shots.length > 0} />;
     if (id === 'clip') return <ClipPanel onSyncToBeat={syncToBeat} onRegenerate={props.onRegenerate} takeStatus={props.takeStatus} />;
-    if (id === 'look') return <ColorGradePicker selectedId={timeline?.color_grade_id || 'natural'} onSelect={store.setGrade} />;
+    if (id === 'look') return <ColorGradePicker selectedId={timeline?.color_grade_id || 'natural'} onSelect={store.setGrade} row={!desktop} />;
     if (id === 'format') return <FormatPanel />;
     if (id === 'music') return <MusicPanel onUpload={props.onUploadMusic} onSyncToBeat={syncToBeat} />;
     return <TextPanel onAddText={props.onAddText} onAutoCaptions={props.onAutoCaptions} hasRender={Boolean(props.render.storageKey)} />;
@@ -227,8 +237,8 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
 
   const timecode = (
     <span className="whitespace-nowrap font-mono text-[13px] tabular-nums text-[#e8e2d2]">
-      {formatClock(playhead_ms, true)}
-      <span className="text-[#8f97a1]"> / {formatClock(endMs, true)}</span>
+      {pro ? formatTime(playhead_ms, timeline?.fps) : formatClock(playhead_ms, true)}
+      <span className="text-[#8f97a1]"> / {pro ? formatTime(endMs, timeline?.fps) : formatClock(endMs, true)}</span>
     </span>
   );
 
@@ -243,9 +253,10 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   };
 
   return (
+    <EditorModeContext.Provider value={mode}>
     <div className="flex h-full flex-col bg-[radial-gradient(ellipse_at_top,rgba(217,192,138,0.06),transparent_55%)]">
       {/* Top bar */}
-      <header className="flex h-14 shrink-0 items-center gap-1 border-b border-line px-2 md:h-16 md:px-4">
+      <header className="relative flex h-14 shrink-0 items-center gap-1 border-b border-line px-2 md:h-16 md:px-4">
         <Link href={props.backHref} className={iconButton} aria-label="Back to storyboard">
           <ArrowLeft size={19} />
         </Link>
@@ -253,15 +264,25 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
           <h1 className="truncate text-base font-light tracking-tight text-white md:text-lg">
             {props.title ? props.title : <>Edit <span className="lux-serif text-gold-200">video</span></>}
           </h1>
-          <SaveStatus saving={props.saving} failed={Boolean(props.saveFailed)} />
+          <SaveStatus saving={props.saving} failed={Boolean(props.saveFailed)} short={phone} />
         </div>
+        {desktop && shots.length > 0 && (
+          <div className="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 text-xs text-[#9aa3ad] xl:flex">
+            <span>{formatFor(timeline?.resolution).label} {formatFor(timeline?.resolution).ratio}</span>
+            <span className="size-1 rounded-full bg-white/20" />
+            <span className="tabular-nums">{formatClock(endMs)}</span>
+            <span className="size-1 rounded-full bg-white/20" />
+            <span>{shots.length} shot{shots.length === 1 ? '' : 's'}</span>
+          </div>
+        )}
+        <ModeSwitch mode={mode} onChange={setMode} compact={phone} />
         <button onClick={store.undo} disabled={history.past.length === 0} className={iconButton} aria-label="Undo" title="Undo (⌘Z)">
           <Undo2 size={18} />
         </button>
         <button onClick={store.redo} disabled={history.future.length === 0} className={iconButton} aria-label="Redo" title="Redo (⇧⌘Z)">
           <Redo2 size={18} />
         </button>
-        {desktop && (
+        {desktop && pro && (
           <button onClick={() => setShortcutsOpen(true)} className={iconButton} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
             <Keyboard size={18} />
           </button>
@@ -280,18 +301,18 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
 
       {desktop ? (
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] grid-rows-[minmax(0,1fr)_auto] gap-3 p-3">
-          <section className="flex min-h-0 flex-col rounded-2xl border border-line bg-black/30">
+          <section className={`flex min-h-0 flex-col ${surface}`}>
             <div className="min-h-0 flex-1 p-4 pb-2">
               <PreviewPlayer emptyHint={emptyHint} />
             </div>
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 pb-3">
               <div>{timecode}</div>
               <div className="flex items-center gap-1">
-                <button onClick={() => store.setPlayhead(0)} className={iconButton} aria-label="Back to start" title="Back to start"><SkipBack size={17} /></button>
+                {pro && <button onClick={() => store.setPlayhead(0)} className={iconButton} aria-label="Back to start" title="Back to start"><SkipBack size={17} /></button>}
                 <button onClick={() => jumpShot(-1)} className={iconButton} aria-label="Previous shot" title="Previous shot"><ChevronLeft size={19} /></button>
                 {playButton('lg')}
                 <button onClick={() => jumpShot(1)} className={iconButton} aria-label="Next shot" title="Next shot"><ChevronLeft size={19} className="rotate-180" /></button>
-                <button onClick={() => store.setPlayhead(endMs)} className={iconButton} aria-label="Go to end" title="Go to end"><SkipForward size={17} /></button>
+                {pro && <button onClick={() => store.setPlayhead(endMs)} className={iconButton} aria-label="Go to end" title="Go to end"><SkipForward size={17} /></button>}
               </div>
               <div className="text-right">
                 <button onClick={() => setTab('format')} className="rounded-lg px-2 py-1 text-xs text-[#b0b8c4] hover:bg-white/5 hover:text-white" title="Change the video format">
@@ -301,7 +322,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
             </div>
           </section>
 
-          <aside className="lux-glass row-span-2 flex min-h-0 flex-col overflow-hidden rounded-2xl">
+          <aside className={`row-span-2 flex min-h-0 flex-col overflow-hidden ${surface}`}>
             <div role="tablist" aria-label="Editing tools" className="grid grid-cols-6 gap-1 border-b border-line p-1.5">
               {TABS.map(({ id, label, icon: Icon }) => (
                 <button
@@ -329,13 +350,17 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
               <ToolbarButton icon={Type} label="Add text" onClick={() => { void props.onAddText(); }} disabled={shots.length === 0} />
               <ToolbarButton icon={Music2} label={song ? 'Music' : 'Add music'} onClick={() => setTab('music')} />
               <div className="ml-auto flex items-center gap-1.5">
-                <button onClick={() => zoomTo(pixels_per_ms / 1.4)} className="grid size-8 place-items-center rounded-lg text-[#b0b8c4] hover:bg-white/5 hover:text-white" aria-label="Zoom out"><ZoomOut size={16} /></button>
-                <input
-                  type="range" min={0} max={100} value={zoomValue} aria-label="Timeline zoom"
-                  onChange={(e) => zoomTo(ZOOM_LIMITS.MIN_PPMS * Math.exp((Number(e.target.value) / 100) * zoomRange))}
-                  className="w-28 accent-[#d9c08a]"
-                />
-                <button onClick={() => zoomTo(pixels_per_ms * 1.4)} className="grid size-8 place-items-center rounded-lg text-[#b0b8c4] hover:bg-white/5 hover:text-white" aria-label="Zoom in"><ZoomIn size={16} /></button>
+                {pro && (
+                  <>
+                    <button onClick={() => zoomTo(pixels_per_ms / 1.4)} className="grid size-8 place-items-center rounded-lg text-[#b0b8c4] hover:bg-white/5 hover:text-white" aria-label="Zoom out"><ZoomOut size={16} /></button>
+                    <input
+                      type="range" min={0} max={100} value={zoomValue} aria-label="Timeline zoom"
+                      onChange={(e) => zoomTo(ZOOM_LIMITS.MIN_PPMS * Math.exp((Number(e.target.value) / 100) * zoomRange))}
+                      className="w-28 accent-[#d9c08a]"
+                    />
+                    <button onClick={() => zoomTo(pixels_per_ms * 1.4)} className="grid size-8 place-items-center rounded-lg text-[#b0b8c4] hover:bg-white/5 hover:text-white" aria-label="Zoom in"><ZoomIn size={16} /></button>
+                  </>
+                )}
                 <button onClick={() => setFitSignal((n) => n + 1)} className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-[#b0b8c4] hover:bg-white/5 hover:text-white" title="Fit the whole video">
                   <Maximize size={13} /> Fit
                 </button>
@@ -346,18 +371,27 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         </div>
       ) : (
         <div className="relative flex min-h-0 flex-1 flex-col">
-          <div className="min-h-[180px] flex-1 px-3 pt-3">
-            <PreviewPlayer emptyHint={emptyHint} />
-          </div>
-          <div className="flex items-center gap-2 px-3 py-2">
-            <div className="flex-1">{timecode}</div>
-            {playButton('md')}
-            <div className="flex flex-1 justify-end">
-              <button onClick={() => setFitSignal((n) => n + 1)} className={iconButton} aria-label="Fit the whole video"><Maximize size={17} /></button>
+          <div className="flex min-h-0 flex-1 flex-col gap-2.5 px-3 pt-3">
+            {/* The stage is only as tall as the picture (at most about half the screen); the timeline gets the rest. */}
+            <section className={`shrink-0 p-2 sm:p-3 ${surface}`}>
+              <div style={{ height: `min(46dvh, calc((100vw - ${phone ? 44 : 50}px) * ${frameH / frameW}))` }}>
+                <PreviewPlayer emptyHint={emptyHint} />
+              </div>
+              <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1 px-1">
+                <div>{timecode}</div>
+                <div className="flex items-center gap-0.5">
+                  <button onClick={() => jumpShot(-1)} className={iconButton} aria-label="Previous shot"><ChevronLeft size={19} /></button>
+                  {playButton('md')}
+                  <button onClick={() => jumpShot(1)} className={iconButton} aria-label="Next shot"><ChevronLeft size={19} className="rotate-180" /></button>
+                </div>
+                <div className="flex justify-end">
+                  <button onClick={() => setFitSignal((n) => n + 1)} className={iconButton} aria-label="Fit the whole video on the timeline" title="Fit"><Maximize size={16} /></button>
+                </div>
+              </div>
+            </section>
+            <div className="min-h-[170px] flex-1">
+              <TimelinePanel centered={phone} roomy fitSignal={fitSignal} onAdd={addFrom} />
             </div>
-          </div>
-          <div className="px-2 pb-2">
-            <TimelinePanel centered={phone} fitSignal={fitSignal} onAdd={addFrom} />
           </div>
 
           {selected && selectedTrack ? (
@@ -374,10 +408,12 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
               onSettings={() => setSheet('clip')}
             />
           ) : (
-            <nav aria-label="Editing tools" className="flex shrink-0 items-center gap-1 border-t border-line bg-obsidian-950/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
+            <nav aria-label="Editing tools" className={dockClass}>
               {TABS.filter((t) => t.id !== 'clip').map(({ id, label, icon: Icon }) => (
-                <button key={id} onClick={() => setSheet(id)} className="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-xs text-[#d6d0c0] active:bg-white/5">
-                  <Icon size={20} strokeWidth={1.7} className={id === 'ai' ? 'text-gold-200' : ''} />
+                <button key={id} onClick={() => setSheet(id)} className="group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1 text-[11px] font-medium text-[#c9c3b4] active:scale-95">
+                  <span className={`grid size-9 place-items-center rounded-xl transition-colors group-hover:bg-white/[0.06] ${id === 'ai' ? 'bg-gold-500/15 text-gold-200' : 'text-[#e8e2d2]'}`}>
+                    <Icon size={19} strokeWidth={1.7} />
+                  </span>
                   {label}
                 </button>
               ))}
@@ -390,7 +426,13 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
           )}
 
           {sheet && (
-            <ToolSheet title={TABS.find((t) => t.id === sheet)!.title} onClose={() => setSheet(null)} tall={sheet === 'ai'}>
+            <ToolSheet
+              title={TABS.find((t) => t.id === sheet)!.title}
+              onClose={() => setSheet(null)}
+              tall={sheet === 'ai'}
+              // Changes you judge by eye keep the preview bright and visible.
+              seeThrough={sheet === 'look' || sheet === 'format'}
+            >
               {panel(sheet)}
             </ToolSheet>
           )}
@@ -409,17 +451,56 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
       />
       {shortcutsOpen && <ShortcutsCard onClose={() => setShortcutsOpen(false)} />}
     </div>
+    </EditorModeContext.Provider>
   );
 }
 
-function SaveStatus({ saving, failed }: { saving: boolean; failed: boolean }) {
+/** Simple for creators, Pro for precision; remembered per browser. */
+function ModeSwitch({ mode, onChange, compact }: { mode: EditorMode; onChange: (m: EditorMode) => void; compact: boolean }) {
+  if (compact) {
+    // Phones: one small pill that turns Pro tools on and off, so the title keeps its room.
+    return (
+      <button
+        role="switch"
+        aria-checked={mode === 'pro'}
+        aria-label="Pro tools"
+        onClick={() => onChange(mode === 'pro' ? 'simple' : 'pro')}
+        className={`mr-0.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+          mode === 'pro' ? 'border-gold-300/70 bg-gold-200 text-[#1a160e]' : 'border-line text-[#b0b8c4]'
+        }`}
+      >
+        Pro
+      </button>
+    );
+  }
+  return (
+    <div role="radiogroup" aria-label="Editor mode" className="mr-1 flex items-center rounded-full border border-line bg-white/[0.03] p-0.5 text-xs">
+      {(['simple', 'pro'] as const).map((m) => (
+        <button
+          key={m}
+          role="radio"
+          aria-checked={mode === m}
+          onClick={() => onChange(m)}
+          title={m === 'pro' ? 'Pro: frame timecode, zoom, row controls, exact lengths and shortcuts' : 'Simple: just what you need'}
+          className={`rounded-full font-medium transition-colors ${compact ? 'px-2.5 py-1' : 'px-3 py-1'} ${
+            mode === m ? 'bg-gold-200 text-[#1a160e]' : 'text-[#b0b8c4] hover:text-white'
+          }`}
+        >
+          {m === 'pro' ? 'Pro' : 'Simple'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SaveStatus({ saving, failed, short = false }: { saving: boolean; failed: boolean; short?: boolean }) {
   const [label, dot] = failed
-    ? ['Not saved yet · retrying', 'bg-amber-300']
+    ? [short ? 'Retrying save' : 'Not saved yet · retrying', 'bg-amber-300']
     : saving
       ? ['Saving…', 'bg-gold-300 animate-pulse']
-      : ['All changes saved', 'bg-[#8fd1b9]'];
+      : [short ? 'Saved' : 'All changes saved', 'bg-[#8fd1b9]'];
   return (
-    <p className="flex items-center gap-1.5 text-xs text-[#b0b8c4]" aria-live="polite">
+    <p className="flex items-center gap-1.5 whitespace-nowrap text-xs text-[#b0b8c4]" aria-live="polite">
       <span className={`size-1.5 rounded-full ${dot}`} aria-hidden /> {label}
     </p>
   );
@@ -486,13 +567,14 @@ function ContextBar({ kind, locked, canSplit, position, shotCount, onDone, onSpl
   onDone: () => void; onSplit: () => void; onDelete: () => void; onMove: (dir: -1 | 1) => void; onSettings: () => void;
 }) {
   const item = (Icon: typeof Scissors, label: string, onClick: () => void, disabled = false, danger = false) => (
-    <button key={label} onClick={onClick} disabled={disabled || locked} className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-xs active:bg-white/5 disabled:opacity-30 ${danger ? 'text-red-200' : 'text-[#e8e2d2]'}`}>
-      <Icon size={20} strokeWidth={1.7} /> {label}
+    <button key={label} onClick={onClick} disabled={disabled || locked} className={`group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1 text-[11px] font-medium active:scale-95 disabled:opacity-30 ${danger ? 'text-red-200' : 'text-[#e8e2d2]'}`}>
+      <span className="grid size-9 place-items-center rounded-xl group-hover:bg-white/[0.06]"><Icon size={19} strokeWidth={1.7} /></span>
+      {label}
     </button>
   );
   return (
-    <nav aria-label="Selected item" className="flex shrink-0 items-center gap-1 border-t border-gold-400/25 bg-obsidian-900/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
-      <button onClick={onDone} aria-label="Done" className="grid h-12 w-10 shrink-0 place-items-center rounded-xl text-gold-200 active:bg-white/5">
+    <nav aria-label="Selected item" className={`${dockClass} border-gold-400/35`}>
+      <button onClick={onDone} aria-label="Done" className="grid h-12 w-10 shrink-0 place-items-center rounded-xl bg-gold-500/15 text-gold-200 active:scale-95">
         <ChevronLeft size={22} />
       </button>
       {kind === 'video' && (
@@ -509,7 +591,9 @@ function ContextBar({ kind, locked, canSplit, position, shotCount, onDone, onSpl
   );
 }
 
-function ToolSheet({ title, onClose, tall, children }: { title: string; onClose: () => void; tall: boolean; children: React.ReactNode }) {
+function ToolSheet({ title, onClose, tall, seeThrough = false, children }: {
+  title: string; onClose: () => void; tall: boolean; seeThrough?: boolean; children: React.ReactNode;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -517,12 +601,12 @@ function ToolSheet({ title, onClose, tall, children }: { title: string; onClose:
   }, [onClose]);
   return (
     <>
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0 z-30 bg-black/40" />
+      <button aria-label="Close" onClick={onClose} className={`absolute inset-0 z-30 ${seeThrough ? 'bg-transparent' : 'bg-black/40'}`} />
       <div
         role="dialog"
         aria-label={title}
         className={`absolute inset-x-0 bottom-0 z-40 flex flex-col rounded-t-3xl border-t border-line-strong bg-obsidian-900 shadow-[0_-30px_60px_-20px_rgba(0,0,0,0.9)] animate-[sheet-rise_0.28s_cubic-bezier(0.22,1,0.36,1)] ${
-          tall ? 'h-[72%]' : 'max-h-[62%]'
+          tall ? 'h-[72%]' : seeThrough ? 'max-h-[48%]' : 'max-h-[62%]'
         }`}
       >
         <div className="flex shrink-0 items-center justify-between px-4 pb-1 pt-2.5">

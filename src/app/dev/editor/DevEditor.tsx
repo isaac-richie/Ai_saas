@@ -17,9 +17,9 @@ const sample = {
   timeline: { id: 'dev', project_id: 'dev', name: 'Main', fps: 24, resolution: '1920x1080', duration_ms: 13000, color_grade_id: 'natural', created_at: '', updated_at: '' },
   tracks: [track('v', 'video', 0), track('a', 'audio', 1), track('t', 'caption', 2)],
   clips: [
-    clip({ id: 's1', track_id: 'v', start_ms: 0, end_ms: 4000, asset_url: '/__dev/shot1.mp4', transition_out: 'crossfade', transition_out_ms: 500, metadata: { source_duration_ms: 4000 } }),
-    clip({ id: 's2', track_id: 'v', start_ms: 4000, end_ms: 8000, asset_url: '/__dev/shot2.mp4', metadata: { source_duration_ms: 4000 } }),
-    clip({ id: 's3', track_id: 'v', start_ms: 8000, end_ms: 13000, asset_url: '/__dev/shot3.mp4', metadata: { source_duration_ms: 5000 } }),
+    clip({ id: 's1', track_id: 'v', start_ms: 0, end_ms: 4000, asset_url: '/__dev/shot1.mp4', transition_out: 'crossfade', transition_out_ms: 500, metadata: { source_duration_ms: 4000, shot: { subject: 'Fractal bloom' } } }),
+    clip({ id: 's2', track_id: 'v', start_ms: 4000, end_ms: 8000, asset_url: '/__dev/shot2.mp4', metadata: { source_duration_ms: 4000, shot: { subject: 'Sunset sky' } } }),
+    clip({ id: 's3', track_id: 'v', start_ms: 8000, end_ms: 13000, asset_url: '/__dev/shot3.mp4', metadata: { source_duration_ms: 5000, shot: { subject: 'Starfield' } } }),
     clip({ id: 'm', track_id: 'a', clip_type: 'audio', start_ms: 0, end_ms: 13000, volume: 0.6, asset_url: '/__dev/song.mp3', metadata: { name: 'Golden Hour Demo', bpm: 120, beats: Array.from({ length: 40 }, (_, i) => i * 0.5), source_duration_ms: 20000 } }),
     clip({ id: 'c1', track_id: 't', clip_type: 'caption', start_ms: 600, end_ms: 3200, metadata: { text: 'Made with VisioWave', style: 'bold_center' } }),
   ],

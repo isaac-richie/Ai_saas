@@ -7,7 +7,12 @@ import { useFilmstrip } from '@/interface/lib/media-thumbs';
 import { GRADE_PREVIEW_FILTER } from './labels';
 
 /** Every look shown on a frame of the shot under the playhead, so choosing is seeing. */
-export function ColorGradePicker({ selectedId, onSelect }: { selectedId: string; onSelect: (gradeId: string) => void }) {
+export function ColorGradePicker({ selectedId, onSelect, row = false }: {
+  selectedId: string;
+  onSelect: (gradeId: string) => void;
+  /** Phones: one swipeable row, so the preview above stays in view while choosing. */
+  row?: boolean;
+}) {
   const { clips, tracks, playhead_ms } = useTimelineStore();
   const videoTrack = tracks.find((t) => t.track_type === 'video');
   const shots = clips.filter((c) => c.track_id === videoTrack?.id);
@@ -17,8 +22,14 @@ export function ColorGradePicker({ selectedId, onSelect }: { selectedId: string;
 
   return (
     <div className="space-y-3 p-4">
-      <p className="text-sm text-[#b0b8c4]">Pick a look for the whole video. The preview changes right away.</p>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-2">
+      <p className="text-sm text-[#b0b8c4]">{row ? 'Swipe through looks; the preview changes as you tap.' : 'Pick a look for the whole video. The preview changes right away.'}</p>
+      <div
+        className={
+          row
+            ? '-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button]:w-36 [&>button]:shrink-0 [&>button]:snap-start'
+            : 'grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-2'
+        }
+      >
         {BUILT_IN_GRADES.map((grade) => {
           const active = selectedId === grade.id;
           return (

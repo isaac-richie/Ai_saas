@@ -9,11 +9,14 @@ import {
 } from '@/core/services/timeline-ops';
 import { FILMSTRIP_FRAMES, useFilmstrip, useWaveform } from '@/interface/lib/media-thumbs';
 import { TRANSITION_LABELS, formatClock, formatTime } from './labels';
+import { useIsPro } from '@/interface/hooks/use-editor-mode';
 
 const MIN_PPMS = 0.004;
 const MAX_PPMS = 0.8;
 const SNAP_PX = 8;
 const ROW: Record<string, number> = { video: 60, audio: 44, caption: 36, sfx: 36 };
+// Taller rows when the timeline has the room (tablets), so shots are easy to see and touch.
+const ROOMY_ROW: Record<string, number> = { video: 76, audio: 52, caption: 42, sfx: 42 };
 const TRACK_ICON = { video: Film, audio: Music, caption: Type, sfx: Music } as const;
 const TRACK_LABEL: Record<string, string> = { video: 'Shots', audio: 'Music', caption: 'Text', sfx: 'Sound' };
 const TICK_STEPS = [500, 1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000];
@@ -25,8 +28,9 @@ type Drag =
 
 const byStart = (a: TimelineClip, b: TimelineClip) => a.start_ms - b.start_ms;
 
-export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
+export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, onAdd }: {
   centered?: boolean;
+  roomy?: boolean;
   fitSignal?: number;
   /** Opens the right tool from the timeline: more shots, a song, or text. */
   onAdd?: (kind: 'shots' | 'music' | 'text') => void;
@@ -41,7 +45,10 @@ export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
   const programmatic = useRef<number | null>(null);
   const pinch = useRef<{ dist: number; ppm: number } | null>(null);
   const fitted = useRef<number | null>(null);
+  const pro = useIsPro();
   const [viewport, setViewport] = useState(0);
+  const [panelHeight, setPanelHeight] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
   const [moveOffset, setMoveOffset] = useState<{ id: string; dx: number; dropAt: number | null } | null>(null);
   const [snapAt, setSnapAt] = useState<number | null>(null);
 
@@ -61,6 +68,17 @@ export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
   const endMs = Math.max(1000, videoEnd, ...clips.map((c) => place(c).end));
   const contentMs = endMs + (centered ? 0 : 1500) + (onAdd ? 60 / Math.max(ppm, 0.004) : 0);
   const pad = centered ? viewport / 2 : 12;
+  const rowHeight = useMemo(() => {
+    if (!roomy || panelHeight === 0) return roomy ? ROOMY_ROW : ROW;
+    // Spare height goes mostly to the shots, whose film strips read better large.
+    const used = 28 + 2 + tracks.filter((t) => t.track_type !== 'sfx').reduce((sum, t) => sum + ROOMY_ROW[t.track_type], 0);
+    const spare = Math.max(0, panelHeight - used);
+    return {
+      ...ROOMY_ROW,
+      video: Math.round(Math.min(136, ROOMY_ROW.video + spare * 0.7)),
+      audio: Math.round(Math.min(68, ROOMY_ROW.audio + spare * 0.3)),
+    };
+  }, [roomy, panelHeight, tracks]);
 
   const beatMarks = useMemo(() => {
     const song = clips.find((c) => c.track_id === tracks.find((t) => t.track_type === 'audio')?.id);
@@ -76,9 +94,14 @@ export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const observer = new ResizeObserver(() => setViewport(el.clientWidth));
+    const observer = new ResizeObserver(() => {
+      setViewport(el.clientWidth);
+      setPanelHeight(root.current?.clientHeight ?? 0);
+    });
     observer.observe(el);
+    if (root.current) observer.observe(root.current);
     setViewport(el.clientWidth);
+    setPanelHeight(root.current?.clientHeight ?? 0);
     return () => observer.disconnect();
   }, []);
 
@@ -234,16 +257,16 @@ export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
   const x = (ms: number) => pad + ms * ppm;
 
   return (
-    <div className="relative flex min-h-0 select-none overflow-hidden rounded-2xl border border-line bg-[#0b0c0b]">
+    <div ref={root} className={`relative flex min-h-0 select-none overflow-hidden rounded-2xl border border-line bg-[#0c0d0c]/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] ${roomy ? 'h-full' : ''}`}>
       <div className={`${centered ? 'w-10' : 'w-11 md:w-[9.5rem]'} shrink-0 border-r border-line bg-obsidian-900`}>
         <div className="h-7 border-b border-line" />
         {visibleTracks.map((track) => {
           const Icon = TRACK_ICON[track.track_type];
           return (
-            <div key={track.id} style={{ height: ROW[track.track_type] }} className="flex items-center gap-1.5 border-b border-line px-2.5">
+            <div key={track.id} style={{ height: rowHeight[track.track_type] }} className="flex items-center gap-1.5 border-b border-line px-2.5">
               <Icon size={14} className={`shrink-0 ${track.muted ? 'text-white/30' : 'text-gold-300/80'}`} aria-hidden />
               <span className={`${centered ? 'hidden' : 'hidden md:block'} flex-1 truncate text-[13px] text-[#d6d0c0]`}>{TRACK_LABEL[track.track_type]}</span>
-              <div className={`${centered ? 'hidden' : 'hidden md:flex'} items-center`}>
+              <div className={`${centered || !pro ? 'hidden' : 'hidden md:flex'} items-center`}>
                 {track.track_type !== 'caption' && (
                   <button
                     onClick={() => toggleTrackMute(track.id)}
@@ -306,6 +329,7 @@ export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
             >
               {ticks.map((t) => {
                 const major = t % step === 0;
+                if (!major && !pro) return null;
                 return (
                   <div key={t} className="absolute bottom-0" style={{ left: x(t) }}>
                     <div className={`w-px ${major ? 'h-2.5 bg-white/30' : 'h-1.5 bg-white/12'}`} />
@@ -313,15 +337,16 @@ export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
                   </div>
                 );
               })}
-              {beatMarks.map((ms, i) => (
-                <div key={i} className="absolute bottom-0 h-1 w-1 -translate-x-1/2 rounded-full bg-gold-300/70" style={{ left: x(ms) }} />
-              ))}
+              {pro &&
+                beatMarks.map((ms, i) => (
+                  <div key={i} className="absolute bottom-0 h-1 w-1 -translate-x-1/2 rounded-full bg-gold-300/70" style={{ left: x(ms) }} />
+                ))}
             </div>
 
             {visibleTracks.map((track) => (
               <div
                 key={track.id}
-                style={{ height: ROW[track.track_type] }}
+                style={{ height: rowHeight[track.track_type] }}
                 className={`relative border-b border-line ${track.locked ? 'bg-[repeating-linear-gradient(135deg,transparent_0_7px,rgba(255,255,255,0.025)_7px_14px)]' : ''}`}
                 onClick={() => selectClip(null)}
               >
@@ -341,6 +366,7 @@ export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
                         selected={selected_clip_id === clip.id}
                         dragDx={moveOffset?.id === clip.id ? moveOffset.dx : null}
                         beats={track.track_type === 'audio' ? beatMarks.filter((b) => b >= start && b <= end).map((b) => (b - start) * ppm) : []}
+                        rowHeight={rowHeight[track.track_type]}
                         onDown={(e, edge) => startClipDrag(e, clip, track, edge)}
                         onSelect={() => selectClip(clip.id)}
                       />
@@ -360,14 +386,14 @@ export function TimelinePanel({ centered = false, fitSignal = 0, onAdd }: {
                         }}
                         aria-label={`Change the transition after shot ${shotNumber.get(clip.id)} (now ${TRANSITION_LABELS[clip.transition_out || 'cut']})`}
                         title={TRANSITION_LABELS[clip.transition_out || 'cut']}
-                        className={`absolute top-1/2 z-20 grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border transition-transform hover:scale-110 ${
+                        className={`absolute top-0 z-20 grid size-5 -translate-x-1/2 -translate-y-[35%] place-items-center rounded-full border transition-transform hover:scale-110 ${
                           hasTransition
                             ? 'border-gold-200 bg-gold-300 text-[#1a160e] shadow-[0_0_10px_rgba(217,192,138,0.6)]'
                             : 'border-white/25 bg-obsidian-900 text-white/60'
                         } ${(clip.end_ms - clip.start_ms) * ppm < 40 ? 'hidden' : ''}`}
                         style={{ left: x(clip.end_ms) }}
                       >
-                        {hasTransition ? <Blend size={12} strokeWidth={2.4} /> : <span className="h-2.5 w-px bg-current" />}
+                        {hasTransition ? <Blend size={11} strokeWidth={2.4} /> : <Plus size={10} strokeWidth={2.6} />}
                       </button>
                     );
                   })}
@@ -426,7 +452,7 @@ function Playhead({ left, ms }: { left: number | string; ms: number }) {
   );
 }
 
-function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, beats, onDown, onSelect }: {
+function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, beats, rowHeight, onDown, onSelect }: {
   clip: TimelineClip;
   track: TimelineTrack;
   left: number;
@@ -436,12 +462,15 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
   selected: boolean;
   dragDx: number | null;
   beats: number[];
+  rowHeight: number;
   onDown: (e: React.PointerEvent, edge?: 'start' | 'end') => void;
   onSelect: () => void;
 }) {
   const kind = track.track_type;
-  const meta = (clip.metadata || {}) as { name?: string; text?: string };
-  const label = kind === 'video' ? `Shot ${number}` : kind === 'audio' ? meta.name || 'Music' : meta.text || 'Text';
+  const meta = (clip.metadata || {}) as { name?: string; text?: string; shot?: { subject?: string } };
+  // A shot is named by what it shows; the number chip already says which one it is.
+  const subject = typeof meta.shot?.subject === 'string' ? meta.shot.subject.trim() : '';
+  const label = kind === 'video' ? subject || `Shot ${number}` : kind === 'audio' ? meta.name || 'Music' : meta.text || 'Text';
   const tone =
     kind === 'video'
       ? 'border-white/10 bg-[#1b1a16]'
@@ -454,7 +483,7 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
       role="button"
       tabIndex={0}
       aria-pressed={selected}
-      aria-label={`${label}, ${formatTime(clip.end_ms - clip.start_ms)} long`}
+      aria-label={`${label}, ${((clip.end_ms - clip.start_ms) / 1000).toFixed(1)} seconds long`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -469,28 +498,46 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
       } ${dragDx !== null ? 'z-20 opacity-85 shadow-2xl' : ''} ${track.locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'}`}
       style={{ left, width, transform: dragDx !== null ? `translateX(${dragDx}px)` : undefined }}
     >
-      {kind === 'video' && <Filmstrip clip={clip} width={width} ppm={ppm} />}
+      {kind === 'video' && <Filmstrip clip={clip} width={width} ppm={ppm} height={rowHeight - 8} />}
       {kind === 'audio' && <WaveformStrip clip={clip} width={width} />}
       {kind === 'audio' &&
         beats.map((bx, i) => <span key={i} className="absolute bottom-1 h-1 w-1 -translate-x-1/2 rounded-full bg-gold-300/80" style={{ left: bx }} />)}
 
       <div
-        className={`pointer-events-none relative flex h-full items-end ${kind === 'video' ? 'bg-[linear-gradient(180deg,transparent_45%,rgba(0,0,0,0.7))]' : 'items-center'}`}
+        className={`pointer-events-none relative h-full ${kind === 'video' ? 'bg-[linear-gradient(180deg,rgba(0,0,0,0.45),transparent_38%,transparent_55%,rgba(0,0,0,0.65))]' : 'flex items-center'}`}
       >
-        {width > 34 && (
-          <span
-            className={`truncate px-2 text-[11px] font-medium ${
-              kind === 'video' ? 'pb-1 text-white' : kind === 'audio' ? 'text-[#dff1ec]' : 'text-[#ece4fa]'
-            }`}
-          >
-            {kind === 'video' ? (width > 80 ? label : number) : label}
-          </span>
-        )}
-        {kind === 'video' && clipSpeed(clip) !== 1 && width > 60 && (
-          <span className="absolute left-1.5 top-1 rounded bg-black/60 px-1 text-[10px] font-semibold tabular-nums text-gold-200">{clipSpeed(clip)}×</span>
-        )}
-        {kind === 'video' && width > 110 && (
-          <span className="ml-auto shrink-0 px-2 pb-1 text-[10px] tabular-nums text-white/70">{formatClock(clip.end_ms - clip.start_ms, true)}</span>
+        {kind === 'video' ? (
+          <>
+            {/* Top-left: which shot, and its speed. Bottom: name and length, clear of the trim handles. */}
+            <span className={`absolute top-1.5 flex items-center gap-1 ${selected ? 'left-5' : 'left-3.5'}`}>
+              {width > 22 && (
+                <span className="grid h-4 min-w-4 place-items-center rounded-[5px] bg-black/55 px-1 text-[10px] font-semibold tabular-nums text-white backdrop-blur-sm">
+                  {number}
+                </span>
+              )}
+              {clipSpeed(clip) !== 1 && width > 56 && (
+                <span className="grid h-4 place-items-center rounded-[5px] bg-gold-300/90 px-1 text-[10px] font-semibold tabular-nums text-[#1a160e]">
+                  {clipSpeed(clip)}×
+                </span>
+              )}
+            </span>
+            {subject && width > 130 && (
+              <span className={`absolute bottom-1.5 max-w-[60%] truncate text-[11px] font-medium text-white/95 ${selected ? 'left-5' : 'left-2.5'}`}>{subject}</span>
+            )}
+            {width > 88 && (
+              <span className={`absolute bottom-1.5 text-[10px] tabular-nums text-white/75 ${selected ? 'right-5' : 'right-3'}`}>{formatClock(clip.end_ms - clip.start_ms, true)}</span>
+            )}
+          </>
+        ) : (
+          width > 34 && (
+            <span
+              className={`relative mx-2 truncate rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
+                kind === 'audio' ? 'bg-[#0f1716]/85 text-[#dff1ec] backdrop-blur-sm' : 'text-[#ece4fa]'
+              }`}
+            >
+              {label}
+            </span>
+          )
         )}
       </div>
 
@@ -511,12 +558,12 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
   );
 }
 
-function Filmstrip({ clip, width, ppm }: { clip: TimelineClip; width: number; ppm: number }) {
+function Filmstrip({ clip, width, ppm, height }: { clip: TimelineClip; width: number; ppm: number; height: number }) {
   const strip = useFilmstrip(clip.asset_url);
   if (!strip || strip.frames.length === 0) {
     return <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(217,192,138,0.28),rgba(138,108,62,0.16))]" />;
   }
-  const tileW = 54 * strip.aspect;
+  const tileW = Math.max(24, height) * strip.aspect;
   const count = Math.min(60, Math.ceil(width / tileW));
   return (
     <div className="absolute inset-0 flex">
