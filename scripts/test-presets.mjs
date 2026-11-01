@@ -189,3 +189,12 @@ test('GPT Image 1.5 is the default image model, with a one-time Nano Banana fall
   assert.match(generation, /imageModel\.startsWith\("gpt-image"\) && !parameters\?\.fallback_from/, 'fallback runs once')
   assert.match(generation, /fallback_from: imageModel/)
 })
+
+test("film shots and editor retakes use each model's own length range, not a fixed 15 s cap", () => {
+  const production = read('../src/core/actions/production.ts')
+  assert.doesNotMatch(production, /Math\.min\(15, shot\.duration_target/, 'Seedance film shots were cut to 15 s')
+  assert.match(production, /clampDurationForFamily\(shot\.duration_target \|\| 10, getKieVideoModelFamily\(family\)\)/)
+  const clipPanel = read('../src/interface/components/editor/ClipPanel.tsx')
+  assert.doesNotMatch(clipPanel, /max=\{15\}/, 'the retake slider stopped at 15 s')
+  assert.match(clipPanel, /max=\{MAX_FAST_TRACK_SECONDS\}/)
+})

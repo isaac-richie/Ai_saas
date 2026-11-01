@@ -12,6 +12,7 @@ import { SPEEDS, clipSpeed, trimClip } from '@/core/services/timeline-ops';
 import { useIsPro } from '@/interface/hooks/use-editor-mode';
 import { isClipLocked } from '@/core/services/edit-agent';
 import { CAPTION_PREVIEW_CLASS, TRANSITION_LABELS, formatClock, formatTime } from './labels';
+import { MAX_FAST_TRACK_SECONDS, MIN_FAST_TRACK_SECONDS, fastTrackUnitsForDuration } from '@/core/config/kie-video-models';
 
 const TRANSITIONS = Object.keys(TRANSITION_REGISTRY) as TransitionType[];
 
@@ -222,7 +223,7 @@ function TakesSection({ clip, locked, status, onRegenerate }: {
   const meta = (clip.metadata || {}) as { takes?: Take[]; pending_take?: unknown; source_duration_ms?: number; storyboard_item_id?: string };
   const takes = Array.isArray(meta.takes) ? meta.takes : [];
   const currentSec = Math.round((clip.end_ms - clip.start_ms) / 1000);
-  const [seconds, setSeconds] = useState(Math.min(15, Math.max(3, currentSec)));
+  const [seconds, setSeconds] = useState(Math.min(MAX_FAST_TRACK_SECONDS, Math.max(MIN_FAST_TRACK_SECONDS, currentSec)));
   const [note, setNote] = useState('');
   const [confirming, setConfirming] = useState(false);
   const takeSwitches = useRef(0);
@@ -253,7 +254,7 @@ function TakesSection({ clip, locked, status, onRegenerate }: {
             <span className="flex justify-between text-sm text-[#d6d0c0]">
               Length <span className="tabular-nums text-[#b0b8c4]">{seconds}s</span>
             </span>
-            <input type="range" min={3} max={15} step={1} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} className="mt-2 w-full accent-[#d9c08a]" />
+            <input type="range" min={MIN_FAST_TRACK_SECONDS} max={MAX_FAST_TRACK_SECONDS} step={1} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} className="mt-2 w-full accent-[#d9c08a]" />
           </label>
           <label className="block">
             <span className="text-sm text-[#d6d0c0]">What should change? <span className="text-[#9aa3ad]">(optional)</span></span>
@@ -264,7 +265,11 @@ function TakesSection({ clip, locked, status, onRegenerate }: {
               className="mt-1.5 w-full rounded-xl border border-line bg-obsidian-800/80 px-3 py-2.5 text-[15px] text-white placeholder:text-[#8f97a1] focus:border-gold-400/50 focus:outline-none"
             />
           </label>
-          <p className="text-xs leading-relaxed text-[#9aa3ad]">Same prompt, references and starting frame as the original, so it still fits the shots around it. Uses one generation from your allowance.</p>
+          <p className="text-xs leading-relaxed text-[#9aa3ad]">
+            Same prompt, references and starting frame as the original, so it still fits the shots around it.
+            Seedance shots can run up to {MAX_FAST_TRACK_SECONDS}s; Kling shots stop at 15s.
+            Uses {fastTrackUnitsForDuration(seconds)} {fastTrackUnitsForDuration(seconds) === 1 ? 'generation' : 'generations'} from your allowance.
+          </p>
           <div className="flex gap-2">
             <button onClick={() => setConfirming(false)} className="flex-1 rounded-xl border border-line py-2.5 text-sm text-[#d6d0c0] hover:bg-white/5">Cancel</button>
             <button

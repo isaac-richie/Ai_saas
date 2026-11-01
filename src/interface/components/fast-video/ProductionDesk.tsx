@@ -18,6 +18,7 @@ import { ProductionShotSettings, ReviseProductionSettings, emptyShotSettings, ty
 import { latestFilms } from "@/core/utils/production/latest-films"
 import { ProductionPicker } from "./ProductionPicker"
 import { MentionTextarea, type MentionReference } from "./MentionTextarea"
+import { MAX_FILM_SHOTS, MIN_FILM_SHOTS } from "@/core/config/film"
 
 /** Film references as @-mentionable items (tag, thumbnail, role) for the brief and corrections. */
 export function productionMentions(assets: ProductionAsset[]): MentionReference[] {
@@ -163,7 +164,7 @@ export function ProductionDesk() {
         {selected?.sequence_id ? <Link href={`/dashboard/sequences/${selected.sequence_id}`}><span>04</span>Edit & deliver <ArrowUpRight size={14} /></Link> : <span className={styles.locked}><span>04</span>Edit & deliver</span>}
       </nav>
       <div className={styles.body}>
-      {view === "brief" && <div className={styles.briefGrid}><div><h3>Every film starts with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop connected shots with your chosen models and timing.</p><span className={styles.format}>2–12 shots · your model and timing · 16:9</span></div>
+      {view === "brief" && <div className={styles.briefGrid}><div><h3>Every film starts with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop connected shots with your chosen models and timing.</p><span className={styles.format}>{MIN_FILM_SHOTS}–{MAX_FILM_SHOTS} shots · your model and timing · 16:9</span></div>
       <form onSubmit={event => { event.preventDefault(); void run(async () => {
         if (uploading) return
         const settings = productionShotSettingsSchema.safeParse(shotSettings)

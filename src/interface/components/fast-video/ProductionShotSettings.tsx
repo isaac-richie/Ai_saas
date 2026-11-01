@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from "react"
 import { productionShotSettingsSchema, type ProductionShotSettings as Settings } from "@/core/validation/production-settings"
 import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
+import { MAX_FILM_SHOTS, MIN_FILM_SHOTS } from "@/core/config/film"
 import styles from "./ProductionShotSettings.module.css"
 
 export type ShotSettingDraft = { model: string; durationSeconds: number }
@@ -12,8 +13,8 @@ const modelName = (model: string) => model === "seedance" ? "Seedance 2.5" : mod
 const runtime = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
 const MODELS = ["kling", "seedance"] as const
 const MODEL_NOTES: Record<string, string> = { kling: "Steady realism · 3 to 15 s", seedance: "Punchy, stylised · 4 to 30 s" }
-const MIN_SHOTS = 2
-const MAX_SHOTS = 12
+const MIN_SHOTS = MIN_FILM_SHOTS
+const MAX_SHOTS = MAX_FILM_SHOTS
 /** Every whole-second length the model accepts on Kie (Kling 3.0: 3–15 s, Seedance 2.5: 4–30 s). */
 export const durationsFor = (model: string) => {
   const family = KIE_VIDEO_MODEL_FAMILIES.find((item) => item.id === model)
@@ -32,6 +33,7 @@ const LENGTH_PRESETS = [
   { seconds: 30, label: "30 sec" },
   { seconds: 60, label: "1 min" },
   { seconds: 120, label: "2 min" },
+  { seconds: 240, label: "4 min" },
 ] as const
 
 export function ProductionShotSettings({ value, onChange, disabled }: { value: ShotSettingDraft[]; onChange: (value: ShotSettingDraft[]) => void; disabled: boolean }) {
@@ -82,7 +84,7 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
         }}>{label}</button>)}</div>
       </div>
       <div>
-        <span className={styles.label}>Shots <small style={{ opacity: 0.7, fontWeight: 400 }}>· up to 12</small></span>
+        <span className={styles.label}>Shots <small style={{ opacity: 0.7, fontWeight: 400 }}>· up to {MAX_SHOTS}</small></span>
         <div className={styles.counter} role="group" aria-label="Number of shots">
           <button type="button" aria-label="Remove a shot" disabled={disabled || value.length <= MIN_SHOTS} onClick={() => resize(value.length - 1)}>−</button>
           <output aria-live="polite">{value.length}</output>

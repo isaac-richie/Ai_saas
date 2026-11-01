@@ -8,8 +8,11 @@ import { z as settingsZod } from 'zod'
 const kieModelsModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/kie-video-models.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: kieModelsModule, exports: kieModelsModule.exports })
 const kieModels = kieModelsModule.exports
+const filmModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/film.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: filmModule, exports: filmModule.exports })
+const film = filmModule.exports
 const settingsModule = { exports: {} }
-vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/validation/production-settings.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: settingsModule, exports: settingsModule.exports, require: (name) => name === '@/core/config/kie-video-models' ? kieModels : { z: settingsZod } })
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/validation/production-settings.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: settingsModule, exports: settingsModule.exports, require: (name) => name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : name === '@/core/config/film' ? film : { z: settingsZod } })
 const { productionShotSettingsSchema } = settingsModule.exports
 
 const source = readFileSync(new URL('../src/core/services/production-crew.ts', import.meta.url), 'utf8')
@@ -254,6 +257,7 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
     require: name => {
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
+      if (name === '@/core/config/film') return film
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
       if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
@@ -332,6 +336,7 @@ test('repair checkpoint runs only shot editor and continuity reviewer', async ()
     require: name => {
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
+      if (name === '@/core/config/film') return film
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
       if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
@@ -366,7 +371,7 @@ test('complete editorial repair notes survive crew and saved-plan validation wit
     const source = readFileSync(new URL(path, import.meta.url), 'utf8')
     vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
       module: result, exports: result.exports,
-      require: name => name === 'zod' ? { z } : name === '@/core/config/kie-video-models' ? kieModels : dependencies[name],
+      require: name => name === 'zod' ? { z } : name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : dependencies[name],
     })
     return result.exports
   }
@@ -413,11 +418,11 @@ test('saved production deliverables use the user model and duration rather than 
   assert.equal(plan.deliverables[2].modelFamilyId, 'seedance')
 })
 
-test('long film settings accept 12 shots, Seedance 4-30s and Kling 3-15s, and reject other durations', () => {
+test('long film settings accept 24 shots, Seedance 4-30s and Kling 3-15s, and reject other durations', () => {
   for (const seconds of [4, 7, 12, 15, 22, 30]) {
-    assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 12 }, () => ({ model: 'seedance', durationSeconds: seconds }))).success, true)
+    assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 24 }, () => ({ model: 'seedance', durationSeconds: seconds }))).success, true)
   }
-  assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 13 }, () => ({ model: 'seedance', durationSeconds: 15 }))).success, false)
+  assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 25 }, () => ({ model: 'seedance', durationSeconds: 15 }))).success, false)
   for (const seconds of [3, 31]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'seedance', durationSeconds: seconds }))).success, false)
   for (const seconds of [3, 7, 15]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'kling', durationSeconds: seconds }))).success, true)
   for (const seconds of [2, 16, 30]) assert.equal(productionShotSettingsSchema.safeParse(Array.from({ length: 3 }, () => ({ model: 'kling', durationSeconds: seconds }))).success, false)
@@ -433,7 +438,7 @@ test('Seedance duration survives action normalization and numeric provider paylo
   const result = { exports: {} }
   vm.runInNewContext(ts.transpileModule(providerSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
     module: result, exports: result.exports,
-    require: name => name.endsWith('base.provider') ? { BaseProvider: class {} } : name === '@/core/config/kie-video-models' ? kieModels : {},
+    require: name => name.endsWith('base.provider') ? { BaseProvider: class {} } : name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : {},
   })
   const provider = new result.exports.KieProvider()
   const reference = 'https://example.com/approved-last-frame.jpg'
@@ -520,11 +525,11 @@ test('shot settings frontend renders twelve editable shots with model-specific d
   const source = readFileSync(new URL('../src/interface/components/fast-video/ProductionShotSettings.tsx', import.meta.url), 'utf8')
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
     module: result, exports: result.exports,
-    require: name => name === 'react' ? React : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : name === '@/core/config/kie-video-models' ? kieModels : { productionShotSettingsSchema },
+    require: name => name === 'react' ? React : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : { productionShotSettingsSchema },
   })
-  const render = model => renderToStaticMarkup(React.createElement(result.exports.ProductionShotSettings, { value: Array.from({ length: 12 }, () => ({ model, durationSeconds: model === 'seedance' ? 15 : 10 })), onChange() {}, disabled: false }))
+  const render = (model, count = 24) => renderToStaticMarkup(React.createElement(result.exports.ProductionShotSettings, { value: Array.from({ length: count }, () => ({ model, durationSeconds: model === 'seedance' ? 15 : 10 })), onChange() {}, disabled: false }))
   const seedance = render('seedance')
-  assert.equal((seedance.match(/role="tab"/g) || []).length, 12)
+  assert.equal((seedance.match(/role="tab"/g) || []).length, 24)
   assert.equal((seedance.match(/aria-label="Shot \d+ duration"/g) || []).length, 1)
   assert.match(seedance, /role="radio" aria-checked="true"[^>]*>15s</)
   assert.match(seedance, />4s</)
@@ -534,7 +539,9 @@ test('shot settings frontend renders twelve editable shots with model-specific d
   assert.doesNotMatch(kling, />16s</)
   assert.match(kling, /role="radio" aria-checked="true"[^>]*>10s</)
   assert.equal((kling.match(/>\d+s</g) || []).length, 13, 'Kling offers 3 to 15 seconds')
-  assert.match(kling, /aria-label="Add a shot" disabled=""/, 'twelve shots is the maximum')
+  assert.match(kling, /aria-label="Add a shot" disabled=""/, 'twenty-four shots is the maximum')
+  assert.doesNotMatch(render('kling', 12), /aria-label="Add a shot" disabled=""/, 'twelve shots can still grow')
+  assert.match(seedance, />4 min</, 'the 4 minute preset is offered')
 })
 
 test('sequence editor preserves other shots and keeps model timing valid', async () => {
@@ -544,7 +551,7 @@ test('sequence editor preserves other shots and keeps model timing valid', async
   const source = readFileSync(new URL('../src/interface/components/fast-video/ProductionShotSettings.tsx', import.meta.url), 'utf8')
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
     module: result, exports: result.exports,
-    require: name => name === 'react' ? { useId: () => 'sequence', useRef: () => ({ current: [] }), useState: () => [selection, next => { selection = next }] } : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : name === '@/core/config/kie-video-models' ? kieModels : { productionShotSettingsSchema },
+    require: name => name === 'react' ? { useId: () => 'sequence', useRef: () => ({ current: [] }), useState: () => [selection, next => { selection = next }] } : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : { productionShotSettingsSchema },
   })
   let value = [{ model: 'seedance', durationSeconds: 15 }, { model: 'kling', durationSeconds: 10 }, { model: 'kling', durationSeconds: 5 }]
   function render() {
@@ -622,7 +629,7 @@ test('provider structured output contract requires exact shot count for 2 throug
   const { zodTextFormat } = await import('openai/helpers/zod')
   const load = (path, dependencies = {}) => {
     const module = { exports: {} }
-    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports, require: name => name === 'zod' ? { z } : name === '@/core/config/kie-video-models' ? kieModels : dependencies[name] })
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports, require: name => name === 'zod' ? { z } : name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : dependencies[name] })
     return module.exports
   }
   const studio = load('../src/core/validation/studio-ad.ts', { './campaign-references': load('../src/core/validation/campaign-references.ts') })
@@ -682,7 +689,7 @@ for (const scenario of ['completed', 'lookup-error', 'active', 'active-error', '
 function loadCrewWithRealSchemas() {
   const load = (path, requireMap) => {
     const loaded = { exports: {} }
-    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports, require: name => name === '@/core/config/kie-video-models' ? kieModels : requireMap[name] })
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports, require: name => name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : requireMap[name] })
     return loaded.exports
   }
   const studioAd = load('../src/core/validation/studio-ad.ts', { zod: { z: settingsZod }, './campaign-references': load('../src/core/validation/campaign-references.ts', { zod: { z: settingsZod } }) })

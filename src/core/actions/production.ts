@@ -7,7 +7,7 @@ import { createClient } from "@/infrastructure/supabase/server"
 import { createAdminClient } from "@/infrastructure/supabase/admin"
 import { productionPlanSchema, canApproveProduction, productionBibleSchema, departmentDirectionSchema, crewShotsSchema, blockingFindings, findingsRepairUsed } from "@/core/validation/production-crew"
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
-import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
+import { resolveKieVideoModelByFamily, clampDurationForFamily, getKieVideoModelFamily } from "@/core/config/kie-video-models"
 import type { Json } from "@/core/types/db"
 import { productionAssetsSchema, ownsAssetUrl, selectShotReferences, type ProductionAsset } from "@/core/validation/production-assets"
 import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
@@ -451,7 +451,9 @@ export async function queueProductionShot(input: unknown) {
     : ""
   const family = shot.model === "seedance" ? "seedance" : "kling"
   const model = resolveKieVideoModelByFamily({ familyId: family, useImageToVideo: Boolean(continuityReferenceUrl) })
-  const duration = Math.max(4, Math.min(15, shot.duration_target || 10))
+  // Each model's own range from Kie (Kling 3.0: 3-15 s, Seedance 2.5: 4-30 s); a fixed 15 s cap
+  // used to cut 20-30 s Seedance shots short.
+  const duration = clampDurationForFamily(shot.duration_target || 10, getKieVideoModelFamily(family))
   const aspect = ["16:9", "9:16", "1:1", "4:5", "21:9"].includes(shot.aspect_ratio || "") ? shot.aspect_ratio! : "16:9"
   const settings = (shot.generation_settings || {}) as Record<string, unknown>
   const { data: take, error: takeError } = await db.from("shot_generations").insert({
