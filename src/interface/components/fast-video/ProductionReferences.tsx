@@ -5,7 +5,7 @@ import { normalizeReferenceImage } from "./normalize-image"
 import { useRef, useState } from "react"
 import { ImagePlus, Loader2, LockKeyhole, RefreshCw, X } from "lucide-react"
 import { toast } from "sonner"
-import { labelProductionAssets, type ProductionAsset } from "@/core/validation/production-assets"
+import { MAX_PRODUCTION_REFERENCES, MAX_SHOT_REFERENCES, labelProductionAssets, type ProductionAsset } from "@/core/validation/production-assets"
 import styles from "./ProductionReferences.module.css"
 
 export function ProductionReferences({ assets, onChange, disabled = false, onBusy }: {
@@ -21,41 +21,54 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
     setError(message)
     toast.error(title, { description: message })
   }
-  async function upload(picked?: File) {
-    let file = picked
-    if (!file || !onChange || uploading) return
-    setError("")
+  /** Checks one file and makes it model-ready; returns the file to upload, or null after reporting why not. */
+  async function prepare(file: File): Promise<{ file: File; isVideo: boolean } | null> {
     // Kling's multi-image element API accepts only JPG and PNG images, at a smaller limit than our
     // general upload endpoint. Any other photo (WebP, AVIF, HEIC where readable, oversized PNG) is
     // converted to a high-quality JPEG here, so a production never reaches render with an unusable asset.
     const isVideo = ["video/mp4", "video/webm", "video/quicktime"].includes(file.type)
     const looksLikeImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|avif|gif|heic|heif)$/i.test(file.name)
     if (!isVideo && !looksLikeImage) {
-      reportError("Unsupported reference file", `${file.name} isn't an image or video. Add a photo (JPG, PNG, WebP, HEIC) or an MP4, WebM or MOV video.`); return
+      reportError("Unsupported reference file", `${file.name} isn't an image or video. Add a photo (JPG, PNG, WebP, HEIC) or an MP4, WebM or MOV video.`); return null
     }
     if (isVideo && (file.size > 25 * 1024 * 1024 || !file.size)) {
-      reportError("Video too large", `${file.name} is ${(file.size / 1024 / 1024).toFixed(0)} MB. Videos must be under 25 MB; trim or export it smaller.`); return
+      reportError("Video too large", `${file.name} is ${(file.size / 1024 / 1024).toFixed(0)} MB. Videos must be under 25 MB; trim or export it smaller.`); return null
     }
-    if (!isVideo) {
-      try { file = await normalizeReferenceImage(file) } catch (cause) {
-        reportError("Couldn't use this image", cause instanceof Error ? cause.message : "Try a JPG or PNG."); return
-      }
+    if (isVideo) return { file, isVideo }
+    try { return { file: await normalizeReferenceImage(file), isVideo } } catch (cause) {
+      reportError("Couldn't use this image", cause instanceof Error ? cause.message : "Try a JPG or PNG."); return null
     }
+  }
+
+  /** Uploads one or more files in order. A replacement swaps exactly one; new files fill free places up to the limit. */
+  async function upload(picked: File[]) {
+    if (!picked.length || !onChange || uploading) return
+    setError("")
+    const replacement = assets.find(asset => asset.id === replacementId.current)
+    const room = replacement ? 1 : Math.max(0, MAX_PRODUCTION_REFERENCES - assets.length)
+    const files = picked.slice(0, room)
+    if (picked.length > room) toast.message(`Added the first ${room}`, { description: `A film can hold ${MAX_PRODUCTION_REFERENCES} references.` })
     setUploading(true); onBusy?.(true)
+    let current = assets
     try {
-      const body = new FormData(); body.set("file", file)
-      const response = await fetch("/api/upload", { method: "POST", body })
-      const result = await response.json().catch(() => null)
-      if (!response.ok || !result?.url) throw new Error(result?.error || "Upload failed. Please try again.")
-      const replacement = assets.find(asset => asset.id === replacementId.current)
-      const next: ProductionAsset = {
-        id: replacement?.id || crypto.randomUUID(), name: file.name.slice(0, 160),
-        role: replacement?.role || role, url: result.url, mediaType: isVideo ? "video" : "image",
+      for (const original of files) {
+        const ready = await prepare(original)
+        if (!ready) continue
+        try {
+          const body = new FormData(); body.set("file", ready.file)
+          const response = await fetch("/api/upload", { method: "POST", body })
+          const result = await response.json().catch(() => null)
+          if (!response.ok || !result?.url) throw new Error(result?.error || "Upload failed. Please try again.")
+          const next: ProductionAsset = {
+            id: replacement?.id || crypto.randomUUID(), name: ready.file.name.slice(0, 160),
+            role: replacement?.role || role, url: result.url, mediaType: ready.isVideo ? "video" : "image",
+          }
+          // A replacement keeps its tag; a new file takes the next free @image/@video number.
+          current = labelProductionAssets(replacement ? current.map(asset => asset.id === replacement.id ? { ...next, label: replacement.label } : asset) : [...current, next])
+          onChange(current)
+        } catch (cause) { reportError("Reference upload failed", `${original.name}: ${cause instanceof Error ? cause.message : "Upload failed"}`) }
       }
-      // A replacement keeps its tag; a new file takes the next free @image/@video number.
-      onChange(labelProductionAssets(replacement ? assets.map(asset => asset.id === replacement.id ? { ...next, label: replacement.label } : asset) : [...assets, next]))
-    } catch (cause) { reportError("Reference upload failed", cause instanceof Error ? cause.message : "Upload failed") }
-    finally { replacementId.current = null; setUploading(false); onBusy?.(false); if (input.current) input.current.value = "" }
+    } finally { replacementId.current = null; setUploading(false); onBusy?.(false); if (input.current) input.current.value = "" }
   }
   function replace(assetId: string) {
     if (locked || disabled || uploading) return
@@ -63,12 +76,12 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
     input.current?.click()
   }
   return <details className={styles.drawer} open>
-    <summary><span><ImagePlus size={17} /> References <small>{assets.length}/6</small></span>{locked && <LockKeyhole size={14} aria-label="References locked" />}</summary>
-    <p className={styles.help}>{locked ? "Saved with this brief. These images guide the crew's creative direction." : "Give your crew a visual starting point. Add up to six images."}</p>
+    <summary><span><ImagePlus size={17} /> References <small>{assets.length}/{MAX_PRODUCTION_REFERENCES}</small></span>{locked && <LockKeyhole size={14} aria-label="References locked" />}</summary>
+    <p className={styles.help}>{locked ? "Saved with this brief. These images guide the crew's creative direction." : `Give your crew a visual starting point. Add up to ${MAX_PRODUCTION_REFERENCES}: each shot uses the ones that fit it best (up to ${MAX_SHOT_REFERENCES}). Mention a tag like @image3 in your brief to make sure a shot uses it.`}</p>
     {!locked && <div className={styles.controls}>
       <label>Reference purpose<select value={role} disabled={disabled || uploading} onChange={event => setRole(event.target.value as ProductionAsset["role"])}>{["character", "wardrobe", "product", "location", "lighting"].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-      <button type="button" disabled={disabled || uploading || assets.length >= 6} onClick={() => { replacementId.current = null; input.current?.click() }}>{uploading ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}{uploading ? "Uploading..." : "Add image or video"}</button>
-      <input ref={input} type="file" accept="image/*,.heic,.heif,video/mp4,video/webm,video/quicktime" hidden onChange={event => void upload(event.target.files?.[0])} />
+      <button type="button" disabled={disabled || uploading || assets.length >= MAX_PRODUCTION_REFERENCES} onClick={() => { replacementId.current = null; input.current?.click() }}>{uploading ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}{uploading ? "Uploading..." : "Add images or videos"}</button>
+      <input ref={input} type="file" accept="image/*,.heic,.heif,video/mp4,video/webm,video/quicktime" multiple hidden onChange={event => void upload(Array.from(event.target.files || []))} />
     </div>}
     {!!assets.length && <div className={styles.grid}>{assets.map(asset => <figure key={asset.id}>
       <a href={asset.url} target="_blank" rel="noopener noreferrer" aria-label={`Preview ${asset.name}`}>{asset.mediaType === "video" ? <video src={asset.url} muted playsInline preload="metadata" controls /> : <img src={asset.url} alt={`${asset.role} reference: ${asset.name}`} loading="lazy" />}</a>

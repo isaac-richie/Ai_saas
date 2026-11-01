@@ -9,7 +9,7 @@ import { productionPlanSchema, canApproveProduction, productionBibleSchema, depa
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
 import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
 import type { Json } from "@/core/types/db"
-import { productionAssetsSchema, ownsAssetUrl, type ProductionAsset } from "@/core/validation/production-assets"
+import { productionAssetsSchema, ownsAssetUrl, selectShotReferences, type ProductionAsset } from "@/core/validation/production-assets"
 import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 
@@ -428,7 +428,7 @@ export async function queueProductionShot(input: unknown) {
       ? selectOpeningReference(references.data, shot.prompt_text || shot.description || shot.name)
       : null
     if (openingReference && ownsAssetUrl(openingReference.url, user.id)) continuityReferenceUrl = openingReference.url
-    if (references.success) referenceElements = buildReferenceElements(references.data, user.id)
+    if (references.success) referenceElements = buildReferenceElements(selectShotReferences(references.data, shot.prompt_text || shot.description || shot.name), user.id)
     // An explicitly attached Reference Image is sent to the I2V adapter, rather
     // than being retained only as shot metadata.
     continuityReferenceUrl = await getShotReferenceImage(db, shot.id, user.id) || continuityReferenceUrl
@@ -442,7 +442,7 @@ export async function queueProductionShot(input: unknown) {
     // The ending frame is the physical anchor; the film's @image references still hold identity,
     // so a continued shot never drops them (Kling sends them as elements beside the opening frame).
     const references = productionAssetsSchema.safeParse(production.reference_assets || [])
-    if (references.success) referenceElements = buildReferenceElements(references.data, user.id)
+    if (references.success) referenceElements = buildReferenceElements(selectShotReferences(references.data, shot.prompt_text || shot.description || shot.name), user.id)
   }
   // Conditioning order, stated for the model: opening frame (position, light, pose) first, then the
   // references (who and what), then the shot's own action.
