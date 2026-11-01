@@ -262,7 +262,8 @@ export function compileProductionPlan(input: {
 
 export function createCrewRunner(_legacyModel: string, references: ProductionAsset[] = [], shotCount = 3): CrewRunner {
   if (!process.env.OPENAI_API_KEY) throw new Error("The director connection is not configured.")
-  // Bigger films write more: 150 s for a short plan, up to 270 s for twelve shots.
+  // Bigger films write more: 150 s for a short plan, up to 270 s (the shot editor writes at most
+  // SHOT_EDITOR_BATCH shots per call, so a 24-shot film never needs more).
   const CREW_CALL_TIMEOUT_MS = Math.min(270_000, 150_000 + Math.max(0, shotCount - 3) * 13_000)
   const CREW_STAGE_BUDGET_MS = 165_000
   const CREW_MIN_ATTEMPT_MS = 45_000

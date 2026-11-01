@@ -1,3 +1,4 @@
+import { MAX_FILM_SHOTS, MIN_FILM_SHOTS } from "@/core/config/film"
 import { MAX_FAST_TRACK_SECONDS, MIN_FAST_TRACK_SECONDS, getKieVideoModelFamily } from "@/core/config/kie-video-models"
 import { z } from "zod"
 import { studioAdCampaignPlanSchema, studioAdCampaignDeliverableSchema } from "./studio-ad"
@@ -33,13 +34,13 @@ export const productionBibleSchema = z.object({
   // Optional only so productions planned before continuity-ledger v2 remain readable.
   // Structured Outputs requires optional object properties to be nullable.
   continuityLedger: continuityLedgerSchema.nullable(),
-  beats: z.array(note).min(2).max(12),
+  beats: z.array(note).min(MIN_FILM_SHOTS).max(MAX_FILM_SHOTS),
   assumptions: z.array(note).max(6),
 })
 
 export const departmentDirectionSchema = z.object({
   approach: note,
-  shotDirections: z.array(note).min(2).max(12),
+  shotDirections: z.array(note).min(MIN_FILM_SHOTS).max(MAX_FILM_SHOTS),
   constraints: z.array(note).min(1).max(6),
 })
 
@@ -53,17 +54,17 @@ export const crewShotsSchema = z.object({
     model: z.enum(["kling", "seedance"]),
     editNote: z.string().min(3).max(1200),
     continuity: shotContinuityStateSchema.nullable(),
-  })).min(2).max(12),
+  })).min(MIN_FILM_SHOTS).max(MAX_FILM_SHOTS),
 })
 
 export const crewReviewSchema = z.object({
   summary: note,
   findings: z.array(z.object({
-    shotNumber: z.number().int().min(1).max(12),
+    shotNumber: z.number().int().min(1).max(MAX_FILM_SHOTS),
     severity: z.enum(["note", "blocking"]),
     evidence: note,
     correction: note,
-  })).max(24),
+  })).max(48),
 })
 
 export const crewMetadataSchema = z.object({
@@ -88,7 +89,7 @@ export const productionPlanSchema = studioAdCampaignPlanSchema.extend({
   deliverables: z.array(studioAdCampaignDeliverableSchema.extend({
     durationSeconds: z.number().int().min(MIN_FAST_TRACK_SECONDS).max(MAX_FAST_TRACK_SECONDS),
     productionNotes: z.array(z.string().min(3).max(1200)).max(5).default([]),
-  })).min(2).max(12),
+  })).min(MIN_FILM_SHOTS).max(MAX_FILM_SHOTS),
   crew: crewMetadataSchema.optional(),
 })
 export type ProductionPlan = z.infer<typeof productionPlanSchema>

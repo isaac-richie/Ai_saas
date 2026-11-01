@@ -7,6 +7,7 @@ import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/producti
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 import { compactRevisionContext } from "@/core/utils/production/revision-context"
 import { resolveProductionModel } from "@/core/config/production-model-routing"
+import { SHOT_EDITOR_BATCH } from "@/core/config/film"
 
 const stageContextSchema = z.object({
   shotSettings: productionShotSettingsSchema.optional(),
@@ -21,6 +22,9 @@ const stageContextSchema = z.object({
   productionDesign: departmentDirectionSchema.optional(),
   performance: departmentDirectionSchema.optional(),
   editor: crewShotsSchema.optional(),
+  /** Shots written so far when the shot editor works in batches (films longer than one batch). */
+  // Balanced batches always hold at least 6 shots, so the normal shot-list schema fits.
+  editorParts: crewShotsSchema.optional(),
   previousEditor: crewShotsSchema.optional(),
   referenceSnapshot: z.string().optional(),
   findingsRepairUsed: z.boolean().optional(),
@@ -141,7 +145,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       const department = departments.find(item => !context[item.key])!
       failedStage = department.role
       const result = await run(department.role, department.instruction, { brief: planningBrief, bible: context.story }, departmentDirectionSchema)
-      const nextContext = { ...context, [department.key]: result.value, editor: undefined, stages: [...context.stages.filter(stage => stage.role !== department.role && stage.role !== "shot-editor"), { role: department.role, responseId: result.responseId, model: result.model }] }
+      const nextContext = { ...context, [department.key]: result.value, editor: undefined, editorParts: undefined, stages: [...context.stages.filter(stage => stage.role !== department.role && stage.role !== "shot-editor"), { role: department.role, responseId: result.responseId, model: result.model }] }
       const complete = departments.every(item => Boolean(nextContext[item.key]))
       const nextStage = complete ? "departments" : "story"
       await saveCheckpoint(client, job.id, claimUntil, job.planning_stage, nextStage, nextContext)
@@ -152,16 +156,43 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       const repairInstruction = context.previousEditor
         ? "Repair the previous executable shots using the revision findings. Preserve every unaffected shot's prompt, timing, model, action, and continuity exactly. Change only what is required to fix blocking defects and any adjacent handoff affected by that fix; do not reimagine the film. Return all shots in their original order with complete fields."
         : "Compile one executable prompt per selected shot, in beat order. The action field must contain the complete timed choreography, performance, and dialogue within the selected shot duration. Put that timed action and camera direction first in the prompt, then essential continuity details. Never end a field mid-sentence. For each shot define continuity startState, endState, carriedDetails, and only intentionalChanges. Every shot after the first must begin at the preceding shot's end state. Include framing, motion, lighting, wardrobe, objects, and performance. Resolve contradictions in favor of the bible."
-      const editor = await run("shot-editor", repairInstruction, { brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, ...(context.previousEditor ? { previousShots: context.previousEditor.shots } : {}) }, crewShotsSchema)
-      if (editor.value.shots.length !== (context.shotSettings?.length ?? 3)) throw new Error("The crew returned the wrong shot count. Retry this stage.")
+      const total = context.shotSettings?.length ?? 3
+      const written = context.editorParts?.shots ?? []
+      const [batchStart, batchEnd] = nextShotBatch(total, written.length)
+      const batched = batchEnd - batchStart < total
+      // Long films are written in balanced batches, one per request, so no single call outgrows the
+      // planning time budget. Each batch is told where it sits and starts from the shot before it.
+      const batchRunner = batched ? createCrewRunner(model, references, batchEnd - batchStart) : runner
+      const batchSettings = context.shotSettings?.slice(batchStart, batchEnd) ?? null
+      const runBatch: typeof runner = (role, instruction, input, schema) => batchRunner(
+        role, instruction,
+        { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: batched ? batchSettings : context.shotSettings ?? null }, schema,
+      )
+      const batchInstruction = batched
+        ? ` This film has ${total} shots and is written in parts. Write only shots ${batchStart + 1} to ${batchEnd}: return exactly ${batchEnd - batchStart} shots, matching story beats ${batchStart + 1} to ${batchEnd} and the department directions for those shot numbers. shotSettings lists only these shots, in order.${batchStart > 0 ? ` Shot ${batchStart + 1} must begin at precedingShot's end state.` : ""}`
+        : ""
+      const editor = await runBatch("shot-editor", repairInstruction + batchInstruction, {
+        brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance,
+        ...(batched ? { batch: { firstShot: batchStart + 1, lastShot: batchEnd, totalShots: total } } : {}),
+        ...(batched && written.length ? { precedingShot: written[written.length - 1] } : {}),
+        ...(context.previousEditor ? { previousShots: batched ? context.previousEditor.shots.slice(batchStart, batchEnd) : context.previousEditor.shots } : {}),
+      }, crewShotsSchema)
+      if (editor.value.shots.length !== batchEnd - batchStart) throw new Error("The crew returned the wrong shot count. Retry this stage.")
       if (editor.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
       const sanitizedShots = editor.value.shots.map(shot => {
         const checked = enforcePromptCompliance({ prompt: shot.prompt, negativePrompt: shot.negativePrompt, outputType: "video" })
         if (checked.blocked) throw new Error(`A compiled shot is blocked by safety policy: ${checked.reason || "rewrite the shot and retry."}`)
         return { ...shot, prompt: checked.prompt, negativePrompt: checked.negativePrompt }
       })
-      const sanitizedEditor = { ...editor.value, shots: sanitizedShots }
-      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, previousEditor: undefined, editor: sanitizedEditor, stages: [...context.stages, { role: "shot-editor", responseId: editor.responseId, model: editor.model }] })
+      const allShots = [...written, ...sanitizedShots]
+      const stages = [...context.stages, { role: "shot-editor", responseId: editor.responseId, model: editor.model }]
+      if (allShots.length < total) {
+        // Save this batch; the next request writes the following one and never repeats paid work.
+        await saveCheckpoint(client, job.id, claimUntil, "departments", "departments", { ...context, editorParts: { shots: allShots }, stages })
+        return { data: { complete: false, stage: "departments", message: `Shot prompts ${allShots.length} of ${total} written` } }
+      }
+      const sanitizedEditor = { ...editor.value, shots: allShots }
+      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, previousEditor: undefined, editorParts: undefined, editor: sanitizedEditor, stages })
       return { data: { complete: false, stage: "shots", message: "Shot prompts compiled" } }
     }
     if (job.planning_stage === "shots" && context.story && context.camera && context.lighting && context.productionDesign && context.performance && context.editor) {
@@ -184,6 +215,21 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     }
     return { error: `The crew could not finish ${failedStage}. Its last completed checkpoint is safe; retry to resume.` }
   }
+}
+
+/**
+ * The next batch of shots for the shot editor, as [start, end) indices. Batches are balanced
+ * (13 shots become 7 + 6, never 12 + 1) because every crew call must cover at least two shots.
+ */
+export function nextShotBatch(total: number, written: number): [number, number] {
+  const batches = Math.max(1, Math.ceil(total / SHOT_EDITOR_BATCH))
+  let boundary = 0
+  for (let index = 0; index < batches; index += 1) {
+    const size = Math.floor(total / batches) + (index < total % batches ? 1 : 0)
+    if (written < boundary + size) return [boundary, boundary + size]
+    boundary += size
+  }
+  return [total, total]
 }
 
 const CONTINUITY_EXTRACTOR = "continuity-extractor"

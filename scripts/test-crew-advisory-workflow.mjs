@@ -18,6 +18,7 @@ function loadModule(path, requireMap = {}, globals = {}) {
     require: name => {
       if (name === 'zod') return { z }
       if (name === '@/core/config/kie-video-models') return loadModule('../src/core/config/kie-video-models.ts')
+      if (name === '@/core/config/film') return loadModule('../src/core/config/film.ts')
       const match = Object.keys(requireMap).find(key => name === key || name.endsWith(key))
       if (match) return requireMap[match]
       throw new Error(`Unexpected import ${name}`)
@@ -147,7 +148,8 @@ function createRunnerHarness({ extractor = 'ok', referenceAssets = [], context =
       if (extractor === 'credits') throw new Error('continuity-extractor:AI planning credits are exhausted. Add credits to the configured OpenAI API account.')
       return { value: schema.parse(extractedLedger), responseId: 'extract-1', model: 'gpt-6-luna' }
     }
-    if (role === 'shot-editor') return { value: { shots: Array.from({ length: 3 }, () => ({ prompt: 'A complete shot.', continuity: {} })) }, responseId: role }
+    // Returns as many shots as this request covers (a whole short film, or one batch of a long one).
+    if (role === 'shot-editor') return { value: { shots: Array.from({ length: input.shotSettings?.length ?? 3 }, (_, index) => ({ prompt: `A complete shot ${index + 1}.`, continuity: { endState: `end ${index + 1}` } })) }, responseId: `${role}-${calls.filter(call => call.role === role).length}` }
     if (role === 'continuity-reviewer') return { value: { findings: [] }, responseId: role }
     return { value: { approach: role }, responseId: role }
   }
@@ -168,7 +170,7 @@ function createRunnerHarness({ extractor = 'ok', referenceAssets = [], context =
     '/config/production-model-routing': { resolveProductionModel: () => ({ model: 'mock', tier: 'balanced' }) },
   })
   return {
-    calls, get job() { return job }, set job(value) { job = value }, get planInput() { return planInput },
+    module: runner, calls, get job() { return job }, set job(value) { job = value }, get planInput() { return planInput },
     step: () => runner.advanceProductionCrew(db, 'owner', 'job'),
     async runToEnd(limit = 12) {
       for (let index = 0; index < limit; index += 1) {
@@ -423,4 +425,38 @@ test('production desk approves flagged plans only through an explicit two-step c
   assert.match(desk, /Confirm approval with open notes/)
   assert.match(desk, /acknowledgeFindings: true/)
   assert.match(desk, /!findingsRepairUsed\(job\.planning_context\) && <button/)
+})
+
+test('shot editor batches are balanced and never leave a one-shot batch', () => {
+  const { nextShotBatch } = createRunnerHarness().module
+  same(nextShotBatch(3, 0), [0, 3], 'short films are one batch')
+  same(nextShotBatch(12, 0), [0, 12], 'twelve shots stay one batch')
+  same([nextShotBatch(13, 0), nextShotBatch(13, 7)], [[0, 7], [7, 13]], '13 becomes 7 + 6, not 12 + 1')
+  same([nextShotBatch(24, 0), nextShotBatch(24, 12)], [[0, 12], [12, 24]])
+  same(nextShotBatch(24, 24), [24, 24], 'nothing left once every shot is written')
+})
+
+test('a 24-shot film writes its prompts in two checkpointed batches that hand off continuity', async () => {
+  const longSettings = Array.from({ length: 24 }, (_, index) => ({ model: index % 2 ? 'seedance' : 'kling', durationSeconds: index % 2 ? 20 : 10 }))
+  const harness = createRunnerHarness({ context: { shotSettings: longSettings } })
+  const steps = []
+  let result
+  for (let index = 0; index < 20; index += 1) {
+    result = await harness.step()
+    assert.equal(result.error, undefined, result.error)
+    steps.push(result.data.message)
+    if (result.data.complete) break
+  }
+  assert.equal(result.data.complete, true)
+  assert.ok(steps.includes('Shot prompts 12 of 24 written'), 'the first batch is saved before the second starts')
+  const editorCalls = harness.calls.filter(call => call.role === 'shot-editor')
+  assert.equal(editorCalls.length, 2, 'one request per batch, never repeated')
+  assert.match(editorCalls[0].instruction, /Write only shots 1 to 12/)
+  assert.match(editorCalls[1].instruction, /Write only shots 13 to 24/)
+  assert.match(editorCalls[1].instruction, /Shot 13 must begin at precedingShot's end state/)
+  assert.equal(editorCalls[0].input.shotSettings.length, 12)
+  same(editorCalls[1].input.shotSettings, longSettings.slice(12), 'each batch sees only its own shot settings, in order')
+  assert.equal(editorCalls[1].input.source.precedingShot.continuity.endState, 'end 12', 'batch two starts from shot 12')
+  assert.equal(harness.planInput.editor.shots.length, 24, 'the final plan has every shot')
+  assert.equal(harness.job.planning_context.editorParts, undefined, 'partial batches are cleared once complete')
 })

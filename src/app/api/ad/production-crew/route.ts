@@ -6,7 +6,7 @@ import { advanceProductionCrew } from "@/core/services/production-crew-runner"
 import { BETA_LOCKED_MESSAGE, hasBetaAccess } from "@/core/services/beta-access"
 
 export const runtime = "nodejs"
-// Long films: one crew stage can take up to ~270 s for twelve shots.
+// Long films: one crew stage stays within ~270 s; films over 12 shots write their prompts in batches.
 export const maxDuration = 300
 
 export async function POST(request: Request) {
