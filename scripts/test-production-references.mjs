@@ -60,3 +60,31 @@ describe('each shot sends only the references that fit it', () => {
     assert.deepEqual(P.selectShotReferences([], 'anything'), []);
   });
 });
+
+describe('@image tags are resolved before a video model sees them', () => {
+  const library = P.labelProductionAssets([
+    asset(1, { name: 'marcia turnaround.png', role: 'character' }),
+    asset(2, { name: 'flat.png', role: 'location' }),
+    asset(3, { name: 'estate.png', role: 'location' }),
+    asset(4, { name: 'hallway lobby.png', role: 'location' }),
+  ]);
+  const prompt = 'Push through the rain-glossed @image3 estate courtyard toward the warm-lit brick flat entrance in @image2. @image1 walks ahead.';
+
+  it('opens on the first tagged location, never a character sheet or an unmentioned lobby', () => {
+    assert.equal(P.selectOpeningReference(library, prompt).name, 'estate.png');
+    assert.equal(P.selectOpeningReference(library, '@image1 stands in @image2').name, 'flat.png');
+  });
+
+  it('prefers a location over a character sheet when nothing is tagged', () => {
+    assert.equal(P.selectOpeningReference(library, 'She walks through the estate at night').name, 'estate.png');
+  });
+
+  it('strips raw tags and replaces them with plain words', () => {
+    const resolved = P.resolveReferenceTags(prompt, library);
+    assert.doesNotMatch(resolved, /@image/);
+    assert.match(resolved, /rain-glossed estate estate courtyard/);
+    assert.match(resolved, /flat entrance in flat location\./);
+    assert.match(resolved, / marcia walks ahead/);
+    assert.equal(P.resolveReferenceTags('Hold on @image9, then fade.', library), 'Hold on, then fade.');
+  });
+});

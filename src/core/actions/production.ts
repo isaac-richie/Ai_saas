@@ -10,7 +10,7 @@ import { productionPlanSchema, canApproveProduction, productionBibleSchema, depa
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
 import { resolveKieVideoModelByFamily, clampDurationForFamily, getKieVideoModelFamily } from "@/core/config/kie-video-models"
 import type { Json } from "@/core/types/db"
-import { productionAssetsSchema, ownsAssetUrl, selectShotReferences, type ProductionAsset } from "@/core/validation/production-assets"
+import { labelProductionAssets, productionAssetsSchema, ownsAssetUrl, resolveReferenceTags, selectOpeningReference, selectShotReferences, type ProductionAsset } from "@/core/validation/production-assets"
 import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 
@@ -197,20 +197,6 @@ async function getShotReferenceImage(db: Awaited<ReturnType<typeof createClient>
     .filter((element): element is { id: string; type: string; image_url: string | null } => Boolean(element.image_url && ownsAssetUrl(element.image_url, userId)))
     .sort((a, b) => Number(b.type === "reference_image") - Number(a.type === "reference_image"))
   return candidates[0]?.image_url || null
-}
-
-function selectOpeningReference(assets: ProductionAsset[], shotText: string) {
-  const words = new Set(shotText.toLowerCase().match(/[a-z0-9]{3,}/g) || [])
-  return assets
-    .filter(asset => asset.mediaType === "image")
-    .sort((a, b) => {
-      const score = (asset: typeof a) => {
-        const nameWords = asset.name.toLowerCase().match(/[a-z0-9]{3,}/g) || []
-        const roleWeight = asset.role === "character" ? 2 : asset.role === "product" ? 1 : 0
-        return nameWords.reduce((total, word) => total + (words.has(word) ? 10 : 0), 0) + roleWeight
-      }
-      return score(b) - score(a)
-    })[0] || null
 }
 
 function buildReferenceElements(assets: ProductionAsset[], userId: string) {
@@ -424,13 +410,15 @@ export async function queueProductionShot(input: unknown) {
   if (latestTakeError) return { error: "Could not load take history. No generation was submitted." }
   let continuityReferenceUrl: string | null = null
   let referenceElements: ReturnType<typeof buildReferenceElements> = []
+  // Older films saved references before tags were stamped; label them the same way the editor shows them.
+  const parsedReferences = productionAssetsSchema.safeParse(production.reference_assets || [])
+  const filmReferences = parsedReferences.success ? labelProductionAssets(parsedReferences.data) : []
+  const shotText = shot.prompt_text || shot.description || shot.name
   if (!shot.previous_shot_id) {
-    const references = productionAssetsSchema.safeParse(production.reference_assets || [])
-    const openingReference = references.success
-      ? selectOpeningReference(references.data, shot.prompt_text || shot.description || shot.name)
-      : null
+    // Video models ignore "@image3" as text; the tagged location becomes the opening frame instead.
+    const openingReference = selectOpeningReference(filmReferences, shotText)
     if (openingReference && ownsAssetUrl(openingReference.url, user.id)) continuityReferenceUrl = openingReference.url
-    if (references.success) referenceElements = buildReferenceElements(selectShotReferences(references.data, shot.prompt_text || shot.description || shot.name), user.id)
+    referenceElements = buildReferenceElements(selectShotReferences(filmReferences, shotText), user.id)
     // An explicitly attached Reference Image is sent to the I2V adapter, rather
     // than being retained only as shot metadata.
     continuityReferenceUrl = await getShotReferenceImage(db, shot.id, user.id) || continuityReferenceUrl
@@ -443,9 +431,10 @@ export async function queueProductionShot(input: unknown) {
     continuityReferenceUrl = previousTake.last_frame_url
     // The ending frame is the physical anchor; the film's @image references still hold identity,
     // so a continued shot never drops them (Kling sends them as elements beside the opening frame).
-    const references = productionAssetsSchema.safeParse(production.reference_assets || [])
-    if (references.success) referenceElements = buildReferenceElements(selectShotReferences(references.data, shot.prompt_text || shot.description || shot.name), user.id)
+    referenceElements = buildReferenceElements(selectShotReferences(filmReferences, shotText), user.id)
   }
+  // The provider receives words, not tags: "@image3" becomes "estate", bound to the images sent above.
+  const providerPrompt = resolveReferenceTags(shotText, filmReferences)
   // Conditioning order, stated for the model: opening frame (position, light, pose) first, then the
   // references (who and what), then the shot's own action.
   const continuationPrefix = shot.previous_shot_id
@@ -473,7 +462,7 @@ export async function queueProductionShot(input: unknown) {
 
   const generated = await generateFastVideo({
     request_type: "fast_video", project_id: production.project_id, scene_id: production.scene_id, shot_id: shot.id,
-    prompt_inputs: { text_subject: continuationPrefix + (shot.prompt_text || shot.description || shot.name), style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
+    prompt_inputs: { text_subject: continuationPrefix + providerPrompt, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
     settings: { duration_seconds: duration, model },
   })
   if (generated.error || !generated.data) {
