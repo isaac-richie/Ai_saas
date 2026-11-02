@@ -59,3 +59,63 @@ export function selectShotReferences(assets: ProductionAsset[], shotText: string
   scored.sort((a, b) => b.score - a.score || a.index - b.index)
   return scored.slice(0, max).map((x) => x.asset)
 }
+
+const ROLE_NOUNS: Record<ProductionAsset["role"], string> = {
+  character: "character", wardrobe: "wardrobe", product: "product", location: "location", lighting: "lighting look",
+}
+
+/**
+ * "estate_courtyard.png" read as words. A tag the writer already describes ("@image3 estate courtyard")
+ * needs only the name; a tag that ends a clause gets its role ("in @image2." → "in flat location.").
+ */
+function describeAsset(asset: ProductionAsset, endsClause: boolean) {
+  const words = asset.name.replace(/\.[a-z0-9]{2,5}$/i, "").replace(/[_\-.]+/g, " ")
+    .replace(/\b(turnaround|sheet|ref|reference|final|copy|img|image|v\d+|\d+)\b/gi, " ").replace(/\s+/g, " ").trim()
+  const noun = ROLE_NOUNS[asset.role]
+  if (!words) return noun
+  return endsClause && !new RegExp(`\\b${noun}\\b`, "i").test(words) ? `${words} ${noun}` : words
+}
+
+/** Tagged references in the order the shot first mentions them (@image3 before @image2 if written so). */
+export function taggedShotReferences(assets: ProductionAsset[], shotText: string): ProductionAsset[] {
+  return assets
+    .map((asset) => ({ asset, at: asset.label ? shotText.search(new RegExp(`${asset.label}(?!\\d)`, "i")) : -1 }))
+    .filter((x) => x.at >= 0)
+    .sort((a, b) => a.at - b.at)
+    .map((x) => x.asset)
+}
+
+/**
+ * The image a shot opens on. Video models read @image tags as noise, so the frame they start from is
+ * what puts the shot in the right place: the first tagged location wins, then any tagged image that is
+ * not a character sheet, then the best name match (locations before characters, because a turnaround
+ * sheet makes a poor opening frame).
+ */
+export function selectOpeningReference(assets: ProductionAsset[], shotText: string): ProductionAsset | null {
+  const images = assets.filter((asset) => asset.mediaType === "image")
+  const tagged = taggedShotReferences(images, shotText)
+  const taggedPick = tagged.find((asset) => asset.role === "location") ?? tagged.find((asset) => asset.role !== "character")
+  if (taggedPick) return taggedPick
+  const words = new Set(shotText.toLowerCase().match(/[a-z0-9]{3,}/g) || [])
+  const roleWeight = { location: 3, product: 2, character: 1, wardrobe: 0, lighting: 0 } as const
+  const score = (asset: ProductionAsset) =>
+    (asset.name.toLowerCase().match(/[a-z0-9]{3,}/g) || []).filter((word) => words.has(word)).length * 10 + roleWeight[asset.role]
+  return [...images].sort((a, b) => score(b) - score(a))[0] ?? tagged[0] ?? null
+}
+
+/**
+ * Rewrites studio tags as plain words before the prompt reaches a video model: "push through @image3
+ * toward @image2" becomes "push through the estate location toward the flat location". The images
+ * themselves travel as the opening frame and reference set; unknown tags are dropped.
+ */
+export function resolveReferenceTags(prompt: string, assets: ProductionAsset[]): string {
+  const byLabel = new Map(assets.filter((asset) => asset.label).map((asset) => [asset.label!.toLowerCase(), asset]))
+  return prompt
+    .replace(/@(image|video)(\d+)\b/gi, (tag, _type, _n, offset: number, whole: string) => {
+      const asset = byLabel.get(tag.toLowerCase())
+      return asset ? describeAsset(asset, /^\s*([,.;:!?)]|$)/.test(whole.slice(offset + tag.length))) : ""
+    })
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim()
+}
