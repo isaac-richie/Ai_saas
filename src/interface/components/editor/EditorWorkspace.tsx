@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import {
   ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, History, ImagePlus, Keyboard, Loader2, Maximize, MessageSquare, Music2, Palette, Pause,
-  Play, Proportions, Redo2, Scissors, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Trash2, Type, Undo2, Upload, Wand2, X, ZoomIn, ZoomOut,
+  Play, Plus, Proportions, Redo2, Scissors, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Trash2, Type, Undo2, Upload, Wand2, X, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useMediaQuery } from '@/interface/hooks/use-media-query';
@@ -19,6 +19,7 @@ import { MIN_CLIP_MS, isClipLocked } from '@/core/services/edit-agent';
 import { PreviewPlayer } from './PreviewPlayer';
 import { TimelinePanel, ZOOM_LIMITS } from './TimelinePanel';
 import { AgentPanel, type AgentReply } from './AgentPanel';
+import { AddClipsDialog } from './AddClipsDialog';
 import { ClipPanel, type TakeStatus } from './ClipPanel';
 import { ColorGradePicker } from './ColorGradePicker';
 import { MusicPanel } from './MusicPanel';
@@ -59,6 +60,9 @@ export interface EditorWorkspaceProps {
   onAgent: (instruction: string) => Promise<AgentReply>;
   onUploadMusic: (file: File) => Promise<string | null>;
   onUploadVideos: (files: File[]) => Promise<string | null>;
+  /** Adds finished clips from the creator's other work; absent in the dev sandbox. */
+  onAddLibraryClips?: (urls: string[]) => Promise<boolean>;
+  projectId?: string;
   onAddText: () => Promise<void>;
   onAutoCaptions: () => Promise<string | null>;
   /** Makes a new take of a shot with the generator; absent where generation isn't available. */
@@ -119,6 +123,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   const [tab, setTab] = useState<Tab>('ai');
   const [sheet, setSheet] = useState<Tab | null>(null);
   const videoInput = useRef<HTMLInputElement>(null);
+  const [addingClips, setAddingClips] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -212,7 +217,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
 
   // The timeline's empty rows and its "+" tile lead straight to the right tool.
   const addFrom = (kind: 'shots' | 'music' | 'text') => {
-    if (kind === 'shots') props.onImport();
+    if (kind === 'shots') { if (props.onAddLibraryClips) setAddingClips(true); else props.onImport(); }
     else if (kind === 'text') void props.onAddText();
     else if (desktop) setTab('music');
     else setSheet('music');
@@ -318,9 +323,25 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
           </div>
         )}
         <ModeSwitch mode={mode} onChange={setMode} compact={phone} />
-        <button onClick={pickVideos} disabled={props.importing} className={iconButton} aria-label="Add videos from my device" title="Add videos from my device">
-          {props.importing ? <Loader2 size={17} className="animate-spin" /> : <Upload size={17} />}
+        <button
+          onClick={() => (props.onAddLibraryClips ? setAddingClips(true) : pickVideos())}
+          disabled={props.importing}
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-gold-400/40 px-2.5 text-sm text-gold-100 hover:bg-gold-500/10 disabled:opacity-50"
+          aria-label="Add clips"
+          title="Add clips from your device or your other work"
+        >
+          {props.importing ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+          <span className="hidden sm:inline">Add clips</span>
         </button>
+        {addingClips && props.onAddLibraryClips && props.projectId && (
+          <AddClipsDialog
+            projectId={props.projectId}
+            busy={props.importing}
+            onClose={() => setAddingClips(false)}
+            onUploadFromDevice={() => { setAddingClips(false); pickVideos(); }}
+            onAddClips={props.onAddLibraryClips}
+          />
+        )}
         <button onClick={store.undo} disabled={history.past.length === 0} className={iconButton} aria-label="Undo" title="Undo (⌘Z)">
           <Undo2 size={18} />
         </button>

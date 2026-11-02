@@ -104,3 +104,44 @@ function rank(kind: EditableWork['kind']) {
 function maxDate(a: string, b: string) {
   return a > b ? a : b;
 }
+
+export type LibraryClip = { url: string; title: string; durationMs: number; source: string; projectId: string };
+
+/** Every finished clip the creator owns: storyboard shots and film takes, newest first. */
+export async function listClipLibrary(): Promise<{ data?: LibraryClip[]; error?: string }> {
+  const db = await createClient();
+  const { data: { user } } = await db.auth.getUser();
+  if (!user) return { error: 'Please sign in.' };
+  const { data: projects } = await db.from('projects').select('id,name').eq('user_id', user.id).limit(200);
+  const projectName = new Map((projects || []).map((p) => [p.id as string, p.name as string]));
+  if (!projectName.size) return { data: [] };
+  const ids = [...projectName.keys()];
+
+  const [storyboard, scenes] = await Promise.all([
+    db.from('fast_video_storyboard_items').select('url,duration_seconds,subject,project_id,created_at').in('project_id', ids).eq('status', 'ready').not('url', 'is', null).order('created_at', { ascending: false }).limit(300),
+    db.from('scenes').select('id,project_id').in('project_id', ids),
+  ]);
+  const sceneProject = new Map((scenes.data || []).map((s) => [s.id as string, s.project_id as string]));
+  const { data: shots } = sceneProject.size
+    ? await db.from('shots').select('name,scene_id,shot_generations!shot_generations_shot_id_fkey(output_url,status,duration_seconds,take_number,created_at)').in('scene_id', [...sceneProject.keys()]).limit(500)
+    : { data: [] };
+
+  const clips: (LibraryClip & { at: string })[] = [];
+  for (const item of storyboard.data || []) {
+    clips.push({ url: item.url!, title: item.subject || 'Storyboard shot', durationMs: Math.max(1, item.duration_seconds || 5) * 1000, source: projectName.get(item.project_id) || 'Storyboard', projectId: item.project_id, at: item.created_at });
+  }
+  for (const shot of shots || []) {
+    const projectId = sceneProject.get(shot.scene_id as string)!;
+    for (const take of (shot.shot_generations || []) as { output_url: string | null; status: string; duration_seconds: number | null; take_number: number; created_at: string }[]) {
+      if (take.status !== 'completed' || !take.output_url) continue;
+      clips.push({ url: take.output_url, title: `${shot.name || 'Shot'} · take ${take.take_number}`, durationMs: Math.max(1, take.duration_seconds || 5) * 1000, source: projectName.get(projectId) || 'Film', projectId, at: take.created_at });
+    }
+  }
+  const seen = new Set<string>();
+  return {
+    data: clips
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .filter((c) => (seen.has(c.url) ? false : (seen.add(c.url), true)))
+      .map((c) => ({ url: c.url, title: c.title, durationMs: c.durationMs, source: c.source, projectId: c.projectId })),
+  };
+}

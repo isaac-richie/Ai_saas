@@ -116,7 +116,7 @@ export async function replaceProductionReferences(input: unknown) {
     if (shotIds.length) {
       const { data: generated, error: generatedError } = await db.from("generation_jobs").select("id").in("shot_id", shotIds).limit(1).maybeSingle()
       if (generatedError) return { error: "Could not verify the production takes. Your references are unchanged." }
-      if (generated) return { error: "References lock after the first video generation starts so existing takes keep their source material." }
+      if (generated) return { error: "References lock once a video has been generated, so finished takes keep their source. To use a new image, revise the plan (Adjust production direction) to start a new version." }
     }
   }
 

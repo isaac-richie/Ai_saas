@@ -3,6 +3,7 @@
 import { createClient } from '@/infrastructure/supabase/server';
 import type { TimelineProject, TimelineTrack, TimelineClip } from '@/core/types/timeline';
 import { shotInfoFromStoryboard } from '@/core/services/shot-context';
+import { listClipLibrary } from '@/core/actions/editor-hub';
 import { validClipValue } from '@/core/services/clip-validation';
 import { VIDEO_FORMATS, isFormatResolution, isFrameFit } from '@/core/services/video-format';
 
@@ -415,6 +416,38 @@ export async function addUploadedClips(projectId: string, uploads: { path: strin
   });
   const { error } = await supabase.from('timeline_clips').insert(clips);
   if (error) return { error: 'Could not add those videos. Try again.' };
+  await supabase.from('timeline_projects').update({ duration_ms: cursor_ms }).eq('id', timeline.id);
+  return { success: true, clip_count: clips.length, duration_ms: cursor_ms };
+}
+
+/** Clips from the creator's other films and storyboards, appended in the order picked. Only their own clips are accepted. */
+export async function addLibraryClips(projectId: string, urls: string[]) {
+  if (!urls.length || urls.length > 40) return { error: 'Choose between 1 and 40 clips.' };
+  const library = await listClipLibrary();
+  if (!library.data) return { error: library.error || 'Could not load your clips.' };
+  const byUrl = new Map(library.data.map((c) => [c.url, c]));
+  const picked = urls.map((u) => byUrl.get(u));
+  if (picked.some((c) => !c)) return { error: 'One of those clips is no longer available. Refresh and try again.' };
+
+  const supabase = await createClient();
+  const result = await getOrCreateTimeline(projectId);
+  if ('error' in result) return result;
+  const timeline = result.timeline!;
+  const { tracks } = await getTimelineTracks(timeline.id);
+  const videoTrack = tracks?.find((t) => t.track_type === 'video');
+  if (!videoTrack) return { error: 'No video track found' };
+  const { data: existing } = await supabase.from('timeline_clips').select('end_ms').eq('track_id', videoTrack.id);
+  let cursor_ms = Math.max(0, ...(existing || []).map((c) => c.end_ms));
+  const clips = picked.map((c) => {
+    const clip = {
+      track_id: videoTrack.id, asset_url: c!.url, clip_type: 'video', start_ms: cursor_ms, end_ms: cursor_ms + c!.durationMs,
+      metadata: { source_duration_ms: c!.durationMs, from_library: true, shot: { subject: c!.title.slice(0, 120), scene: c!.source.slice(0, 80) } },
+    };
+    cursor_ms += c!.durationMs;
+    return clip;
+  });
+  const { error } = await supabase.from('timeline_clips').insert(clips);
+  if (error) return { error: 'Could not add those clips. Try again.' };
   await supabase.from('timeline_projects').update({ duration_ms: cursor_ms }).eq('id', timeline.id);
   return { success: true, clip_count: clips.length, duration_ms: cursor_ms };
 }

@@ -12,6 +12,7 @@ import {
   getTimelineTracks,
   importStoryboardToTimeline,
   addUploadedClips,
+  addLibraryClips,
   removeTimelineClip,
   removeTimelineTrack,
   updateTimelineClip,
@@ -352,6 +353,21 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     if (!data.tracked) setNotice('Made centred versions. Following the subject was unavailable this time.');
   };
 
+  /** Finished clips from the creator's other films and storyboards, added to the end. */
+  const onAddLibraryClips = async (urls: string[]): Promise<boolean> => {
+    setImporting(true);
+    try {
+      await flush();
+      const res = await addLibraryClips(projectId, urls);
+      if ('error' in res && res.error) { setError(res.error); return false; }
+      setNotice(`Added ${urls.length} clip${urls.length === 1 ? '' : 's'}.`);
+      await loadTimeline(`library:${Date.now()}`);
+      return true;
+    } finally {
+      setImporting(false);
+    }
+  };
+
   /** Videos from the creator's own phone or computer go to the end of the edit, in the order picked. */
   const onUploadVideos = async (files: File[]): Promise<string | null> => {
     const chosen = files.filter((f) => VIDEO_EXTENSIONS.includes(f.name.split('.').pop()?.toLowerCase() || ''));
@@ -547,6 +563,8 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       onAgent={onAgent}
       onUploadMusic={onUploadMusic}
       onUploadVideos={onUploadVideos}
+      onAddLibraryClips={onAddLibraryClips}
+      projectId={projectId}
       onAddText={onAddText}
       onAutoCaptions={onAutoCaptions}
       onRegenerate={onRegenerate}
