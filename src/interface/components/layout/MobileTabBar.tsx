@@ -12,7 +12,7 @@ import { NAV_ITEMS } from "./nav-items"
 export function MobileTabBar() {
     const pathname = usePathname()
     const primary = NAV_ITEMS.find((item) => item.primary)!
-    const others = NAV_ITEMS.filter((item) => !item.primary && !item.disabled)
+    const others = NAV_ITEMS.filter((item) => !item.primary && !item.disabled && !item.desktopOnly)
     const slots = [others[0], others[1], primary, others[2], others[3]].filter(Boolean)
 
     return (

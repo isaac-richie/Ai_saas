@@ -28,6 +28,12 @@ const STEPS: TourStep[] = [
     selector: "[data-tour='nav-studio']",
   },
   {
+    id: "edit",
+    title: "Edit, with AI",
+    description: "Cut your films, storyboards or your own phone videos together. Tap Edit it for me for a first cut in one tap.",
+    selector: "[data-tour='nav-edit']",
+  },
+  {
     id: "videos",
     title: "My videos",
     description: "Everything you make lands here, ready to watch, download and share.",
