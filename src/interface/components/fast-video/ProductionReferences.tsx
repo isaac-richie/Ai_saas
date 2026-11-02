@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { normalizeReferenceImage } from "./normalize-image"
+import { uploadReferenceFile } from "./upload-reference"
 import { useRef, useState } from "react"
 import { ImagePlus, Loader2, LockKeyhole, RefreshCw, X } from "lucide-react"
 import { toast } from "sonner"
@@ -9,9 +10,11 @@ import { MAX_PRODUCTION_REFERENCES, MAX_SHOT_REFERENCES, labelProductionAssets, 
 import styles from "./ProductionReferences.module.css"
 
 export function ProductionReferences({ assets, onChange, disabled = false, onBusy }: {
-  assets: ProductionAsset[]; onChange?: (assets: ProductionAsset[]) => void; disabled?: boolean; onBusy?: (busy: boolean) => void
+  assets: ProductionAsset[]; onChange?: (assets: ProductionAsset[]) => void | Promise<string | null | void>; disabled?: boolean; onBusy?: (busy: boolean) => void
 }) {
   const [uploading, setUploading] = useState(false)
+  /** The card being swapped: only it shows a spinner, the Add button stays as it is. */
+  const [replacingId, setReplacingId] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [role, setRole] = useState<ProductionAsset["role"]>("character")
   const input = useRef<HTMLInputElement>(null)
@@ -48,27 +51,27 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
     const room = replacement ? 1 : Math.max(0, MAX_PRODUCTION_REFERENCES - assets.length)
     const files = picked.slice(0, room)
     if (picked.length > room) toast.message(`Added the first ${room}`, { description: `A film can hold ${MAX_PRODUCTION_REFERENCES} references.` })
-    setUploading(true); onBusy?.(true)
+    setUploading(true); setReplacingId(replacement?.id ?? null); onBusy?.(true)
     let current = assets
     try {
       for (const original of files) {
         const ready = await prepare(original)
         if (!ready) continue
         try {
-          const body = new FormData(); body.set("file", ready.file)
-          const response = await fetch("/api/upload", { method: "POST", body })
-          const result = await response.json().catch(() => null)
-          if (!response.ok || !result?.url) throw new Error(result?.error || "Upload failed. Please try again.")
+          const result = { url: await uploadReferenceFile(ready.file) }
           const next: ProductionAsset = {
             id: replacement?.id || crypto.randomUUID(), name: ready.file.name.slice(0, 160),
             role: replacement?.role || role, url: result.url, mediaType: ready.isVideo ? "video" : "image",
           }
           // A replacement keeps its tag; a new file takes the next free @image/@video number.
           current = labelProductionAssets(replacement ? current.map(asset => asset.id === replacement.id ? { ...next, label: replacement.label } : asset) : [...current, next])
-          onChange(current)
-        } catch (cause) { reportError("Reference upload failed", `${original.name}: ${cause instanceof Error ? cause.message : "Upload failed"}`) }
+          // A saved film stores the change on the server; it may refuse (for example once takes exist).
+          const refused = await onChange(current)
+          if (typeof refused === "string") throw new Error(refused)
+          if (replacement) toast.success(`${replacement.label ?? "Reference"} replaced`, { description: "New shots will use the new image. The tag stays the same." })
+        } catch (cause) { reportError(replacement ? "Couldn't replace this reference" : "Reference upload failed", `${original.name}: ${cause instanceof Error ? cause.message : "Upload failed"}`); if (replacement) break }
       }
-    } finally { replacementId.current = null; setUploading(false); onBusy?.(false); if (input.current) input.current.value = "" }
+    } finally { replacementId.current = null; setUploading(false); setReplacingId(null); onBusy?.(false); if (input.current) input.current.value = "" }
   }
   function replace(assetId: string) {
     if (locked || disabled || uploading) return
@@ -80,14 +83,14 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
     <p className={styles.help}>{locked ? "Saved with this brief. These images guide the crew's creative direction." : `Give your crew a visual starting point. Add up to ${MAX_PRODUCTION_REFERENCES}: each shot uses the ones that fit it best (up to ${MAX_SHOT_REFERENCES}). Mention a tag like @image3 in your brief to make sure a shot uses it.`}</p>
     {!locked && <div className={styles.controls}>
       <label>Reference purpose<select value={role} disabled={disabled || uploading} onChange={event => setRole(event.target.value as ProductionAsset["role"])}>{["character", "wardrobe", "product", "location", "lighting"].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-      <button type="button" disabled={disabled || uploading || assets.length >= MAX_PRODUCTION_REFERENCES} onClick={() => { replacementId.current = null; input.current?.click() }}>{uploading ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}{uploading ? "Uploading..." : "Add images or videos"}</button>
+      <button type="button" disabled={disabled || uploading || assets.length >= MAX_PRODUCTION_REFERENCES} onClick={() => { replacementId.current = null; input.current?.click() }}>{uploading && !replacingId ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}{uploading && !replacingId ? "Uploading..." : "Add images or videos"}</button>
       <input ref={input} type="file" accept="image/*,.heic,.heif,video/mp4,video/webm,video/quicktime" multiple hidden onChange={event => void upload(Array.from(event.target.files || []))} />
     </div>}
-    {!!assets.length && <div className={styles.grid}>{assets.map(asset => <figure key={asset.id}>
+    {!!assets.length && <div className={styles.grid}>{assets.map(asset => <figure key={asset.id} aria-busy={replacingId === asset.id}>
       <a href={asset.url} target="_blank" rel="noopener noreferrer" aria-label={`Preview ${asset.name}`}>{asset.mediaType === "video" ? <video src={asset.url} muted playsInline preload="metadata" controls /> : <img src={asset.url} alt={`${asset.role} reference: ${asset.name}`} loading="lazy" />}</a>
       <figcaption><strong>{asset.label ? <span className={styles.tag}>{asset.label}</span> : null}{asset.role}</strong><span title={asset.name}>{asset.name}</span></figcaption>
       {!locked && <div className={styles.assetActions}>
-        <button type="button" className={styles.replace} disabled={disabled || uploading} aria-label={`Replace ${asset.name}`} onClick={() => replace(asset.id)}><RefreshCw size={14} /></button>
+        <button type="button" className={styles.replace} disabled={disabled || uploading} aria-label={`Replace ${asset.name}`} onClick={() => replace(asset.id)}>{replacingId === asset.id ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}</button>
         <button type="button" className={styles.remove} disabled={disabled || uploading} aria-label={`Remove ${asset.name}`} onClick={() => onChange?.(assets.filter(item => item.id !== asset.id))}><X size={14} /></button>
       </div>}
     </figure>)}</div>}
