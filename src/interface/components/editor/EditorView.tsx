@@ -26,6 +26,7 @@ import { diffTimeline, isEmptyDiff } from '@/interface/lib/timeline-diff';
 import { timelineToOutputMs } from '@/core/services/timeline-ops';
 import type { TimelineClip, TimelineProject, TimelineTrack } from '@/core/types/timeline';
 import { DEFAULT_FRAME_FIT } from '@/core/services/video-format';
+import { isStaleServerActionError, recoverFromStaleServerAction } from '@/interface/lib/server-action-recovery';
 import { listTimelineRevisions, restoreTimelineRevision } from '@/core/actions/timeline-revisions';
 import { createReviewLink, listReviewLinks, setReviewNoteResolved, turnOffReviewLink, type OwnerShare } from '@/core/actions/video-review';
 import { autoEditInstruction, openingTitle, type AutoEditStyle } from '@/core/services/auto-edit';
@@ -45,6 +46,35 @@ function snapshotOf(s: { clips: TimelineClip[]; tracks: TimelineTrack[]; timelin
     resolution: s.timeline?.resolution || '1920x1080',
     fit: s.timeline?.frame_fit || DEFAULT_FRAME_FIT,
   };
+}
+
+/** Unsaved edits are kept in the browser until the server has them, so a studio update or a
+ * dropped tab never costs a creator their cut. */
+const unsavedKey = (projectId: string) => `visiowave.editor-unsaved.${projectId}`;
+type UnsavedCut = { timelineId: string; at: number; snapshot: Snapshot };
+
+function keepUnsaved(projectId: string, timelineId: string, snapshot: Snapshot) {
+  try {
+    window.localStorage.setItem(unsavedKey(projectId), JSON.stringify({ timelineId, at: Date.now(), snapshot } satisfies UnsavedCut));
+  } catch {
+    // Full or blocked storage: the save retry below is still running.
+  }
+}
+
+function dropUnsaved(projectId: string) {
+  try { window.localStorage.removeItem(unsavedKey(projectId)); } catch { /* nothing kept */ }
+}
+
+function readUnsaved(projectId: string, timelineId: string): Snapshot | null {
+  try {
+    const raw = window.localStorage.getItem(unsavedKey(projectId));
+    const kept = raw ? JSON.parse(raw) as UnsavedCut : null;
+    // A week-old leftover is more likely to surprise than to help.
+    if (!kept || kept.timelineId !== timelineId || Date.now() - kept.at > 7 * 86_400_000) return null;
+    return Array.isArray(kept.snapshot?.clips) && Array.isArray(kept.snapshot?.tracks) ? kept.snapshot : null;
+  } catch {
+    return null;
+  }
 }
 
 async function postJson(url: string, body: unknown) {
@@ -70,6 +100,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
   const [reframing, setReframing] = useState(false);
   const saved = useRef<Snapshot>({ clips: [], tracks: [], grade: 'natural', resolution: '1920x1080', fit: DEFAULT_FRAME_FIT });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reloading = useRef(false);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const pollId = useRef(0);
   const [takeStatus, setTakeStatus] = useState<Record<string, TakeStatus>>({});
@@ -88,6 +119,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       const now = current();
       const diff = diffTimeline(saved.current, now);
       if (!timeline || isEmptyDiff(diff)) return;
+      keepUnsaved(projectId, timeline.id, now);
       setSaving(true);
       try {
         const results = [];
@@ -108,8 +140,15 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
         }));
         if (results.some((r) => 'error' in r && r.error)) throw new Error('save');
         saved.current = now;
+        if (isEmptyDiff(diffTimeline(now, current()))) dropUnsaved(projectId);
         setSaveFailed(false);
-      } catch {
+      } catch (cause) {
+        // The studio was updated mid-edit: reload onto the new version; the kept cut comes back.
+        if (isStaleServerActionError(cause)) {
+          reloading.current = true;
+          if (recoverFromStaleServerAction(cause)) return;
+          reloading.current = false;
+        }
         // The next edit retries everything still different from the last good save.
         setSaveFailed(true);
       } finally {
@@ -117,7 +156,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       }
     });
     return queue.current;
-  }, []);
+  }, [projectId]);
 
   // A failed save (dropped connection) quietly retries until it goes through.
   useEffect(() => {
@@ -133,7 +172,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       saveTimer.current = setTimeout(() => void flush(), 600);
     });
     const beforeUnload = (e: BeforeUnloadEvent) => {
-      if (!isEmptyDiff(diffTimeline(saved.current, current()))) e.preventDefault();
+      if (!reloading.current && !isEmptyDiff(diffTimeline(saved.current, current()))) e.preventDefault();
     };
     window.addEventListener('beforeunload', beforeUnload);
     return () => {
@@ -231,6 +270,18 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     (async () => {
       const timeline = await loadTimeline();
       if (!timeline) return;
+      const unsaved = readUnsaved(projectId, timeline.id);
+      if (unsaved && !isEmptyDiff(diffTimeline(saved.current, unsaved))) {
+        // Put back edits that never reached the server; autosave then sends them.
+        load({
+          timeline: { ...timeline, color_grade_id: unsaved.grade, resolution: unsaved.resolution, frame_fit: unsaved.fit },
+          tracks: unsaved.tracks,
+          clips: unsaved.clips,
+        }, `recovered:${Date.now()}`);
+        setNotice('We kept your latest edits while the studio updated.');
+      } else if (unsaved) {
+        dropUnsaved(projectId);
+      }
       // Shots regenerated in Create since they were brought in are flagged, never swapped.
       void getStoryboardUpdates(timeline.id)
         .then(({ updates }) => useTimelineStore.getState().setStoryboardUpdates(Object.fromEntries(updates.map((u) => [u.clip_id, { url: u.url, duration_ms: u.duration_ms }]))))
@@ -247,7 +298,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       setRender({ status: job.status, progress: job.progress, stage: job.stage, url: job.output_url, storageKey: job.storage_key, error: job.error_message });
       if (job.status === 'queued' || job.status === 'rendering') void pollRender(job.id);
     })();
-  }, [loadTimeline, pollRender, pollTake]);
+  }, [projectId, load, loadTimeline, pollRender, pollTake]);
 
   // Notes from reviewers arrive while the creator works.
   const refreshReviews = useCallback(async () => {
