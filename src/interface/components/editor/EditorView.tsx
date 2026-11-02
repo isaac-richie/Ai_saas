@@ -11,6 +11,7 @@ import {
   getTimelineClips,
   getTimelineTracks,
   importStoryboardToTimeline,
+  addUploadedClips,
   removeTimelineClip,
   removeTimelineTrack,
   updateTimelineClip,
@@ -351,6 +352,40 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     if (!data.tracked) setNotice('Made centred versions. Following the subject was unavailable this time.');
   };
 
+  /** Videos from the creator's own phone or computer go to the end of the edit, in the order picked. */
+  const onUploadVideos = async (files: File[]): Promise<string | null> => {
+    const chosen = files.filter((f) => VIDEO_EXTENSIONS.includes(f.name.split('.').pop()?.toLowerCase() || ''));
+    if (!chosen.length) return 'Choose MP4, MOV or WebM videos.';
+    const tooBig = chosen.find((f) => f.size > MAX_UPLOAD_BYTES);
+    if (tooBig) return `${tooBig.name} is ${Math.round(tooBig.size / 1024 / 1024)} MB. Each video must be under ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 'Please sign in again.';
+    setImporting(true);
+    try {
+      const uploads: { path: string; name: string; durationMs: number }[] = [];
+      for (const [index, file] of chosen.entries()) {
+        setNotice(chosen.length > 1 ? `Uploading video ${index + 1} of ${chosen.length}…` : 'Uploading your video…');
+        const ext = file.name.split('.').pop()!.toLowerCase();
+        const path = `${user.id}/edits/${crypto.randomUUID()}.${ext}`;
+        const [durationMs, { error: uploadError }] = await Promise.all([
+          videoDurationMs(file),
+          supabase.storage.from('elements').upload(path, file, { contentType: file.type || `video/${ext === 'mov' ? 'quicktime' : ext}`, upsert: false }),
+        ]);
+        if (uploadError) return `${file.name} did not finish uploading. Check your connection and try again.`;
+        uploads.push({ path, name: file.name, durationMs });
+      }
+      await flush();
+      const res = await addUploadedClips(projectId, uploads);
+      if ('error' in res && res.error) return res.error;
+      setNotice(`Added ${uploads.length} video${uploads.length === 1 ? '' : 's'} from your device.`);
+      await loadTimeline(`upload:${Date.now()}`);
+      return null;
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const onUploadMusic = async (file: File): Promise<string | null> => {
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     if (!MUSIC_EXTENSIONS.includes(ext)) return 'Choose an MP3, M4A, WAV or OGG file.';
@@ -495,7 +530,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
 
   return (
     <EditorWorkspace
-      backHref="/dashboard/fast-video"
+      backHref="/dashboard/edit"
       title={title}
       saving={saving}
       saveFailed={saveFailed}
@@ -511,6 +546,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       onReframe={onReframe}
       onAgent={onAgent}
       onUploadMusic={onUploadMusic}
+      onUploadVideos={onUploadVideos}
       onAddText={onAddText}
       onAutoCaptions={onAutoCaptions}
       onRegenerate={onRegenerate}
@@ -524,4 +560,22 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       takeStatus={takeStatus}
     />
   );
+}
+
+const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm', 'm4v'];
+/** Supabase's default per-file limit; larger files fail mid-upload, so stop them up front. */
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+/** Reads a video's length in the browser; 5 s when the browser cannot tell (some MOV files). */
+function videoDurationMs(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    const done = (ms: number) => { URL.revokeObjectURL(url); resolve(ms); };
+    const timer = setTimeout(() => done(5000), 8000);
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => { clearTimeout(timer); done(Number.isFinite(video.duration) && video.duration > 0 ? Math.round(video.duration * 1000) : 5000); };
+    video.onerror = () => { clearTimeout(timer); done(5000); };
+    video.src = url;
+  });
 }

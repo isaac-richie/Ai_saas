@@ -238,17 +238,25 @@ export async function importStoryboardToTimeline(projectId: string) {
   const videoTrack = tracks?.find((t) => t.track_type === 'video');
   if (!videoTrack) return { error: 'No video track found' };
 
-  const { data: items } = await supabase
+  const { data: storyboardItems } = await supabase
     .from('fast_video_storyboard_items')
     .select('id, url, duration_seconds, order_index, scene_id, subject, prompt, enhanced_prompt')
     .eq('project_id', projectId)
     .eq('status', 'ready')
     .order('order_index');
 
-  if (!items?.length) return { error: 'No ready storyboard clips to import yet.' };
-
   // A project can hold several scenes: keep each scene together, in story order.
   const { data: scenes } = await supabase.from('scenes').select('id, name, sequence_order, created_at').eq('project_id', projectId);
+  // Films keep their footage as shot takes, not storyboard items: bring in each shot's approved take,
+  // or its latest finished one.
+  const filmTakes = await filmShotTakes(supabase, (scenes || []).map((sc) => sc.id));
+  const items: Array<{ id: string; url: string | null; duration_seconds: number | null; order_index: number; scene_id: string; subject: string | null; prompt: string | null; enhanced_prompt: string | null; film_shot_id?: string }> = [
+    ...(storyboardItems || []),
+    ...filmTakes,
+  ];
+
+  if (!items.length) return { error: 'No finished shots to bring in yet. Generate a shot, or add videos from your device.' };
+
   const sceneRank = new Map(
     (scenes || [])
       .sort((a, b) => a.sequence_order - b.sequence_order || a.created_at.localeCompare(b.created_at))
@@ -292,7 +300,7 @@ export async function importStoryboardToTimeline(projectId: string) {
       start_ms: cursor_ms,
       end_ms: cursor_ms + dur,
       // What the shot shows, so the AI editor can find shots by their content.
-      metadata: { source_duration_ms: dur, storyboard_item_id: item.id, shot: shotInfoFromStoryboard(item, sceneName.get(item.scene_id)) },
+      metadata: { source_duration_ms: dur, ...(item.film_shot_id ? { film_shot_id: item.film_shot_id } : { storyboard_item_id: item.id }), shot: shotInfoFromStoryboard(item, sceneName.get(item.scene_id)) },
     });
     cursor_ms += dur;
   }
@@ -349,4 +357,64 @@ export async function getStoryboardUpdates(timelineId: string) {
     if (!known.has(item.url)) updates.push({ clip_id: c.id, url: item.url as string, duration_ms: Math.max(1, item.duration_seconds || 5) * 1000 });
   }
   return { updates };
+}
+
+type Db = Awaited<ReturnType<typeof createClient>>;
+
+async function filmShotTakes(supabase: Db, sceneIds: string[]) {
+  if (!sceneIds.length) return [];
+  const { data: shots } = await supabase
+    .from('shots')
+    .select('id, name, prompt_text, sequence_order, scene_id, approved_take_id, shot_generations!shot_generations_shot_id_fkey(id, output_url, status, duration_seconds, created_at)')
+    .in('scene_id', sceneIds)
+    .order('sequence_order');
+  return (shots || []).flatMap((shot) => {
+    const takes = ((shot.shot_generations || []) as { id: string; output_url: string | null; status: string; duration_seconds: number | null; created_at: string }[])
+      .filter((t) => t.status === 'completed' && t.output_url)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const take = takes.find((t) => t.id === shot.approved_take_id) || takes[0];
+    if (!take) return [];
+    return [{
+      id: take.id, url: take.output_url, duration_seconds: take.duration_seconds, order_index: shot.sequence_order ?? 0, scene_id: shot.scene_id,
+      subject: shot.name, prompt: shot.prompt_text, enhanced_prompt: null, film_shot_id: shot.id,
+    }];
+  });
+}
+
+const UPLOAD_PATH = /^[0-9a-f-]{36}\/edits\/[0-9a-f-]{36}\.(mp4|mov|webm|m4v)$/i;
+
+/**
+ * Videos the creator uploaded from their own device, appended to the end of the edit in the order
+ * chosen. Only files in their own folder of the public elements bucket are accepted.
+ */
+export async function addUploadedClips(projectId: string, uploads: { path: string; name: string; durationMs: number }[]) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Please sign in again.' };
+  if (!uploads.length || uploads.length > 20) return { error: 'Choose between 1 and 20 videos.' };
+  if (uploads.some((u) => !UPLOAD_PATH.test(u.path) || !u.path.startsWith(`${user.id}/`))) return { error: 'That upload could not be verified. Try again.' };
+
+  const result = await getOrCreateTimeline(projectId);
+  if ('error' in result) return result;
+  const timeline = result.timeline!;
+  const { tracks } = await getTimelineTracks(timeline.id);
+  const videoTrack = tracks?.find((t) => t.track_type === 'video');
+  if (!videoTrack) return { error: 'No video track found' };
+
+  const { data: existing } = await supabase.from('timeline_clips').select('end_ms').eq('track_id', videoTrack.id);
+  let cursor_ms = Math.max(0, ...(existing || []).map((c) => c.end_ms));
+  const clips = uploads.map((u) => {
+    const dur = Math.round(Math.min(Math.max(u.durationMs || 5000, 500), 30 * 60_000));
+    const { data } = supabase.storage.from('elements').getPublicUrl(u.path);
+    const clip = {
+      track_id: videoTrack.id, asset_url: data.publicUrl, clip_type: 'video', start_ms: cursor_ms, end_ms: cursor_ms + dur,
+      metadata: { source_duration_ms: dur, uploaded: true, shot: { subject: u.name.replace(/\.[^.]+$/, '').slice(0, 120) } },
+    };
+    cursor_ms += dur;
+    return clip;
+  });
+  const { error } = await supabase.from('timeline_clips').insert(clips);
+  if (error) return { error: 'Could not add those videos. Try again.' };
+  await supabase.from('timeline_projects').update({ duration_ms: cursor_ms }).eq('id', timeline.id);
+  return { success: true, clip_count: clips.length, duration_ms: cursor_ms };
 }

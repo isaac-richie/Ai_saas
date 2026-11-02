@@ -65,6 +65,7 @@ export function DevEditor() {
         return { ok: false, error: 'Preview only: the AI editor needs a signed-in project.' };
       }}
       onUploadMusic={async () => { await wait(800); return 'Preview only: uploads need a signed-in project.'; }}
+      onUploadVideos={async () => null}
       onAddText={async () => {
         const s = useTimelineStore.getState();
         const id = `c${Date.now()}`;

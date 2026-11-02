@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import Link from 'next/link';
 import {
   ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, History, ImagePlus, Keyboard, Loader2, Maximize, MessageSquare, Music2, Palette, Pause,
-  Play, Proportions, Redo2, Scissors, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Trash2, Type, Undo2, Wand2, X, ZoomIn, ZoomOut,
+  Play, Proportions, Redo2, Scissors, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Trash2, Type, Undo2, Upload, Wand2, X, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useMediaQuery } from '@/interface/hooks/use-media-query';
@@ -57,6 +58,7 @@ export interface EditorWorkspaceProps {
   onReframe: () => void;
   onAgent: (instruction: string) => Promise<AgentReply>;
   onUploadMusic: (file: File) => Promise<string | null>;
+  onUploadVideos: (files: File[]) => Promise<string | null>;
   onAddText: () => Promise<void>;
   onAutoCaptions: () => Promise<string | null>;
   /** Makes a new take of a shot with the generator; absent where generation isn't available. */
@@ -116,6 +118,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   const phone = !useMediaQuery('(min-width: 768px)', true);
   const [tab, setTab] = useState<Tab>('ai');
   const [sheet, setSheet] = useState<Tab | null>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -233,12 +236,24 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
     return <TextPanel onAddText={props.onAddText} onAutoCaptions={props.onAutoCaptions} hasRender={Boolean(props.render.storageKey)} />;
   };
 
+  const pickVideos = () => videoInput.current?.click();
+  const onVideosChosen = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const problem = await props.onUploadVideos([...files]);
+    if (problem) toast.error("Couldn't add those videos", { description: problem });
+  };
+
   const emptyHint = (
     <div className="space-y-3">
-      <p>Bring in the shots from your storyboard to start editing.</p>
-      <button onClick={props.onImport} disabled={props.importing} className="inline-flex items-center gap-2 rounded-xl border border-gold-400/50 px-4 py-2.5 text-sm text-gold-100 hover:bg-gold-500/10 disabled:opacity-50">
-        {props.importing ? <Loader2 size={15} className="animate-spin" /> : <ImagePlus size={15} />} Add my storyboard shots
-      </button>
+      <p>Bring in your shots, or videos from your phone or computer, to start editing.</p>
+      <div className="flex flex-wrap justify-center gap-2">
+        <button onClick={props.onImport} disabled={props.importing} className="inline-flex items-center gap-2 rounded-xl border border-gold-400/50 px-4 py-2.5 text-sm text-gold-100 hover:bg-gold-500/10 disabled:opacity-50">
+          {props.importing ? <Loader2 size={15} className="animate-spin" /> : <ImagePlus size={15} />} Add my generated shots
+        </button>
+        <button onClick={pickVideos} disabled={props.importing} className="inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm text-white hover:border-white/30 disabled:opacity-50">
+          <Upload size={15} /> Add videos from my device
+        </button>
+      </div>
       {props.onAutoEdit && (
         <button
           onClick={() => (desktop ? setTab('ai') : setSheet('ai'))}
@@ -286,6 +301,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         <Link href={props.backHref} className={iconButton} aria-label="Back to storyboard">
           <ArrowLeft size={19} />
         </Link>
+        <input ref={videoInput} type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v" multiple className="hidden" onChange={(e) => { void onVideosChosen(e.target.files); e.target.value = ''; }} />
         <div className="min-w-0 flex-1 px-1">
           <h1 className="truncate text-base font-light tracking-tight text-white md:text-lg">
             {props.title ? props.title : <>Edit <span className="lux-serif text-gold-200">video</span></>}
@@ -302,6 +318,9 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
           </div>
         )}
         <ModeSwitch mode={mode} onChange={setMode} compact={phone} />
+        <button onClick={pickVideos} disabled={props.importing} className={iconButton} aria-label="Add videos from my device" title="Add videos from my device">
+          {props.importing ? <Loader2 size={17} className="animate-spin" /> : <Upload size={17} />}
+        </button>
         <button onClick={store.undo} disabled={history.past.length === 0} className={iconButton} aria-label="Undo" title="Undo (⌘Z)">
           <Undo2 size={18} />
         </button>

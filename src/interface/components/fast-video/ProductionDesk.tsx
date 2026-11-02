@@ -6,7 +6,7 @@ import Link from "next/link"
 import { applyMechanicalPlanRepair, createProductionRevision, listProductions, materializeProduction, replaceProductionReferences, updateProduction } from "@/core/actions/production"
 import { blockingFindings, canApproveProduction, findingsRepairUsed, type ProductionPlan } from "@/core/validation/production-crew"
 import { ProductionRunPanel } from "./ProductionRunPanel"
-import { ArrowUpRight, Clapperboard, RefreshCw } from "lucide-react"
+import { ArrowUpRight, Clapperboard, RefreshCw, Wand2 } from "lucide-react"
 import styles from "./ProductionDesk.module.css"
 import { ProductionReferences } from "./ProductionReferences"
 import { labelProductionAssets, productionAssetsSchema, type ProductionAsset } from "@/core/validation/production-assets"
@@ -167,6 +167,7 @@ export function ProductionDesk() {
       <nav className={styles.steps} aria-label="Production stages">
         {(["brief", "direction", "takes"] as const).map((stage, index) => <button key={stage} type="button" aria-current={view === stage ? "step" : undefined} disabled={busy || (stage === "direction" && !selected) || (stage === "takes" && !selected?.project_id)} onClick={() => setView(stage)}><span>0{index + 1}</span>{stage === "brief" ? "The brief" : stage === "direction" ? "Creative direction" : "Takes & review"}</button>)}
         {selected?.sequence_id ? <Link href={`/dashboard/sequences/${selected.sequence_id}`}><span>04</span>Edit & deliver <ArrowUpRight size={14} /></Link> : <span className={styles.locked}><span>04</span>Edit & deliver</span>}
+        {selected?.project_id && <Link href={`/dashboard/editor?project=${selected.project_id}`} title="Open your finished takes in the AI editor"><Wand2 size={14} aria-hidden /> Edit with AI</Link>}
       </nav>
       <div className={styles.body}>
       {view === "brief" && <div className={styles.briefGrid}><div><h3>Every film starts with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop connected shots with your chosen models and timing.</p><span className={styles.format}>{MIN_FILM_SHOTS}–{MAX_FILM_SHOTS} shots · your model and timing · 16:9</span></div>
