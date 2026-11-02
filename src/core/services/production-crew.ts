@@ -126,15 +126,28 @@ async function buildReferenceInput(references: ProductionAsset[]): Promise<CrewR
 
 function clip(value: string, limit: number) {
   const normalized = value.replace(/\s+/g, " ").trim()
-  if (normalized.length <= limit) return normalized
+  // A prompt that fills its budget and stops mid-list was cut by the provider: keep complete sentences.
+  if (normalized.length <= limit) return normalized.length >= limit * 0.95 ? trimToLastSentence(normalized) ?? normalized : normalized
   const candidate = normalized.slice(0, Math.max(1, limit - 3)).trimEnd()
   const boundary = candidate.lastIndexOf(" ")
   return `${(boundary > limit * 0.6 ? candidate.slice(0, boundary) : candidate).trimEnd()}...`
 }
 
+/** Cuts an unfinished trailing fragment back to the last full sentence; null when nothing safe to cut. */
+export function trimToLastSentence(prompt: string): string | null {
+  const normalized = prompt.replace(/\s+/g, " ").trim()
+  if (/[.!?…][\])"'”’]*$/.test(normalized)) return null
+  const ends = [...normalized.matchAll(/[.!?…][\])"'”’]*(?=\s)/g)]
+  const last = ends.at(-1)
+  if (!last || last.index === undefined) return null
+  const trimmed = normalized.slice(0, last.index + last[0].length)
+  return trimmed.length >= Math.max(30, normalized.length * 0.6) ? trimmed : null
+}
+
 function clipComplete(value: string, limit: number) {
   const normalized = value.replace(/\s+/g, " ").trim()
-  if (normalized.length <= limit) return normalized
+  // A prompt that fills its budget and stops mid-list was cut by the provider: keep complete sentences.
+  if (normalized.length <= limit) return normalized.length >= limit * 0.95 ? trimToLastSentence(normalized) ?? normalized : normalized
   const candidate = normalized.slice(0, Math.max(1, limit - 1)).trimEnd()
   const sentenceEnd = Math.max(candidate.lastIndexOf("."), candidate.lastIndexOf("!"), candidate.lastIndexOf("?"))
   if (sentenceEnd >= Math.min(30, Math.floor(limit * 0.45))) return candidate.slice(0, sentenceEnd + 1)

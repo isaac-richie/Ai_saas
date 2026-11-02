@@ -766,3 +766,14 @@ test('crew failures become plain-language toasts', () => {
   assert.equal(unknown.reason, 'unknown')
   assert.doesNotMatch(unknown.description + unknown.title, /Error:|sk-/)
 })
+
+test('a provider prompt cut at its budget is trimmed back to its last full sentence', () => {
+  const trimFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'trimToLastSentence').getText(errorTree)
+  const trimModule = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(trimFn, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { module: trimModule, exports: trimModule.exports })
+  const { trimToLastSentence } = trimModule.exports
+  const scene = 'Sam wakes in the hospital bed and raises his hands in prayer. He looks upward, unmasked. '.repeat(4)
+  assert.equal(trimToLastSentence(`${scene}Rain, lobby room tone, monitor, 4`), scene.trim())
+  assert.equal(trimToLastSentence(`${scene}He says, “Thank you.”`), null, 'complete prompts are left alone')
+  assert.equal(trimToLastSentence('One short line. Then a very long unfinished fragment that would lose most of the prompt if cut back'), null, 'never drops most of a prompt')
+})
