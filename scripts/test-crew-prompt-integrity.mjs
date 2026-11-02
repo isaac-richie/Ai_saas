@@ -9,6 +9,8 @@ const kieModelsModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/kie-video-models.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: kieModelsModule, exports: kieModelsModule.exports })
 const kieModels = kieModelsModule.exports
 const filmModule = { exports: {} }
+const crewFailure = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/utils/crew-failure.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: crewFailure, exports: crewFailure.exports })
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/film.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: filmModule, exports: filmModule.exports })
 const film = filmModule.exports
 const settingsModule = { exports: {} }
@@ -258,6 +260,7 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
       if (name === '@/core/config/film') return film
+      if (name === '@/core/utils/crew-failure') return crewFailure.exports
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
       if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
@@ -337,6 +340,7 @@ test('repair checkpoint runs only shot editor and continuity reviewer', async ()
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
       if (name === '@/core/config/film') return film
+      if (name === '@/core/utils/crew-failure') return crewFailure.exports
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
       if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
@@ -748,4 +752,17 @@ test('crew model calls stay inside the planning lease and route duration', () =>
   assert.ok(budget < routeLimitMs && budget < leaseMs, 'stage budget must end before the route limit and lease')
   assert.ok(minimumAttempt > 0 && minimumAttempt < budget)
   assert.match(source, /responses\.parse\(\{[\s\S]*?\}, \{ timeout: Math\.min\(CREW_CALL_TIMEOUT_MS, remaining\) \}\)/)
+})
+
+test('crew failures become plain-language toasts', () => {
+  const { describeCrewFailure } = crewFailure.exports
+  assert.equal(describeCrewFailure('cinematographer:Error: 401 Your API key has expired. Create a new API key to continue.', 'cinematographer').reason, 'ai_key')
+  assert.equal(describeCrewFailure('AI planning credits are exhausted. Add credits.').reason, 'ai_credits')
+  assert.equal(describeCrewFailure('429 Rate limit reached').reason, 'ai_busy')
+  assert.equal(describeCrewFailure('The crew stage ran out of time before the director replied.', 'shot prompts').title, 'Shot prompts took too long')
+  assert.equal(describeCrewFailure('503 Service Unavailable').reason, 'ai_outage')
+  assert.equal(describeCrewFailure('A compiled shot is blocked by safety policy: violence').reason, 'safety')
+  const unknown = describeCrewFailure('Something odd', 'lighting-director')
+  assert.equal(unknown.reason, 'unknown')
+  assert.doesNotMatch(unknown.description + unknown.title, /Error:|sk-/)
 })
