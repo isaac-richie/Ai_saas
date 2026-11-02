@@ -1,4 +1,4 @@
-import { MAX_FILM_SHOTS, MIN_FILM_SHOTS } from "@/core/config/film"
+import { MAX_FILM_SHOTS, MAX_SHOT_PROMPT_CHARS, MIN_FILM_SHOTS } from "@/core/config/film"
 import { MAX_FAST_TRACK_SECONDS, MIN_FAST_TRACK_SECONDS, getKieVideoModelFamily } from "@/core/config/kie-video-models"
 import { z } from "zod"
 import { studioAdCampaignPlanSchema, studioAdCampaignDeliverableSchema } from "./studio-ad"
@@ -49,7 +49,7 @@ export const crewShotsSchema = z.object({
     title: z.string().min(3).max(120),
     intent: z.string().min(5).max(220),
     action: z.string().min(10).max(500),
-    prompt: z.string().min(30).max(1000),
+    prompt: z.string().min(30).max(MAX_SHOT_PROMPT_CHARS),
     negativePrompt: z.string().min(5).max(500),
     model: z.enum(["kling", "seedance"]),
     editNote: z.string().min(3).max(1200),
@@ -100,7 +100,7 @@ function hasExecutableProviderPrompt(prompt: string) {
   // Provider prompts are the only text the renderer executes. Do not let a
   // truncated internal planning note prevent a creator from reaching takes.
   return normalized.length >= 30
-    && normalized.length <= 1000
+    && normalized.length <= MAX_SHOT_PROMPT_CHARS
     && /[.!?…][\])"']*$/.test(normalized)
 }
 

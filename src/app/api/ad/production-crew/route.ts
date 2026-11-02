@@ -20,8 +20,8 @@ export async function POST(request: Request) {
   const result = await advanceProductionCrew(db, user.id, parsed.data.jobId)
   if (result.error) {
     const policyBlocked = result.error.includes("blocked by safety policy")
-    const creditsExhausted = result.error.startsWith("AI planning credits are exhausted")
-    return NextResponse.json({ error: result.error }, { status: result.error.includes("already working") ? 409 : creditsExhausted ? 402 : policyBlocked ? 422 : 502 })
+    const creditsExhausted = result.failure?.reason === "ai_credits"
+    return NextResponse.json({ error: result.error, failure: result.failure }, { status: result.error.includes("already working") ? 409 : creditsExhausted ? 402 : policyBlocked ? 422 : 502 })
   }
   return NextResponse.json({ ok: true, ...result.data })
 }

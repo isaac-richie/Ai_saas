@@ -5,6 +5,7 @@ import { condensePrompt } from "@/core/services/prompt-condenser"
 import { z } from "zod"
 import { createClient } from "@/infrastructure/supabase/server"
 import { createAdminClient } from "@/infrastructure/supabase/admin"
+import { trimToLastSentence } from "@/core/services/production-crew"
 import { productionPlanSchema, canApproveProduction, productionBibleSchema, departmentDirectionSchema, crewShotsSchema, blockingFindings, findingsRepairUsed } from "@/core/validation/production-crew"
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
 import { resolveKieVideoModelByFamily, clampDurationForFamily, getKieVideoModelFamily } from "@/core/config/kie-video-models"
@@ -159,16 +160,17 @@ export async function applyMechanicalPlanRepair(input: unknown) {
   const parsed = productionPlanSchema.safeParse(job.plan)
   if (!parsed.success) return { error: "This plan needs a crew repair because its saved structure is incomplete." }
 
-  let repaired = 0
-  const plan = {
-    ...parsed.data,
-    deliverables: parsed.data.deliverables.map(shot => {
-      const masterPrompt = repairTerminalNegativeInstruction(shot.masterPrompt)
-      if (!masterPrompt) return shot
-      repaired += 1
-      return { ...shot, masterPrompt }
-    }),
-  }
+  const repairedShots = new Set<number>()
+  const deliverables = parsed.data.deliverables.map((shot, index) => {
+    const masterPrompt = repairTerminalNegativeInstruction(shot.masterPrompt) ?? trimToLastSentence(shot.masterPrompt)
+    if (!masterPrompt) return shot
+    repairedShots.add(index + 1)
+    return { ...shot, masterPrompt }
+  })
+  const repaired = repairedShots.size
+  // The reviewer's finding described the cut-off prompt; once it ends cleanly that finding is resolved.
+  const crew = parsed.data.crew && { ...parsed.data.crew, review: { ...parsed.data.crew.review, findings: parsed.data.crew.review.findings.filter(finding => !repairedShots.has(finding.shotNumber)) } }
+  const plan = { ...parsed.data, deliverables, ...(crew ? { crew } : {}) }
   if (!repaired) return { error: "No safe automatic prompt repair applies to this plan. Use crew repair for a creative or continuity issue." }
   if (!canApproveProduction(plan)) return { error: "The automatic repair was not enough to satisfy the production gate. Use crew repair for the remaining issue." }
 

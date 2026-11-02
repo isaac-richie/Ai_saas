@@ -9,10 +9,12 @@ const kieModelsModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/kie-video-models.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: kieModelsModule, exports: kieModelsModule.exports })
 const kieModels = kieModelsModule.exports
 const filmModule = { exports: {} }
+const crewFailure = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/utils/crew-failure.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: crewFailure, exports: crewFailure.exports })
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/film.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: filmModule, exports: filmModule.exports })
 const film = filmModule.exports
 const settingsModule = { exports: {} }
-vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/validation/production-settings.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: settingsModule, exports: settingsModule.exports, require: (name) => name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : name === '@/core/config/film' ? film : { z: settingsZod } })
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/validation/production-settings.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: settingsModule, exports: settingsModule.exports, require: (name) => name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : name === '@/core/config/film' ? film : { z: settingsZod } })
 const { productionShotSettingsSchema } = settingsModule.exports
 
 const source = readFileSync(new URL('../src/core/services/production-crew.ts', import.meta.url), 'utf8')
@@ -20,7 +22,7 @@ const tree = ts.createSourceFile('crew.ts', source, ts.ScriptTarget.Latest, true
 const names = new Set(['compileContinuityPrompt', 'normalizeCrewShots', 'compileCrewShotsForReview', 'compileProductionPlan', 'compileContinuityNegativePrompt', 'clip'])
 const functions = tree.statements.filter(node => ts.isFunctionDeclaration(node) && names.has(node.name?.text)).map(node => node.getText(tree)).join('\n')
 const module = { exports: {} }
-vm.runInNewContext(ts.transpileModule(functions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module, exports: module.exports, productionPlanSchema: { parse: value => value } })
+vm.runInNewContext(ts.transpileModule(functions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module, exports: module.exports, productionPlanSchema: { parse: value => value } })
 const compile = editor => module.exports.compileCrewShotsForReview({}, editor)
 
 const approvalSource = readFileSync(new URL('../src/core/validation/production-crew.ts', import.meta.url), 'utf8')
@@ -28,13 +30,13 @@ const approvalTree = ts.createSourceFile('production-crew-validation.ts', approv
 const approvalNames = new Set(['hasExecutableProviderPrompt', 'supportsRequestedTiming', 'canApproveProduction'])
 const approvalFunctions = approvalTree.statements.filter(node => ts.isFunctionDeclaration(node) && approvalNames.has(node.name?.text)).map(node => node.getText(approvalTree)).join('\n')
 const approvalModule = { exports: {} }
-vm.runInNewContext(ts.transpileModule(approvalFunctions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: approvalModule, exports: approvalModule.exports, getKieVideoModelFamily: kieModels.getKieVideoModelFamily, productionPlanSchema: { safeParse: value => ({ success: true, data: value }) } })
+vm.runInNewContext(ts.transpileModule(approvalFunctions, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: approvalModule, exports: approvalModule.exports, getKieVideoModelFamily: kieModels.getKieVideoModelFamily, productionPlanSchema: { safeParse: value => ({ success: true, data: value }) } })
 
 const errorModule = { exports: {} }
 const errorSource = readFileSync(new URL('../src/core/services/production-crew.ts', import.meta.url), 'utf8')
 const errorTree = ts.createSourceFile('crew-error.ts', errorSource, ts.ScriptTarget.Latest, true)
 const errorFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'isRecoverableStructuredOutputError').getText(errorTree)
-vm.runInNewContext(ts.transpileModule(errorFn, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: errorModule, exports: errorModule.exports })
+vm.runInNewContext(ts.transpileModule(errorFn, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: errorModule, exports: errorModule.exports })
 test('malformed structured output is classified as safe to retry once', () => {
   assert.equal(errorModule.exports.isRecoverableStructuredOutputError(new SyntaxError('Expected comma')), true)
   assert.equal(errorModule.exports.isRecoverableStructuredOutputError(new Error('rate limit')), false)
@@ -43,7 +45,7 @@ test('malformed structured output is classified as safe to retry once', () => {
 const safeErrorFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'safeCrewError').getText(errorTree)
 const redactErrorFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'redactCrewError').getText(errorTree)
 const safeErrorModule = { exports: {} }
-vm.runInNewContext(ts.transpileModule(`${redactErrorFn}\n${safeErrorFn}`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: safeErrorModule, exports: safeErrorModule.exports, Error })
+vm.runInNewContext(ts.transpileModule(`${redactErrorFn}\n${safeErrorFn}`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: safeErrorModule, exports: safeErrorModule.exports, Error })
 test('crew diagnostics preserve plain provider errors without leaking credentials', () => {
   assert.match(safeErrorModule.exports.safeCrewError({ code: 502, message: 'upstream failed' }), /502: upstream failed/)
   assert.match(safeErrorModule.exports.safeCrewError({ error: { message: 'Bearer secret failed' } }), /Bearer \[redacted\]/)
@@ -53,15 +55,15 @@ test('crew diagnostics preserve plain provider errors without leaking credential
   assert.equal(safeErrorModule.exports.safeCrewError(new Error(`cinematographer:${billing}`)), billing)
 })
 
-const normalizationNames = new Set(['clip', 'clipComplete', 'normalizeCrewStageOutput'])
+const normalizationNames = new Set(['clip', 'clipComplete', 'trimToLastSentence', 'normalizeCrewStageOutput'])
 const normalizationCode = errorTree.statements
   .filter(node => (ts.isFunctionDeclaration(node) && normalizationNames.has(node.name?.text)) || (ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => ts.isIdentifier(declaration.name) && declaration.name.text === 'CREW_FIELD_LIMITS')))
   .map(node => node.getText(errorTree)).join('\n')
 const normalizationModule = { exports: {} }
-vm.runInNewContext(ts.transpileModule(normalizationCode, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: normalizationModule, exports: normalizationModule.exports, Object, Array, Set, Math })
+vm.runInNewContext(ts.transpileModule(normalizationCode, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: normalizationModule, exports: normalizationModule.exports, Object, Array, Set, Math })
 test('crew output normalizes verbose negative prompts before stage validation', () => {
   const output = normalizationModule.exports.normalizeCrewStageOutput({ shots: [{ prompt: `${'A precise cinematic shot. '.repeat(80)}`, negativePrompt: `${'no flicker, '.repeat(80)}` }] })
-  assert.ok(output.shots[0].prompt.length <= 1000)
+  assert.ok(output.shots[0].prompt.length <= film.MAX_SHOT_PROMPT_CHARS)
   assert.match(output.shots[0].prompt, /[.!?]$/)
   assert.ok(output.shots[0].negativePrompt.length <= 500)
 })
@@ -77,8 +79,8 @@ test('review receives complete authored dialogue, camera and handoff without rew
 })
 
 test('oversized provider instructions are rejected instead of sliced', () => {
-  assert.throws(() => compile({ shots: [{ prompt: 'x'.repeat(1001), continuity: null }] }), /exceeds/)
-  assert.equal(compile({ shots: [{ prompt: 'x'.repeat(1000), continuity: null }] })[0].prompt.length, 1000)
+  assert.throws(() => compile({ shots: [{ prompt: 'x'.repeat(film.MAX_SHOT_PROMPT_CHARS + 1), continuity: null }] }), /exceeds/)
+  assert.equal(compile({ shots: [{ prompt: 'x'.repeat(film.MAX_SHOT_PROMPT_CHARS), continuity: null }] })[0].prompt.length, film.MAX_SHOT_PROMPT_CHARS)
 })
 
 test('blocking crew notes cannot trap an executable plan before takes', () => {
@@ -95,7 +97,7 @@ test('blocking crew notes cannot trap an executable plan before takes', () => {
 
 const groupingModule = { exports: {} }
 const groupingSource = readFileSync(new URL('../src/core/utils/production/latest-films.ts', import.meta.url), 'utf8')
-vm.runInNewContext(ts.transpileModule(groupingSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: groupingModule, exports: groupingModule.exports })
+vm.runInNewContext(ts.transpileModule(groupingSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: groupingModule, exports: groupingModule.exports })
 test('film picker keeps latest lineage revision without merging separate films or mutating history', () => {
   const rows = [{ id: 'v4', parent_job_id: 'root', revision_number: 4 }, { id: 'other', revision_number: 1 }, { id: 'root', revision_number: 1 }, { id: 'v5', parent_job_id: 'root', revision_number: 5 }]
   const before = JSON.stringify(rows)
@@ -108,7 +110,7 @@ test('film picker keeps latest lineage revision without merging separate films o
 
 const revisionModule = { exports: {} }
 const revisionSource = readFileSync(new URL('../src/core/utils/production/revision-context.ts', import.meta.url), 'utf8')
-vm.runInNewContext(ts.transpileModule(revisionSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: revisionModule, exports: revisionModule.exports })
+vm.runInNewContext(ts.transpileModule(revisionSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: revisionModule, exports: revisionModule.exports })
 const { buildRevisionContext, compactRevisionContext, revisionSaveError } = revisionModule.exports
 
 test('repair stores complete large findings separately and never carries stale checkpoints', () => {
@@ -258,6 +260,7 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
       if (name === '@/core/config/film') return film
+      if (name === '@/core/utils/crew-failure') return crewFailure.exports
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
       if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
@@ -337,6 +340,7 @@ test('repair checkpoint runs only shot editor and continuity reviewer', async ()
       if (name === 'zod') return { z }
       if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
       if (name === '@/core/config/film') return film
+      if (name === '@/core/utils/crew-failure') return crewFailure.exports
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
       if (name.endsWith('/validation/production-crew')) return { continuityLedgerSchema: z.any(), productionBibleSchema: z.any(), departmentDirectionSchema: z.any(), crewShotsSchema: z.any(), crewReviewSchema: z.object({ findings: z.array(z.any()) }) }
       if (name.endsWith('/ai/prompt-compliance')) return { enforcePromptCompliance: () => ({ blocked: false, flags: [] }) }
@@ -387,7 +391,7 @@ test('complete editorial repair notes survive crew and saved-plan validation wit
   assert.equal(savedSchema.safeParse(['x'.repeat(1201)]).success, false)
   assert.equal(savedSchema.parse(['Match the outgoing stride.'])[0], 'Match the outgoing stride.')
   assert.equal(studio.studioAdCampaignDeliverableSchema.shape.productionNotes.safeParse([note]).success, false)
-  assert.throws(() => compile({ shots: [{ prompt: 'x'.repeat(1001), continuity: null }] }), /exceeds/)
+  assert.throws(() => compile({ shots: [{ prompt: 'x'.repeat(film.MAX_SHOT_PROMPT_CHARS + 1), continuity: null }] }), /exceeds/)
 })
 
 test('per-shot settings reject unsupported choices and reach the review compiler', () => {
@@ -611,7 +615,7 @@ test('sequence editor preserves other shots and keeps model timing valid', async
 test('batch retries only failed or missing footage, never completed or active shots', () => {
   const module = { exports: {} }
   const source = readFileSync(new URL('../src/core/utils/production/retry-eligibility.ts', import.meta.url), 'utf8')
-  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports })
+  vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module, exports: module.exports })
   const eligible = module.exports.needsProductionTake
   const shot = (status, url = null) => ({ approved_take_id: null, shot_generations: [{ status, output_url: url }], generation_jobs: [] })
   const shots = [shot('completed', 'saved-one.mp4'), shot('completed', 'saved-two.mp4'), shot('failed')]
@@ -629,7 +633,7 @@ test('provider structured output contract requires exact shot count for 2 throug
   const { zodTextFormat } = await import('openai/helpers/zod')
   const load = (path, dependencies = {}) => {
     const module = { exports: {} }
-    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports, require: name => name === 'zod' ? { z } : name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : dependencies[name] })
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module, exports: module.exports, require: name => name === 'zod' ? { z } : name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : dependencies[name] })
     return module.exports
   }
   const studio = load('../src/core/validation/studio-ad.ts', { './campaign-references': load('../src/core/validation/campaign-references.ts') })
@@ -638,7 +642,7 @@ test('provider structured output contract requires exact shot count for 2 throug
   let request
   const module = { exports: {} }
   vm.runInNewContext(ts.transpileModule(fn, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
-    module, exports: module.exports, ...schemas, zodTextFormat,
+    module, exports: module.exports, ...schemas, zodTextFormat, MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS,
     process: { env: { OPENAI_API_KEY: 'mock-no-network' } }, buildReferenceInput: () => [],
     resolveProductionModel: () => ({ model: 'mock', tier: 'balanced' }),
     OpenAI: class { responses = { parse: async input => { request = input; return { status: 'incomplete' } } } },
@@ -689,7 +693,7 @@ for (const scenario of ['completed', 'lookup-error', 'active', 'active-error', '
 function loadCrewWithRealSchemas() {
   const load = (path, requireMap) => {
     const loaded = { exports: {} }
-    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports, require: name => name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : requireMap[name] })
+    vm.runInNewContext(ts.transpileModule(readFileSync(new URL(path, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: loaded, exports: loaded.exports, require: name => name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : requireMap[name] })
     return loaded.exports
   }
   const studioAd = load('../src/core/validation/studio-ad.ts', { zod: { z: settingsZod }, './campaign-references': load('../src/core/validation/campaign-references.ts', { zod: { z: settingsZod } }) })
@@ -697,7 +701,7 @@ function loadCrewWithRealSchemas() {
   const fnNames = new Set(['fallbackLedger', 'clip', 'compileContinuityPrompt', 'compileContinuityNegativePrompt', 'normalizeCrewShots', 'compileProductionPlan'])
   const body = tree.statements.filter(node => ts.isFunctionDeclaration(node) && fnNames.has(node.name?.text)).map(node => node.getText(tree)).join('\n')
   const crew = { exports: {} }
-  vm.runInNewContext(ts.transpileModule(`${body}\nmodule.exports = { compileProductionPlan }`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: crew, exports: crew.exports, productionPlanSchema: schemas.productionPlanSchema, Set })
+  vm.runInNewContext(ts.transpileModule(`${body}\nmodule.exports = { compileProductionPlan }`, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: crew, exports: crew.exports, productionPlanSchema: schemas.productionPlanSchema, Set })
   return { schemas, compileProductionPlan: crew.exports.compileProductionPlan }
 }
 
@@ -748,4 +752,28 @@ test('crew model calls stay inside the planning lease and route duration', () =>
   assert.ok(budget < routeLimitMs && budget < leaseMs, 'stage budget must end before the route limit and lease')
   assert.ok(minimumAttempt > 0 && minimumAttempt < budget)
   assert.match(source, /responses\.parse\(\{[\s\S]*?\}, \{ timeout: Math\.min\(CREW_CALL_TIMEOUT_MS, remaining\) \}\)/)
+})
+
+test('crew failures become plain-language toasts', () => {
+  const { describeCrewFailure } = crewFailure.exports
+  assert.equal(describeCrewFailure('cinematographer:Error: 401 Your API key has expired. Create a new API key to continue.', 'cinematographer').reason, 'ai_key')
+  assert.equal(describeCrewFailure('AI planning credits are exhausted. Add credits.').reason, 'ai_credits')
+  assert.equal(describeCrewFailure('429 Rate limit reached').reason, 'ai_busy')
+  assert.equal(describeCrewFailure('The crew stage ran out of time before the director replied.', 'shot prompts').title, 'Shot prompts took too long')
+  assert.equal(describeCrewFailure('503 Service Unavailable').reason, 'ai_outage')
+  assert.equal(describeCrewFailure('A compiled shot is blocked by safety policy: violence').reason, 'safety')
+  const unknown = describeCrewFailure('Something odd', 'lighting-director')
+  assert.equal(unknown.reason, 'unknown')
+  assert.doesNotMatch(unknown.description + unknown.title, /Error:|sk-/)
+})
+
+test('a provider prompt cut at its budget is trimmed back to its last full sentence', () => {
+  const trimFn = errorTree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'trimToLastSentence').getText(errorTree)
+  const trimModule = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(trimFn, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: trimModule, exports: trimModule.exports })
+  const { trimToLastSentence } = trimModule.exports
+  const scene = 'Sam wakes in the hospital bed and raises his hands in prayer. He looks upward, unmasked. '.repeat(4)
+  assert.equal(trimToLastSentence(`${scene}Rain, lobby room tone, monitor, 4`), scene.trim())
+  assert.equal(trimToLastSentence(`${scene}He says, “Thank you.”`), null, 'complete prompts are left alone')
+  assert.equal(trimToLastSentence('One short line. Then a very long unfinished fragment that would lose most of the prompt if cut back'), null, 'never drops most of a prompt')
 })

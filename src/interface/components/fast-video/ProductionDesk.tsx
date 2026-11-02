@@ -129,6 +129,11 @@ export function ProductionDesk() {
       const response = await fetch("/api/ad/production-crew", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobId }) })
       const result = await response.json().catch(() => ({ ok: false, error: response.status >= 500 ? "The crew request timed out. Its completed checkpoint is safe; resume to continue." : "The crew returned an unreadable response." }))
       if (!response.ok || !result.ok) {
+        // The toast names what went wrong (expired key, busy AI, timeout...); the banner keeps it on screen.
+        if (result.failure?.title) {
+          toast.error(result.failure.title, { description: result.failure.description, duration: 12_000 })
+          throw new Error(`${result.failure.title}. ${result.failure.description}`)
+        }
         throw new Error(result.error || "The director could not continue the plan.")
       }
       setCrewStatus(result.message || "Finalizing production plan")
