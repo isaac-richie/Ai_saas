@@ -13,12 +13,22 @@ import styles from "./ProductionDesk.module.css"
 import { recoverFromStaleServerAction } from "@/interface/lib/server-action-recovery"
 import { needsProductionTake } from "@/core/utils/production/retry-eligibility"
 
-type Take = { id: string; take_number: number; status: string; output_url: string | null; model_version_used: string | null; review_status?: string; review_notes?: string | null; media_inspection?: unknown; first_frame_url?: string | null; last_frame_url?: string | null; created_at?: string }
+type Take = { id: string; take_number: number; status: string; output_url: string | null; model_version_used: string | null; review_status?: string; review_notes?: string | null; media_inspection?: unknown; parameters?: unknown; first_frame_url?: string | null; last_frame_url?: string | null; created_at?: string }
 type Job = { id: string; status: string; progress: number; error_message: string | null; provider_task_id: string | null; take_id: string | null; created_at?: string }
 type Shot = { id: string; name: string; model: string | null; aspect_ratio?: string | null; duration_target: number | null; approved_take_id: string | null; previous_shot_id: string | null; shot_generations: Take[]; generation_jobs: Job[] }
 type Correction = { revisionId: string; revisedPrompt: string; changes: string[]; retainedAnchors: string[] }
 type ContinuityGate = { shotId: string; takeId: string; nextShotName: string | null; action: "inspect" | "approve" }
 type CapturedKeyframes = { frames: string[]; timestamps: number[] }
+type EndFrameMatch = { ssim: number | null; passed: boolean; threshold: number }
+
+/** The start and end frames a take was asked to travel between, named by their @tags. */
+function takeFrames(take: Take, references: MentionReference[]) {
+  const params = (take.parameters || {}) as { start_frame_url?: unknown; end_frame_url?: unknown }
+  const tagFor = (url: unknown) => typeof url === "string" && url ? references.find(ref => ref.previewUrl === url)?.label || "previous shot's last frame" : null
+  const match = (take.media_inspection as { endFrameMatch?: EndFrameMatch } | null)?.endFrameMatch ?? null
+  return { start: tagFor(params.start_frame_url), end: tagFor(params.end_frame_url), match }
+}
+
 const active = new Set(["queued", "preparing", "submitted", "generating", "downloading", "processing"])
 
 const CLIENT_KEYFRAME_EDGE = 768
@@ -284,6 +294,15 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
         {takes.length > 0 && <label className="mt-4 block text-xs text-white/65">Review take<select className="ml-3 rounded-lg border border-gold-400/20 bg-[#141c17] p-2 text-white" value={focusedTakes[shot.id] || takes[0].id} onChange={event => setFocusedTakes(current => ({ ...current, [shot.id]: event.target.value }))}>{takes.map(take => <option value={take.id} key={take.id}>Take {take.take_number} · {take.status}{shot.approved_take_id === take.id ? " · selected" : ""}</option>)}</select></label>}
         {takes.filter(take => take.id === (focusedTakes[shot.id] || takes[0]?.id)).map(take => <div key={take.id} className="mt-3 rounded-lg bg-white/5 p-3 sm:p-5">
           <p className="text-xs text-white/60">Take {take.take_number} / {take.status}{shot.approved_take_id === take.id ? " / approved" : ""}</p>
+          {(() => {
+            const frames = takeFrames(take, references)
+            if (!frames.start && !frames.end) return null
+            return <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+              {frames.start && <span className="rounded-full border border-gold-300/30 bg-gold-300/10 px-2.5 py-1 text-gold-200">Start: {frames.start}</span>}
+              {frames.end && <span className="rounded-full border border-gold-300/30 bg-gold-300/10 px-2.5 py-1 text-gold-200">End: {frames.end}</span>}
+              {frames.end && frames.match && <span className={frames.match.passed ? "text-gold-300" : "text-amber-200"}>{frames.match.passed ? "Continuity handoff: Passed ✓" : `End frame not reached (match ${Math.round((frames.match.ssim ?? 0) * 100)}%, needs ${Math.round(frames.match.threshold * 100)}%)`}</span>}
+            </div>
+          })()}
           {take.output_url && <video id={`take-video-${take.id}`} className="mt-3 aspect-video max-h-[560px] w-full rounded-xl bg-black object-contain" src={`/api/media/proxy?url=${encodeURIComponent(take.output_url)}`} controls playsInline preload="metadata" onLoadedMetadata={event => {
             if (take.media_inspection) return
             const video = event.currentTarget

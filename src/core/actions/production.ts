@@ -10,7 +10,7 @@ import { productionPlanSchema, canApproveProduction, productionBibleSchema, depa
 import { generateFastVideo, persistFastVideoMedia, pollFastVideoStatus } from "@/core/actions/fast-video"
 import { resolveKieVideoModelByFamily, clampDurationForFamily, getKieVideoModelFamily } from "@/core/config/kie-video-models"
 import type { Json } from "@/core/types/db"
-import { labelProductionAssets, productionAssetsSchema, ownsAssetUrl, resolveReferenceTags, selectOpeningReference, selectShotReferences, type ProductionAsset } from "@/core/validation/production-assets"
+import { labelProductionAssets, productionAssetsSchema, ownsAssetUrl, resolveReferenceTags, selectEndReference, selectOpeningReference, selectShotReferences, type ProductionAsset } from "@/core/validation/production-assets"
 import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 
@@ -409,6 +409,7 @@ export async function queueProductionShot(input: unknown) {
   const { data: latestTake, error: latestTakeError } = await db.from("shot_generations").select("take_number").eq("shot_id", shot.id).order("take_number", { ascending: false }).limit(1).maybeSingle()
   if (latestTakeError) return { error: "Could not load take history. No generation was submitted." }
   let continuityReferenceUrl: string | null = null
+  let endReferenceUrl: string | null = null
   let referenceElements: ReturnType<typeof buildReferenceElements> = []
   // Older films saved references before tags were stamped; label them the same way the editor shows them.
   const parsedReferences = productionAssetsSchema.safeParse(production.reference_assets || [])
@@ -433,6 +434,12 @@ export async function queueProductionShot(input: unknown) {
     // so a continued shot never drops them (Kling sends them as elements beside the opening frame).
     referenceElements = buildReferenceElements(selectShotReferences(filmReferences, shotText), user.id)
   }
+  // "Push through @image3 into @image2": the second place becomes the end frame the camera arrives at.
+  if (continuityReferenceUrl) {
+    const opening = shot.previous_shot_id ? null : selectOpeningReference(filmReferences, shotText)
+    const ending = selectEndReference(filmReferences, shotText, opening)
+    if (ending && ownsAssetUrl(ending.url, user.id) && ending.url !== continuityReferenceUrl) endReferenceUrl = ending.url
+  }
   // The provider receives words, not tags: "@image3" becomes "estate", bound to the images sent above.
   const providerPrompt = resolveReferenceTags(shotText, filmReferences)
   // Conditioning order, stated for the model: opening frame (position, light, pose) first, then the
@@ -451,7 +458,7 @@ export async function queueProductionShot(input: unknown) {
     shot_id: shot.id, take_number: (latestTake?.take_number || 0) + 1, prompt: shot.prompt_text || shot.description || shot.name,
     compiled_prompt: shot.prompt_text || null, negative_prompt: typeof settings.negative_prompt === "string" ? settings.negative_prompt : null,
     model_version_used: model, duration_seconds: duration, aspect_ratio: aspect, status: "pending",
-    parameters: { source: "production_crew", production_job_id: production.id, requested_duration_seconds: duration, requested_aspect_ratio: aspect },
+    parameters: { source: "production_crew", production_job_id: production.id, requested_duration_seconds: duration, requested_aspect_ratio: aspect, start_frame_url: continuityReferenceUrl, end_frame_url: endReferenceUrl },
   }).select("id,take_number").single()
   if (takeError || !take) return { error: "Could not create the take record." }
   const { data: generationJob, error: jobError } = await db.from("generation_jobs").insert({ user_id: user.id, shot_id: shot.id, take_id: take.id, provider: "kie", model, status: "preparing", progress: 5 }).select("*").single()
@@ -462,7 +469,7 @@ export async function queueProductionShot(input: unknown) {
 
   const generated = await generateFastVideo({
     request_type: "fast_video", project_id: production.project_id, scene_id: production.scene_id, shot_id: shot.id,
-    prompt_inputs: { text_subject: continuationPrefix + providerPrompt, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
+    prompt_inputs: { text_subject: continuationPrefix + providerPrompt, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, end_reference_image: endReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
     settings: { duration_seconds: duration, model },
   })
   if (generated.error || !generated.data) {
@@ -474,7 +481,7 @@ export async function queueProductionShot(input: unknown) {
   }
   const completed = generated.data.status === "completed" && Boolean(generated.data.url)
   await Promise.all([
-    db.from("shot_generations").update({ status: completed ? "completed" : "processing", output_url: generated.data.url, parameters: { source: "production_crew", production_job_id: production.id, task_id: generated.data.taskId, trace_id: generated.data.debug?.traceId, requested_duration_seconds: duration, applied_duration_seconds: generated.data.durationSeconds, requested_aspect_ratio: aspect } }).eq("id", take.id),
+    db.from("shot_generations").update({ status: completed ? "completed" : "processing", output_url: generated.data.url, parameters: { source: "production_crew", production_job_id: production.id, task_id: generated.data.taskId, trace_id: generated.data.debug?.traceId, requested_duration_seconds: duration, applied_duration_seconds: generated.data.durationSeconds, requested_aspect_ratio: aspect, start_frame_url: continuityReferenceUrl, end_frame_url: endReferenceUrl } }).eq("id", take.id),
     db.from("generation_jobs").update({ status: completed ? "completed" : "submitted", progress: completed ? 100 : 15, provider_task_id: generated.data.taskId, updated_at: new Date().toISOString() }).eq("id", generationJob.id),
   ])
   return { data: { ...generationJob, status: completed ? "completed" : "submitted", provider_task_id: generated.data.taskId, take_id: take.id, output_url: generated.data.url, take_number: take.take_number } }
