@@ -103,6 +103,28 @@ export function selectOpeningReference(assets: ProductionAsset[], shotText: stri
   return [...images].sort((a, b) => score(b) - score(a))[0] ?? tagged[0] ?? null
 }
 
+/** Words that say a shot travels somewhere: "push through @image3 into @image2", "arrives at @image5". */
+const TRAVEL = /\b(into|onto|toward|towards|through|to|arriv\w*|reveal\w*|ends?|ending|until|lands?)\b/i
+
+/**
+ * The image a shot should end on, when its direction travels from one tagged place to another. The
+ * last tagged non-character image after a travel word, other than the opening one, becomes the end
+ * frame; video models interpolate the camera move between the two. Character sheets never end a shot.
+ */
+export function selectEndReference(assets: ProductionAsset[], shotText: string, opening: ProductionAsset | null): ProductionAsset | null {
+  const images = assets.filter((asset) => asset.mediaType === "image" && asset.role !== "character" && asset.label && asset.url !== opening?.url)
+  let best: { asset: ProductionAsset; at: number } | null = null
+  for (const asset of images) {
+    const at = shotText.search(new RegExp(`${asset.label}(?!\\d)`, "i"))
+    if (at < 0 || !TRAVEL.test(shotText.slice(Math.max(0, at - 60), at))) continue
+    // The opening tag must come first, or "@image2 ... into @image3" could swap start and end.
+    const openingAt = opening?.label ? shotText.search(new RegExp(`${opening.label}(?!\\d)`, "i")) : -1
+    if (openingAt >= 0 && openingAt > at) continue
+    if (!best || at > best.at) best = { asset, at }
+  }
+  return best?.asset ?? null
+}
+
 /**
  * Rewrites studio tags as plain words before the prompt reaches a video model: "push through @image3
  * toward @image2" becomes "push through the estate location toward the flat location". The images

@@ -79,6 +79,14 @@ describe('@image tags are resolved before a video model sees them', () => {
     assert.equal(P.selectOpeningReference(library, 'She walks through the estate at night').name, 'estate.png');
   });
 
+  it('ends on the second tagged place when the shot travels there', () => {
+    const opening = P.selectOpeningReference(library, prompt);
+    assert.equal(P.selectEndReference(library, prompt, opening).name, 'flat.png');
+    // No travel, no end frame; a character sheet never ends a shot.
+    assert.equal(P.selectEndReference(library, 'Hold on @image3 while @image2 glows in the distance', P.selectOpeningReference(library, 'Hold on @image3')), null);
+    assert.equal(P.selectEndReference(library, '@image3: she walks toward @image1', opening), null);
+  });
+
   it('strips raw tags and replaces them with plain words', () => {
     const resolved = P.resolveReferenceTags(prompt, library);
     assert.doesNotMatch(resolved, /@image/);

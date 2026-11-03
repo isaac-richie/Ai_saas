@@ -482,6 +482,11 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
       shotFrames = frames
       debug.push("frames.validated", { start: frames.start?.id || null, end: frames.end?.id || null, family: family.id })
     }
+    // A film shot that travels between two tagged places ends on the second one.
+    if (!endFramePrompt && payload.prompt_inputs.end_reference_image && payload.prompt_inputs.reference_image) {
+      endFramePrompt = payload.prompt_inputs.end_reference_image
+      debug.push("frames.end_reference", {})
+    }
     // Campaign character / product references: validated, rights-checked and
     // signed before any allowance is reserved. They are never dropped silently.
     const campaign = payload.prompt_inputs.campaign_references

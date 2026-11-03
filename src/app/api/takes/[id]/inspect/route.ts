@@ -44,6 +44,26 @@ function conformFilter(aspect: string | null | undefined) {
   return `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}`
 }
 
+/** Tail frames scoring above this match the target end frame closely enough to hand off. */
+const END_FRAME_PASS_SSIM = 0.78
+
+/**
+ * Structural similarity between the take's last frame and the end frame it was asked to reach. Both
+ * are cropped to the same shape and compared small and grey, so it judges layout and light, not grain.
+ */
+async function endFrameSimilarity(ffmpegPath: string, dir: string, lastFrame: Buffer, targetUrl: string, aspect: string | null | undefined, signal: AbortSignal) {
+  const response = await fetch(targetUrl, { redirect: "error", signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]) })
+  if (!response.ok) throw new Error(`End frame download failed (${response.status})`)
+  const targetPath = join(dir, "end-target")
+  const tailPath = join(dir, "end-tail.jpg")
+  await writeFile(targetPath, await readBoundedBytes(response, 15 * 1024 * 1024))
+  await writeFile(tailPath, lastFrame)
+  const fit = `${conformFilter(aspect)},scale=320:-2,format=gray`
+  const { stderr } = await execFileAsync(ffmpegPath, ["-nostdin", "-threads", "1", "-i", tailPath, "-i", targetPath, "-lavfi", `[0:v]${fit}[a];[1:v]${fit}[b];[a][b]ssim`, "-f", "null", "-"], { timeout: 15000, maxBuffer: 1024 * 1024, signal })
+  const score = Number(/All:([0-9.]+)/.exec(stderr)?.[1])
+  return Number.isFinite(score) ? Math.round(score * 1000) / 1000 : null
+}
+
 class InvalidClientInspectionError extends Error {}
 
 function inspectionProviderFailure(cause: unknown, stage: string, timedOut: boolean) {
@@ -140,6 +160,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       if (error) throw error
       frameUrls.push(db.storage.from("renders").getPublicUrl(key).data.publicUrl)
     }
+    stage = "comparing the end frame"
+    // Start-to-end shots: does the take actually arrive at the frame it was given?
+    const targetEnd = (take.parameters as { end_frame_url?: unknown } | null)?.end_frame_url
+    let endFrameMatch: { targetUrl: string; ssim: number | null; passed: boolean; threshold: number } | null = null
+    if (typeof targetEnd === "string" && /^https:\/\//.test(targetEnd) && new URL(targetEnd).hostname === new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || "https://x.invalid").hostname) {
+      try {
+        tempDir ??= await mkdtemp(join("/tmp", `take-inspection-${take.id}-`))
+        const ssim = await endFrameSimilarity(await requireMediaRuntime(true, signal), tempDir, frames[frames.length - 1], targetEnd, (take as { aspect_ratio?: string | null }).aspect_ratio, signal)
+        endFrameMatch = { targetUrl: targetEnd, ssim, passed: ssim !== null && ssim > END_FRAME_PASS_SSIM, threshold: END_FRAME_PASS_SSIM }
+      } catch (cause) {
+        // The visual review still runs; a missing score only means the handoff wasn't measured.
+        console.error("End frame comparison failed", { takeId: take.id, error: cause instanceof Error ? cause.message : "unknown" })
+      }
+    }
     stage = "loading continuity context"
     const { data: continuity } = await db.from("shot_continuity").select("character_value,wardrobe_value,location_value,lighting_value,color_grade_value,camera_style_value,source_shot_id").eq("shot_id", take.shot_id).maybeSingle()
     const shotRelation = take.shots as unknown as { name: string; prompt_text: string | null; generation_settings: unknown; previous_shot_id: string | null }
@@ -179,11 +213,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (result.status !== "completed" || !result.output_parsed) throw new Error("Visual review was incomplete.")
     const review = reviewSchema.parse(result.output_parsed)
     const reviewStatus = review.overall === "pass" ? "pass" : review.overall === "reject" ? "rejected" : "warning"
-    const inspection = { ...((take.media_inspection as object | null) || {}), keyframeReview: { reviewedAt: new Date().toISOString(), method: inspectionMethod, referenceIds: references.map((ref) => ref.id), limitations: ["No motion analysis", "No audio analysis", "Unsampled frames were not reviewed"], timestamps, frameUrls, ...review } }
+    const inspection = { ...((take.media_inspection as object | null) || {}), keyframeReview: { reviewedAt: new Date().toISOString(), method: inspectionMethod, referenceIds: references.map((ref) => ref.id), limitations: ["No motion analysis", "No audio analysis", "Unsampled frames were not reviewed"], timestamps, frameUrls, ...review }, ...(endFrameMatch ? { endFrameMatch: { ...endFrameMatch, measuredAt: new Date().toISOString() } } : {}) }
     stage = "saving the continuity result"
     const { error: updateError } = await db.from("shot_generations").update({ first_frame_url: frameUrls[0], thumbnail_url: frameUrls[1], last_frame_url: frameUrls[2], media_inspection: inspection, review_status: reviewStatus, review_notes: review.summary }).eq("id", take.id)
     if (updateError) throw updateError
-    return NextResponse.json({ ok: true, data: { reviewStatus, frameUrls, review } })
+    return NextResponse.json({ ok: true, data: { reviewStatus, frameUrls, review, endFrameMatch } })
   } catch (cause) {
     console.error("Keyframe inspection failed", { takeId: take.id, stage, error: cause instanceof Error ? cause.message : "unknown" })
     if (cause instanceof InvalidClientInspectionError) return NextResponse.json({ error: cause.message }, { status: 400 })
