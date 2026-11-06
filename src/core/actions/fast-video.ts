@@ -26,6 +26,7 @@ import { condensePrompt } from "@/core/services/prompt-condenser"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
+import { findLightingPreset } from "@/core/config/lighting-presets"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
   strict: "preserve subject identity and scene composition with minimal deviation",
@@ -304,6 +305,7 @@ function assembleFastVideoPrompt(
   const { prompt_inputs } = payload
   const style = findStylePreset(prompt_inputs.style_preset_id)
   const motion = findMotionPreset(prompt_inputs.motion_preset_id)
+  const lighting = findLightingPreset(prompt_inputs.lighting_preset_id)
   const subject = cleanClause(prompt_inputs.text_subject)
   const subjectDirectives = buildSubjectDirectives(subject, prompt_inputs.variation_setting)
   const aspectDirective = buildAspectDirective(prompt_inputs.aspect_ratio)
@@ -314,6 +316,8 @@ function assembleFastVideoPrompt(
   const parts = !guidance ? [subject]
     : guidance.length + subject.length < promptBudgetFor(payload.settings.model) - 120 ? [`[REFERENCE ROLES] ${guidance}`, `[PROMPT] ${subject}`]
       : [subject, `[REFERENCE ROLES] ${guidance}`]
+  // The chosen lighting follows the idea directly: early segments are the last to be trimmed.
+  if (lighting) parts.push(lighting.promptTokens)
   // Quoted lyrics or dialogue must be heard, not painted on screen as (misspelled) captions.
   const noScreenText = !wantsOnScreenText(prompt_inputs.text_subject)
   if (noScreenText) parts.push(NO_SCREEN_TEXT_DIRECTIVE)
@@ -324,7 +328,8 @@ function assembleFastVideoPrompt(
   if (extra?.continuity?.clause) parts.push(extra.continuity.clause)
 
   if (extra?.scene?.locationPrompt) parts.push(`location: ${extra.scene.locationPrompt}`)
-  if (extra?.scene?.lightingPrompt) parts.push(`lighting: ${extra.scene.lightingPrompt}`)
+  // A lighting setup chosen for this shot wins over the scene's general lighting note.
+  if (extra?.scene?.lightingPrompt && !lighting) parts.push(`lighting: ${extra.scene.lightingPrompt}`)
   if (extra?.scene?.colorPrompt) parts.push(`color grade: ${extra.scene.colorPrompt}`)
 
   if (style?.styleTokens) parts.push(style.styleTokens)
@@ -340,6 +345,7 @@ function assembleFastVideoPrompt(
 
   const negativePrompt = dedupeClauses([
     ...(style?.negativeTokens ? style.negativeTokens.split(",") : []),
+    ...(lighting ? lighting.negativeTokens.split(",") : []),
     ...BASE_NEGATIVE_TOKENS,
     ...(noScreenText ? SCREEN_TEXT_NEGATIVES : []),
     ...buildVariationNegatives(prompt_inputs.variation_setting),
@@ -350,6 +356,7 @@ function assembleFastVideoPrompt(
     negativePrompt,
     style,
     motion,
+    lighting,
   }
 }
 
@@ -603,7 +610,9 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     debug.push("references.delivery", { delivery })
     // Long briefs (pasted scripts, JSON scene breakdowns) are condensed by the AI director to the
     // model's real budget, preserving meaning; the deterministic fitter below is the safety net.
-    const budget = promptBudgetFor(payload.settings.model)
+    // A chosen lighting setup is written in beside the idea, so the idea is fitted to the room left.
+    const lighting = findLightingPreset(payload.prompt_inputs.lighting_preset_id)
+    const budget = promptBudgetFor(payload.settings.model) - (lighting ? lighting.promptTokens.length + 2 : 0)
     const reserve = referencePromptBudget("", deliveryRefs, budget).used
     if (payload.prompt_inputs.text_subject.length > budget - reserve && process.env.OPENAI_API_KEY) {
       try {
@@ -658,7 +667,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
   if (previewOnly) return { data: {
     taskId: null, status: "preview", url: null, prompt: compliance.prompt,
     negativePrompt: compliance.negativePrompt, stylePresetName: composed.style?.name || null,
-    motionPresetName: composed.motion?.name || null, durationSeconds: safeDuration,
+    motionPresetName: composed.motion?.name || null, lightingPresetName: composed.lighting?.name || null, durationSeconds: safeDuration,
     requestedDurationSeconds: requestedDuration, model: payload.settings.model?.trim() || null,
     referenceDelivery: delivery, promptCondensed, debug: { traceId: debug.traceId, events: debug.events },
   } }
@@ -740,6 +749,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
         negativePrompt: compliance.negativePrompt,
         stylePresetName: composed.style?.name || null,
         motionPresetName: composed.motion?.name || null,
+        lightingPresetName: composed.lighting?.name || null,
         durationSeconds: safeDuration,
         requestedDurationSeconds: requestedDuration,
         model: payload.settings.model?.trim() || null,
@@ -929,6 +939,7 @@ export async function routeFastVideoToScene(input: {
   durationSeconds: number
   stylePresetId?: string | null
   motionPresetId?: string | null
+  lightingPresetId?: string | null
   variationSetting: FastVideoVariation
   mediaReferences?: MediaReference[]
 }) {
@@ -945,6 +956,7 @@ export async function routeFastVideoToScene(input: {
     duration_seconds: input.durationSeconds,
     style_preset_id: input.stylePresetId || null,
     motion_preset_id: input.motionPresetId || null,
+    lighting_preset_id: input.lightingPresetId || null,
     variation: input.variationSetting,
     source: "fast_video",
     media_references: mediaReferences,
@@ -1318,6 +1330,7 @@ export async function compilePromptPreview(input: {
   shotId?: string | null
   stylePresetId?: string | null
   motionPresetId?: string | null
+  lightingPresetId?: string | null
   aspectRatio?: string
   variation?: string
   durationSeconds?: number
@@ -1338,6 +1351,7 @@ export async function compilePromptPreview(input: {
       text_subject: input.subject,
       style_preset_id: input.stylePresetId || null,
       motion_preset_id: input.motionPresetId || null,
+      lighting_preset_id: input.lightingPresetId || null,
       aspect_ratio: (FAST_VIDEO_ASPECT_RATIOS.includes(input.aspectRatio as FastVideoAspectRatio) ? input.aspectRatio : "16:9") as FastVideoAspectRatio,
       reference_image: null,
       variation_setting: (FAST_VIDEO_VARIATIONS.includes(input.variation as FastVideoVariation) ? input.variation : "balanced") as FastVideoVariation,

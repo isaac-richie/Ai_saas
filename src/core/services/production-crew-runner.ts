@@ -5,7 +5,7 @@ import { compileCrewShotsForReview, compileProductionPlan, createCrewRunner, saf
 import { continuityLedgerSchema, crewReviewSchema, crewShotsSchema, departmentDirectionSchema, productionBibleSchema } from "@/core/validation/production-crew"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
-import { productionShotSettingsSchema } from "@/core/validation/production-settings"
+import { crewShotSettings, productionShotSettingsSchema } from "@/core/validation/production-settings"
 import { compactRevisionContext } from "@/core/utils/production/revision-context"
 import { resolveProductionModel } from "@/core/config/production-model-routing"
 import { SHOT_EDITOR_BATCH } from "@/core/config/film"
@@ -120,7 +120,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     const runner = createCrewRunner(model, references, context.shotSettings?.length ?? 3)
     const run: typeof runner = (role, instruction, input, schema) => runner(
       role, instruction,
-      { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: context.shotSettings ?? null }, schema,
+      { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: crewShotSettings(context.shotSettings) }, schema,
     )
     if (job.planning_stage === "brief") {
       const seeded = productionBibleSchema.parse(seedProductionBible(planningBrief, references, context.shotSettings?.length ?? 3))
@@ -139,7 +139,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     if (["story", "departments", "shots"].includes(workingStage) && context.story && (!context.camera || !context.lighting || !context.productionDesign || !context.performance)) {
       const departments = [
         { key: "camera", role: "cinematographer", instruction: "Design coverage for all planned beats: framing, lens intent, one motivated movement, blocking, eyeline, and cut point. Preserve the shared bible." },
-        { key: "lighting", role: "lighting-director", instruction: "Define motivated key, fill, practicals, palette, and exposure intent for each beat. Maintain time of day and light direction. Do not invent independent scene changes." },
+        { key: "lighting", role: "lighting-director", instruction: "Define motivated key, fill, practicals, palette, and exposure intent for each beat. Maintain time of day and light direction. Do not invent independent scene changes. Where shotSettings gives a shot a lightingSetup, build that shot's lighting on that setup and motivate it from the scene (a window, a lamp, the sun), keeping transitions between differently lit shots believable." },
         { key: "productionDesign", role: "production-designer", instruction: "Lock the physical world for all planned beats: wardrobe, props, materials, location dressing, palette, and repeatable visual motifs. Preserve continuity anchors and avoid adding new hero objects without a story purpose." },
         { key: "performance", role: "performance-director", instruction: "Direct behavior for all planned beats: precise blocking, gestures, eyelines, energy, screen direction, and timing. Keep action physically plausible for the selected shot duration and preserve the same subject identity." },
       ] as const
@@ -167,7 +167,7 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       const batchSettings = context.shotSettings?.slice(batchStart, batchEnd) ?? null
       const runBatch: typeof runner = (role, instruction, input, schema) => batchRunner(
         role, instruction,
-        { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: batched ? batchSettings : context.shotSettings ?? null }, schema,
+        { source: input, revision: compactRevisionContext({ revision: context.revision }) ?? null, shotSettings: crewShotSettings(batched ? batchSettings : context.shotSettings) }, schema,
       )
       const batchInstruction = batched
         ? ` This film has ${total} shots and is written in parts. Write only shots ${batchStart + 1} to ${batchEnd}: return exactly ${batchEnd - batchStart} shots, matching story beats ${batchStart + 1} to ${batchEnd} and the department directions for those shot numbers. shotSettings lists only these shots, in order.${batchStart > 0 ? ` Shot ${batchStart + 1} must begin at precedingShot's end state.` : ""}`

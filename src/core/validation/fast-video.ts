@@ -15,6 +15,8 @@ export const fastVideoRequestSchema = z.object({
     text_subject: z.string().min(3, "Describe your idea in at least 3 characters.").max(50000, "That's very long. Keep it under 50,000 characters; we condense it to fit the video model."),
     style_preset_id: z.string().optional().nullable(),
     motion_preset_id: z.string().optional().nullable(),
+    /** A setup from the lighting library; unknown ids are ignored, never sent as words. */
+    lighting_preset_id: z.string().max(64).optional().nullable(),
     aspect_ratio: z.enum(FAST_VIDEO_ASPECT_RATIOS),
     reference_image: z.string().url().optional().nullable(),
     /** The frame a shot should end on; only sent beside an opening frame. */

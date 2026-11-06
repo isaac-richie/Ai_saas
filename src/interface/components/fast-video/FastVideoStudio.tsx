@@ -127,6 +127,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const [templateId, setTemplateId] = useState<string>(PROMPT_TEMPLATES[0]?.id || "")
   const [stylePresetId, setStylePresetId] = useState<string>("")
   const [motionPresetId, setMotionPresetId] = useState<string>("")
+  const [lightingPresetId, setLightingPresetId] = useState<string>("")
   const [modelFamilyId, setModelFamilyId] = useState<KieVideoModelFamilyId>(DEFAULT_KIE_VIDEO_MODEL_FAMILY)
   const [aspectRatio, setAspectRatio] = useState<FastVideoAspectRatio>("16:9")
   const [variation, setVariation] = useState<FastVideoVariation>("balanced")
@@ -404,6 +405,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         templateId?: string
         stylePresetId?: string
         motionPresetId?: string
+        lightingPresetId?: string
         modelFamilyId?: KieVideoModelFamilyId
         aspectRatio?: FastVideoAspectRatio
         variation?: FastVideoVariation
@@ -448,6 +450,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       if (typeof parsed.templateId === "string") setTemplateId(parsed.templateId)
       if (typeof parsed.stylePresetId === "string") setStylePresetId(parsed.stylePresetId)
       if (typeof parsed.motionPresetId === "string") setMotionPresetId(parsed.motionPresetId)
+      if (typeof parsed.lightingPresetId === "string") setLightingPresetId(parsed.lightingPresetId)
       if (parsed.modelFamilyId) setModelFamilyId(parsed.modelFamilyId)
       if (parsed.aspectRatio) setAspectRatio(parsed.aspectRatio)
       if (parsed.variation) setVariation(parsed.variation)
@@ -535,6 +538,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           templateId,
           stylePresetId,
           motionPresetId,
+          lightingPresetId,
           modelFamilyId,
           aspectRatio,
           variation,
@@ -583,6 +587,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     templateId,
     stylePresetId,
     motionPresetId,
+    lightingPresetId,
     shotFrames,
     campaignReferences,
     campaignSettings,
@@ -1144,6 +1149,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         text_subject: item.masterPrompt,
         style_preset_id: item.stylePresetId || stylePresetId || null,
         motion_preset_id: item.motionPresetId || motionPresetId || null,
+        lighting_preset_id: lightingPresetId || null,
         aspect_ratio: safeAspectRatio,
         reference_image: referenceImageUrl || null,
         ...(activeReferences ? { campaign_references: activeReferences } : {}),
@@ -1712,6 +1718,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           text_subject: subjectWithContinuity,
           style_preset_id: stylePresetId || null,
           motion_preset_id: motionPresetId || null,
+          lighting_preset_id: lightingPresetId || null,
           aspect_ratio: aspectRatio,
           reference_image: referenceImageUrl || null,
           media_references: generationReferences,
@@ -1885,6 +1892,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         durationSeconds: payload.durationSeconds,
         stylePresetId: stylePresetId || null,
         motionPresetId: motionPresetId || null,
+        lightingPresetId: lightingPresetId || null,
         variationSetting: payload.variationSetting,
         name: `Fast Track - ${payload.subject.slice(0, 30)}`,
         mediaReferences: savedClips.find((clip) => clip.url === payload.outputUrl)?.mediaReferences
@@ -2538,6 +2546,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               search: motionSearch, onSearch: setMotionSearch, pinnedIds: favoriteMotionIds, recentIds: recentMotionIds,
               onTogglePin: toggleFavoriteMotion, expanded: showAllMotionChips, onToggleExpanded: () => setShowAllMotionChips((prev) => !prev),
             }}
+            lighting={{ selectedId: lightingPresetId, onSelect: setLightingPresetId }}
             modelFamilyId={modelFamilyId}
             onModelChange={setModelFamilyId}
             showModel={false}

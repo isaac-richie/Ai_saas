@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Local editor preview fixtures
 public/__dev/
+
+# Lighting preview generation workspace
+.lighting-work/

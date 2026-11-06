@@ -5,8 +5,10 @@ import { productionShotSettingsSchema, type ProductionShotSettings as Settings }
 import { KIE_VIDEO_MODEL_FAMILIES } from "@/core/config/kie-video-models"
 import { MAX_FILM_SHOTS, MIN_FILM_SHOTS } from "@/core/config/film"
 import styles from "./ProductionShotSettings.module.css"
+import { LightingPicker, LightingSwatch } from "./lighting-visuals"
+import { findLightingPreset } from "@/core/config/lighting-presets"
 
-export type ShotSettingDraft = { model: string; durationSeconds: number }
+export type ShotSettingDraft = { model: string; durationSeconds: number; lighting?: string }
 // New films start ready to go: Kling 3.0 Pro at 5 s per shot; every shot can be changed.
 export const emptyShotSettings = (): ShotSettingDraft[] => Array.from({ length: 3 }, () => ({ model: "kling", durationSeconds: 5 }))
 const modelName = (model: string) => model === "seedance" ? "Seedance 2.5" : model === "kling" ? "Kling 3.0 Pro" : "Pick a model"
@@ -46,6 +48,7 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
   const incomplete = value.filter(item => !item.model || !item.durationSeconds).length
   const durations = durationsFor(shot?.model ?? "")
   const sharedModel = value.every(item => item.model && item.model === value[0].model) ? value[0].model : ""
+  const sharedLighting = value.every(item => (item.lighting || "") === (value[0].lighting || "")) ? value[0].lighting || "" : null
   function update(patch: Partial<ShotSettingDraft>) {
     if (!disabled) onChange(value.map((item, index) => index === selected ? { ...item, ...patch } : item))
   }
@@ -53,7 +56,11 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
     update({ model, durationSeconds: retimeForModel(model, shot.durationSeconds) })
   }
   function setModelForAll(model: string) {
-    if (!disabled) onChange(value.map(item => ({ model, durationSeconds: retimeForModel(model, item.durationSeconds || 10) })))
+    if (!disabled) onChange(value.map(item => ({ ...item, model, durationSeconds: retimeForModel(model, item.durationSeconds || 10) })))
+  }
+  // One lighting setup for every shot; each shot can still be changed on its own below.
+  function setLightingForAll(lighting: string) {
+    if (!disabled) onChange(value.map(item => ({ ...item, lighting: lighting || undefined })))
   }
   function resize(count: number) {
     if (disabled || count < MIN_SHOTS || count > MAX_SHOTS) return
@@ -69,7 +76,7 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
   if (!shot) return null
 
   return <fieldset disabled={disabled} className={styles.console}>
-    <legend className={styles.srOnly}>Shot models and timing</legend>
+    <legend className={styles.srOnly}>Shot models, timing and lighting</legend>
     <div className={styles.topbar}>
       <div><h4 className={styles.heading}>Shape the pace</h4><span className={styles.eyebrow}>How long the film runs, and each shot&rsquo;s model and timing.</span></div>
       <div className={styles.runtime} aria-live="polite"><strong>{runtime(total)}</strong><span>{value.length} shots <i /> planned runtime</span></div>
@@ -80,7 +87,7 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
         <span className={styles.label}>Film length</span>
         <div role="group" aria-label="Film length presets" className={styles.lengths}>{LENGTH_PRESETS.map(({ seconds, label }) => <button key={seconds} type="button" aria-pressed={total === seconds && value.length === seconds / 10 && value.every(item => item.durationSeconds === 10)} onClick={() => {
           setSelection(0)
-          onChange(Array.from({ length: seconds / 10 }, (_, index) => ({ model: value[index]?.model || value[0]?.model || "", durationSeconds: 10 })))
+          onChange(Array.from({ length: seconds / 10 }, (_, index) => ({ model: value[index]?.model || value[0]?.model || "", durationSeconds: 10, ...(value[index]?.lighting ?? value[0]?.lighting ? { lighting: value[index]?.lighting ?? value[0]?.lighting } : {}) })))
         }}>{label}</button>)}</div>
       </div>
       <div>
@@ -97,6 +104,17 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
       </div>
     </div>
 
+    <div className="mx-4 mt-4 rounded-2xl border border-white/[0.06] bg-black/20 p-3 sm:mx-7">
+      <LightingPicker
+        label="Lighting for every shot"
+        noneLabel={sharedLighting === null ? "Mixed: set per shot below" : "The crew lights each shot"}
+        value={sharedLighting ?? ""}
+        onChange={setLightingForAll}
+        wide
+        disabled={disabled}
+      />
+    </div>
+
     <div className={styles.timeline} role="tablist" aria-label="Select a shot to edit">{value.map((item, index) => <button type="button" key={index} ref={node => { tabs.current[index] = node }} role="tab" id={`${id}-shot-${index}`} aria-controls={`${id}-editor`} aria-selected={index === selected} tabIndex={index === selected ? 0 : -1} onClick={() => setSelection(index)} onKeyDown={event => {
       const next = event.key === "ArrowRight" ? (index + 1) % value.length : event.key === "ArrowLeft" ? (index - 1 + value.length) % value.length : event.key === "Home" ? 0 : event.key === "End" ? value.length - 1 : null
       if (next !== null) { event.preventDefault(); select(next) }
@@ -104,6 +122,7 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
       <span className={styles.shotTop}><span>Shot {index + 1}</span><span className={styles.dot} data-ready={!!item.model && !!item.durationSeconds} /></span>
       <strong>{item.durationSeconds || "--"}<small>sec</small></strong>
       <span className={styles.shotModel}>{modelName(item.model)}</span>
+      {item.lighting ? <span className="mt-1 flex items-center gap-1.5 truncate text-[10.5px] text-gold-200/90"><LightingSwatch id={item.lighting} className="size-3.5 shrink-0 rounded-full" />{findLightingPreset(item.lighting)?.name}</span> : null}
       <span className={styles.ruler} aria-hidden="true" />
     </button>)}</div>
 
@@ -115,6 +134,16 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
           ? <div role="radiogroup" aria-label={`Shot ${selected + 1} duration`} className={styles.chips} data-many={durations.length > 2}>{durations.map(seconds => <button key={seconds} type="button" role="radio" aria-checked={shot.durationSeconds === seconds} onClick={() => update({ durationSeconds: seconds })}>{seconds}s</button>)}</div>
           : <small>Select a model first</small>}
       </div>
+      <div className="col-span-full border-t border-white/[0.06] pt-4">
+        <LightingPicker
+          label={`Shot ${selected + 1} lighting`}
+          noneLabel="The crew decides"
+          value={shot.lighting || ""}
+          onChange={lighting => update({ lighting: lighting || undefined })}
+          wide
+          disabled={disabled}
+        />
+      </div>
     </div>
     <div className={styles.footnote} aria-live="polite"><span>{incomplete ? `${incomplete} ${incomplete === 1 ? "shot needs" : "shots need"} a model or duration. Tip: set a model for all shots above.` : "All shots configured."}</span><span>Longer films use more generation credits.</span></div>
   </fieldset>
@@ -124,7 +153,7 @@ export function ReviseProductionSettings({ initial, disabled, onSubmit }: { init
   const [value, setValue] = useState(initial)
   const parsed = productionShotSettingsSchema.safeParse(value)
   const changed = JSON.stringify(value) !== JSON.stringify(initial)
-  return <details className={styles.revision}><summary><span className={styles.summaryIcon} aria-hidden="true">＋</span><span>Sequence settings<small>Models, timing & film length</small></span><span className={styles.summaryAction}>Edit sequence</span></summary>
+  return <details className={styles.revision}><summary><span className={styles.summaryIcon} aria-hidden="true">＋</span><span>Sequence settings<small>Models, timing, lighting & film length</small></span><span className={styles.summaryAction}>Edit sequence</span></summary>
     <ProductionShotSettings value={value} onChange={setValue} disabled={disabled} />
     <div className={styles.savebar}><div><strong>{changed ? "Ready for a new direction?" : "Your current sequence"}</strong><p>Rebuilding retimes the plan and uses AI planning credits. Existing takes stay in their workspace.</p></div><div className={styles.actions}>
       {changed && <button type="button" disabled={disabled} className={styles.reset} onClick={() => setValue(initial)}>Reset changes</button>}

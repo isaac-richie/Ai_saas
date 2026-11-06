@@ -371,7 +371,7 @@ const activeGenerationStatuses = ["queued", "preparing", "submitted", "generatin
 async function getOwnedProductionShot(db: Awaited<ReturnType<typeof createClient>>, userId: string, productionId: string, shotId: string) {
   const { data: production } = await db.from("production_jobs").select("*").eq("id", productionId).eq("user_id", userId).eq("status", "approved").maybeSingle()
   if (!production?.scene_id) return null
-  const { data: shot } = await db.from("shots").select("id,name,prompt_text,description,model,duration_target,aspect_ratio,generation_settings,approved_take_id,previous_shot_id").eq("id", shotId).eq("scene_id", production.scene_id).maybeSingle()
+  const { data: shot } = await db.from("shots").select("id,name,prompt_text,description,model,duration_target,aspect_ratio,generation_settings,approved_take_id,previous_shot_id,sequence_order").eq("id", shotId).eq("scene_id", production.scene_id).maybeSingle()
   return shot ? { production, shot } : null
 }
 
@@ -454,6 +454,9 @@ export async function queueProductionShot(input: unknown) {
   const duration = clampDurationForFamily(shot.duration_target || 10, getKieVideoModelFamily(family))
   const aspect = ["16:9", "9:16", "1:1", "4:5", "21:9"].includes(shot.aspect_ratio || "") ? shot.aspect_ratio! : "16:9"
   const settings = (shot.generation_settings || {}) as Record<string, unknown>
+  // The lighting the creator chose for this shot (shots are numbered from 1 in film order).
+  const planned = productionShotSettingsSchema.safeParse(isJsonObject(production.planning_context) ? production.planning_context.shotSettings : undefined)
+  const lightingPresetId = planned.success && shot.sequence_order ? planned.data[shot.sequence_order - 1]?.lighting ?? null : null
   const { data: take, error: takeError } = await db.from("shot_generations").insert({
     shot_id: shot.id, take_number: (latestTake?.take_number || 0) + 1, prompt: shot.prompt_text || shot.description || shot.name,
     compiled_prompt: shot.prompt_text || null, negative_prompt: typeof settings.negative_prompt === "string" ? settings.negative_prompt : null,
@@ -469,7 +472,7 @@ export async function queueProductionShot(input: unknown) {
 
   const generated = await generateFastVideo({
     request_type: "fast_video", project_id: production.project_id, scene_id: production.scene_id, shot_id: shot.id,
-    prompt_inputs: { text_subject: continuationPrefix + providerPrompt, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, end_reference_image: endReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict" },
+    prompt_inputs: { text_subject: continuationPrefix + providerPrompt, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, end_reference_image: endReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict", lighting_preset_id: lightingPresetId },
     settings: { duration_seconds: duration, model },
   })
   if (generated.error || !generated.data) {
