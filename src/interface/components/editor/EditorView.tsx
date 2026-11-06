@@ -544,10 +544,10 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     return onAgent(autoEditInstruction(style, Array.isArray(beats) && beats.length >= 2));
   };
 
-  const onRegenerate = async (clipId: string, options: { durationSec?: number; note?: string }) => {
+  const onRegenerate = async (clipId: string, options: { durationSec?: number; note?: string; lighting?: string }) => {
     await flush();
     setTakeStatus((t) => ({ ...t, [clipId]: { state: 'working', message: 'Sending to the studio…' } }));
-    const { ok, data } = await postJson('/api/timeline/regenerate', { clip_id: clipId, duration_sec: options.durationSec, note: options.note || undefined });
+    const { ok, data } = await postJson('/api/timeline/regenerate', { clip_id: clipId, duration_sec: options.durationSec, note: options.note || undefined, lighting: options.lighting || undefined });
     if (!ok) {
       setTakeStatus((t) => ({ ...t, [clipId]: { state: 'failed', message: data.error || 'Could not start a new take.' } }));
       return;

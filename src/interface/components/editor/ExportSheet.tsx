@@ -6,6 +6,10 @@ import type { OwnerShare } from '@/core/actions/video-review';
 import { ShareLinkRow } from './ReviewsSheet';
 import type { RenderState } from './EditorWorkspace';
 import { formatClock } from './labels';
+import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
+import { useFilmstrip } from '@/interface/lib/media-thumbs';
+import type { TimelineClip } from '@/core/types/timeline';
+import { AdjustGlyph, FormatGlyph, LookGlyph, MusicGlyph, TextGlyph, type Glyph } from './glyphs';
 
 export type ExportSummary = { shots: number; lengthMs: number; look: string; music: string | null; texts: number; format: string; wide: boolean };
 
@@ -16,9 +20,6 @@ const STEPS = [
   { at: 85, label: 'Adding text' },
   { at: 93, label: 'Saving your video' },
 ];
-
-const gold =
-  'bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[#1a160e] shadow-[0_10px_30px_-12px_rgba(217,192,138,0.8)]';
 
 /** Make video: what will be made, how it's going, and the finished file. */
 export function ExportSheet({ open, onClose, render, summary, reframes, reframing, onRender, onReframe, review, onShareForReview, onOpenReviews }: {
@@ -58,7 +59,7 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
       aria-label="Make video"
       className="m-0 mt-auto w-full max-w-none bg-transparent p-0 text-white backdrop:bg-black/70 backdrop:backdrop-blur-sm sm:m-auto sm:w-[30rem]"
     >
-      <div className="max-h-[88dvh] overflow-y-auto rounded-t-3xl border border-line-strong bg-obsidian-900 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-[sheet-rise_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:rounded-3xl sm:p-6">
+      <div className="ed-glass ed-glass-lit max-h-[88dvh] overflow-y-auto rounded-t-3xl !bg-obsidian-900/95 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-[sheet-rise_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:rounded-3xl sm:p-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-300/80">Make video</p>
@@ -79,12 +80,17 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
           </button>
         </div>
 
-        {busy && <Progress render={render} />}
+        {busy && (
+          <div className="space-y-5">
+            <ShotStrip progress={Math.max(2, Math.min(100, render.progress))} />
+            <Progress render={render} />
+          </div>
+        )}
 
         {render.status === 'completed' && render.url && (
           <div className="space-y-4">
             <video src={render.url} controls playsInline className="aspect-video w-full rounded-2xl bg-black" />
-            <a href={render.url} target="_blank" rel="noopener noreferrer" download className={`flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold ${gold}`}>
+            <a href={render.url} target="_blank" rel="noopener noreferrer" download className="ed-gold flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold">
               <Download size={17} /> Download video
             </a>
             {summary.wide && (
@@ -150,7 +156,7 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
             <p role="alert" className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm leading-relaxed text-red-100">
               {render.error || 'Something went wrong while making your video.'}
             </p>
-            <button onClick={onRender} className={`flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold ${gold}`}>
+            <button onClick={onRender} className="ed-gold flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold">
               <RotateCcw size={16} /> Try again
             </button>
           </div>
@@ -158,24 +164,28 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
 
         {render.status === 'idle' && (
           <div className="space-y-5">
-            <dl className="grid grid-cols-2 gap-2.5">
-              {[
-                ['Format', summary.format],
-                ['Length', formatClock(summary.lengthMs)],
-                ['Look', summary.look],
-                ['Music', summary.music || 'None'],
-                ['Shots', String(summary.shots)],
-              ].map(([k, v]) => (
-                <div key={k} className="rounded-2xl border border-line bg-white/[0.02] px-3.5 py-3">
-                  <dt className="text-xs text-[#9aa3ad]">{k}</dt>
-                  <dd className="mt-0.5 truncate text-[15px] text-white">{v}</dd>
+            <ShotStrip />
+            <dl className="grid grid-cols-2 gap-2">
+              {([
+                [FormatGlyph, 'Format', summary.format],
+                [AdjustGlyph, 'Shots', `${summary.shots} · ${formatClock(summary.lengthMs)}`],
+                [LookGlyph, 'Look', summary.look],
+                [MusicGlyph, 'Music', summary.music || 'None'],
+                [TextGlyph, 'Text', summary.texts ? `${summary.texts} on screen` : 'None'],
+              ] as [Glyph, string, string][]).map(([Icon, k, v]) => (
+                <div key={k} className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-gold-400/10 text-gold-200"><Icon size={18} /></span>
+                  <span className="min-w-0">
+                    <dt className="text-[11px] text-[#8f97a1]">{k}</dt>
+                    <dd className="truncate text-[14px] text-white">{v}</dd>
+                  </span>
                 </div>
               ))}
             </dl>
             <p className="text-sm leading-relaxed text-[#b0b8c4]">
               We put it together in full quality{summary.texts ? `, with your ${summary.texts} text${summary.texts === 1 ? '' : 's'}` : ''}. It keeps going if you close this.
             </p>
-            <button onClick={onRender} disabled={summary.shots === 0} className={`flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold disabled:opacity-40 ${gold}`}>
+            <button onClick={onRender} disabled={summary.shots === 0} className="ed-gold flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold disabled:opacity-40">
               <Clapperboard size={17} /> Make video
             </button>
           </div>
@@ -229,5 +239,42 @@ function Progress({ render }: { render: RenderState }) {
         })}
       </ol>
     </div>
+  );
+}
+
+/**
+ * The film you are making, as a strip of its shots (widths follow their lengths). While it renders,
+ * gold light moves through the strip with the progress.
+ */
+function ShotStrip({ progress }: { progress?: number }) {
+  const { clips, tracks } = useTimelineStore();
+  const videoTrack = tracks.find((t) => t.track_type === 'video');
+  const shots = clips.filter((c) => c.track_id === videoTrack?.id).sort((a, b) => a.start_ms - b.start_ms);
+  if (!shots.length) return null;
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-black p-1.5">
+      <div className="flex h-16 gap-1">
+        {shots.map((clip) => (
+          <StripFrame key={clip.id} clip={clip} />
+        ))}
+      </div>
+      {progress !== undefined ? (
+        <>
+          <div className="pointer-events-none absolute inset-y-0 right-0 bg-black/55 transition-[width] duration-700" style={{ width: `${100 - progress}%` }} />
+          <div className="pointer-events-none absolute inset-y-0 w-[2px] bg-gold-200 shadow-[0_0_14px_rgba(243,229,192,0.95)] transition-[left] duration-700" style={{ left: `${progress}%` }} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function StripFrame({ clip }: { clip: TimelineClip }) {
+  const strip = useFilmstrip(clip.asset_url);
+  const frame = strip?.frames[Math.floor((strip.frames.length - 1) / 2)];
+  return (
+    <span className="relative block min-w-6 overflow-hidden rounded-lg bg-[linear-gradient(135deg,#3a3020,#14110c)]" style={{ flexGrow: Math.max(1, clip.end_ms - clip.start_ms) }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {frame ? <img src={frame} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
+    </span>
   );
 }

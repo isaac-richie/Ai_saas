@@ -1,4 +1,5 @@
 import { FAST_VIDEO_ASPECT_RATIOS } from '@/core/config/fast-video-presets';
+import { findLightingPreset } from '@/core/config/lighting-presets';
 import { getKieVideoModelFamily, resolveKieVideoModelByFamily } from '@/core/config/kie-video-models';
 import { mediaReferencesSchema } from '@/core/validation/media-reference';
 import { shotFramesSchema } from '@/core/validation/shot-frames';
@@ -44,13 +45,17 @@ export const PENDING_TIMEOUT_MS = 30 * 60 * 1000;
 export function buildRegenerateRequest(
   shot: StoryboardShot,
   ctx: { projectId: string; sceneId: string | null; aspectRatio: string | null },
-  options: { durationSec?: number; note?: string } = {},
+  options: { durationSec?: number; note?: string; lighting?: string } = {},
 ): { request: FastVideoRequest } | { error: string } {
   const base = (shot.enhanced_prompt || shot.prompt || shot.direction || '').trim();
   if (base.length < 3) return { error: 'This shot has no prompt to make it again from.' };
 
   const note = (options.note || '').replace(/\s+/g, ' ').trim().slice(0, 300);
-  const textSubject = note ? `${base}\n\nChange for this take: ${note}` : base;
+  // Relight: the setup's own words are added by the generator; the take is told the light changes,
+  // because a shot that opens on a frame otherwise keeps that frame's light.
+  const lighting = findLightingPreset(options.lighting);
+  const changes = [note, lighting ? `relight the whole shot with ${lighting.name.toLowerCase()} lighting; the light changes from the opening image` : ''].filter(Boolean).join('; ');
+  const textSubject = changes ? `${base}\n\nChange for this take: ${changes}` : base;
 
   const family = getKieVideoModelFamily(shot.model_family_id);
   const wanted = options.durationSec ?? shot.duration_seconds ?? 5;
@@ -72,6 +77,7 @@ export function buildRegenerateRequest(
       scene_id: ctx.sceneId,
       prompt_inputs: {
         text_subject: textSubject,
+        ...(lighting ? { lighting_preset_id: lighting.id } : {}),
         aspect_ratio: aspect,
         media_references: mediaReferences,
         ...(shotFrames ? { shot_frames: shotFrames } : {}),

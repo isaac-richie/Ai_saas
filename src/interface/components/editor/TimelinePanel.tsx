@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Blend, Film, Lock, Music, Plus, Type, Unlock, Volume2, VolumeX } from 'lucide-react';
+import { Blend, Lock, Plus, Unlock, Volume2, VolumeX } from 'lucide-react';
+import { AdjustGlyph, MusicGlyph, TextGlyph } from './glyphs';
 import type { TimelineClip, TimelineTrack } from '@/core/types/timeline';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import {
@@ -18,7 +19,7 @@ const SNAP_PX = 8;
 const ROW: Record<string, number> = { video: 60, audio: 44, caption: 36, sfx: 36 };
 // Taller rows when the timeline has the room (tablets), so shots are easy to see and touch.
 const ROOMY_ROW: Record<string, number> = { video: 76, audio: 52, caption: 42, sfx: 42 };
-const TRACK_ICON = { video: Film, audio: Music, caption: Type, sfx: Music } as const;
+const TRACK_ICON = { video: AdjustGlyph, audio: MusicGlyph, caption: TextGlyph, sfx: MusicGlyph } as const;
 const TRACK_LABEL: Record<string, string> = { video: 'Shots', audio: 'Music', caption: 'Text', sfx: 'Sound' };
 // Each row has its own colour, used by its icon chip and its clips.
 const TRACK_TINT: Record<string, string> = {
@@ -273,7 +274,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
           return (
             <div key={track.id} style={{ height: rowHeight[track.track_type] }} className="flex items-center gap-2 border-b border-white/[0.04] px-2 md:px-2.5">
               <span className={`grid size-7 shrink-0 place-items-center rounded-lg ring-1 ring-inset ${track.muted ? 'bg-white/[0.04] text-white/30 ring-white/10' : TRACK_TINT[track.track_type]}`} aria-hidden>
-                <Icon size={13} strokeWidth={2} />
+                <Icon size={16} strokeWidth={1.7} />
               </span>
               <span className={`${centered ? 'hidden' : 'hidden md:block'} flex-1 truncate text-[12.5px] font-medium text-[#d6d0c0]`}>{TRACK_LABEL[track.track_type]}</span>
               <div className={`${centered || !pro ? 'hidden' : 'hidden md:flex'} items-center`}>

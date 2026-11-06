@@ -13,6 +13,8 @@ const startSchema = z.object({
   clip_id: z.string().uuid(),
   duration_sec: z.number().int().min(1).max(30).optional(),
   note: z.string().max(300).optional(),
+  /** Relight: a setup from the lighting library for the new take. */
+  lighting: z.string().max(64).optional(),
 });
 
 const generator: TakeGenerator = {
