@@ -1152,3 +1152,146 @@
   border-top: 1px solid rgba(217, 192, 138, 0.14);
   box-shadow: 0 -18px 40px -24px rgba(0, 0, 0, 0.9);
 }
+
+/* ───────────────────────── Editor: cinema console ───────────────────────── */
+@layer components {
+.ed-backdrop {
+  background:
+    radial-gradient(60% 50% at 18% -10%, rgba(217, 192, 138, 0.10), transparent 70%),
+    radial-gradient(45% 40% at 92% 8%, rgba(182, 221, 211, 0.06), transparent 70%),
+    radial-gradient(70% 60% at 50% 120%, rgba(217, 192, 138, 0.05), transparent 70%),
+    #070807;
+}
+.ed-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grainShift 1.2s steps(6) infinite;
+}
+.ed-aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  pointer-events: none;
+  animation: edAurora 22s ease-in-out infinite alternate;
+}
+
+/* One glass surface for every panel. */
+.ed-glass {
+  position: relative;
+  background: linear-gradient(180deg, rgba(22, 23, 21, 0.78), rgba(11, 12, 11, 0.86));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 30px 60px -40px rgba(0, 0, 0, 0.95),
+    0 1px 0 rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(22px) saturate(1.15);
+  -webkit-backdrop-filter: blur(22px) saturate(1.15);
+}
+/* A hairline of gold along the top edge. */
+.ed-glass-lit::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(227, 207, 159, 0.28), rgba(227, 207, 159, 0) 38%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.ed-gold {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  color: #1a160e;
+  background: linear-gradient(135deg, #f6ead0 0%, #e3cf9f 45%, #c8a76a 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 0 rgba(90, 66, 30, 0.35),
+    0 12px 32px -14px rgba(217, 192, 138, 0.85);
+  transition: transform 0.2s var(--ease-lux, ease), box-shadow 0.3s ease, filter 0.2s ease;
+}
+.ed-gold::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.65) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: edSheen 4.5s ease-in-out infinite;
+}
+.ed-gold:hover:not(:disabled) {
+  filter: brightness(1.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 0 rgba(90, 66, 30, 0.35),
+    0 16px 40px -12px rgba(217, 192, 138, 1);
+}
+.ed-gold:active:not(:disabled) { transform: scale(0.97); }
+.ed-gold:disabled::after { animation: none; }
+
+/* The AI Director's orb. */
+.ed-orb {
+  position: relative;
+  border-radius: 9999px;
+  background: conic-gradient(from 0deg, #f3e5c0, #b6ddd3, #c9b6e8, #e3cf9f, #f3e5c0);
+  animation: edSpin 6s linear infinite;
+  box-shadow: 0 0 24px -4px rgba(227, 207, 159, 0.7);
+}
+.ed-orb::after {
+  content: "";
+  position: absolute;
+  inset: 22%;
+  border-radius: inherit;
+  background: radial-gradient(circle at 35% 30%, #fffaf0, #e9dcb8 40%, rgba(233, 220, 184, 0) 75%);
+  filter: blur(1px);
+}
+.ed-orb[data-busy="true"] { animation-duration: 1.4s; box-shadow: 0 0 34px -2px rgba(227, 207, 159, 0.95); }
+
+.ed-shimmer-text {
+  background: linear-gradient(90deg, #8f97a1 0%, #f3e5c0 45%, #8f97a1 90%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: edShimmer 2.2s linear infinite;
+}
+
+.ed-focus-ring { transition: border-color 0.25s ease, box-shadow 0.25s ease; }
+.ed-focus-ring:focus-within {
+  border-color: rgba(227, 207, 159, 0.45);
+  box-shadow: 0 0 0 4px rgba(217, 192, 138, 0.08), 0 18px 40px -24px rgba(217, 192, 138, 0.6);
+}
+
+.ed-playhead-glow { box-shadow: 0 0 12px rgba(243, 229, 192, 0.85), 0 0 2px rgba(243, 229, 192, 1); }
+.ed-playhead-glow[data-playing="true"] { animation: edPulse 1.6s ease-in-out infinite; }
+
+.ed-rhythm span {
+  transform-origin: bottom;
+  animation: edBar 1.8s ease-in-out infinite;
+}
+
+.ed-scroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.12) transparent; }
+.ed-scroll::-webkit-scrollbar { width: 8px; }
+.ed-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+}
+
+@keyframes edSheen { 0%, 55% { transform: translateX(-120%); } 80%, 100% { transform: translateX(120%); } }
+@keyframes edSpin { to { transform: rotate(360deg); } }
+@keyframes edShimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes edPulse { 0%, 100% { box-shadow: 0 0 10px rgba(243, 229, 192, 0.7); } 50% { box-shadow: 0 0 20px rgba(243, 229, 192, 1); } }
+@keyframes edBar { 0%, 100% { transform: scaleY(0.55); opacity: 0.7; } 50% { transform: scaleY(1); opacity: 1; } }
+@keyframes edAurora {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(4%, 3%, 0) scale(1.08); }
+  100% { transform: translate3d(-3%, -2%, 0) scale(0.96); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ed-gold::after, .ed-orb, .ed-shimmer-text, .ed-rhythm span, .ed-aurora, .ed-backdrop::after, .ed-playhead-glow[data-playing="true"] { animation: none !important; }
+}

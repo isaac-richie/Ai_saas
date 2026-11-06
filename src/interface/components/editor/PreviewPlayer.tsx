@@ -2,13 +2,16 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import { Clapperboard, Maximize2, Play } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
+import type { TimelineClip } from '@/core/types/timeline';
 import { clipSpeed, timelineToOutputMs } from '@/core/services/timeline-ops';
 import { isCaptionStyle } from '@/core/services/captions';
 import { parseResolution } from '@/core/services/timeline-render';
 import { getGradeById } from '@/core/services/color-grading';
 import { DEFAULT_FRAME_FIT, isFrameFit } from '@/core/services/video-format';
 import { CAPTION_PREVIEW_CLASS, GRADE_PREVIEW_FILTER } from './labels';
+import { FILMSTRIP_FRAMES, useFilmstrip } from '@/interface/lib/media-thumbs';
 
 /**
  * The stage. It fills its box at the timeline's aspect ratio, plays shots, music and text in
@@ -110,9 +113,10 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
 
   return (
     <div className="grid h-full w-full place-items-center" style={{ containerType: 'size' }}>
+      <AmbientGlow clip={current} playheadMs={playhead_ms} grade={grade} style={{ aspectRatio: `${w} / ${h}`, width: `min(100cqw, calc(100cqh * ${w / h}))` }} />
       <div
         ref={frameRef}
-        className="@container group/stage relative overflow-hidden rounded-xl bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_40px_80px_-40px_rgba(0,0,0,1)]"
+        className="@container group/stage relative overflow-hidden rounded-2xl bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_50px_100px_-40px_rgba(0,0,0,1)] [grid-area:1/1]"
         style={{ aspectRatio: `${w} / ${h}`, width: `min(100cqw, calc(100cqh * ${w / h}))` }}
       >
         {current?.asset_url && fit === 'blur' && (
@@ -160,8 +164,8 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
             className="absolute inset-0 grid place-items-center focus-visible:outline-none"
           >
             <span
-              className={`grid size-14 place-items-center rounded-full bg-black/45 text-white backdrop-blur-md transition-all duration-300 @md:size-16 ${
-                is_playing ? 'scale-75 opacity-0' : 'opacity-100 group-hover/stage:scale-105'
+              className={`grid size-14 place-items-center rounded-full border border-white/20 bg-black/35 text-white shadow-[0_20px_40px_-12px_rgba(0,0,0,0.8)] backdrop-blur-xl transition-all duration-500 @md:size-[72px] ${
+                is_playing ? 'scale-75 opacity-0' : 'opacity-100 group-hover/stage:scale-110 group-hover/stage:border-gold-200/50'
               }`}
             >
               <Play size={24} fill="currentColor" className="translate-x-0.5" />
@@ -173,7 +177,7 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
           // Keyed by shot so, while playing, it shows briefly each time the picture changes.
           <div
             key={`badge-${index}-${is_playing}`}
-            className={`pointer-events-none absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs text-white/90 backdrop-blur-md ${
+            className={`pointer-events-none absolute left-3 top-3 flex items-center gap-1.5 rounded-full border border-white/10 bg-black/45 px-3 py-1 text-xs text-white/90 backdrop-blur-xl ${
               is_playing ? 'animate-[stage-badge_1.8s_ease_forwards]' : ''
             }`}
           >
@@ -196,6 +200,40 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
         )}
         {song?.asset_url && <audio ref={audioRef} src={song.asset_url} preload="auto" className="hidden" />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Ambient light: the current moment of the shot, blurred huge behind the frame, so the stage
+ * glows in the picture's own colours. Uses the timeline's cached filmstrip, so it costs no decode.
+ */
+function AmbientGlow({ clip, playheadMs, grade, style }: { clip: TimelineClip | null; playheadMs: number; grade: string; style: React.CSSProperties }) {
+  const strip = useFilmstrip(clip?.asset_url ?? null);
+  let src: string | null = null;
+  if (clip && strip?.frames.length) {
+    const sec = (clip.trim_start_ms + (playheadMs - clip.start_ms) * clipSpeed(clip)) / 1000;
+    const i = Math.max(0, Math.min(FILMSTRIP_FRAMES - 1, Math.floor((sec / strip.durationSec) * FILMSTRIP_FRAMES)));
+    src = strip.frames[Math.min(i, strip.frames.length - 1)];
+  }
+  const filter = GRADE_PREVIEW_FILTER[grade];
+  return (
+    <div aria-hidden className="pointer-events-none relative [grid-area:1/1]" style={style}>
+      <AnimatePresence initial={false}>
+        {src && (
+          <motion.img
+            key={src}
+            src={src}
+            alt=""
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.55 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
+            className="absolute inset-0 h-full w-full scale-[1.12] object-cover"
+            style={{ filter: `blur(64px) saturate(1.5) ${filter && filter !== 'none' ? filter : ''}` }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

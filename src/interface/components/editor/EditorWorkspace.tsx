@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import {
-  ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, History, ImagePlus, Keyboard, Loader2, Maximize, MessageSquare, Music2, Palette, Pause,
-  Play, Plus, Proportions, Redo2, Scissors, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Trash2, Type, Undo2, Upload, Wand2, X, ZoomIn, ZoomOut,
+  ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, History, ImagePlus, Loader2, Maximize, MessageSquare, Music2, PanelLeftClose,
+  Plus, Redo2, Scissors, SlidersHorizontal, Trash2, Type, Undo2, Upload, Wand2, X, ZoomIn, ZoomOut,
 } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useMediaQuery } from '@/interface/hooks/use-media-query';
+import { useStoredValue } from '@/interface/hooks/use-stored-value';
 import { outputToTimelineMs, syncVideoToSong } from '@/core/services/timeline-ops';
 import type { OwnerShare } from '@/core/actions/video-review';
 import { ReviewsSheet } from './ReviewsSheet';
@@ -26,10 +28,12 @@ import { MusicPanel } from './MusicPanel';
 import { TextPanel } from './TextPanel';
 import { ExportSheet } from './ExportSheet';
 import { FormatPanel } from './FormatPanel';
+import { ToolRail, TABS, type Tab } from './ToolRail';
+import { Transport } from './Transport';
 import { formatFor } from '@/core/services/video-format';
 import { parseResolution } from '@/core/services/timeline-render';
 import type { AutoEditStyle } from '@/core/services/auto-edit';
-import { formatClock, formatTime } from './labels';
+import { formatClock } from './labels';
 import { EditorModeContext, useEditorModeState, type EditorMode } from '@/interface/hooks/use-editor-mode';
 
 export type RenderState = {
@@ -80,16 +84,6 @@ export interface EditorWorkspaceProps {
   onRestoreVersion?: (revisionId: string) => Promise<boolean>;
 }
 
-type Tab = 'ai' | 'clip' | 'look' | 'format' | 'music' | 'text';
-const TABS: { id: Tab; label: string; title: string; icon: typeof Sparkles }[] = [
-  { id: 'ai', label: 'AI', title: 'AI editor', icon: Sparkles },
-  { id: 'clip', label: 'Adjust', title: 'Adjust', icon: SlidersHorizontal },
-  { id: 'look', label: 'Look', title: 'Look', icon: Palette },
-  { id: 'format', label: 'Format', title: 'Video format', icon: Proportions },
-  { id: 'music', label: 'Music', title: 'Music', icon: Music2 },
-  { id: 'text', label: 'Text', title: 'Text', icon: Type },
-];
-
 const SHORTCUTS: [string, string][] = [
   ['Space', 'Play or pause'],
   ['← →', 'Step one frame (hold Shift for a second)'],
@@ -98,29 +92,41 @@ const SHORTCUTS: [string, string][] = [
   ['⌘Z / ⇧⌘Z', 'Undo / redo'],
   ['Esc', 'Deselect'],
   ['⌘ + scroll', 'Zoom the timeline'],
+  ['\\', 'Show or hide the tools panel'],
 ];
 
 const iconButton =
-  'grid size-10 place-items-center rounded-xl text-[#d6d0c0] transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-30 disabled:hover:bg-transparent';
+  'grid size-9 place-items-center rounded-full text-[#cfc9b9] transition-all hover:bg-white/[0.07] hover:text-white active:scale-90 disabled:opacity-30 disabled:hover:bg-transparent';
 // Phones and tablets: tools float in a glass dock above the safe area.
-const dockClass =
-  'mx-3 mb-[max(0.75rem,env(safe-area-inset-bottom))] mt-2 flex shrink-0 items-center gap-1 rounded-2xl border border-line-strong bg-obsidian-900/85 p-1.5 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.95)] backdrop-blur-xl';
-// One surface for every panel: stage, tools and timeline read as a single, calm workspace.
-const surface = 'rounded-2xl border border-line bg-[#0c0d0c]/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_20px_40px_-30px_rgba(0,0,0,0.9)]';
-const goldButton =
-  'bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[#1a160e] shadow-[0_10px_30px_-12px_rgba(217,192,138,0.8)]';
+const dockClass = 'ed-glass ed-glass-lit mx-3 mb-[max(0.75rem,env(safe-area-inset-bottom))] mt-2 flex shrink-0 items-center gap-1 rounded-[22px] p-1.5';
+const chip =
+  'inline-flex h-8 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 text-xs text-[#cfc9b9] transition-colors hover:border-gold-300/40 hover:text-gold-50';
+
+const TIMELINE_HEIGHT_KEY = 'visiowave.editor.timeline-height';
+const PANEL_OPEN_KEY = 'visiowave.editor.panel-open';
+const TIMELINE_MIN = 176;
+const TIMELINE_DEFAULT = 268;
+const spring = { type: 'spring', stiffness: 380, damping: 38 } as const;
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
   return Boolean(el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)));
 }
 
+const parseHeight = (raw: string) => {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= TIMELINE_MIN ? n : null;
+};
+const parseBool = (raw: string) => (raw === 'true' ? true : raw === 'false' ? false : null);
+
 export function EditorWorkspace(props: EditorWorkspaceProps) {
-  const store = useTimelineStore();
-  const { clips, tracks, timeline, history, is_playing, playhead_ms, selected_clip_id, pixels_per_ms } = store;
+  const timelineStore = useTimelineStore();
+  const { clips, tracks, timeline, history, playhead_ms, selected_clip_id, pixels_per_ms } = timelineStore;
   const desktop = useMediaQuery('(min-width: 1024px)', true);
   const phone = !useMediaQuery('(min-width: 768px)', true);
   const [tab, setTab] = useState<Tab>('ai');
+  // The creator's layout (panel open, timeline height) is remembered in this browser.
+  const [panelOpen, setPanelOpen] = useStoredValue(PANEL_OPEN_KEY, true, parseBool);
   const [sheet, setSheet] = useState<Tab | null>(null);
   const videoInput = useRef<HTMLInputElement>(null);
   const [addingClips, setAddingClips] = useState(false);
@@ -131,6 +137,12 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   const [fitSignal, setFitSignal] = useState(0);
   const [mode, setMode] = useEditorModeState();
   const pro = mode === 'pro';
+  const workArea = useRef<HTMLDivElement>(null);
+  const [storedHeight, setStoredHeight] = useStoredValue(TIMELINE_HEIGHT_KEY, TIMELINE_DEFAULT, parseHeight);
+  // While dragging the divider the height lives here; it is saved when the drag ends.
+  const [dragHeight, setDragHeight] = useState<number | null>(null);
+  const timelineHeight = dragHeight ?? storedHeight;
+  const [resizing, setResizing] = useState(false);
 
   const busy = props.render.status === 'queued' || props.render.status === 'rendering';
   const openNotes = (props.reviews ?? []).reduce((n, r) => n + r.notes.filter((x) => x.kind === 'note' && !x.resolved).length, 0);
@@ -147,19 +159,30 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
     selected && selectedTrack?.track_type === 'video' && !selectedLocked &&
       playhead_ms > selected.start_ms + MIN_CLIP_MS && playhead_ms < selected.end_ms - MIN_CLIP_MS,
   );
+  const format = formatFor(timeline?.resolution);
+  const gradeName = getGradeById(timeline?.color_grade_id || 'natural')?.name || 'Natural';
+
+  const openTool = useCallback((id: Tab) => {
+    setTab(id);
+    setPanelOpen(true);
+  }, [setPanelOpen]);
+  const togglePanel = useCallback(() => setPanelOpen(!panelOpen), [panelOpen, setPanelOpen]);
 
   // Desktop: selecting something on the timeline opens its settings in the side panel.
   useEffect(
     () =>
       useTimelineStore.subscribe((state, prev) => {
-        if (state.selected_clip_id && state.selected_clip_id !== prev.selected_clip_id) setTab('clip');
+        if (state.selected_clip_id && state.selected_clip_id !== prev.selected_clip_id) {
+          setTab('clip');
+          setPanelOpen(true);
+        }
       }),
-    [],
+    [setPanelOpen],
   );
 
   const syncToBeat = () => {
     if (!videoTrack) return;
-    store.commitClips(syncVideoToSong(clips, videoTrack.id, song), `beat-sync:${Date.now()}`);
+    timelineStore.commitClips(syncVideoToSong(clips, videoTrack.id, song), `beat-sync:${Date.now()}`);
   };
 
   const makeVideo = () => {
@@ -193,33 +216,53 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         s.setPlayhead(s.playhead_ms + (e.key === 'ArrowLeft' ? -step : step));
       } else if (e.key === '?') {
         setShortcutsOpen((v) => !v);
+      } else if (e.key === '\\') {
+        togglePanel();
       } else if (e.key === 'Escape') {
         s.selectClip(null);
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [togglePanel]);
 
-  const zoomTo = (ppm: number) => store.setZoom(Math.max(ZOOM_LIMITS.MIN_PPMS, Math.min(ZOOM_LIMITS.MAX_PPMS, ppm)) / 0.1);
+  // Drag the bar between the stage and the timeline to give either more room.
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    setResizing(true);
+    const startY = e.clientY;
+    const startH = timelineHeight;
+    setDragHeight(startH);
+    const max = Math.max(TIMELINE_MIN, (workArea.current?.clientHeight ?? 800) * 0.62);
+    let latest = startH;
+    const move = (ev: PointerEvent) => {
+      latest = Math.round(Math.max(TIMELINE_MIN, Math.min(max, startH + (startY - ev.clientY))));
+      setDragHeight(latest);
+    };
+    const up = () => {
+      setResizing(false);
+      setStoredHeight(latest);
+      setDragHeight(null);
+      target.removeEventListener('pointermove', move);
+      target.removeEventListener('pointerup', up);
+      target.removeEventListener('pointercancel', up);
+    };
+    target.addEventListener('pointermove', move);
+    target.addEventListener('pointerup', up);
+    target.addEventListener('pointercancel', up);
+  };
+
+  const zoomTo = (ppm: number) => timelineStore.setZoom(Math.max(ZOOM_LIMITS.MIN_PPMS, Math.min(ZOOM_LIMITS.MAX_PPMS, ppm)) / 0.1);
   const zoomRange = Math.log(ZOOM_LIMITS.MAX_PPMS / ZOOM_LIMITS.MIN_PPMS);
   const zoomValue = Math.round((Math.log(pixels_per_ms / ZOOM_LIMITS.MIN_PPMS) / zoomRange) * 100);
-
-  const jumpShot = (dir: -1 | 1) => {
-    if (dir < 0) {
-      const prev = [...shots].reverse().find((c) => c.start_ms < playhead_ms - 200);
-      store.setPlayhead(prev ? prev.start_ms : 0);
-    } else {
-      const next = shots.find((c) => c.start_ms > playhead_ms + 1);
-      store.setPlayhead(next ? next.start_ms : endMs);
-    }
-  };
 
   // The timeline's empty rows and its "+" tile lead straight to the right tool.
   const addFrom = (kind: 'shots' | 'music' | 'text') => {
     if (kind === 'shots') { if (props.onAddLibraryClips) setAddingClips(true); else props.onImport(); }
     else if (kind === 'text') void props.onAddText();
-    else if (desktop) setTab('music');
+    else if (desktop) openTool('music');
     else setSheet('music');
   };
 
@@ -235,7 +278,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         />
       );
     if (id === 'clip') return <ClipPanel onSyncToBeat={syncToBeat} onRegenerate={props.onRegenerate} takeStatus={props.takeStatus} />;
-    if (id === 'look') return <ColorGradePicker selectedId={timeline?.color_grade_id || 'natural'} onSelect={store.setGrade} row={!desktop} />;
+    if (id === 'look') return <ColorGradePicker selectedId={timeline?.color_grade_id || 'natural'} onSelect={timelineStore.setGrade} row={!desktop} />;
     if (id === 'format') return <FormatPanel />;
     if (id === 'music') return <MusicPanel onUpload={props.onUploadMusic} onSyncToBeat={syncToBeat} />;
     return <TextPanel onAddText={props.onAddText} onAutoCaptions={props.onAutoCaptions} hasRender={Boolean(props.render.storageKey)} />;
@@ -249,90 +292,111 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
   };
 
   const emptyHint = (
-    <div className="space-y-3">
-      <p>Bring in your shots, or videos from your phone or computer, to start editing.</p>
+    <div className="space-y-4">
+      <div>
+        <p className="text-[17px] font-light tracking-tight text-white">Start your edit</p>
+        <p className="mt-1 text-[13px] text-[#9aa3ad]">Bring in your generated shots, or videos from your phone or computer.</p>
+      </div>
       <div className="flex flex-wrap justify-center gap-2">
-        <button onClick={props.onImport} disabled={props.importing} className="inline-flex items-center gap-2 rounded-xl border border-gold-400/50 px-4 py-2.5 text-sm text-gold-100 hover:bg-gold-500/10 disabled:opacity-50">
+        <button onClick={props.onImport} disabled={props.importing} className="ed-gold inline-flex h-10 items-center gap-2 rounded-full px-4 text-[13px] font-semibold disabled:opacity-50">
           {props.importing ? <Loader2 size={15} className="animate-spin" /> : <ImagePlus size={15} />} Add my generated shots
         </button>
-        <button onClick={pickVideos} disabled={props.importing} className="inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm text-white hover:border-white/30 disabled:opacity-50">
-          <Upload size={15} /> Add videos from my device
+        <button onClick={pickVideos} disabled={props.importing} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-[13px] text-white transition-colors hover:border-white/30 disabled:opacity-50">
+          <Upload size={15} /> From my device
         </button>
       </div>
       {props.onAutoEdit && (
-        <button
-          onClick={() => (desktop ? setTab('ai') : setSheet('ai'))}
-          className="mx-auto flex items-center gap-2 text-sm text-[#b0b8c4] hover:text-gold-100"
-        >
+        <button onClick={() => (desktop ? openTool('ai') : setSheet('ai'))} className="mx-auto flex items-center gap-2 text-[13px] text-[#b0b8c4] transition-colors hover:text-gold-100">
           <Wand2 size={14} /> Or let AI cut it for you
         </button>
       )}
     </div>
   );
 
-  const playButton = (size: 'lg' | 'md') => (
-    <button
-      onClick={store.togglePlay}
-      disabled={shots.length === 0}
-      className={`grid place-items-center rounded-full bg-gold-200 text-[#1a160e] shadow-[0_8px_24px_-10px_rgba(227,207,159,0.9)] transition-transform active:scale-95 disabled:opacity-40 ${size === 'lg' ? 'size-12' : 'size-11'}`}
-      aria-label={is_playing ? 'Pause' : 'Play'}
-    >
-      {is_playing ? <Pause size={19} fill="currentColor" /> : <Play size={19} fill="currentColor" className="translate-x-px" />}
-    </button>
-  );
-
-  const timecode = (
-    <span className="whitespace-nowrap font-mono text-[13px] tabular-nums text-[#e8e2d2]">
-      {pro ? formatTime(playhead_ms, timeline?.fps) : formatClock(playhead_ms, true)}
-      <span className="text-[#8f97a1]"> / {pro ? formatTime(endMs, timeline?.fps) : formatClock(endMs, true)}</span>
-    </span>
-  );
-
   const summary = {
     shots: shots.length,
     lengthMs: endMs,
-    look: getGradeById(timeline?.color_grade_id || 'natural')?.name || 'Natural',
+    look: gradeName,
     music: song ? String((song.metadata as { name?: string })?.name || 'Music') : null,
     texts: clips.filter((c) => tracks.find((t) => t.id === c.track_id)?.track_type === 'caption').length,
-    format: `${formatFor(timeline?.resolution).label} ${formatFor(timeline?.resolution).ratio}`,
-    wide: formatFor(timeline?.resolution).id === 'widescreen',
+    format: `${format.label} ${format.ratio}`,
+    wide: format.id === 'widescreen',
   };
 
-  return (
-    <EditorModeContext.Provider value={mode}>
-    <div className="flex h-full flex-col bg-[radial-gradient(ellipse_at_top,rgba(217,192,138,0.06),transparent_55%)]">
-      {/* Top bar */}
-      <header className="relative flex h-14 shrink-0 items-center gap-1 border-b border-line px-2 md:h-16 md:px-4">
-        <Link href={props.backHref} className={iconButton} aria-label="Back to storyboard">
-          <ArrowLeft size={19} />
+  const activeTab = TABS.find((t) => t.id === tab)!;
+
+  const header = (
+    <header className="relative z-20 grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2 md:h-16 md:px-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+      <div className="flex min-w-0 items-center gap-2">
+        <Link href={props.backHref} className="grid size-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.03] text-[#d6d0c0] transition-all hover:border-white/20 hover:text-white active:scale-90" aria-label="Back">
+          <ArrowLeft size={17} />
         </Link>
+        <span aria-hidden className="ed-gold hidden size-9 shrink-0 place-items-center rounded-xl md:grid">
+          <Scissors size={16} strokeWidth={2.2} />
+        </span>
         <input ref={videoInput} type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.m4v" multiple className="hidden" onChange={(e) => { void onVideosChosen(e.target.files); e.target.value = ''; }} />
-        <div className="min-w-0 flex-1 px-1">
-          <h1 className="truncate text-base font-light tracking-tight text-white md:text-lg">
+        <div className="min-w-0 px-0.5">
+          <h1 className="truncate text-[15px] font-medium tracking-tight text-white md:text-base">
             {props.title ? props.title : <>Edit <span className="lux-serif text-gold-200">video</span></>}
           </h1>
           <SaveStatus saving={props.saving} failed={Boolean(props.saveFailed)} short={phone} />
         </div>
-        {desktop && shots.length > 0 && (
-          <div className="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 items-center gap-2 text-xs text-[#9aa3ad] xl:flex">
-            <span>{formatFor(timeline?.resolution).label} {formatFor(timeline?.resolution).ratio}</span>
+      </div>
+
+      {desktop && (
+        <div className="ed-glass flex items-center gap-1 rounded-full p-1 pl-3.5">
+          <span className="flex items-center gap-2 pr-2 text-xs text-[#9aa3ad]">
+            <span className="text-[#e8e2d2]">{format.label}</span>
+            <span className="text-[#6f7782]">{format.ratio}</span>
             <span className="size-1 rounded-full bg-white/20" />
-            <span className="tabular-nums">{formatClock(endMs)}</span>
+            <span className="tabular-nums text-[#e8e2d2]">{formatClock(endMs)}</span>
             <span className="size-1 rounded-full bg-white/20" />
             <span>{shots.length} shot{shots.length === 1 ? '' : 's'}</span>
-          </div>
-        )}
-        <ModeSwitch mode={mode} onChange={setMode} compact={phone} />
+          </span>
+          <ModeSwitch mode={mode} onChange={setMode} compact={false} />
+        </div>
+      )}
+
+      <div className="flex items-center justify-end gap-1.5">
+        {!desktop && <ModeSwitch mode={mode} onChange={setMode} compact />}
+        <div className="flex items-center rounded-full border border-white/[0.07] bg-white/[0.025] p-0.5">
+          <button onClick={timelineStore.undo} disabled={history.past.length === 0} className={iconButton} aria-label="Undo" title="Undo (⌘Z)">
+            <Undo2 size={16} />
+          </button>
+          <button onClick={timelineStore.redo} disabled={history.future.length === 0} className={iconButton} aria-label="Redo" title="Redo (⇧⌘Z)">
+            <Redo2 size={16} />
+          </button>
+          {props.onListVersions && (
+            <button onClick={() => setVersionsOpen(true)} className={iconButton} aria-label="Saved versions" title="Saved versions">
+              <History size={16} />
+            </button>
+          )}
+        </div>
         <button
           onClick={() => (props.onAddLibraryClips ? setAddingClips(true) : pickVideos())}
           disabled={props.importing}
-          className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-gold-400/40 px-2.5 text-sm text-gold-100 hover:bg-gold-500/10 disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.03] px-2.5 text-[13px] text-[#ece6d6] transition-colors hover:border-gold-300/45 hover:text-gold-50 disabled:opacity-50 sm:px-3.5"
           aria-label="Add clips"
           title="Add clips from your device or your other work"
         >
-          {props.importing ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+          {props.importing ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
           <span className="hidden sm:inline">Add clips</span>
         </button>
+        {(props.reviews?.length ?? 0) > 0 && (
+          <button
+            onClick={() => setReviewsOpen(true)}
+            className={`flex h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors hover:bg-white/5 ${openNotes > 0 ? 'border-gold-300/50 text-gold-100' : 'border-white/[0.1] text-[#d6d0c0]'}`}
+            title="Review notes"
+          >
+            <MessageSquare size={14} /> {openNotes > 0 ? `${openNotes}${phone ? '' : ` note${openNotes === 1 ? '' : 's'}`}` : phone ? '' : 'Notes'}
+          </button>
+        )}
+        <AnimatePresence>{props.render.status !== 'idle' && <RenderPill render={props.render} onClick={() => setExportOpen(true)} />}</AnimatePresence>
+        {!phone && (
+          <button onClick={makeVideo} disabled={shots.length === 0} className="ed-gold flex h-9 items-center gap-2 rounded-full px-4 text-[13px] font-semibold disabled:opacity-45">
+            <Clapperboard size={15} /> Make video
+          </button>
+        )}
         {addingClips && props.onAddLibraryClips && props.projectId && (
           <AddClipsDialog
             projectId={props.projectId}
@@ -342,216 +406,257 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
             onAddClips={props.onAddLibraryClips}
           />
         )}
-        <button onClick={store.undo} disabled={history.past.length === 0} className={iconButton} aria-label="Undo" title="Undo (⌘Z)">
-          <Undo2 size={18} />
-        </button>
-        <button onClick={store.redo} disabled={history.future.length === 0} className={iconButton} aria-label="Redo" title="Redo (⇧⌘Z)">
-          <Redo2 size={18} />
-        </button>
-        {props.onListVersions && (
-          <button onClick={() => setVersionsOpen(true)} className={iconButton} aria-label="Saved versions" title="Saved versions">
-            <History size={18} />
-          </button>
-        )}
-        {desktop && pro && (
-          <button onClick={() => setShortcutsOpen(true)} className={iconButton} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">
-            <Keyboard size={18} />
-          </button>
-        )}
-        {(props.reviews?.length ?? 0) > 0 && (
-          <button
-            onClick={() => setReviewsOpen(true)}
-            className={`ml-1 flex h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] hover:bg-white/5 ${openNotes > 0 ? 'border-gold-300/50 text-gold-100' : 'border-line-strong text-[#d6d0c0]'}`}
-            title="Review notes"
-          >
-            <MessageSquare size={14} /> {openNotes > 0 ? `${openNotes} note${openNotes === 1 ? '' : 's'}` : phone ? '' : 'Notes'}
-          </button>
-        )}
-        {props.render.status !== 'idle' && (
-          <RenderPill render={props.render} onClick={() => setExportOpen(true)} />
-        )}
-        {!phone && (
-          <button onClick={makeVideo} disabled={shots.length === 0} className={`ml-1.5 flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-opacity disabled:opacity-45 ${goldButton}`}>
-            <Clapperboard size={16} /> Make video
-          </button>
-        )}
-      </header>
+      </div>
+    </header>
+  );
 
-      <Toasts error={props.error} notice={props.notice} onDismissError={props.onDismissError} />
-
-      {desktop ? (
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] grid-rows-[minmax(0,1fr)_auto] gap-3 p-3">
-          <section className={`flex min-h-0 flex-col ${surface}`}>
-            <div className="min-h-0 flex-1 p-4 pb-2">
-              <PreviewPlayer emptyHint={emptyHint} />
-            </div>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 pb-3">
-              <div>{timecode}</div>
-              <div className="flex items-center gap-1">
-                {pro && <button onClick={() => store.setPlayhead(0)} className={iconButton} aria-label="Back to start" title="Back to start"><SkipBack size={17} /></button>}
-                <button onClick={() => jumpShot(-1)} className={iconButton} aria-label="Previous shot" title="Previous shot"><ChevronLeft size={19} /></button>
-                {playButton('lg')}
-                <button onClick={() => jumpShot(1)} className={iconButton} aria-label="Next shot" title="Next shot"><ChevronLeft size={19} className="rotate-180" /></button>
-                {pro && <button onClick={() => store.setPlayhead(endMs)} className={iconButton} aria-label="Go to end" title="Go to end"><SkipForward size={17} /></button>}
-              </div>
-              <div className="text-right">
-                <button onClick={() => setTab('format')} className="rounded-lg px-2 py-1 text-xs text-[#b0b8c4] hover:bg-white/5 hover:text-white" title="Change the video format">
-                  {formatFor(timeline?.resolution).label} {formatFor(timeline?.resolution).ratio} · {timeline?.fps || 24} fps
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <aside className={`row-span-2 flex min-h-0 flex-col overflow-hidden ${surface}`}>
-            <div role="tablist" aria-label="Editing tools" className="grid grid-cols-6 gap-1 border-b border-line p-1.5">
-              {TABS.map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  role="tab"
-                  aria-selected={tab === id}
-                  onClick={() => setTab(id)}
-                  className={`flex flex-col items-center gap-1 rounded-xl py-2 text-xs font-medium transition-colors ${
-                    tab === id ? 'bg-gold-500/15 text-gold-100' : 'text-[#b0b8c4] hover:bg-white/[0.04] hover:text-white'
-                  }`}
-                >
-                  <Icon size={17} strokeWidth={1.8} />
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto">{panel(tab)}</div>
-          </aside>
-
-          <section className="min-w-0 space-y-2">
-            <div className="flex items-center gap-1">
-              <ToolbarButton icon={Scissors} label="Split" title="Split at the playhead (S)" disabled={!canSplit} onClick={() => selected && store.split(selected.id, playhead_ms)} />
-              <ToolbarButton icon={Trash2} label="Delete" title="Delete (⌫)" disabled={!selected || selectedLocked} onClick={() => selected && store.removeClip(selected.id)} />
-              <span className="mx-1 h-5 w-px bg-line" />
-              <ToolbarButton icon={Type} label="Add text" onClick={() => { void props.onAddText(); }} disabled={shots.length === 0} />
-              <ToolbarButton icon={Music2} label={song ? 'Music' : 'Add music'} onClick={() => setTab('music')} />
-              <div className="ml-auto flex items-center gap-1.5">
-                {pro && (
-                  <>
-                    <button onClick={() => zoomTo(pixels_per_ms / 1.4)} className="grid size-8 place-items-center rounded-lg text-[#b0b8c4] hover:bg-white/5 hover:text-white" aria-label="Zoom out"><ZoomOut size={16} /></button>
-                    <input
-                      type="range" min={0} max={100} value={zoomValue} aria-label="Timeline zoom"
-                      onChange={(e) => zoomTo(ZOOM_LIMITS.MIN_PPMS * Math.exp((Number(e.target.value) / 100) * zoomRange))}
-                      className="w-28 accent-[#d9c08a]"
-                    />
-                    <button onClick={() => zoomTo(pixels_per_ms * 1.4)} className="grid size-8 place-items-center rounded-lg text-[#b0b8c4] hover:bg-white/5 hover:text-white" aria-label="Zoom in"><ZoomIn size={16} /></button>
-                  </>
-                )}
-                <button onClick={() => setFitSignal((n) => n + 1)} className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-[#b0b8c4] hover:bg-white/5 hover:text-white" title="Fit the whole video">
-                  <Maximize size={13} /> Fit
-                </button>
-              </div>
-            </div>
-            <TimelinePanel fitSignal={fitSignal} onAdd={addFrom} />
-          </section>
-        </div>
-      ) : (
-        <div className="relative flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col gap-2.5 px-3 pt-3">
-            {/* The stage is only as tall as the picture (at most about half the screen); the timeline gets the rest. */}
-            <section className={`shrink-0 p-2 sm:p-3 ${surface}`}>
-              <div style={{ height: `min(46dvh, calc((100vw - ${phone ? 44 : 50}px) * ${frameH / frameW}))` }}>
-                <PreviewPlayer emptyHint={emptyHint} />
-              </div>
-              <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1 px-1">
-                <div>{timecode}</div>
-                <div className="flex items-center gap-0.5">
-                  <button onClick={() => jumpShot(-1)} className={iconButton} aria-label="Previous shot"><ChevronLeft size={19} /></button>
-                  {playButton('md')}
-                  <button onClick={() => jumpShot(1)} className={iconButton} aria-label="Next shot"><ChevronLeft size={19} className="rotate-180" /></button>
-                </div>
-                <div className="flex justify-end">
-                  <button onClick={() => setFitSignal((n) => n + 1)} className={iconButton} aria-label="Fit the whole video on the timeline" title="Fit"><Maximize size={16} /></button>
-                </div>
-              </div>
-            </section>
-            <div className="min-h-[170px] flex-1">
-              <TimelinePanel centered={phone} roomy fitSignal={fitSignal} onAdd={addFrom} />
-            </div>
+  return (
+    <EditorModeContext.Provider value={mode}>
+      <MotionConfig reducedMotion="user">
+        <div className={`ed-backdrop relative isolate flex h-full flex-col overflow-clip ${resizing ? 'cursor-row-resize select-none' : ''}`}>
+          {/* Decorative light, in its own clipped layer so it can never make the editor scroll. */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+            <span className="ed-aurora -left-40 -top-40 size-[520px] bg-gold-400/[0.07]" />
+            <span className="ed-aurora -right-32 top-1/3 size-[420px] bg-[#b6ddd3]/[0.05] [animation-delay:-8s]" />
           </div>
 
-          {selected && selectedTrack ? (
-            <ContextBar
-              kind={selectedTrack.track_type}
-              locked={selectedLocked}
-              canSplit={canSplit}
-              position={shots.findIndex((c) => c.id === selected.id)}
-              shotCount={shots.length}
-              onDone={() => store.selectClip(null)}
-              onSplit={() => store.split(selected.id, playhead_ms)}
-              onDelete={() => store.removeClip(selected.id)}
-              onMove={(dir) => store.reorder(selected.id, shots.findIndex((c) => c.id === selected.id) + dir)}
-              onSettings={() => setSheet('clip')}
-            />
-          ) : (
-            <nav aria-label="Editing tools" className={dockClass}>
-              {TABS.filter((t) => t.id !== 'clip').map(({ id, label, icon: Icon }) => (
-                <button key={id} onClick={() => setSheet(id)} className="group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1 text-[11px] font-medium text-[#c9c3b4] active:scale-95">
-                  <span className={`grid size-9 place-items-center rounded-xl transition-colors group-hover:bg-white/[0.06] ${id === 'ai' ? 'bg-gold-500/15 text-gold-200' : 'text-[#e8e2d2]'}`}>
-                    <Icon size={19} strokeWidth={1.7} />
-                  </span>
-                  {label}
-                </button>
-              ))}
-              {phone && (
-                <button onClick={makeVideo} disabled={shots.length === 0} className={`ml-1 flex h-12 shrink-0 items-center gap-1.5 rounded-2xl px-4 text-sm font-semibold disabled:opacity-45 ${goldButton}`}>
-                  <Clapperboard size={16} /> Make
-                </button>
-              )}
-            </nav>
-          )}
+          {header}
+          <Toasts error={props.error} notice={props.notice} onDismissError={props.onDismissError} />
 
-          {sheet && (
-            <ToolSheet
-              title={TABS.find((t) => t.id === sheet)!.title}
-              onClose={() => setSheet(null)}
-              tall={sheet === 'ai'}
-              // Changes you judge by eye keep the preview bright and visible.
-              seeThrough={sheet === 'look' || sheet === 'format'}
+          {desktop ? (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="relative z-10 flex min-h-0 flex-1 gap-3 px-3 pb-3"
             >
-              {panel(sheet)}
-            </ToolSheet>
-          )}
-        </div>
-      )}
+              <ToolRail
+                tab={tab}
+                open={panelOpen}
+                onPick={(id) => (panelOpen && tab === id ? togglePanel() : openTool(id))}
+                onToggle={togglePanel}
+                onShortcuts={pro ? () => setShortcutsOpen(true) : undefined}
+              />
 
-      <ExportSheet
-        open={exportOpen}
-        onClose={() => setExportOpen(false)}
-        render={props.render}
-        summary={summary}
-        reframes={props.reframes}
-        reframing={props.reframing}
-        onRender={props.onRender}
-        onReframe={props.onReframe}
-        review={props.reviews?.find((r) => r.storage_key === props.render.storageKey) ?? null}
-        onShareForReview={props.onShareForReview}
-        onOpenReviews={() => {
-          setExportOpen(false);
-          setReviewsOpen(true);
-        }}
-      />
-      {props.onListVersions && props.onRestoreVersion && (
-        <VersionsSheet open={versionsOpen} onClose={() => setVersionsOpen(false)} onList={props.onListVersions} onRestore={props.onRestoreVersion} />
-      )}
-      <ReviewsSheet
-        open={reviewsOpen}
-        onClose={() => setReviewsOpen(false)}
-        shares={props.reviews ?? []}
-        onJump={(atMs) => {
-          // Notes are pinned to the finished video; find that moment among the shots.
-          store.setPlaying(false);
-          store.setPlayhead(outputToTimelineMs(shots, atMs));
-        }}
-        onResolve={(id, resolved) => props.onResolveNote?.(id, resolved)}
-        onTurnOff={(id) => props.onTurnOffLink?.(id)}
-      />
-      {shortcutsOpen && <ShortcutsCard onClose={() => setShortcutsOpen(false)} />}
-    </div>
+              <AnimatePresence initial={false} onExitComplete={() => setFitSignal((n) => n + 1)}>
+                {panelOpen && (
+                  <motion.aside
+                    key="panel"
+                    onAnimationComplete={() => setFitSignal((n) => n + 1)}
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 372, opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={spring}
+                    className="shrink-0 overflow-hidden"
+                    aria-label={activeTab.title}
+                  >
+                    <div className="ed-glass ed-glass-lit flex h-full w-[372px] flex-col overflow-hidden rounded-[22px]">
+                      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/[0.06] px-5 pb-3.5 pt-4">
+                        <AnimatePresence mode="wait" initial={false}>
+                          <motion.div key={tab} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
+                            <h2 className="text-[17px] font-medium tracking-tight text-white">
+                              {tab === 'ai' ? <>AI <span className="lux-serif text-gold-200">Director</span></> : activeTab.title}
+                            </h2>
+                            <p className="mt-0.5 text-xs text-[#8f97a1]">{activeTab.blurb}</p>
+                          </motion.div>
+                        </AnimatePresence>
+                        <button onClick={togglePanel} className="grid size-8 shrink-0 place-items-center rounded-full text-[#8f97a1] transition-colors hover:bg-white/[0.06] hover:text-white" aria-label="Hide panel" title="Hide panel (\)">
+                          <PanelLeftClose size={16} />
+                        </button>
+                      </div>
+                      <AnimatePresence mode="wait" initial={false}>
+                        <motion.div
+                          key={tab}
+                          role="tabpanel"
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 10 }}
+                          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                          className={`ed-scroll min-h-0 flex-1 ${tab === 'ai' ? 'flex flex-col' : 'overflow-y-auto'}`}
+                        >
+                          {panel(tab)}
+                        </motion.div>
+                      </AnimatePresence>
+                    </div>
+                  </motion.aside>
+                )}
+              </AnimatePresence>
+
+              <div ref={workArea} className="flex min-w-0 flex-1 flex-col">
+                <section className="ed-glass ed-glass-lit flex min-h-0 flex-1 flex-col overflow-hidden rounded-[22px]">
+                  <div className="relative min-h-0 flex-1 px-6 pb-3 pt-5">
+                    <PreviewPlayer emptyHint={emptyHint} />
+                  </div>
+                  <div className="border-t border-white/[0.05] bg-black/20 px-5 pb-3.5 pt-2.5">
+                    <Transport
+                      shots={shots}
+                      endMs={endMs}
+                      pro={pro}
+                      right={
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => openTool('look')} className={chip} title="Change the look">
+                            <span className="size-2 rounded-full bg-[conic-gradient(#e3cf9f,#b6ddd3,#c9b6e8,#e3cf9f)]" /> {gradeName}
+                          </button>
+                          <button onClick={() => openTool('format')} className={chip} title="Change the video format">
+                            {format.ratio} · {timeline?.fps || 24} fps
+                          </button>
+                        </div>
+                      }
+                    />
+                  </div>
+                </section>
+
+                <div
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-label="Resize the timeline"
+                  onPointerDown={startResize}
+                  onDoubleClick={() => setStoredHeight(TIMELINE_DEFAULT)}
+                  className="group flex h-3 shrink-0 cursor-row-resize touch-none items-center justify-center"
+                  title="Drag to resize · double-click to reset"
+                >
+                  <span className={`h-1 rounded-full transition-all duration-200 ${resizing ? 'w-16 bg-gold-200 shadow-[0_0_10px_rgba(243,229,192,0.8)]' : 'w-10 bg-white/15 group-hover:w-14 group-hover:bg-white/35'}`} />
+                </div>
+
+                <section className="ed-glass flex shrink-0 flex-col overflow-hidden rounded-[22px]" style={{ height: timelineHeight }}>
+                  <div className="flex shrink-0 items-center gap-1 border-b border-white/[0.05] px-2.5 py-1.5">
+                    <ToolbarButton icon={Scissors} label="Split" title="Split at the playhead (S)" disabled={!canSplit} onClick={() => selected && timelineStore.split(selected.id, playhead_ms)} />
+                    <ToolbarButton icon={Trash2} label="Delete" title="Delete (⌫)" disabled={!selected || selectedLocked} onClick={() => selected && timelineStore.removeClip(selected.id)} />
+                    <span className="mx-1.5 h-5 w-px bg-white/[0.08]" />
+                    <ToolbarButton icon={Type} label="Add text" onClick={() => { void props.onAddText(); }} disabled={shots.length === 0} />
+                    <ToolbarButton icon={Music2} label={song ? 'Music' : 'Add music'} onClick={() => openTool('music')} />
+                    <ToolbarButton icon={Wand2} label="AI edit" onClick={() => openTool('ai')} accent />
+                    <div className="ml-auto flex items-center gap-1">
+                      {pro && (
+                        <div className="flex items-center gap-1 rounded-full border border-white/[0.06] bg-black/20 px-1">
+                          <button onClick={() => zoomTo(pixels_per_ms / 1.4)} className="grid size-7 place-items-center rounded-full text-[#9aa3ad] hover:text-white" aria-label="Zoom out"><ZoomOut size={14} /></button>
+                          <input
+                            type="range" min={0} max={100} value={zoomValue} aria-label="Timeline zoom"
+                            onChange={(e) => zoomTo(ZOOM_LIMITS.MIN_PPMS * Math.exp((Number(e.target.value) / 100) * zoomRange))}
+                            className="w-24 accent-[#d9c08a]"
+                          />
+                          <button onClick={() => zoomTo(pixels_per_ms * 1.4)} className="grid size-7 place-items-center rounded-full text-[#9aa3ad] hover:text-white" aria-label="Zoom in"><ZoomIn size={14} /></button>
+                        </div>
+                      )}
+                      <button onClick={() => setFitSignal((n) => n + 1)} className="flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-[#9aa3ad] transition-colors hover:bg-white/[0.05] hover:text-white" title="Fit the whole video">
+                        <Maximize size={13} /> Fit
+                      </button>
+                    </div>
+                  </div>
+                  <div className="min-h-0 flex-1">
+                    <TimelinePanel roomy fitSignal={fitSignal} onAdd={addFrom} />
+                  </div>
+                </section>
+              </div>
+            </motion.div>
+          ) : (
+            <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+              <div className="flex min-h-0 flex-1 flex-col gap-2.5 px-3 pt-1">
+                {/* The stage is only as tall as the picture (at most about half the screen); the timeline gets the rest. */}
+                <section className="ed-glass ed-glass-lit shrink-0 rounded-[22px] p-2 sm:p-3">
+                  <div style={{ height: `min(44dvh, calc((100vw - ${phone ? 44 : 50}px) * ${frameH / frameW}))` }}>
+                    <PreviewPlayer emptyHint={emptyHint} />
+                  </div>
+                  <div className="mt-2 px-1.5 pb-0.5">
+                    <Transport
+                      shots={shots}
+                      endMs={endMs}
+                      pro={pro}
+                      compact
+                      right={<button onClick={() => setFitSignal((n) => n + 1)} className={iconButton} aria-label="Fit the whole video on the timeline" title="Fit"><Maximize size={16} /></button>}
+                    />
+                  </div>
+                </section>
+                <div className="ed-glass min-h-[170px] flex-1 overflow-hidden rounded-[22px]">
+                  <TimelinePanel centered={phone} roomy fitSignal={fitSignal} onAdd={addFrom} />
+                </div>
+              </div>
+
+              <AnimatePresence mode="wait" initial={false}>
+                {selected && selectedTrack ? (
+                  <ContextBar
+                    key="context"
+                    kind={selectedTrack.track_type}
+                    locked={selectedLocked}
+                    canSplit={canSplit}
+                    position={shots.findIndex((c) => c.id === selected.id)}
+                    shotCount={shots.length}
+                    onDone={() => timelineStore.selectClip(null)}
+                    onSplit={() => timelineStore.split(selected.id, playhead_ms)}
+                    onDelete={() => timelineStore.removeClip(selected.id)}
+                    onMove={(dir) => timelineStore.reorder(selected.id, shots.findIndex((c) => c.id === selected.id) + dir)}
+                    onSettings={() => setSheet('clip')}
+                  />
+                ) : (
+                  <motion.nav key="dock" initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 16, opacity: 0 }} transition={spring} aria-label="Editing tools" className={dockClass}>
+                    {TABS.filter((t) => t.id !== 'clip').map(({ id, label, icon: Icon }) => (
+                      <button key={id} onClick={() => setSheet(id)} className="group flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1 text-[11px] font-medium text-[#c9c3b4] active:scale-95">
+                        <span className={`grid size-9 place-items-center rounded-xl transition-colors group-hover:bg-white/[0.06] ${id === 'ai' ? 'bg-gold-500/15' : 'text-[#e8e2d2]'}`}>
+                          {id === 'ai' ? <span className="ed-orb block size-5" aria-hidden /> : <Icon size={19} strokeWidth={1.7} />}
+                        </span>
+                        {label}
+                      </button>
+                    ))}
+                    {phone && (
+                      <button onClick={makeVideo} disabled={shots.length === 0} className="ed-gold ml-1 flex h-12 shrink-0 items-center gap-1.5 rounded-2xl px-4 text-sm font-semibold disabled:opacity-45">
+                        <Clapperboard size={16} /> Make
+                      </button>
+                    )}
+                  </motion.nav>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence>
+                {sheet && (
+                  <ToolSheet
+                    key="sheet"
+                    title={TABS.find((t) => t.id === sheet)!.title}
+                    onClose={() => setSheet(null)}
+                    tall={sheet === 'ai'}
+                    // Changes you judge by eye keep the preview bright and visible.
+                    seeThrough={sheet === 'look' || sheet === 'format'}
+                  >
+                    {panel(sheet)}
+                  </ToolSheet>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          <ExportSheet
+            open={exportOpen}
+            onClose={() => setExportOpen(false)}
+            render={props.render}
+            summary={summary}
+            reframes={props.reframes}
+            reframing={props.reframing}
+            onRender={props.onRender}
+            onReframe={props.onReframe}
+            review={props.reviews?.find((r) => r.storage_key === props.render.storageKey) ?? null}
+            onShareForReview={props.onShareForReview}
+            onOpenReviews={() => {
+              setExportOpen(false);
+              setReviewsOpen(true);
+            }}
+          />
+          {props.onListVersions && props.onRestoreVersion && (
+            <VersionsSheet open={versionsOpen} onClose={() => setVersionsOpen(false)} onList={props.onListVersions} onRestore={props.onRestoreVersion} />
+          )}
+          <ReviewsSheet
+            open={reviewsOpen}
+            onClose={() => setReviewsOpen(false)}
+            shares={props.reviews ?? []}
+            onJump={(atMs) => {
+              // Notes are pinned to the finished video; find that moment among the shots.
+              timelineStore.setPlaying(false);
+              timelineStore.setPlayhead(outputToTimelineMs(shots, atMs));
+            }}
+            onResolve={(id, resolved) => props.onResolveNote?.(id, resolved)}
+            onTurnOff={(id) => props.onTurnOffLink?.(id)}
+          />
+          <AnimatePresence>{shortcutsOpen && <ShortcutsCard onClose={() => setShortcutsOpen(false)} />}</AnimatePresence>
+        </div>
+      </MotionConfig>
     </EditorModeContext.Provider>
   );
 }
@@ -566,8 +671,8 @@ function ModeSwitch({ mode, onChange, compact }: { mode: EditorMode; onChange: (
         aria-checked={mode === 'pro'}
         aria-label="Pro tools"
         onClick={() => onChange(mode === 'pro' ? 'simple' : 'pro')}
-        className={`mr-0.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-          mode === 'pro' ? 'border-gold-300/70 bg-gold-200 text-[#1a160e]' : 'border-line text-[#b0b8c4]'
+        className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+          mode === 'pro' ? 'border-gold-300/70 bg-gold-200 text-[#1a160e]' : 'border-white/[0.1] text-[#b0b8c4]'
         }`}
       >
         Pro
@@ -575,7 +680,7 @@ function ModeSwitch({ mode, onChange, compact }: { mode: EditorMode; onChange: (
     );
   }
   return (
-    <div role="radiogroup" aria-label="Editor mode" className="mr-1 flex items-center rounded-full border border-line bg-white/[0.03] p-0.5 text-xs">
+    <div role="radiogroup" aria-label="Editor mode" className="relative flex items-center rounded-full bg-black/30 p-0.5 text-xs">
       {(['simple', 'pro'] as const).map((m) => (
         <button
           key={m}
@@ -583,11 +688,10 @@ function ModeSwitch({ mode, onChange, compact }: { mode: EditorMode; onChange: (
           aria-checked={mode === m}
           onClick={() => onChange(m)}
           title={m === 'pro' ? 'Pro: frame timecode, zoom, row controls, exact lengths and shortcuts' : 'Simple: just what you need'}
-          className={`rounded-full font-medium transition-colors ${compact ? 'px-2.5 py-1' : 'px-3 py-1'} ${
-            mode === m ? 'bg-gold-200 text-[#1a160e]' : 'text-[#b0b8c4] hover:text-white'
-          }`}
+          className={`relative rounded-full px-3 py-1 font-medium transition-colors ${mode === m ? 'text-[#1a160e]' : 'text-[#b0b8c4] hover:text-white'}`}
         >
-          {m === 'pro' ? 'Pro' : 'Simple'}
+          {mode === m && <motion.span layoutId="mode-pill" className="absolute inset-0 rounded-full bg-gold-200 shadow-[0_6px_16px_-8px_rgba(227,207,159,0.9)]" transition={spring} />}
+          <span className="relative">{m === 'pro' ? 'Pro' : 'Simple'}</span>
         </button>
       ))}
     </div>
@@ -599,9 +703,9 @@ function SaveStatus({ saving, failed, short = false }: { saving: boolean; failed
     ? [short ? 'Retrying save' : 'Not saved yet · retrying', 'bg-amber-300']
     : saving
       ? ['Saving…', 'bg-gold-300 animate-pulse']
-      : [short ? 'Saved' : 'All changes saved', 'bg-[#8fd1b9]'];
+      : [short ? 'Saved' : 'All changes saved', 'bg-[#8fd1b9] shadow-[0_0_6px_#8fd1b9]'];
   return (
-    <p className="flex items-center gap-1.5 whitespace-nowrap text-xs text-[#b0b8c4]" aria-live="polite">
+    <p className="flex items-center gap-1.5 whitespace-nowrap text-[11.5px] text-[#8f97a1]" aria-live="polite">
       <span className={`size-1.5 rounded-full ${dot}`} aria-hidden /> {label}
     </p>
   );
@@ -614,12 +718,23 @@ function RenderPill({ render, onClick }: { render: RenderState; onClick: () => v
       ? 'border-red-400/40 text-red-100'
       : render.status === 'completed'
         ? 'border-gold-300/50 text-gold-100'
-        : 'border-line-strong text-[#e8e2d2]';
+        : 'border-white/[0.12] text-[#e8e2d2]';
+  const r = 7;
+  const c = 2 * Math.PI * r;
   return (
-    <button onClick={onClick} className={`ml-1 flex h-9 items-center gap-2 rounded-full border px-3 text-[13px] hover:bg-white/5 ${tone}`}>
+    <motion.button
+      initial={{ opacity: 0, scale: 0.85 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.85 }}
+      onClick={onClick}
+      className={`flex h-9 items-center gap-2 rounded-full border bg-white/[0.03] px-3 text-[13px] transition-colors hover:bg-white/5 ${tone}`}
+    >
       {busy ? (
         <>
-          <Loader2 size={14} className="animate-spin text-gold-300" />
+          <svg viewBox="0 0 18 18" className="size-[18px] -rotate-90" aria-hidden>
+            <circle cx="9" cy="9" r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="2.2" />
+            <circle cx="9" cy="9" r={r} fill="none" stroke="#e3cf9f" strokeWidth="2.2" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - Math.max(0.04, render.progress / 100))} className="transition-[stroke-dashoffset] duration-500" />
+          </svg>
           <span className="tabular-nums">{render.progress}%</span>
         </>
       ) : render.status === 'completed' ? (
@@ -629,35 +744,57 @@ function RenderPill({ render, onClick }: { render: RenderState; onClick: () => v
       ) : (
         'Didn’t finish'
       )}
-    </button>
+    </motion.button>
   );
 }
 
 function Toasts({ error, notice, onDismissError }: { error: string | null; notice: string | null; onDismissError: () => void }) {
-  if (!error && !notice) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex flex-col items-center gap-2 px-4 md:top-20">
-      {error && (
-        <div role="alert" className="pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-2xl border border-red-400/30 bg-[#2a1414]/95 px-4 py-3 text-sm text-red-100 shadow-2xl backdrop-blur animate-[sheet-rise_0.25s_ease]">
-          <span className="flex-1">{error}</span>
-          <button onClick={onDismissError} aria-label="Dismiss" className="text-red-200/70 hover:text-white"><X size={16} /></button>
-        </div>
-      )}
-      {notice && (
-        <div role="status" className="w-full max-w-md rounded-2xl border border-[#b6ddd3]/30 bg-[#122220]/95 px-4 py-3 text-sm text-[#dff1ec] shadow-2xl backdrop-blur animate-[sheet-rise_0.25s_ease]">
-          {notice}
-        </div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            key="error"
+            role="alert"
+            initial={{ opacity: 0, y: -12, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.97 }}
+            className="pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-2xl border border-red-400/30 bg-[#2a1414]/95 px-4 py-3 text-sm text-red-100 shadow-2xl backdrop-blur"
+          >
+            <span className="flex-1">{error}</span>
+            <button onClick={onDismissError} aria-label="Dismiss" className="text-red-200/70 hover:text-white"><X size={16} /></button>
+          </motion.div>
+        )}
+        {notice && (
+          <motion.div
+            key={`notice-${notice}`}
+            role="status"
+            initial={{ opacity: 0, y: -12, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.97 }}
+            className="ed-glass w-full max-w-md rounded-2xl px-4 py-3 text-sm text-[#dff1ec]"
+          >
+            {notice}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function ToolbarButton({ icon: Icon, label, title, disabled, onClick }: {
-  icon: typeof Scissors; label: string; title?: string; disabled?: boolean; onClick: () => void;
+function ToolbarButton({ icon: Icon, label, title, disabled, onClick, accent = false }: {
+  icon: typeof Scissors; label: string; title?: string; disabled?: boolean; onClick: () => void; accent?: boolean;
 }) {
   return (
-    <button onClick={onClick} disabled={disabled} title={title ?? label} className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-[#d6d0c0] transition-colors hover:bg-white/[0.06] hover:text-white disabled:opacity-35 disabled:hover:bg-transparent">
-      <Icon size={15} /> {label}
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title ?? label}
+      className={`flex h-8 items-center gap-1.5 rounded-full px-3 text-[12.5px] transition-all active:scale-95 disabled:opacity-30 disabled:hover:bg-transparent ${
+        accent ? 'text-gold-100 hover:bg-gold-500/15' : 'text-[#d6d0c0] hover:bg-white/[0.06] hover:text-white'
+      }`}
+    >
+      <Icon size={14} /> {label}
     </button>
   );
 }
@@ -674,7 +811,14 @@ function ContextBar({ kind, locked, canSplit, position, shotCount, onDone, onSpl
     </button>
   );
   return (
-    <nav aria-label="Selected item" className={`${dockClass} border-gold-400/35`}>
+    <motion.nav
+      initial={{ y: 16, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 16, opacity: 0 }}
+      transition={spring}
+      aria-label="Selected item"
+      className={`${dockClass} !border-gold-400/35`}
+    >
       <button onClick={onDone} aria-label="Done" className="grid h-12 w-10 shrink-0 place-items-center rounded-xl bg-gold-500/15 text-gold-200 active:scale-95">
         <ChevronLeft size={22} />
       </button>
@@ -688,7 +832,7 @@ function ContextBar({ kind, locked, canSplit, position, shotCount, onDone, onSpl
       )}
       {kind !== 'video' && item(kind === 'caption' ? Type : SlidersHorizontal, kind === 'caption' ? 'Edit text' : 'Adjust', onSettings)}
       {item(Trash2, 'Delete', onDelete, false, true)}
-    </nav>
+    </motion.nav>
   );
 }
 
@@ -702,16 +846,27 @@ function ToolSheet({ title, onClose, tall, seeThrough = false, children }: {
   }, [onClose]);
   return (
     <>
-      <button aria-label="Close" onClick={onClose} className={`absolute inset-0 z-30 ${seeThrough ? 'bg-transparent' : 'bg-black/40'}`} />
-      <div
+      <motion.button
+        aria-label="Close"
+        onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className={`absolute inset-0 z-30 ${seeThrough ? 'bg-transparent' : 'bg-black/45 backdrop-blur-[2px]'}`}
+      />
+      <motion.div
         role="dialog"
         aria-label={title}
-        className={`absolute inset-x-0 bottom-0 z-40 flex flex-col rounded-t-3xl border-t border-line-strong bg-obsidian-900 shadow-[0_-30px_60px_-20px_rgba(0,0,0,0.9)] animate-[sheet-rise_0.28s_cubic-bezier(0.22,1,0.36,1)] ${
-          tall ? 'h-[72%]' : seeThrough ? 'max-h-[48%]' : 'max-h-[62%]'
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 420, damping: 42 }}
+        className={`ed-glass ed-glass-lit absolute inset-x-0 bottom-0 z-40 flex flex-col rounded-t-[28px] !bg-obsidian-900/95 ${
+          tall ? 'h-[74%]' : seeThrough ? 'max-h-[48%]' : 'max-h-[62%]'
         }`}
       >
-        <div className="flex shrink-0 items-center justify-between px-4 pb-1 pt-2.5">
-          <span className="mx-auto mb-1 block h-1 w-10 rounded-full bg-white/15" aria-hidden />
+        <div className="flex shrink-0 justify-center pb-1 pt-2.5">
+          <span className="block h-1 w-10 rounded-full bg-white/20" aria-hidden />
         </div>
         <div className="flex shrink-0 items-center justify-between px-4 pb-1">
           <h2 className="text-base font-medium text-white">{title}</h2>
@@ -719,16 +874,31 @@ function ToolSheet({ title, onClose, tall, seeThrough = false, children }: {
             <X size={18} />
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">{children}</div>
-      </div>
+        <div className="ed-scroll flex min-h-0 flex-1 flex-col overflow-y-auto pb-[env(safe-area-inset-bottom)]">{children}</div>
+      </motion.div>
     </>
   );
 }
 
 function ShortcutsCard({ onClose }: { onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div role="dialog" aria-label="Keyboard shortcuts" className="w-full max-w-sm rounded-3xl border border-line-strong bg-obsidian-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 16, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 16, scale: 0.96 }}
+        transition={spring}
+        role="dialog"
+        aria-label="Keyboard shortcuts"
+        className="ed-glass ed-glass-lit w-full max-w-sm rounded-3xl !bg-obsidian-900/95 p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-light text-white">Keyboard <span className="lux-serif text-gold-200">shortcuts</span></h2>
           <button onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-full text-[#b0b8c4] hover:bg-white/5"><X size={16} /></button>
@@ -742,7 +912,7 @@ function ShortcutsCard({ onClose }: { onClose: () => void }) {
           ))}
         </dl>
         <p className="mt-4 text-xs leading-relaxed text-[#9aa3ad]">Drag shots to reorder; drag their edges to trim. Edges snap to the playhead, cuts and beats.</p>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
