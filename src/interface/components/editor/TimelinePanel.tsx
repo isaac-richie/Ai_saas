@@ -20,6 +20,13 @@ const ROW: Record<string, number> = { video: 60, audio: 44, caption: 36, sfx: 36
 const ROOMY_ROW: Record<string, number> = { video: 76, audio: 52, caption: 42, sfx: 42 };
 const TRACK_ICON = { video: Film, audio: Music, caption: Type, sfx: Music } as const;
 const TRACK_LABEL: Record<string, string> = { video: 'Shots', audio: 'Music', caption: 'Text', sfx: 'Sound' };
+// Each row has its own colour, used by its icon chip and its clips.
+const TRACK_TINT: Record<string, string> = {
+  video: 'bg-gold-400/15 text-gold-200 ring-gold-300/25',
+  audio: 'bg-[#b6ddd3]/12 text-[#b6ddd3] ring-[#b6ddd3]/25',
+  caption: 'bg-[#c9b6e8]/12 text-[#d9c9f3] ring-[#c9b6e8]/25',
+  sfx: 'bg-[#b6ddd3]/12 text-[#b6ddd3] ring-[#b6ddd3]/25',
+};
 const TICK_STEPS = [500, 1000, 2000, 5000, 10000, 15000, 30000, 60000, 120000];
 
 type Drag =
@@ -258,15 +265,17 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
   const x = (ms: number) => pad + ms * ppm;
 
   return (
-    <div ref={root} className={`relative flex min-h-0 select-none overflow-hidden rounded-2xl border border-line bg-[#0c0d0c]/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] ${roomy ? 'h-full' : ''}`}>
-      <div className={`${centered ? 'w-10' : 'w-11 md:w-[9.5rem]'} shrink-0 border-r border-line bg-obsidian-900`}>
-        <div className="h-7 border-b border-line" />
+    <div ref={root} className={`relative flex min-h-0 select-none overflow-hidden ${roomy ? 'h-full' : ''}`}>
+      <div className={`${centered ? 'w-11' : 'w-12 md:w-[9.5rem]'} shrink-0 border-r border-white/[0.05] bg-black/25`}>
+        <div className="h-7 border-b border-white/[0.05]" />
         {visibleTracks.map((track) => {
           const Icon = TRACK_ICON[track.track_type];
           return (
-            <div key={track.id} style={{ height: rowHeight[track.track_type] }} className="flex items-center gap-1.5 border-b border-line px-2.5">
-              <Icon size={14} className={`shrink-0 ${track.muted ? 'text-white/30' : 'text-gold-300/80'}`} aria-hidden />
-              <span className={`${centered ? 'hidden' : 'hidden md:block'} flex-1 truncate text-[13px] text-[#d6d0c0]`}>{TRACK_LABEL[track.track_type]}</span>
+            <div key={track.id} style={{ height: rowHeight[track.track_type] }} className="flex items-center gap-2 border-b border-white/[0.04] px-2 md:px-2.5">
+              <span className={`grid size-7 shrink-0 place-items-center rounded-lg ring-1 ring-inset ${track.muted ? 'bg-white/[0.04] text-white/30 ring-white/10' : TRACK_TINT[track.track_type]}`} aria-hidden>
+                <Icon size={13} strokeWidth={2} />
+              </span>
+              <span className={`${centered ? 'hidden' : 'hidden md:block'} flex-1 truncate text-[12.5px] font-medium text-[#d6d0c0]`}>{TRACK_LABEL[track.track_type]}</span>
               <div className={`${centered || !pro ? 'hidden' : 'hidden md:flex'} items-center`}>
                 {track.track_type !== 'caption' && (
                   <button
@@ -319,7 +328,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
         >
           <div className="relative" style={{ width: contentWidth }}>
             <div
-              className="relative h-7 cursor-ew-resize touch-pan-x border-b border-line bg-obsidian-900/80"
+              className="relative h-7 cursor-ew-resize touch-pan-x border-b border-white/[0.05] bg-black/30"
               onPointerDown={startScrub}
               role="slider"
               aria-label="Playhead"
@@ -333,8 +342,8 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
                 if (!major && !pro) return null;
                 return (
                   <div key={t} className="absolute bottom-0" style={{ left: x(t) }}>
-                    <div className={`w-px ${major ? 'h-2.5 bg-white/30' : 'h-1.5 bg-white/12'}`} />
-                    {major && <span className="absolute bottom-3 left-1 whitespace-nowrap text-[10px] tabular-nums text-[#9aa3ad]">{formatClock(t, step < 1000)}</span>}
+                    <div className={`w-px ${major ? 'h-3 bg-white/25' : 'h-1.5 bg-white/10'}`} />
+                    {major && <span className="absolute bottom-3 left-1.5 whitespace-nowrap font-mono text-[9.5px] tabular-nums text-[#7d858f]">{formatClock(t, step < 1000)}</span>}
                   </div>
                 );
               })}
@@ -348,7 +357,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
               <div
                 key={track.id}
                 style={{ height: rowHeight[track.track_type] }}
-                className={`relative border-b border-line ${track.locked ? 'bg-[repeating-linear-gradient(135deg,transparent_0_7px,rgba(255,255,255,0.025)_7px_14px)]' : ''}`}
+                className={`relative border-b border-white/[0.04] ${track.locked ? 'bg-[repeating-linear-gradient(135deg,transparent_0_7px,rgba(255,255,255,0.025)_7px_14px)]' : track.track_type === 'video' ? 'bg-white/[0.012]' : ''}`}
                 onClick={() => selectClip(null)}
               >
                 {clips
@@ -403,7 +412,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
                   <button
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); onAdd('shots'); }}
-                    className="absolute inset-y-[3px] flex w-11 items-center justify-center rounded-lg border border-dashed border-white/20 text-white/50 transition-colors hover:border-gold-300/60 hover:bg-gold-500/10 hover:text-gold-100"
+                    className="absolute inset-y-[5px] flex w-11 items-center justify-center rounded-[10px] border border-dashed border-white/15 text-white/45 transition-all hover:scale-105 hover:border-gold-300/60 hover:bg-gold-500/10 hover:text-gold-100"
                     style={{ left: x(videoEnd) + 8 }}
                     aria-label="Add more shots from your storyboard"
                     title="Add more shots from your storyboard"
@@ -415,7 +424,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
                   <button
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); onAdd(track.track_type === 'caption' ? 'text' : 'music'); }}
-                    className="absolute inset-y-[3px] flex items-center gap-1.5 rounded-lg border border-dashed border-white/15 px-3 text-xs text-white/55 transition-colors hover:border-gold-300/60 hover:bg-gold-500/10 hover:text-gold-100"
+                    className="absolute inset-y-[5px] flex items-center gap-1.5 rounded-[10px] border border-dashed border-white/12 px-3 text-xs text-white/50 transition-colors hover:border-gold-300/60 hover:bg-gold-500/10 hover:text-gold-100"
                     style={{ left: x(0), width: Math.max(140, Math.min(260, videoEnd * ppm)) }}
                   >
                     <Plus size={14} /> {track.track_type === 'caption' ? 'Add text' : 'Add a song'}
@@ -432,22 +441,26 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
               <div className="pointer-events-none absolute bottom-0 top-7 z-30 w-px bg-[#b6ddd3] shadow-[0_0_6px_#b6ddd3]" style={{ left: x(snapAt) }} />
             )}
 
-            {!centered && <Playhead left={x(playhead_ms)} ms={playhead_ms} />}
+            {!centered && <Playhead left={x(playhead_ms)} ms={playhead_ms} playing={is_playing} />}
           </div>
         </div>
-        {centered && <Playhead left="50%" ms={playhead_ms} />}
+        {centered && <Playhead left="50%" ms={playhead_ms} playing={is_playing} />}
       </div>
     </div>
   );
 }
 
-function Playhead({ left, ms }: { left: number | string; ms: number }) {
+function Playhead({ left, ms, playing }: { left: number | string; ms: number; playing: boolean }) {
   // Near the left edge the time label hangs to the right so it is never cut off.
   const edge = typeof left === 'number' && left < 28;
   return (
-    <div className="pointer-events-none absolute bottom-0 top-0 z-40 w-0.5 -translate-x-1/2 bg-gold-200 shadow-[0_0_10px_rgba(227,207,159,0.8)]" style={{ left }}>
-      <div className={`absolute top-0 rounded-b-md bg-gold-200 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none text-[#1a160e] ${edge ? 'left-0 rounded-br-md rounded-bl-none' : 'left-1/2 -translate-x-1/2'}`}>
+    <div className="pointer-events-none absolute bottom-0 top-0 z-40 -translate-x-1/2" style={{ left }}>
+      <div data-playing={playing} className="ed-playhead-glow absolute bottom-0 top-0 left-1/2 w-[2px] -translate-x-1/2 bg-[linear-gradient(180deg,#fbf3dc,#e3cf9f_40%,rgba(227,207,159,0.55))]" />
+      <div
+        className={`absolute top-0.5 rounded-md bg-[linear-gradient(135deg,#fbf3dc,#e3cf9f)] px-1.5 py-[3px] font-mono text-[9.5px] font-semibold tabular-nums leading-none text-[#1a160e] shadow-[0_4px_12px_-4px_rgba(227,207,159,0.9)] ${edge ? 'left-0' : 'left-1/2 -translate-x-1/2'}`}
+      >
         {formatClock(ms, true)}
+        {!edge && <span className="absolute left-1/2 top-full size-1.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-[#e3cf9f]" aria-hidden />}
       </div>
     </div>
   );
@@ -476,10 +489,10 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
   const label = kind === 'video' ? subject || `Shot ${number}` : kind === 'audio' ? meta.name || 'Music' : meta.text || 'Text';
   const tone =
     kind === 'video'
-      ? 'border-white/10 bg-[#1b1a16]'
+      ? 'border-white/[0.09] bg-[#1b1a16]'
       : kind === 'audio'
-        ? 'border-[#b6ddd3]/30 bg-[#16201e]'
-        : 'border-[#c9b6e8]/30 bg-[#211c2b]';
+        ? 'border-[#b6ddd3]/25 bg-[linear-gradient(180deg,#1a2a27,#121b19)]'
+        : 'border-[#c9b6e8]/30 bg-[linear-gradient(180deg,#2a2336,#1d1827)]';
 
   return (
     <div
@@ -496,9 +509,9 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
       }}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => onDown(e)}
-      className={`group absolute inset-y-[3px] overflow-hidden rounded-lg border ${tone} ${
-        selected ? 'z-10 border-gold-200 shadow-[0_0_0_1px_#e3cf9f,0_0_22px_-4px_rgba(217,192,138,0.75)]' : 'hover:border-white/25'
-      } ${dragDx !== null ? 'z-20 opacity-85 shadow-2xl' : ''} ${track.locked || isClipLocked(clip) ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
+      className={`group absolute inset-y-[5px] overflow-hidden rounded-[10px] border shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_6px_14px_-8px_rgba(0,0,0,0.9)] transition-[border-color,box-shadow,filter] duration-200 ${tone} ${
+        selected ? 'z-10 !border-gold-200 shadow-[0_0_0_1px_#e3cf9f,0_0_26px_-4px_rgba(217,192,138,0.8)]' : 'hover:border-white/25 hover:brightness-110'
+      } ${dragDx !== null ? 'z-20 scale-[1.02] opacity-90 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.95)]' : ''} ${track.locked || isClipLocked(clip) ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
       style={{ left, width, transform: dragDx !== null ? `translateX(${dragDx}px)` : undefined }}
     >
       {kind === 'video' && <Filmstrip clip={clip} width={width} ppm={ppm} height={rowHeight - 8} />}
@@ -507,14 +520,14 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
         beats.map((bx, i) => <span key={i} className="absolute bottom-1 h-1 w-1 -translate-x-1/2 rounded-full bg-gold-300/80" style={{ left: bx }} />)}
 
       <div
-        className={`pointer-events-none relative h-full ${kind === 'video' ? 'bg-[linear-gradient(180deg,rgba(0,0,0,0.45),transparent_38%,transparent_55%,rgba(0,0,0,0.65))]' : 'flex items-center'}`}
+        className={`pointer-events-none relative h-full ${kind === 'video' ? 'bg-[linear-gradient(180deg,rgba(0,0,0,0.5),transparent_34%,transparent_52%,rgba(0,0,0,0.75))]' : 'flex items-center'}`}
       >
         {kind === 'video' ? (
           <>
             {/* Top-left: which shot, and its speed. Bottom: name and length, clear of the trim handles. */}
             <span className={`absolute top-1.5 flex items-center gap-1 ${selected ? 'left-5' : 'left-3.5'}`}>
               {width > 22 && (
-                <span className="grid h-4 min-w-4 place-items-center rounded-[5px] bg-black/55 px-1 text-[10px] font-semibold tabular-nums text-white backdrop-blur-sm">
+                <span className={`grid h-4 min-w-4 place-items-center rounded-[5px] px-1 text-[10px] font-semibold tabular-nums backdrop-blur-sm ${selected ? 'bg-gold-200 text-[#1a160e]' : 'bg-black/60 text-white'}`}>
                   {number}
                 </span>
               )}
