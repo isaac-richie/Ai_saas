@@ -1,4 +1,4 @@
-import { MAX_FILM_SHOTS, MAX_SHOT_PROMPT_CHARS, MIN_FILM_SHOTS } from "@/core/config/film"
+import { MAX_FILM_SHOTS, MAX_SHOT_PROMPT_CHARS, MIN_FILM_SHOTS, SHOT_EDITOR_BATCH } from "@/core/config/film"
 import { MAX_FAST_TRACK_SECONDS, MIN_FAST_TRACK_SECONDS, getKieVideoModelFamily } from "@/core/config/kie-video-models"
 import { z } from "zod"
 import { studioAdCampaignPlanSchema, studioAdCampaignDeliverableSchema } from "./studio-ad"
@@ -78,15 +78,19 @@ export const crewMetadataSchema = z.object({
   performance: departmentDirectionSchema.optional(),
   review: crewReviewSchema,
   // These identify completed model calls, not generated footage.
+  // Five to seven roles, plus one more shot-editor step for each extra batch a long film is written in
+  // (a 24-shot film is written in two batches of 12, so it records 8 steps).
   stages: z.array(z.object({ role: z.string(), responseId: z.string(), model: z.string().optional() })).refine(
-    (stages) => stages.length === 5 || stages.length === 6 || stages.length === 7,
-    "Crew plans must contain the legacy five-role crew or the current six-role crew.",
+    (stages) => stages.length >= 5 && stages.length <= 7 + Math.ceil(MAX_FILM_SHOTS / SHOT_EDITOR_BATCH) - 1,
+    "Crew plans must contain the five to seven crew roles, with one shot-editor step per batch.",
   ),
 })
 
 export const productionPlanSchema = studioAdCampaignPlanSchema.extend({
   // Editorial notes are not provider prompts and need room for complete cut/compositing instructions.
   deliverables: z.array(studioAdCampaignDeliverableSchema.extend({
+    // Film shot prompts may use the full film budget (2,000), not the campaign cap of 1,200.
+    masterPrompt: z.string().min(30).max(MAX_SHOT_PROMPT_CHARS),
     durationSeconds: z.number().int().min(MIN_FAST_TRACK_SECONDS).max(MAX_FAST_TRACK_SECONDS),
     productionNotes: z.array(z.string().min(3).max(1200)).max(5).default([]),
   })).min(MIN_FILM_SHOTS).max(MAX_FILM_SHOTS),

@@ -30,7 +30,8 @@ export function describeCrewFailure(message: string, stage = "this step"): CrewF
   if (/\b5\d\d\b|overloaded|server_error|service unavailable|bad gateway/i.test(message)) {
     return { reason: "ai_outage", title: "AI service hiccup", description: `The AI provider had a temporary problem. ${saved} Resume in a moment.` }
   }
-  if (/field limit|too_big|zod/i.test(message)) {
+  // Only real length overruns are "too much"; other format problems fall through to a plain retry message.
+  if (/field limit|too_big/i.test(message)) {
     return { reason: "too_long", title: "The crew wrote too much", description: `A reply ran past a studio limit. ${saved} Resume to try that step again.` }
   }
   return { reason: "unknown", title: `The crew stopped at ${stage}`, description: `${saved} Resume to try again. If it keeps happening, let us know.` }
