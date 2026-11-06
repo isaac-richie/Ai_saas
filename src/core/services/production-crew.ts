@@ -163,6 +163,17 @@ const CREW_FIELD_LIMITS: Record<string, number> = {
   cameraRules: 300, summary: 600, evidence: 600, correction: 600,
 }
 
+// Text inside lists (one entry per shot, anchors, constraints) has its own limit per item, and some
+// lists have a maximum length. Long films write many entries in one reply, so these matter most there.
+const CREW_LIST_ITEM_LIMITS: Record<string, number> = {
+  beats: 600, shotDirections: 600, constraints: 600, assumptions: 600, continuityAnchors: 240,
+  carriedDetails: 160, invariants: 180, heroObjects: 160, palette: 80, intentionalChanges: 160,
+}
+const CREW_LIST_CAPS: Record<string, number> = {
+  constraints: 6, assumptions: 6, continuityAnchors: 8, carriedDetails: 12, invariants: 12,
+  heroObjects: 8, palette: 8, intentionalChanges: 4, findings: 48,
+}
+
 /**
  * Structured Outputs can occasionally honor the shape yet exceed a string
  * bound. Apply only deterministic whitespace and length normalization before
@@ -173,6 +184,15 @@ export function normalizeCrewStageOutput(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(normalizeCrewStageOutput)
   if (!value || typeof value !== "object") return value
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => {
+    if (Array.isArray(item)) {
+      const itemLimit = CREW_LIST_ITEM_LIMITS[key]
+      const items = item.map(entry => typeof entry === "string"
+        ? (itemLimit ? clip(entry, itemLimit) : entry.replace(/\s+/g, " ").trim())
+        : normalizeCrewStageOutput(entry))
+      // Per-shot lists (beats, directions, shots) are never cut: their count is checked exactly.
+      const cap = CREW_LIST_CAPS[key]
+      return [key, cap ? items.slice(0, cap) : items]
+    }
     if (typeof item !== "string") return [key, normalizeCrewStageOutput(item)]
     const limit = CREW_FIELD_LIMITS[key]
     if (!limit) return [key, item.replace(/\s+/g, " ").trim()]
@@ -323,7 +343,10 @@ export function createCrewRunner(_legacyModel: string, references: ProductionAss
               instruction,
             ].join(" "),
             input: references.length ? [{ role: "user", content: [{ type: "input_text", text: JSON.stringify({ context }) }, ...(await referenceInput)] }] : JSON.stringify(context),
-            text: { format: zodTextFormat(outputSchema, role.replaceAll("-", "_")) },
+            // The JSON schema guides the model, but the SDK's own strict parse is left out (spreading
+            // drops its hidden parser): one field a little over its length limit would otherwise
+            // reject the whole paid reply before normalizeCrewStageOutput can trim it.
+            text: { format: { ...zodTextFormat(outputSchema, role.replaceAll("-", "_")) } },
           }, { timeout: Math.min(CREW_CALL_TIMEOUT_MS, remaining) })
           break
         } catch (cause) {

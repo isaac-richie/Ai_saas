@@ -59,7 +59,7 @@ test('crew diagnostics preserve plain provider errors without leaking credential
 
 const normalizationNames = new Set(['clip', 'clipComplete', 'trimToLastSentence', 'normalizeCrewStageOutput'])
 const normalizationCode = errorTree.statements
-  .filter(node => (ts.isFunctionDeclaration(node) && normalizationNames.has(node.name?.text)) || (ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => ts.isIdentifier(declaration.name) && declaration.name.text === 'CREW_FIELD_LIMITS')))
+  .filter(node => (ts.isFunctionDeclaration(node) && normalizationNames.has(node.name?.text)) || (ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => ts.isIdentifier(declaration.name) && ['CREW_FIELD_LIMITS', 'CREW_LIST_ITEM_LIMITS', 'CREW_LIST_CAPS'].includes(declaration.name.text))))
   .map(node => node.getText(errorTree)).join('\n')
 const normalizationModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(normalizationCode, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: normalizationModule, exports: normalizationModule.exports, Object, Array, Set, Math })
@@ -68,6 +68,27 @@ test('crew output normalizes verbose negative prompts before stage validation', 
   assert.ok(output.shots[0].prompt.length <= film.MAX_SHOT_PROMPT_CHARS)
   assert.match(output.shots[0].prompt, /[.!?]$/)
   assert.ok(output.shots[0].negativePrompt.length <= 500)
+})
+
+test('long films: list entries and list lengths are brought inside studio limits, shot counts never cut', () => {
+  const longDirection = 'Low warm key from the window, motivated by the late sun, falling across her left cheek. '.repeat(12)
+  const output = normalizationModule.exports.normalizeCrewStageOutput({
+    approach: 'A'.repeat(900),
+    shotDirections: Array.from({ length: 24 }, () => longDirection),
+    constraints: Array.from({ length: 9 }, (_, i) => `Constraint number ${i} keeps the light motivated.`),
+    beats: Array.from({ length: 24 }, () => longDirection),
+    continuityLedger: { palette: Array.from({ length: 11 }, () => 'deep amber with soft teal shadow '.repeat(4)), invariants: Array.from({ length: 15 }, () => 'Same face, same coat. '.repeat(12)) },
+  })
+  assert.equal(output.shotDirections.length, 24, 'per-shot lists keep every shot')
+  assert.equal(output.beats.length, 24)
+  assert.ok(output.shotDirections.every(entry => entry.length <= 600 && /[.!?]$/.test(entry)))
+  assert.ok(output.beats.every(entry => entry.length <= 600))
+  assert.ok(output.approach.length <= 600)
+  assert.equal(output.constraints.length, 6)
+  assert.equal(output.continuityLedger.palette.length, 8)
+  assert.ok(output.continuityLedger.palette.every(entry => entry.length <= 80))
+  assert.equal(output.continuityLedger.invariants.length, 12)
+  assert.ok(output.continuityLedger.invariants.every(entry => entry.length <= 180))
 })
 
 test('review receives complete authored dialogue, camera and handoff without rewriting', () => {
@@ -652,11 +673,13 @@ test('provider structured output contract requires exact shot count for 2 throug
     OpenAI: class { responses = { parse: async input => { request = input; return { status: 'incomplete' } } } },
     responseFailureDetail: () => 'simulated stop before paid output', safeCrewError: error => error.message,
   })
-  for (let count = 2; count <= 12; count++) {
+  for (let count = 2; count <= film.MAX_FILM_SHOTS; count++) {
     for (const [schema, field] of [[schemas.productionBibleSchema, 'beats'], [schemas.departmentDirectionSchema, 'shotDirections'], [schemas.crewShotsSchema, 'shots']]) {
       await assert.rejects(module.exports.createCrewRunner('mock', [], count)('test-role', 'test', {}, schema), /simulated stop/)
       assert.equal(request.text.format.schema.properties[field].minItems, count)
       assert.equal(request.text.format.schema.properties[field].maxItems, count)
+      // No SDK strict parser: our normaliser trims first, then our own schema check runs.
+      assert.equal('$parseRaw' in request.text.format, false)
     }
   }
 })

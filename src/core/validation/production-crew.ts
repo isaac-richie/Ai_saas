@@ -87,6 +87,8 @@ export const crewMetadataSchema = z.object({
 export const productionPlanSchema = studioAdCampaignPlanSchema.extend({
   // Editorial notes are not provider prompts and need room for complete cut/compositing instructions.
   deliverables: z.array(studioAdCampaignDeliverableSchema.extend({
+    // Film shot prompts may use the full film budget (2,000), not the campaign cap of 1,200.
+    masterPrompt: z.string().min(30).max(MAX_SHOT_PROMPT_CHARS),
     durationSeconds: z.number().int().min(MIN_FAST_TRACK_SECONDS).max(MAX_FAST_TRACK_SECONDS),
     productionNotes: z.array(z.string().min(3).max(1200)).max(5).default([]),
   })).min(MIN_FILM_SHOTS).max(MAX_FILM_SHOTS),
