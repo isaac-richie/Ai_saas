@@ -5,6 +5,11 @@ import { createRequire } from "node:module"
 import vm from "node:vm"
 import ts from "typescript"
 
+// The real avoid-clause helper (no imports of its own), so provider tests follow its rules.
+const avoidClauseModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/utils/ai/avoid-clause.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: avoidClauseModule, exports: avoidClauseModule.exports })
+
+
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8")
 const transpile = (code) => ts.transpileModule(code, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText
 const same = (actual, expected, message) => assert.equal(JSON.stringify(actual), JSON.stringify(expected), message)
@@ -93,6 +98,7 @@ vm.runInNewContext(transpile(read("../src/infrastructure/ai/providers/kie.provid
   require: (id) => {
     if (id === "../base.provider") return { BaseProvider: class { constructor(config) { this.config = config } } }
     if (id === "./kie.models") return { DEFAULT_KIE_IMAGE_MODEL: "x", DEFAULT_KIE_VIDEO_MODEL_I2V: "kling-3.0/video", DEFAULT_KIE_VIDEO_MODEL_T2V: "t2v", inferKieOutputType: () => "video", currentKieModel: (model) => model }
+    if (id === "@/core/utils/ai/avoid-clause") return avoidClauseModule.exports
     if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
     if (id === "@/core/config/kie-video-models") return kieModels
     throw new Error(`Unexpected import: ${id}`)

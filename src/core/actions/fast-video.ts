@@ -27,6 +27,7 @@ import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOw
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
 import { findLightingPreset } from "@/core/config/lighting-presets"
+import { AVOID_RESERVE, buildAvoidClause, supportsNegativePrompt } from "@/core/utils/ai/avoid-clause"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
   strict: "preserve subject identity and scene composition with minimal deviation",
@@ -341,13 +342,15 @@ function assembleFastVideoPrompt(
   parts.push(...BASE_QUALITY_TOKENS)
 
   const uniquePromptParts = dedupeClauses(parts)
-  const prompt = trimPromptBySegments(uniquePromptParts, promptBudgetFor(payload.settings.model))
+  const avoidRoom = supportsNegativePrompt(payload.settings.model) ? 0 : AVOID_RESERVE
+  const prompt = trimPromptBySegments(uniquePromptParts, promptBudgetFor(payload.settings.model) - avoidRoom)
 
+  // Most important first: when the list becomes a sentence in the prompt, the tail is what gets cut.
   const negativePrompt = dedupeClauses([
-    ...(style?.negativeTokens ? style.negativeTokens.split(",") : []),
     ...(lighting ? lighting.negativeTokens.split(",") : []),
-    ...BASE_NEGATIVE_TOKENS,
+    ...(style?.negativeTokens ? style.negativeTokens.split(",") : []),
     ...(noScreenText ? SCREEN_TEXT_NEGATIVES : []),
+    ...BASE_NEGATIVE_TOKENS,
     ...buildVariationNegatives(prompt_inputs.variation_setting),
   ]).join(", ")
 
@@ -612,7 +615,9 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     // model's real budget, preserving meaning; the deterministic fitter below is the safety net.
     // A chosen lighting setup is written in beside the idea, so the idea is fitted to the room left.
     const lighting = findLightingPreset(payload.prompt_inputs.lighting_preset_id)
+    // Models without a negative-prompt field get their avoid list as a closing sentence; keep room for it too.
     const budget = promptBudgetFor(payload.settings.model) - (lighting ? lighting.promptTokens.length + 2 : 0)
+      - (supportsNegativePrompt(payload.settings.model) ? 0 : AVOID_RESERVE)
     const reserve = referencePromptBudget("", deliveryRefs, budget).used
     if (payload.prompt_inputs.text_subject.length > budget - reserve && process.env.OPENAI_API_KEY) {
       try {
@@ -649,11 +654,16 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
 
   const composed = assembleFastVideoPrompt(payload, safeDuration, { scene: sceneCtx, continuity: continuityCtx })
   const lockNegatives = campaignLockNegatives(campaignRefs)
-  const compliance = enforcePromptCompliance({
+  const checked = enforcePromptCompliance({
     prompt: composed.prompt,
-    negativePrompt: lockNegatives.length ? `${composed.negativePrompt}, ${lockNegatives.join(", ")}` : composed.negativePrompt,
+    negativePrompt: lockNegatives.length ? `${lockNegatives.join(", ")}, ${composed.negativePrompt}` : composed.negativePrompt,
     outputType: "video",
   })
+  // Kling 3.0 and Seedance have no negative-prompt field on Kie: the avoid list goes into the prompt,
+  // in the room reserved for it, and the separate field is not sent.
+  const avoid = supportsNegativePrompt(payload.settings.model) ? "" : buildAvoidClause(checked.negativePrompt.split(","), AVOID_RESERVE - 2)
+  const compliance = avoid ? { ...checked, prompt: `${checked.prompt.replace(/[\s,.]+$/, "")}. ${avoid}` } : checked
+  if (avoid) debug.push("prompt.avoid_folded", { length: avoid.length })
   if (compliance.blocked) {
     debug.push("prompt.blocked", { reason: compliance.reason || "Prompt blocked by compliance guardrails" })
     return { error: compliance.reason || "Prompt blocked by safety guardrails. Revise and retry." }

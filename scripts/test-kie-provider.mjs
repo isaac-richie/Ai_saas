@@ -4,6 +4,11 @@ import { readFileSync } from "node:fs"
 import vm from "node:vm"
 import ts from "typescript"
 
+// The real avoid-clause helper (no imports of its own), so provider tests follow its rules.
+const avoidClauseModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/utils/ai/avoid-clause.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: avoidClauseModule, exports: avoidClauseModule.exports })
+
+
 // Pure config with no imports; the real model ranges, never a stub.
 const kieModelsModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/config/kie-video-models.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: kieModelsModule, exports: kieModelsModule.exports })
@@ -23,7 +28,8 @@ const requireMock = (id) => {
     inferKieOutputType: () => "video",
     currentKieModel: (model) => model,
   }
-  if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
+  if (id === "@/core/utils/ai/avoid-clause") return avoidClauseModule.exports
+    if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
   if (id === "@/core/config/kie-video-models") return kieModels
   throw new Error(`Unexpected import: ${id}`)
 }

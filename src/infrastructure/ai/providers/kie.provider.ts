@@ -8,6 +8,7 @@ import {
     inferKieOutputType,
 } from "./kie.models";
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
+import { supportsNegativePrompt } from "@/core/utils/ai/avoid-clause";
 import { clampDurationForFamily, getKieVideoModelFamilyByModel } from "@/core/config/kie-video-models";
 
 export class KieProvider extends BaseProvider {
@@ -147,7 +148,8 @@ export class KieProvider extends BaseProvider {
             return input;
         }
 
-        if (request.negative_prompt) input.negative_prompt = request.negative_prompt;
+        // Kling 3.0, Seedance and the avatar have no such field; their avoid list is already in the prompt.
+        if (request.negative_prompt && supportsNegativePrompt(model)) input.negative_prompt = request.negative_prompt;
         if (request.aspect_ratio) input.aspect_ratio = request.aspect_ratio;
         if (request.quality) input.quality = request.quality;
         if (typeof request.seed === "number") input.seed = request.seed;
