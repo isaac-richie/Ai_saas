@@ -13,9 +13,11 @@ const crewFailure = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/utils/crew-failure.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: crewFailure, exports: crewFailure.exports })
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/film.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: filmModule, exports: filmModule.exports })
 const film = filmModule.exports
+const lightingModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/lighting-presets.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: lightingModule, exports: lightingModule.exports })
 const settingsModule = { exports: {} }
-vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/validation/production-settings.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: settingsModule, exports: settingsModule.exports, require: (name) => name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : name === '@/core/config/film' ? film : { z: settingsZod } })
-const { productionShotSettingsSchema } = settingsModule.exports
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/validation/production-settings.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { MAX_SHOT_PROMPT_CHARS: film.MAX_SHOT_PROMPT_CHARS, module: settingsModule, exports: settingsModule.exports, require: (name) => name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : name === '@/core/config/lighting-presets' ? lightingModule.exports : { z: settingsZod } })
+const { productionShotSettingsSchema, crewShotSettings } = settingsModule.exports
 
 const source = readFileSync(new URL('../src/core/services/production-crew.ts', import.meta.url), 'utf8')
 const tree = ts.createSourceFile('crew.ts', source, ts.ScriptTarget.Latest, true)
@@ -258,7 +260,7 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
     module: runnerModule, exports: runnerModule.exports, process: { env: {} }, console,
     require: name => {
       if (name === 'zod') return { z }
-      if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
+      if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema, crewShotSettings }
       if (name === '@/core/config/film') return film
       if (name === '@/core/utils/crew-failure') return crewFailure.exports
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
@@ -338,7 +340,7 @@ test('repair checkpoint runs only shot editor and continuity reviewer', async ()
     module: runnerModule, exports: runnerModule.exports, process: { env: {} }, console,
     require: name => {
       if (name === 'zod') return { z }
-      if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema }
+      if (name.endsWith('/validation/production-settings')) return { productionShotSettingsSchema, crewShotSettings }
       if (name === '@/core/config/film') return film
       if (name === '@/core/utils/crew-failure') return crewFailure.exports
       if (name.endsWith('/services/production-crew')) return { createCrewRunner: () => mockRun, compileCrewShotsForReview: () => [], compileProductionPlan: () => ({ ready: true }), safeCrewError: cause => cause instanceof Error ? cause.message : 'unknown' }
@@ -529,7 +531,9 @@ test('shot settings frontend renders twelve editable shots with model-specific d
   const source = readFileSync(new URL('../src/interface/components/fast-video/ProductionShotSettings.tsx', import.meta.url), 'utf8')
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
     module: result, exports: result.exports,
-    require: name => name === 'react' ? React : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film : { productionShotSettingsSchema },
+    require: name => name === 'react' ? React : name === 'react/jsx-runtime' ? jsxRuntime : name.endsWith('.module.css') ? { default: {} } : name === '@/core/config/kie-video-models' ? kieModels : name === '@/core/config/film' ? film
+      // Lighting has its own tests; here the pickers render as nothing so the timing markup is checked alone.
+      : name === './lighting-visuals' ? { LightingPicker: () => null, LightingSwatch: () => null } : name === '@/core/config/lighting-presets' ? lightingModule.exports : { productionShotSettingsSchema },
   })
   const render = (model, count = 24) => renderToStaticMarkup(React.createElement(result.exports.ProductionShotSettings, { value: Array.from({ length: count }, () => ({ model, durationSeconds: model === 'seedance' ? 15 : 10 })), onChange() {}, disabled: false }))
   const seedance = render('seedance')

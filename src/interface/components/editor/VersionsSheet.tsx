@@ -38,7 +38,7 @@ export function VersionsSheet({ open, onClose, onList, onRestore }: {
       aria-label="Versions"
       className="m-0 mt-auto w-full max-w-none bg-transparent p-0 text-white backdrop:bg-black/70 backdrop:backdrop-blur-sm sm:m-auto sm:w-[28rem]"
     >
-      <div className="max-h-[80dvh] overflow-y-auto rounded-t-3xl border border-line-strong bg-obsidian-900 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-[sheet-rise_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:rounded-3xl sm:p-6">
+      <div className="ed-glass ed-glass-lit max-h-[80dvh] overflow-y-auto rounded-t-3xl !bg-obsidian-900/95 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-[sheet-rise_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:rounded-3xl sm:p-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-300/80">History</p>
@@ -57,13 +57,14 @@ export function VersionsSheet({ open, onClose, onList, onRestore }: {
             No saved versions yet. One is saved each time the AI edits your video.
           </p>
         ) : (
-          <ul className="divide-y divide-line rounded-2xl border border-line">
-            {versions.map((v) => (
-              <li key={v.id} className="flex items-center gap-3 px-3.5 py-3">
+          <ol className="relative space-y-1 pl-6 before:absolute before:bottom-3 before:left-[9px] before:top-3 before:w-px before:bg-[linear-gradient(180deg,rgba(227,207,159,0.6),rgba(227,207,159,0.08))]">
+            {versions.map((v, i) => (
+              <li key={v.id} className={`relative flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-colors ${confirm === v.id ? 'bg-gold-500/[0.08]' : 'hover:bg-white/[0.03]'}`}>
+                <span aria-hidden className={`absolute -left-[19px] top-1/2 size-2.5 -translate-y-1/2 rounded-full ring-4 ring-obsidian-900 ${i === 0 ? 'bg-gold-200 shadow-[0_0_8px_rgba(243,229,192,0.8)]' : 'bg-white/30'}`} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-white">{v.label}</p>
-                  <p className="text-xs text-[#9aa3ad]">
-                    {new Date(v.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  <p className="text-xs text-[#9aa3ad]" title={new Date(v.created_at).toLocaleString()}>
+                    {timeAgo(v.created_at)}
                   </p>
                 </div>
                 {confirm === v.id ? (
@@ -86,9 +87,19 @@ export function VersionsSheet({ open, onClose, onList, onRestore }: {
                 )}
               </li>
             ))}
-          </ul>
+          </ol>
         )}
       </div>
     </dialog>
   );
+}
+
+/** "Just now", "12 min ago", "3 h ago", then a date. */
+function timeAgo(iso: string): string {
+  const then = new Date(iso);
+  const minutes = Math.round((Date.now() - then.getTime()) / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 24 * 60) return `${Math.round(minutes / 60)} h ago`;
+  return then.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }

@@ -26,6 +26,8 @@ import { condensePrompt } from "@/core/services/prompt-condenser"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
+import { findLightingPreset } from "@/core/config/lighting-presets"
+import { AVOID_RESERVE, buildAvoidClause, supportsNegativePrompt } from "@/core/utils/ai/avoid-clause"
 
 const VARIATION_HINTS: Record<FastVideoVariation, string> = {
   strict: "preserve subject identity and scene composition with minimal deviation",
@@ -304,6 +306,7 @@ function assembleFastVideoPrompt(
   const { prompt_inputs } = payload
   const style = findStylePreset(prompt_inputs.style_preset_id)
   const motion = findMotionPreset(prompt_inputs.motion_preset_id)
+  const lighting = findLightingPreset(prompt_inputs.lighting_preset_id)
   const subject = cleanClause(prompt_inputs.text_subject)
   const subjectDirectives = buildSubjectDirectives(subject, prompt_inputs.variation_setting)
   const aspectDirective = buildAspectDirective(prompt_inputs.aspect_ratio)
@@ -314,6 +317,8 @@ function assembleFastVideoPrompt(
   const parts = !guidance ? [subject]
     : guidance.length + subject.length < promptBudgetFor(payload.settings.model) - 120 ? [`[REFERENCE ROLES] ${guidance}`, `[PROMPT] ${subject}`]
       : [subject, `[REFERENCE ROLES] ${guidance}`]
+  // The chosen lighting follows the idea directly: early segments are the last to be trimmed.
+  if (lighting) parts.push(lighting.promptTokens)
   // Quoted lyrics or dialogue must be heard, not painted on screen as (misspelled) captions.
   const noScreenText = !wantsOnScreenText(prompt_inputs.text_subject)
   if (noScreenText) parts.push(NO_SCREEN_TEXT_DIRECTIVE)
@@ -324,7 +329,8 @@ function assembleFastVideoPrompt(
   if (extra?.continuity?.clause) parts.push(extra.continuity.clause)
 
   if (extra?.scene?.locationPrompt) parts.push(`location: ${extra.scene.locationPrompt}`)
-  if (extra?.scene?.lightingPrompt) parts.push(`lighting: ${extra.scene.lightingPrompt}`)
+  // A lighting setup chosen for this shot wins over the scene's general lighting note.
+  if (extra?.scene?.lightingPrompt && !lighting) parts.push(`lighting: ${extra.scene.lightingPrompt}`)
   if (extra?.scene?.colorPrompt) parts.push(`color grade: ${extra.scene.colorPrompt}`)
 
   if (style?.styleTokens) parts.push(style.styleTokens)
@@ -336,12 +342,15 @@ function assembleFastVideoPrompt(
   parts.push(...BASE_QUALITY_TOKENS)
 
   const uniquePromptParts = dedupeClauses(parts)
-  const prompt = trimPromptBySegments(uniquePromptParts, promptBudgetFor(payload.settings.model))
+  const avoidRoom = supportsNegativePrompt(payload.settings.model) ? 0 : AVOID_RESERVE
+  const prompt = trimPromptBySegments(uniquePromptParts, promptBudgetFor(payload.settings.model) - avoidRoom)
 
+  // Most important first: when the list becomes a sentence in the prompt, the tail is what gets cut.
   const negativePrompt = dedupeClauses([
+    ...(lighting ? lighting.negativeTokens.split(",") : []),
     ...(style?.negativeTokens ? style.negativeTokens.split(",") : []),
-    ...BASE_NEGATIVE_TOKENS,
     ...(noScreenText ? SCREEN_TEXT_NEGATIVES : []),
+    ...BASE_NEGATIVE_TOKENS,
     ...buildVariationNegatives(prompt_inputs.variation_setting),
   ]).join(", ")
 
@@ -350,6 +359,7 @@ function assembleFastVideoPrompt(
     negativePrompt,
     style,
     motion,
+    lighting,
   }
 }
 
@@ -603,7 +613,11 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     debug.push("references.delivery", { delivery })
     // Long briefs (pasted scripts, JSON scene breakdowns) are condensed by the AI director to the
     // model's real budget, preserving meaning; the deterministic fitter below is the safety net.
-    const budget = promptBudgetFor(payload.settings.model)
+    // A chosen lighting setup is written in beside the idea, so the idea is fitted to the room left.
+    const lighting = findLightingPreset(payload.prompt_inputs.lighting_preset_id)
+    // Models without a negative-prompt field get their avoid list as a closing sentence; keep room for it too.
+    const budget = promptBudgetFor(payload.settings.model) - (lighting ? lighting.promptTokens.length + 2 : 0)
+      - (supportsNegativePrompt(payload.settings.model) ? 0 : AVOID_RESERVE)
     const reserve = referencePromptBudget("", deliveryRefs, budget).used
     if (payload.prompt_inputs.text_subject.length > budget - reserve && process.env.OPENAI_API_KEY) {
       try {
@@ -640,11 +654,16 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
 
   const composed = assembleFastVideoPrompt(payload, safeDuration, { scene: sceneCtx, continuity: continuityCtx })
   const lockNegatives = campaignLockNegatives(campaignRefs)
-  const compliance = enforcePromptCompliance({
+  const checked = enforcePromptCompliance({
     prompt: composed.prompt,
-    negativePrompt: lockNegatives.length ? `${composed.negativePrompt}, ${lockNegatives.join(", ")}` : composed.negativePrompt,
+    negativePrompt: lockNegatives.length ? `${lockNegatives.join(", ")}, ${composed.negativePrompt}` : composed.negativePrompt,
     outputType: "video",
   })
+  // Kling 3.0 and Seedance have no negative-prompt field on Kie: the avoid list goes into the prompt,
+  // in the room reserved for it, and the separate field is not sent.
+  const avoid = supportsNegativePrompt(payload.settings.model) ? "" : buildAvoidClause(checked.negativePrompt.split(","), AVOID_RESERVE - 2)
+  const compliance = avoid ? { ...checked, prompt: `${checked.prompt.replace(/[\s,.]+$/, "")}. ${avoid}` } : checked
+  if (avoid) debug.push("prompt.avoid_folded", { length: avoid.length })
   if (compliance.blocked) {
     debug.push("prompt.blocked", { reason: compliance.reason || "Prompt blocked by compliance guardrails" })
     return { error: compliance.reason || "Prompt blocked by safety guardrails. Revise and retry." }
@@ -658,7 +677,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
   if (previewOnly) return { data: {
     taskId: null, status: "preview", url: null, prompt: compliance.prompt,
     negativePrompt: compliance.negativePrompt, stylePresetName: composed.style?.name || null,
-    motionPresetName: composed.motion?.name || null, durationSeconds: safeDuration,
+    motionPresetName: composed.motion?.name || null, lightingPresetName: composed.lighting?.name || null, durationSeconds: safeDuration,
     requestedDurationSeconds: requestedDuration, model: payload.settings.model?.trim() || null,
     referenceDelivery: delivery, promptCondensed, debug: { traceId: debug.traceId, events: debug.events },
   } }
@@ -740,6 +759,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
         negativePrompt: compliance.negativePrompt,
         stylePresetName: composed.style?.name || null,
         motionPresetName: composed.motion?.name || null,
+        lightingPresetName: composed.lighting?.name || null,
         durationSeconds: safeDuration,
         requestedDurationSeconds: requestedDuration,
         model: payload.settings.model?.trim() || null,
@@ -929,6 +949,7 @@ export async function routeFastVideoToScene(input: {
   durationSeconds: number
   stylePresetId?: string | null
   motionPresetId?: string | null
+  lightingPresetId?: string | null
   variationSetting: FastVideoVariation
   mediaReferences?: MediaReference[]
 }) {
@@ -945,6 +966,7 @@ export async function routeFastVideoToScene(input: {
     duration_seconds: input.durationSeconds,
     style_preset_id: input.stylePresetId || null,
     motion_preset_id: input.motionPresetId || null,
+    lighting_preset_id: input.lightingPresetId || null,
     variation: input.variationSetting,
     source: "fast_video",
     media_references: mediaReferences,
@@ -1318,6 +1340,7 @@ export async function compilePromptPreview(input: {
   shotId?: string | null
   stylePresetId?: string | null
   motionPresetId?: string | null
+  lightingPresetId?: string | null
   aspectRatio?: string
   variation?: string
   durationSeconds?: number
@@ -1338,6 +1361,7 @@ export async function compilePromptPreview(input: {
       text_subject: input.subject,
       style_preset_id: input.stylePresetId || null,
       motion_preset_id: input.motionPresetId || null,
+      lighting_preset_id: input.lightingPresetId || null,
       aspect_ratio: (FAST_VIDEO_ASPECT_RATIOS.includes(input.aspectRatio as FastVideoAspectRatio) ? input.aspectRatio : "16:9") as FastVideoAspectRatio,
       reference_image: null,
       variation_setting: (FAST_VIDEO_VARIATIONS.includes(input.variation as FastVideoVariation) ? input.variation : "balanced") as FastVideoVariation,

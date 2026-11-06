@@ -8,6 +8,7 @@ import { PresetPicker } from "./PresetPicker"
 import { MotionGlyph, PRESET_PREVIEW_VIDEOS, StyleSwatch } from "./preset-visuals"
 import { ModelPicker } from "./StudioPickers"
 import { QUICK_LOOKS } from "./fast-video-studio.model"
+import { LightingPicker } from "./lighting-visuals"
 
 /** Everything one preset family's picker needs; owned by FastVideoStudio. */
 export type PresetFamilyState<T> = {
@@ -28,10 +29,12 @@ export type PresetFamilyState<T> = {
  * Shot Look: the style rail up front; camera movement and quick looks (style + camera together)
  * fold into one row that shows the current pick, so the default view stays short.
  */
-export function ShotLookSection({ className, style, motion, modelFamilyId, onModelChange, showModel = true }: {
+export function ShotLookSection({ className, style, motion, lighting, modelFamilyId, onModelChange, showModel = true }: {
   className: string
   style: PresetFamilyState<StylePreset>
   motion: PresetFamilyState<MotionPreset>
+  /** A setup from the lighting library; empty means the idea decides the light. */
+  lighting?: { selectedId: string; onSelect: (id: string) => void }
   modelFamilyId: KieVideoModelFamilyId
   onModelChange: (id: KieVideoModelFamilyId) => void
   /** Create keeps the model under "More options"; the default pick suits most ideas. */
@@ -59,6 +62,7 @@ export function ShotLookSection({ className, style, motion, modelFamilyId, onMod
         onToggleExpanded={style.onToggleExpanded}
         totalCount={style.totalCount}
       />
+      {lighting ? <LightingPicker value={lighting.selectedId} onChange={lighting.onSelect} wide /> : null}
       <details className="group/camera -mx-2 rounded-xl transition-colors open:bg-white/[0.02]">
         <summary className="flex min-h-[52px] cursor-pointer list-none items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/[0.03] [&::-webkit-details-marker]:hidden">
           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><Move3d className="size-4" /></span>

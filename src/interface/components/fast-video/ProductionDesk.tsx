@@ -205,7 +205,7 @@ export function ProductionDesk() {
           <p className="text-xs uppercase tracking-widest text-white/40">{job.status.replaceAll("_", " ")}</p>
           <h3 className={styles.productionTitle}>{job.plan?.crew?.bible.title || "Your film, in development."}</h3>
           <ReviseProductionSettings key={job.id} disabled={busy} initial={job.planning_context?.shotSettings || job.plan?.deliverables.map(shot => ({ model: shot.modelFamilyId, durationSeconds: shot.durationSeconds })) || emptyShotSettings()} onSubmit={settings => void run(async () => {
-            const result = await createProductionRevision({ productionId: job.id, direction: "Use the selected shot models and durations. Retime all action, dialogue and transitions to fit; preserve the concept.", shotSettings: settings })
+            const result = await createProductionRevision({ productionId: job.id, direction: "Use the selected shot models, durations and lighting. Retime all action, dialogue and transitions to fit, relight shots to their chosen setups; preserve the concept.", shotSettings: settings })
             if (result.error || !result.data) throw new Error(result.error || "Could not save settings.")
             keep(result.data as Production)
             await developWithCrew(result.data.id)

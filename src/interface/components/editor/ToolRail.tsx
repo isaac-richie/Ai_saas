@@ -1,17 +1,18 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Keyboard, Music2, Palette, PanelLeftClose, PanelLeftOpen, Proportions, SlidersHorizontal, Sparkles, Type } from 'lucide-react';
+import { Keyboard, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
+import { AdjustGlyph, FormatGlyph, LookGlyph, MusicGlyph, TextGlyph, type Glyph } from './glyphs';
 
 export type Tab = 'ai' | 'clip' | 'look' | 'format' | 'music' | 'text';
 
-export const TABS: { id: Tab; label: string; title: string; blurb: string; icon: typeof Sparkles }[] = [
+export const TABS: { id: Tab; label: string; title: string; blurb: string; icon: Glyph | typeof Sparkles }[] = [
   { id: 'ai', label: 'AI', title: 'AI Director', blurb: 'Cuts, grades and times your video', icon: Sparkles },
-  { id: 'clip', label: 'Adjust', title: 'Adjust', blurb: 'Fine-tune what you selected', icon: SlidersHorizontal },
-  { id: 'look', label: 'Look', title: 'Look', blurb: 'One color story for the whole video', icon: Palette },
-  { id: 'format', label: 'Format', title: 'Format', blurb: 'Frame shape and how footage fills it', icon: Proportions },
-  { id: 'music', label: 'Music', title: 'Music', blurb: 'Soundtrack and beat sync', icon: Music2 },
-  { id: 'text', label: 'Text', title: 'Text', blurb: 'Titles and captions', icon: Type },
+  { id: 'clip', label: 'Adjust', title: 'Adjust', blurb: 'Fine-tune what you selected', icon: AdjustGlyph },
+  { id: 'look', label: 'Look', title: 'Look', blurb: 'One color story for the whole video', icon: LookGlyph },
+  { id: 'format', label: 'Format', title: 'Format', blurb: 'Frame shape and how footage fills it', icon: FormatGlyph },
+  { id: 'music', label: 'Music', title: 'Music', blurb: 'Soundtrack and beat sync', icon: MusicGlyph },
+  { id: 'text', label: 'Text', title: 'Text', blurb: 'Titles and captions', icon: TextGlyph },
 ];
 
 /** Desktop: a slim vertical rail of tools. The active tool wears a gliding gold pill. */
@@ -56,7 +57,7 @@ export function ToolRail({ tab, open, onPick, onToggle, onShortcuts }: {
                 {id === 'ai' ? (
                   <span className={`ed-orb block size-[22px] transition-transform duration-300 group-hover:scale-110 ${active ? '' : 'opacity-80'}`} aria-hidden />
                 ) : (
-                  <Icon size={19} strokeWidth={1.7} className="transition-transform duration-300 group-hover:scale-110" />
+                  <Icon size={22} strokeWidth={1.6} className="transition-transform duration-300 group-hover:scale-110" />
                 )}
               </span>
               <span className="relative">{label}</span>

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { findLightingPreset } from '@/core/config/lighting-presets';
 import {
   applyTake,
   buildRegenerateRequest,
@@ -48,7 +49,7 @@ async function loadClip(supabase: SupabaseClient, clipId: string) {
 export async function startTake(
   supabase: SupabaseClient,
   gen: TakeGenerator,
-  input: { clip_id: string; duration_sec?: number; note?: string },
+  input: { clip_id: string; duration_sec?: number; note?: string; lighting?: string },
 ): Promise<TakeResult> {
   const found = await loadClip(supabase, input.clip_id);
   if (!found) return { status: 404, body: { error: 'Shot not found.' } };
@@ -80,7 +81,7 @@ export async function startTake(
   const built = buildRegenerateRequest(
     shot,
     { projectId: timeline.project_id, sceneId: shot.scene_id, aspectRatio: project?.aspect_ratio ?? null },
-    { durationSec: input.duration_sec, note: input.note },
+    { durationSec: input.duration_sec, note: input.note, lighting: input.lighting },
   );
   if ('error' in built) return { status: 422, body: { error: built.error } };
 
@@ -90,9 +91,12 @@ export async function startTake(
   const data = result.data as { taskId?: string | null; url?: string | null; status?: string; durationSeconds?: number };
   const durationSec = typeof data.durationSeconds === 'number' ? data.durationSeconds : built.request.settings.duration_seconds;
   const keepLength = !input.duration_sec;
+  // Earlier takes say what was asked, including a relight ("Relit: Neon").
+  const relit = findLightingPreset(input.lighting);
+  const takeNote = [input.note, relit ? `Relit: ${relit.name}` : ''].filter(Boolean).join(' · ') || undefined;
 
   if (data.url && data.status === 'completed') {
-    const placed = await placeTake(supabase, clip, { url: data.url, durationSec, note: input.note, keepLength });
+    const placed = await placeTake(supabase, clip, { url: data.url, durationSec, note: takeNote, keepLength });
     return placed ? { status: 200, body: { status: 'completed' } } : { status: 500, body: { error: 'The take finished but could not be placed.' } };
   }
   if (!data.taskId) return { status: 502, body: { error: 'The generator did not return a job.' } };
@@ -103,7 +107,7 @@ export async function startTake(
     started_at: new Date().toISOString(),
     duration_sec: durationSec,
     keep_length: keepLength,
-    ...(input.note ? { note: input.note } : {}),
+    ...(takeNote ? { note: takeNote } : {}),
   };
   const { error } = await supabase
     .from('timeline_clips')

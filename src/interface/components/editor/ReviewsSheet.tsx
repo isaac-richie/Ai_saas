@@ -70,7 +70,7 @@ export function ReviewsSheet({ open, onClose, shares, onJump, onResolve, onTurnO
       aria-label="Review notes"
       className="m-0 mt-auto w-full max-w-none bg-transparent p-0 text-white backdrop:bg-black/70 backdrop:backdrop-blur-sm sm:m-auto sm:w-[32rem]"
     >
-      <div className="max-h-[88dvh] overflow-y-auto rounded-t-3xl border border-line-strong bg-obsidian-900 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-[sheet-rise_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:rounded-3xl sm:p-6">
+      <div className="ed-glass ed-glass-lit max-h-[88dvh] overflow-y-auto rounded-t-3xl !bg-obsidian-900/95 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-[sheet-rise_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:rounded-3xl sm:p-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-300/80">Feedback</p>

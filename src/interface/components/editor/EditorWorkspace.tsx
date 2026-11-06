@@ -70,7 +70,7 @@ export interface EditorWorkspaceProps {
   onAddText: () => Promise<void>;
   onAutoCaptions: () => Promise<string | null>;
   /** Makes a new take of a shot with the generator; absent where generation isn't available. */
-  onRegenerate?: (clipId: string, options: { durationSec?: number; note?: string }) => Promise<void>;
+  onRegenerate?: (clipId: string, options: { durationSec?: number; note?: string; lighting?: string }) => Promise<void>;
   takeStatus?: Record<string, TakeStatus>;
   /** One-tap first cut in a style. */
   onAutoEdit?: (style: AutoEditStyle, options: { title: boolean }) => Promise<AgentReply>;

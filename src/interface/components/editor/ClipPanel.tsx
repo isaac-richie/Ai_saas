@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, AudioWaveform, Blend, Magnet, Loader2, Lock, MousePointerClick, MoveHorizontal, RefreshCw, Scissors, Trash2, Unlock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AudioWaveform, Loader2, Lock, RefreshCw, Scissors, Trash2, Unlock } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { TRANSITION_REGISTRY } from '@/core/services/transitions';
 import { CAPTION_STYLES, type CaptionStyle } from '@/core/services/captions';
@@ -12,7 +12,10 @@ import { SPEEDS, clipSpeed, trimClip } from '@/core/services/timeline-ops';
 import { useIsPro } from '@/interface/hooks/use-editor-mode';
 import { isClipLocked } from '@/core/services/edit-agent';
 import { CAPTION_PREVIEW_CLASS, TRANSITION_LABELS, formatClock, formatTime } from './labels';
+import { TransitionTiles, SpeedChips } from './TransitionTiles';
 import { MAX_FAST_TRACK_SECONDS, MIN_FAST_TRACK_SECONDS, fastTrackUnitsForDuration } from '@/core/config/kie-video-models';
+import { LightingPicker } from '@/interface/components/fast-video/lighting-visuals';
+import { findLightingPreset } from '@/core/config/lighting-presets';
 
 const TRANSITIONS = Object.keys(TRANSITION_REGISTRY) as TransitionType[];
 
@@ -44,11 +47,61 @@ const pill = (active: boolean) =>
     active ? 'border-gold-400/60 bg-gold-500/15 text-gold-50' : 'border-line bg-white/[0.02] text-[#d6d0c0] hover:border-white/20'
   }`;
 
+/** Three small moving diagrams of how the timeline is handled: trim, transition, snap. */
+const clipRect = (x: number, w: number, tone: string) => <rect x={x} y="8" width={w} height="22" rx="4" fill={tone} stroke="rgba(255,255,255,0.18)" />;
+const GESTURES: { title: string; text: string; art: React.ReactNode }[] = [
+  {
+    title: 'Trim and move',
+    text: 'Drag a shot to move it. Drag its edges to make it shorter or longer.',
+    art: (
+      <svg viewBox="0 0 220 38" className="h-10 w-full" aria-hidden>
+        {clipRect(8, 70, 'rgba(255,255,255,0.06)')}
+        <g className="ed-gesture-trim">
+          {clipRect(84, 86, 'rgba(227,207,159,0.22)')}
+          <rect x="166" y="8" width="5" height="22" rx="2" fill="#e3cf9f" />
+        </g>
+        <path d="M184 19h22m-5-4 5 4-5 4" stroke="#e3cf9f" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" className="ed-gesture-arrow" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Change a transition',
+    text: 'Tap the circle between two shots to choose how one becomes the next.',
+    art: (
+      <svg viewBox="0 0 220 38" className="h-10 w-full" aria-hidden>
+        <defs>
+          <linearGradient id="ed-xfade" x1="0" x2="1">
+            <stop offset="0" stopColor="rgba(227,207,159,0.25)" />
+            <stop offset="1" stopColor="rgba(182,221,211,0.25)" />
+          </linearGradient>
+        </defs>
+        {clipRect(8, 98, 'rgba(227,207,159,0.18)')}
+        {clipRect(112, 98, 'rgba(182,221,211,0.16)')}
+        <rect x="86" y="8" width="46" height="22" fill="url(#ed-xfade)" opacity="0.8" />
+        <circle cx="109" cy="8" r="7" fill="#e3cf9f" className="ed-gesture-pulse" />
+        <path d="M105.5 8h7" stroke="#1a160e" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Edges snap',
+    text: 'Edges pull to the playhead, to cuts and to the gold beat marks.',
+    art: (
+      <svg viewBox="0 0 220 38" className="h-10 w-full" aria-hidden>
+        {[30, 70, 110, 150, 190].map((x) => <rect key={x} x={x - 0.8} y="33" width="1.6" height="5" rx="0.8" fill="#e3cf9f" />)}
+        <line x1="110" x2="110" y1="2" y2="34" stroke="#b6ddd3" strokeWidth="1.2" strokeDasharray="2 2" />
+        <g className="ed-gesture-snap">{clipRect(30, 80, 'rgba(227,207,159,0.2)')}</g>
+        {clipRect(112, 78, 'rgba(255,255,255,0.06)')}
+      </svg>
+    ),
+  },
+];
+
 export type TakeStatus = { state: 'idle' | 'working' | 'failed'; message?: string };
 
 export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
   onSyncToBeat: () => void;
-  onRegenerate?: (clipId: string, options: { durationSec?: number; note?: string }) => Promise<void>;
+  onRegenerate?: (clipId: string, options: { durationSec?: number; note?: string; lighting?: string }) => Promise<void>;
   takeStatus?: Record<string, TakeStatus>;
 }) {
   const { clips, tracks, selected_clip_id, playhead_ms, updateClip, removeClip, reorder, split, setSpeed } = useTimelineStore();
@@ -58,29 +111,20 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
 
   if (!clip || !track) {
     return (
-      <div className="space-y-5 p-5">
-        <div className="text-center">
-          <span className="mx-auto grid size-12 place-items-center rounded-2xl border border-gold-400/25 bg-gold-500/10 text-gold-200">
-            <MousePointerClick size={20} />
-          </span>
-          <p className="mt-3 text-[15px] font-medium text-white">Pick something to change</p>
-          <p className="mt-1 text-sm text-[#b0b8c4]">Tap a shot, song or text on the timeline.</p>
+      <div className="space-y-4 p-4">
+        <div className="px-1">
+          <p className="text-[15px] font-medium text-white">Pick something to change</p>
+          <p className="mt-0.5 text-[13px] text-[#9aa3ad]">Tap a shot, the song or any text on the timeline.</p>
         </div>
-        <ul className="space-y-2.5">
-          {[
-            [MoveHorizontal, 'Drag a shot to move it; drag its edges to make it shorter or longer.'],
-            [Blend, 'Tap the circle between two shots to change how one becomes the next.'],
-            [Magnet, 'Edges snap to the playhead, to cuts and to the gold beat dots.'],
-          ].map(([Icon, text], i) => {
-            const I = Icon as typeof Blend;
-            return (
-              <li key={i} className="flex items-start gap-3 rounded-xl border border-line bg-white/[0.02] px-3.5 py-3 text-sm leading-relaxed text-[#d6d0c0]">
-                <I size={16} className="mt-0.5 shrink-0 text-gold-300" />
-                {text as string}
-              </li>
-            );
-          })}
-        </ul>
+        {GESTURES.map(({ art, title, text }) => (
+          <div key={title} className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.02]">
+            <div className="border-b border-white/[0.05] bg-black/25 px-3 py-2.5">{art}</div>
+            <div className="px-3.5 py-2.5">
+              <p className="text-[13px] font-medium text-[#ece6d6]">{title}</p>
+              <p className="mt-0.5 text-[12.5px] leading-relaxed text-[#9aa3ad]">{text}</p>
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -141,57 +185,19 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
       </div>
 
       <Section title={isLast ? 'How the video ends' : 'Into the next shot'}>
-        {isLast ? (
-          <div className="grid grid-cols-3 gap-2">
-            {([['cut', 'Just end'], ['fade_black', 'Fade to black'], ['fade_white', 'Fade to white']] as const).map(([t, label]) => (
-              <button
-                key={t}
-                disabled={locked}
-                onClick={() => updateClip(clip.id, { transition_out: t, transition_out_ms: TRANSITION_REGISTRY[t].default_duration_ms }, `transition:${clip.id}:${Date.now()}`)}
-                className={pill((clip.transition_out || 'cut') === t || (t === 'fade_black' && !['cut', 'fade_white', null, undefined].includes(clip.transition_out)))}
-                aria-pressed={(clip.transition_out || 'cut') === t}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {TRANSITIONS.map((t) => (
-              <button
-                key={t}
-                disabled={locked}
-                onClick={() => updateClip(clip.id, { transition_out: t, transition_out_ms: TRANSITION_REGISTRY[t].default_duration_ms }, `transition:${clip.id}:${Date.now()}`)}
-                className={pill((clip.transition_out || 'cut') === t)}
-                aria-pressed={(clip.transition_out || 'cut') === t}
-              >
-                {TRANSITION_LABELS[t]}
-              </button>
-            ))}
-          </div>
-        )}
+        <ShotTransitionTiles
+          clip={clip}
+          next={shots[position + 1] ?? null}
+          ending={isLast}
+          disabled={locked}
+          value={isLast && clip.transition_out && !['cut', 'fade_black', 'fade_white'].includes(clip.transition_out) ? 'fade_black' : clip.transition_out || 'cut'}
+          options={isLast ? [{ id: 'cut', label: 'Just end' }, { id: 'fade_black', label: 'Fade to black' }, { id: 'fade_white', label: 'Fade to white' }] : TRANSITIONS.map((t) => ({ id: t, label: TRANSITION_LABELS[t] }))}
+          onChange={(t) => updateClip(clip.id, { transition_out: t, transition_out_ms: TRANSITION_REGISTRY[t].default_duration_ms }, `transition:${clip.id}:${t}`)}
+        />
       </Section>
 
       <Section title="Speed">
-        <div className="grid grid-cols-6 gap-1.5" role="radiogroup" aria-label="Speed">
-          {SPEEDS.map((speed) => {
-            const active = clipSpeed(clip) === speed;
-            return (
-              <button
-                key={speed}
-                role="radio"
-                aria-checked={active}
-                disabled={locked}
-                onClick={() => setSpeed(clip.id, speed)}
-                className={`rounded-lg border py-2 text-sm tabular-nums transition-colors disabled:opacity-40 ${
-                  active ? 'border-gold-400/60 bg-gold-500/15 text-gold-50' : 'border-line bg-white/[0.02] text-[#d6d0c0] hover:border-white/20'
-                }`}
-              >
-                {speed}×
-              </button>
-            );
-          })}
-        </div>
+        <SpeedChips speeds={SPEEDS} value={clipSpeed(clip)} disabled={locked} onChange={(speed) => setSpeed(clip.id, speed)} />
         <p className="text-xs text-[#9aa3ad]">
           {clipSpeed(clip) < 1
             ? 'Slow motion: the shot gets longer to fit the same footage.'
@@ -213,11 +219,20 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
 }
 
 /** Make the shot again with the generator, or go back to an earlier take. */
+/** Transition tiles fed with the last frame of this shot and the first frame of the next. */
+function ShotTransitionTiles({ clip, next, ...rest }: { clip: TimelineClip; next: TimelineClip | null } & Omit<React.ComponentProps<typeof TransitionTiles>, 'from' | 'to'>) {
+  const fromStrip = useFilmstrip(clip.asset_url);
+  const toStrip = useFilmstrip(next?.asset_url ?? null);
+  const from = fromStrip?.frames[fromStrip.frames.length - 1] ?? null;
+  const to = toStrip?.frames[0] ?? null;
+  return <TransitionTiles from={from} to={to} {...rest} />;
+}
+
 function TakesSection({ clip, locked, status, onRegenerate }: {
   clip: TimelineClip;
   locked: boolean;
   status?: TakeStatus;
-  onRegenerate: (clipId: string, options: { durationSec?: number; note?: string }) => Promise<void>;
+  onRegenerate: (clipId: string, options: { durationSec?: number; note?: string; lighting?: string }) => Promise<void>;
 }) {
   const { clips, tracks, commitClips } = useTimelineStore();
   const meta = (clip.metadata || {}) as { takes?: Take[]; pending_take?: unknown; source_duration_ms?: number; storyboard_item_id?: string };
@@ -225,6 +240,7 @@ function TakesSection({ clip, locked, status, onRegenerate }: {
   const currentSec = Math.round((clip.end_ms - clip.start_ms) / 1000);
   const [seconds, setSeconds] = useState(Math.min(MAX_FAST_TRACK_SECONDS, Math.max(MIN_FAST_TRACK_SECONDS, currentSec)));
   const [note, setNote] = useState('');
+  const [relight, setRelight] = useState('');
   const [confirming, setConfirming] = useState(false);
   const takeSwitches = useRef(0);
   const working = status?.state === 'working' || (Boolean(meta.pending_take) && status?.state !== 'failed');
@@ -239,7 +255,7 @@ function TakesSection({ clip, locked, status, onRegenerate }: {
   };
 
   return (
-    <Section title="New take">
+    <Section title="New take · Relight">
       {working ? (
         <div role="status" className="flex items-start gap-3 rounded-xl border border-gold-400/30 bg-gold-500/10 px-3.5 py-3">
           <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin text-gold-200" />
@@ -265,6 +281,14 @@ function TakesSection({ clip, locked, status, onRegenerate }: {
               className="mt-1.5 w-full rounded-xl border border-line bg-obsidian-800/80 px-3 py-2.5 text-[15px] text-white placeholder:text-[#8f97a1] focus:border-gold-400/50 focus:outline-none"
             />
           </label>
+          <div className="rounded-xl border border-white/[0.06] bg-black/20 p-2.5">
+            <LightingPicker label="Relight" noneLabel="Keep the original light" value={relight} onChange={setRelight} compact />
+            {relight ? (
+              <p className="mt-2 text-[11.5px] leading-relaxed text-[#9aa3ad]">
+                Shots that open on an image start from that image&apos;s light, so the change is strongest after the first moment.
+              </p>
+            ) : null}
+          </div>
           <p className="text-xs leading-relaxed text-[#9aa3ad]">
             Same prompt, references and starting frame as the original, so it still fits the shots around it.
             Seedance shots can run up to {MAX_FAST_TRACK_SECONDS}s; Kling shots stop at 15s.
@@ -275,12 +299,13 @@ function TakesSection({ clip, locked, status, onRegenerate }: {
             <button
               onClick={() => {
                 setConfirming(false);
-                void onRegenerate(clip.id, { durationSec: seconds !== currentSec ? seconds : undefined, note: note.trim() || undefined });
+                void onRegenerate(clip.id, { durationSec: seconds !== currentSec ? seconds : undefined, note: note.trim() || undefined, lighting: relight || undefined });
                 setNote('');
+                setRelight('');
               }}
               className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] py-2.5 text-sm font-semibold text-[#1a160e]"
             >
-              <RefreshCw size={15} /> Make new take
+              <RefreshCw size={15} /> {relight ? `Relight as ${findLightingPreset(relight)?.name}` : 'Make new take'}
             </button>
           </div>
         </div>
