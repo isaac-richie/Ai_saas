@@ -257,7 +257,26 @@ test("Seedance 2.5 receives reference videos only when no first frame is set", (
     assert.equal(KieProvider.seedanceAspect("wide"), "adaptive")
     const planned = planLockedRequest(resolveLocks([], [lock("a", "prop", "A")]), "bytedance/seedance-2-5", { continuityStartUrl: lastFrame })
     assert.equal(send(planned.plan, "4:5").aspect_ratio, "3:4")
-    // Kling keeps the shape it was given.
-    assert.equal(provider.buildMarketInput({ prompt: "x", output_type: "video", aspect_ratio: "16:9" }, "kling-3.0/video").aspect_ratio, "16:9")
+  })
+
+  test("Kling 3.0 shapes: 16:9 / 9:16 / 1:1 pass; others go to the nearest without a frame and are left out with one", () => {
+    const { KieProvider } = module.exports
+    const kling = (aspect, frame) => provider.buildMarketInput({ prompt: "x", output_type: "video", aspect_ratio: aspect, ...(frame ? { image_prompt: "https://example.com/f.png" } : {}) }, "kling-3.0/video").aspect_ratio
+    for (const ok of ["16:9", "9:16", "1:1"]) { assert.equal(kling(ok), ok); assert.equal(kling(ok, true), ok) }
+    assert.equal(kling("4:5"), "1:1")
+    assert.equal(kling("21:9"), "16:9")
+    assert.equal(kling("wide"), "16:9")
+    for (const shape of ["4:5", "21:9", "wide"]) assert.equal(kling(shape, true), undefined, `${shape} with a first frame follows the frame`)
+    // Every shape the app offers lands on a value each model accepts.
+    for (const shape of ["16:9", "9:16", "1:1", "4:5", "21:9"]) {
+      for (const frame of [false, true]) {
+        const k = kling(shape, frame)
+        assert.ok(k === undefined ? frame : KieProvider.KLING_3_ASPECTS.includes(k), `Kling ${shape} frame=${frame} -> ${k}`)
+        const sd = provider.buildMarketInput({ prompt: "x", output_type: "video", aspect_ratio: shape, ...(frame ? { image_prompt: "https://example.com/f.png" } : {}) }, "bytedance/seedance-2-5").aspect_ratio
+        assert.ok(["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"].includes(sd), `Seedance ${shape} frame=${frame} -> ${sd}`)
+      }
+    }
+    // Other Kie models keep the shape they were given.
+    assert.equal(provider.buildMarketInput({ prompt: "x", output_type: "video", aspect_ratio: "4:5" }, "kling/v2-5-turbo-text-to-video-pro").aspect_ratio, "4:5")
   })
 }
