@@ -10,6 +10,18 @@
 -- Images stay in long_form_reference_bindings. Both share the film's revision in
 -- long_form_binding_revisions, so a stale editor can't overwrite newer locks.
 
+-- Requires 0052 (image locks): stop with a clear message instead of a missing-table error.
+do $$
+begin
+  if to_regclass('public.long_form_reference_bindings') is null or to_regclass('public.long_form_binding_revisions') is null then
+    raise exception 'Run migration 0052_long_form_image_locks.sql first, then run this one (0053).';
+  end if;
+  if to_regclass('public.timeline_render_jobs') is null then
+    raise exception 'Run migration 0046_timeline_render_jobs.sql first, then run this one (0053).';
+  end if;
+end;
+$$;
+
 create table if not exists public.long_form_audio_assets (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
