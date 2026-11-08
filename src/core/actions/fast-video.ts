@@ -26,6 +26,7 @@ import { condensePrompt } from "@/core/services/prompt-condenser"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
+import { ownsAssetUrl } from "@/core/validation/production-assets"
 import { findLightingPreset } from "@/core/config/lighting-presets"
 import { AVOID_RESERVE, buildAvoidClause, supportsNegativePrompt } from "@/core/utils/ai/avoid-clause"
 
@@ -433,6 +434,16 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
   }
   debug.push("session.resolved", { userId: user.id })
 
+  // Long Form locks: owned images only, and never mixed with Quick Shot's own reference features.
+  const locked = payload.prompt_inputs.locked_inputs ?? null
+  if (locked) {
+    if (payload.prompt_inputs.media_references?.length || payload.prompt_inputs.campaign_references || payload.prompt_inputs.shot_frames || payload.settings.lip_sync) {
+      return { error: "Locked images can't be combined with other reference features. Nothing was charged." }
+    }
+    const lockedUrls = [...locked.required.map(r => r.url), ...(locked.reference_image_urls ?? [])]
+    if (lockedUrls.some(url => !ownsAssetUrl(url, user.id))) return { error: "A locked image doesn't belong to your account. Nothing was charged." }
+  }
+
   // Reject unsupported inputs before consuming quota or calling the provider.
   let endFramePrompt: string | undefined
   let shotFrames: ShotFrames | null = null
@@ -690,8 +701,9 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
       image_prompt: payload.prompt_inputs.reference_image || undefined,
       end_image_prompt: endFramePrompt,
       audio_url: lipSyncAudioUrl,
-      reference_image_urls: referenceImageUrls,
+      reference_image_urls: locked?.reference_image_urls?.length ? locked.reference_image_urls : referenceImageUrls,
       reference_video_urls: referenceVideoUrls,
+      required_inputs: locked?.required,
       reference_elements: payload.prompt_inputs.reference_elements,
       output_type: "video" as const,
       aspect_ratio: payload.prompt_inputs.aspect_ratio,

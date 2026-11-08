@@ -31,6 +31,14 @@ export const fastVideoRequestSchema = z.object({
     shot_frames: shotFramesSchema.optional().nullable(),
     // Optional Campaign Director character / product references.
     campaign_references: campaignReferencesSchema.optional().nullable(),
+    /**
+     * Long Form image locks, already planned: Seedance reference images and the list of images that must
+     * appear in the final payload at named fields. Kling elements travel in `reference_elements`.
+     */
+    locked_inputs: z.object({
+      reference_image_urls: z.array(z.string().url()).max(30).optional(),
+      required: z.array(z.object({ field: z.string().max(80), url: z.string().url() })).min(1).max(64),
+    }).optional().nullable(),
     variation_setting: z.enum(FAST_VIDEO_VARIATIONS),
   }),
   settings: z.object({

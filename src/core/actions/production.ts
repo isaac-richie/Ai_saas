@@ -13,6 +13,8 @@ import type { Json } from "@/core/types/db"
 import { labelProductionAssets, productionAssetsSchema, ownsAssetUrl, resolveReferenceTags, selectEndReference, selectOpeningReference, selectShotReferences, type ProductionAsset } from "@/core/validation/production-assets"
 import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
+import { planLockedRequest, resolveLocks } from "@/core/services/long-form-locks"
+import { loadFilmLocks, requestFingerprint, verifyPinnedImages } from "@/core/services/long-form-lock-store"
 
 const updateSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(50000), assets: productionAssetsSchema.default([]), shotSettings: productionShotSettingsSchema }),
@@ -457,11 +459,59 @@ export async function queueProductionShot(input: unknown) {
   // The lighting the creator chose for this shot (shots are numbered from 1 in film order).
   const planned = productionShotSettingsSchema.safeParse(isJsonObject(production.planning_context) ? production.planning_context.shotSettings : undefined)
   const lightingPresetId = planned.success && shot.sequence_order ? planned.data[shot.sequence_order - 1]?.lighting ?? null : null
+
+  // Long Form mandatory image locks. When the film or this shot has locks, they replace the automatic
+  // reference choice and EVERY locked image must reach the request. Anything that can't is blocked here,
+  // before a take, a job or any credit exists.
+  const productionRoot = (production.parent_job_id as string | null) || (production.id as string)
+  let filmLocks
+  try { filmLocks = await loadFilmLocks(db, productionRoot) } catch { return { error: "Could not check this shot's locked images. No video job has been submitted." } }
+  const resolvedLocks = resolveLocks(filmLocks.scene, shot.sequence_order ? filmLocks.shots[shot.sequence_order] ?? [] : [])
+  let lockedInputs: { reference_image_urls?: string[]; required: { field: string; url: string }[] } | null = null
+  let lockSnapshot: Record<string, unknown> | null = null
+  let lockNote = ""
+  if (resolvedLocks.bindingCount) {
+    const blocked = (issues: string[]) => ({
+      error: `Cannot generate with this configuration. ${resolvedLocks.requiredImageCount} required image${resolvedLocks.requiredImageCount === 1 ? "" : "s"}: ${issues.join(" ")} Your locks are saved. No video job has been submitted.`,
+      blocked: issues,
+    })
+    const lockPlan = planLockedRequest(resolvedLocks, model, { continuityStartUrl: shot.previous_shot_id ? continuityReferenceUrl : null })
+    if (!lockPlan.ok) return blocked(lockPlan.issues)
+    const fileIssues = await verifyPinnedImages(resolvedLocks.bindings)
+    if (fileIssues.length) return blocked(fileIssues)
+    const planInputs = lockPlan.plan
+    if (planInputs.referenceImageUrls.length) {
+      // Seedance reference mode: no frame rides with references (the plan already refused a continued shot).
+      continuityReferenceUrl = null
+      endReferenceUrl = null
+      referenceElements = []
+    } else {
+      // Kling: the locked subjects are the elements; nothing is picked automatically beside them.
+      referenceElements = planInputs.elements
+    }
+    if (planInputs.startFrameUrl) continuityReferenceUrl = planInputs.startFrameUrl
+    if (planInputs.endFrameUrl) endReferenceUrl = planInputs.endFrameUrl
+    lockedInputs = {
+      ...(planInputs.referenceImageUrls.length ? { reference_image_urls: planInputs.referenceImageUrls } : {}),
+      required: planInputs.manifest.map(entry => ({ field: entry.field, url: entry.assetUrl })),
+    }
+    lockNote = planInputs.promptNote
+    lockSnapshot = {
+      binding_revision: filmLocks.revision,
+      required_image_count: resolvedLocks.requiredImageCount,
+      binding_count: resolvedLocks.bindingCount,
+      provider: "kie", model, endpoint: planInputs.endpoint,
+      resolved_bindings: resolvedLocks.bindings.map(b => ({ key: b.key, asset_id: b.assetId, asset_url: b.assetUrl, sha256: b.sha256, role: b.role, entity: b.entityLabel, view: b.viewLabel, scopes: b.scopes })),
+      input_manifest: planInputs.manifest,
+      request_fingerprint: requestFingerprint({ model, duration, aspect, manifest: planInputs.manifest, start: continuityReferenceUrl, end: endReferenceUrl }),
+    }
+  }
+
   const { data: take, error: takeError } = await db.from("shot_generations").insert({
     shot_id: shot.id, take_number: (latestTake?.take_number || 0) + 1, prompt: shot.prompt_text || shot.description || shot.name,
     compiled_prompt: shot.prompt_text || null, negative_prompt: typeof settings.negative_prompt === "string" ? settings.negative_prompt : null,
     model_version_used: model, duration_seconds: duration, aspect_ratio: aspect, status: "pending",
-    parameters: { source: "production_crew", production_job_id: production.id, requested_duration_seconds: duration, requested_aspect_ratio: aspect, start_frame_url: continuityReferenceUrl, end_frame_url: endReferenceUrl },
+    parameters: { source: "production_crew", production_job_id: production.id, requested_duration_seconds: duration, requested_aspect_ratio: aspect, start_frame_url: continuityReferenceUrl, end_frame_url: endReferenceUrl, ...(lockSnapshot ? { locked_inputs: lockSnapshot } : {}) },
   }).select("id,take_number").single()
   if (takeError || !take) return { error: "Could not create the take record." }
   const { data: generationJob, error: jobError } = await db.from("generation_jobs").insert({ user_id: user.id, shot_id: shot.id, take_id: take.id, provider: "kie", model, status: "preparing", progress: 5 }).select("*").single()
@@ -472,7 +522,7 @@ export async function queueProductionShot(input: unknown) {
 
   const generated = await generateFastVideo({
     request_type: "fast_video", project_id: production.project_id, scene_id: production.scene_id, shot_id: shot.id,
-    prompt_inputs: { text_subject: continuationPrefix + providerPrompt, style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, end_reference_image: endReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict", lighting_preset_id: lightingPresetId },
+    prompt_inputs: { text_subject: continuationPrefix + providerPrompt + (lockNote ? `\n${lockNote}` : ""), style_preset_id: null, motion_preset_id: null, aspect_ratio: aspect, reference_image: continuityReferenceUrl, end_reference_image: endReferenceUrl, reference_elements: model.includes("kling-3.0") ? referenceElements : undefined, variation_setting: "strict", lighting_preset_id: lightingPresetId, ...(lockedInputs ? { locked_inputs: lockedInputs } : {}) },
     settings: { duration_seconds: duration, model },
   })
   if (generated.error || !generated.data) {
@@ -484,7 +534,7 @@ export async function queueProductionShot(input: unknown) {
   }
   const completed = generated.data.status === "completed" && Boolean(generated.data.url)
   await Promise.all([
-    db.from("shot_generations").update({ status: completed ? "completed" : "processing", output_url: generated.data.url, parameters: { source: "production_crew", production_job_id: production.id, task_id: generated.data.taskId, trace_id: generated.data.debug?.traceId, requested_duration_seconds: duration, applied_duration_seconds: generated.data.durationSeconds, requested_aspect_ratio: aspect, start_frame_url: continuityReferenceUrl, end_frame_url: endReferenceUrl } }).eq("id", take.id),
+    db.from("shot_generations").update({ status: completed ? "completed" : "processing", output_url: generated.data.url, parameters: { source: "production_crew", production_job_id: production.id, task_id: generated.data.taskId, trace_id: generated.data.debug?.traceId, requested_duration_seconds: duration, applied_duration_seconds: generated.data.durationSeconds, requested_aspect_ratio: aspect, start_frame_url: continuityReferenceUrl, end_frame_url: endReferenceUrl, ...(lockSnapshot ? { locked_inputs: lockSnapshot } : {}) } }).eq("id", take.id),
     db.from("generation_jobs").update({ status: completed ? "completed" : "submitted", progress: completed ? 100 : 15, provider_task_id: generated.data.taskId, updated_at: new Date().toISOString() }).eq("id", generationJob.id),
   ])
   return { data: { ...generationJob, status: completed ? "completed" : "submitted", provider_task_id: generated.data.taskId, take_id: take.id, output_url: generated.data.url, take_number: take.take_number } }

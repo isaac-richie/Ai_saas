@@ -17,6 +17,7 @@ import { ProductionShotSettings, ReviseProductionSettings, emptyShotSettings, ty
 
 import { latestFilms } from "@/core/utils/production/latest-films"
 import { ProductionPicker } from "./ProductionPicker"
+import { LockedImagesEditor, LockedImagesRow, useFilmLocks } from "./LockedImages"
 import { MentionTextarea, type MentionReference } from "./MentionTextarea"
 import { MAX_FILM_SHOTS, MIN_FILM_SHOTS } from "@/core/config/film"
 
@@ -49,9 +50,12 @@ export function ProductionDesk() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<ProductionView>("brief")
   const [sessionRestored, setSessionRestored] = useState(false)
+  const [lockEditor, setLockEditor] = useState<number | null>(null)
   const films = latestFilms(jobs)
   const selectedRevision = jobs.find(job => job.id === selectedId)
   const selected = films.find(job => (job.parent_job_id || job.id) === (selectedRevision?.parent_job_id || selectedRevision?.id))
+  // Long Form image locks for the open film (plan cards and editor).
+  const filmLocks = useFilmLocks(selected?.plan ? selected.id : null, view === "direction")
 
   async function refresh() {
     const result = await listProductions()
@@ -260,7 +264,20 @@ export function ProductionDesk() {
               {shot.continuityStartState && <div className="mt-3 rounded-lg border border-line bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
               <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2 whitespace-pre-wrap">{shot.masterPrompt}</p></details>
               {!!shot.productionNotes?.length && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
+              {filmLocks.view?.enabled && <LockedImagesRow scene={filmLocks.view.scene} shot={filmLocks.view.shots[index + 1] ?? []} status={filmLocks.statuses[index + 1]} disabled={busy || !filmLocks.view.available} onEdit={() => setLockEditor(index + 1)} />}
             </section>)}</div>
+            {filmLocks.view && !filmLocks.view.available && <p className="mt-3 text-xs text-white/45">Locked images need a database update before they can be saved.</p>}
+            {filmLocks.view && lockEditor !== null && <LockedImagesEditor
+              key={`${job.id}-${lockEditor}-${filmLocks.view.revision}`}
+              productionId={job.id}
+              shotNumber={lockEditor}
+              shotCount={job.plan.deliverables.length}
+              shotTitle={job.plan.deliverables[lockEditor - 1]?.title ?? ""}
+              view={filmLocks.view}
+              status={filmLocks.statuses[lockEditor]}
+              onClose={() => setLockEditor(null)}
+              onSaved={filmLocks.reload}
+            />}
           </div>}
           {job.status === "brief" && <button disabled={busy} className="mt-4 rounded-full border border-gold-400/25 px-4 py-2 text-sm text-white transition-all duration-300 hover:border-gold-300/60 hover:bg-gold-400/10 hover:text-gold-50 disabled:pointer-events-none disabled:opacity-40" onClick={() => void run(async () => {
             await developWithCrew(job.id)
