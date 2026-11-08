@@ -100,10 +100,17 @@ export class KieProvider extends BaseProvider {
      * Any other shape the app offers (4:5) goes to the nearest one it accepts instead of being refused.
      */
     static seedanceAspect(aspect: string): string {
-        const accepted = ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9"];
-        if (accepted.includes(aspect) || aspect === "adaptive") return aspect;
+        if (aspect === "adaptive") return aspect;
+        return KieProvider.nearestAspect(aspect, ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9"]) ?? "adaptive";
+    }
+
+    static readonly KLING_3_ASPECTS = ["16:9", "9:16", "1:1"];
+
+    /** The accepted shape closest to `aspect` (by log ratio), the shape itself when accepted, or null when unreadable. */
+    static nearestAspect(aspect: string, accepted: string[]): string | null {
+        if (accepted.includes(aspect)) return aspect;
         const match = aspect.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
-        if (!match || !Number(match[1]) || !Number(match[2])) return "adaptive";
+        if (!match || !Number(match[1]) || !Number(match[2])) return null;
         const target = Math.log(Number(match[1]) / Number(match[2]));
         const ratio = (r: string) => { const [w, h] = r.split(":").map(Number); return Math.log(w / h); };
         return accepted.reduce((best, r) => Math.abs(ratio(r) - target) < Math.abs(ratio(best) - target) ? r : best);
@@ -165,7 +172,15 @@ export class KieProvider extends BaseProvider {
 
         // Kling 3.0, Seedance and the avatar have no such field; their avoid list is already in the prompt.
         if (request.negative_prompt && supportsNegativePrompt(model)) input.negative_prompt = request.negative_prompt;
-        if (request.aspect_ratio) input.aspect_ratio = normalizedModel.includes("seedance-2-5") ? KieProvider.seedanceAspect(request.aspect_ratio) : request.aspect_ratio;
+        if (request.aspect_ratio) {
+            if (normalizedModel.includes("seedance-2-5")) input.aspect_ratio = KieProvider.seedanceAspect(request.aspect_ratio);
+            else if (normalizedModel.includes("kling-3.0")) {
+                // Kling 3.0 takes 16:9, 9:16 or 1:1 (docs.kie.ai/market/kling/kling-3-0). With a first frame the
+                // output follows the frame, so an unsupported shape is left out rather than forced.
+                const shape = KieProvider.nearestAspect(request.aspect_ratio, KieProvider.KLING_3_ASPECTS);
+                if (shape === request.aspect_ratio || !request.image_prompt) input.aspect_ratio = shape ?? "16:9";
+            } else input.aspect_ratio = request.aspect_ratio;
+        }
         if (request.quality) input.quality = request.quality;
         if (typeof request.seed === "number") input.seed = request.seed;
         if (typeof request.steps === "number") input.steps = request.steps;
