@@ -6,3 +6,7 @@ function toBool(value: string | undefined, fallback: boolean): boolean {
 
 // Open for the public test period. Set NEXT_PUBLIC_STUDIO_ENABLED=false to lock it again.
 export const STUDIO_ENABLED = toBool(process.env.NEXT_PUBLIC_STUDIO_ENABLED, true)
+
+// Long Form mandatory image locks (spec v1.2). On by default; set NEXT_PUBLIC_LONG_FORM_LOCKS=false to hide
+// the editor and stop new locks being saved. Locks already saved are still enforced at generation.
+export const LONG_FORM_LOCKS_ENABLED = toBool(process.env.NEXT_PUBLIC_LONG_FORM_LOCKS, true)

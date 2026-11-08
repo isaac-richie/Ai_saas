@@ -5,6 +5,11 @@ import { createRequire } from "node:module"
 import vm from "node:vm"
 import ts from "typescript"
 
+// Pure module with no imports; the real lock-manifest check, never a stub.
+const longFormLocksModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/services/long-form-locks.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: longFormLocksModule, exports: longFormLocksModule.exports })
+
+
 // The real avoid-clause helper (no imports of its own), so provider tests follow its rules.
 const avoidClauseModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/utils/ai/avoid-clause.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: avoidClauseModule, exports: avoidClauseModule.exports })
@@ -126,6 +131,7 @@ vm.runInNewContext(transpile(read("../src/infrastructure/ai/providers/kie.provid
     if (id === "@/core/utils/ai/avoid-clause") return avoidClauseModule.exports
     if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
     if (id === "@/core/config/kie-video-models") return kieModels
+    if (id === "@/core/services/long-form-locks") return longFormLocksModule.exports
     throw new Error(`Unexpected import: ${id}`)
   },
 })
@@ -136,6 +142,12 @@ test("Seedance receives every reference image, capped at its documented 9", () =
   const input = provider.buildMarketInput({ prompt: "A UGC ad", output_type: "video", duration_seconds: 5, reference_image_urls: urls }, "bytedance/seedance-2")
   assert.equal(input.reference_image_urls.length, 9)
   assert.equal(input.first_frame_url, undefined)
+})
+
+test("Seedance 2.5 takes up to its documented 30 reference images", () => {
+  const urls = Array.from({ length: 31 }, (_, index) => `https://s/${index}.jpg`)
+  const input = provider.buildMarketInput({ prompt: "A UGC ad", output_type: "video", duration_seconds: 5, reference_image_urls: urls }, "bytedance/seedance-2-5")
+  assert.equal(input.reference_image_urls.length, 30)
 })
 
 test("Seedance references are never mixed with a first frame", () => {
@@ -162,7 +174,7 @@ test("both references go into every request, by model", () => {
   assert.match(generate, /for \(const ref of ordered\) for \(const path of ref\.assetPaths\) referenceImageUrls\.push/)
   assert.match(generate, /reference_elements = await Promise\.all\(ordered\.map/)
   assert.match(generate, /payload\.prompt_inputs\.reference_image = payload\.prompt_inputs\.reference_elements\[0\]\.image_urls\[0\]/, "Kling opens on the lead reference")
-  assert.match(generate, /reference_image_urls: referenceImageUrls/)
+  assert.match(generate, /reference_image_urls: locked\?\.reference_image_urls\?\.length \? locked\.reference_image_urls : referenceImageUrls/)
   assert.match(generate, /campaignLockDirective\(campaign\)/)
   assert.match(generate, /campaignLockNegatives\(campaignRefs\)/)
   assert.match(generate, /characterReferenceId: campaignRefs\?\.character\?\.id \|\| null/)

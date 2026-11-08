@@ -9,6 +9,7 @@ import {
 } from "./kie.models";
 import { normalizeGenerationError } from "@/core/utils/ai/error-normalization";
 import { supportsNegativePrompt } from "@/core/utils/ai/avoid-clause";
+import { missingFromPayload } from "@/core/services/long-form-locks";
 import { clampDurationForFamily, getKieVideoModelFamilyByModel } from "@/core/config/kie-video-models";
 
 export class KieProvider extends BaseProvider {
@@ -181,7 +182,9 @@ export class KieProvider extends BaseProvider {
         // Seedance's multimodal reference mode is mutually exclusive with first/last
         // frames, so references are only sent when no frame image is present.
         if (normalizedModel.includes("seedance-2") && !request.image_prompt && request.reference_image_urls?.length) {
-            input.reference_image_urls = request.reference_image_urls.slice(0, 9);
+            // Documented maximums: 30 on Seedance 2.5, 9 on Seedance 2. Required (locked) sets are never
+            // cut: the final payload check fails the request instead.
+            input.reference_image_urls = request.reference_image_urls.slice(0, /seedance-2-5/.test(normalizedModel) ? 30 : 9);
         }
         // Seedance 2.5 watches reference videos; like reference images they never ride with a first frame.
         if (/seedance-2-5/.test(normalizedModel) && !request.image_prompt && request.reference_video_urls?.length) {
@@ -240,6 +243,15 @@ export class KieProvider extends BaseProvider {
         return input;
     }
 
+    /** Long Form locks: refuse to submit unless every required image sits at its field in the final payload. */
+    private assertRequiredInputs(request: GenerationRequest, model: string) {
+        if (!request.required_inputs?.length) return;
+        const missing = missingFromPayload(this.buildMarketInput(request, model), request.required_inputs);
+        if (missing.length) {
+            throw new Error(`Locked images could not all be placed in the ${model} request (${missing.length} missing). Nothing was submitted.`);
+        }
+    }
+
     /**
      * Kling 3 element references must be hosted by Kie's temporary file
      * service. Supplying our own storage URL can appear valid but be ignored or
@@ -248,7 +260,10 @@ export class KieProvider extends BaseProvider {
     async prepareRequest(request: GenerationRequest): Promise<GenerationRequest> {
         if (this.preparedReferenceRequests.has(request)) return request;
         const model = this.resolveModel(request);
-        if (!model.toLowerCase().includes("kling-3.0") || !request.reference_elements?.length) return request;
+        if (!model.toLowerCase().includes("kling-3.0") || !request.reference_elements?.length) {
+            this.assertRequiredInputs(request, model);
+            return request;
+        }
         const sourceUrls = [...new Set(request.reference_elements.flatMap(element => element.image_urls))];
         const uploaded = new Map<string, string>();
 
@@ -277,7 +292,10 @@ export class KieProvider extends BaseProvider {
             image_prompt: request.image_prompt ? uploaded.get(request.image_prompt) || request.image_prompt : undefined,
             end_image_prompt: request.end_image_prompt ? uploaded.get(request.end_image_prompt) || request.end_image_prompt : undefined,
             reference_elements: request.reference_elements.map(element => ({ ...element, image_urls: element.image_urls.map(url => uploaded.get(url) || url) })),
+            // Required inputs follow their images to the provider-hosted copies.
+            required_inputs: request.required_inputs?.map(required => ({ ...required, url: uploaded.get(required.url) || required.url })),
         };
+        this.assertRequiredInputs(prepared, model);
         // The same in-memory request is passed to generate after quota is
         // approved. Identity tracking avoids a second transient upload without
         // assuming anything about Kie's download URL hostname.
@@ -440,6 +458,15 @@ export class KieProvider extends BaseProvider {
                 model,
                 input: KieProvider.clampPrompt(this.buildMarketInput(preparedRequest, model), model),
             };
+
+            // Last check on the exact payload about to be sent: a locked image that is absent or
+            // substituted means no task is created.
+            if (preparedRequest.required_inputs?.length) {
+                const missing = missingFromPayload(body.input as Record<string, unknown>, preparedRequest.required_inputs);
+                if (missing.length) {
+                    return { content_type: "video", status: "failed", error: `Locked images could not all be placed in the ${model} request (${missing.length} missing). Nothing was submitted.` };
+                }
+            }
 
             if (process.env.KIE_AI_CALLBACK_URL) {
                 body.callBackUrl = process.env.KIE_AI_CALLBACK_URL;

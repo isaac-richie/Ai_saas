@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { approveTake } from "@/core/actions/takes"
 import { cancelGenerationJob } from "@/core/actions/generation-jobs"
 import { listProductionShots, pollProductionGeneration, queueProductionShot } from "@/core/actions/production"
+import { preflightFilmLocks } from "@/core/actions/long-form-locks"
 import { applyTakeCorrection, proposeTakeCorrection, recordTakeInspection, submitProductionEvaluation } from "@/core/actions/production-review"
 import styles from "./ProductionDesk.module.css"
 import { recoverFromStaleServerAction } from "@/interface/lib/server-action-recovery"
@@ -150,6 +151,8 @@ function findContinuityGate(shots: Shot[]): ContinuityGate | null {
 export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceId, references = [] }: { productionId: string; projectId: string; sceneId: string; sequenceId?: string | null; references?: MentionReference[] }) {
   const [shots, setShots] = useState<Shot[]>([])
   const [busy, setBusy] = useState(false)
+  // A batch held back because some shots' locked images can't be sent: nothing is submitted until the creator chooses.
+  const [heldBatch, setHeldBatch] = useState<{ ready: Shot[]; blocked: { shot: Shot; number: number; issues: string[] }[]; newTake: boolean } | null>(null)
   const [error, setError] = useState("")
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({})
   const [corrections, setCorrections] = useState<Record<string, Correction>>({})
@@ -192,8 +195,23 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
     return () => window.clearInterval(timer)
   }, [activeJobKey, refresh])
 
-  async function generate(shotsToRun: Shot[], newTake = false) {
+  async function generate(shotsToRun: Shot[], newTake = false, preflighted = false) {
     setBusy(true); setError("")
+    // Batch preflight: every shot's locks are checked first. By default one blocked shot holds the whole batch.
+    if (!preflighted && shotsToRun.length > 1) {
+      const checks = await preflightFilmLocks(productionId).catch(() => null)
+      if (!checks || checks.error || !checks.data) { setBusy(false); toast.error(checks?.error || "Could not check locked images. Nothing was submitted."); return }
+      const blocked = shotsToRun.flatMap(shot => {
+        const number = shots.findIndex(item => item.id === shot.id) + 1
+        const check = checks.data!.find(item => item.shotNumber === number)
+        return check?.status === "blocked" ? [{ shot, number, issues: check.issues }] : []
+      })
+      if (blocked.length) {
+        setHeldBatch({ ready: shotsToRun.filter(shot => !blocked.some(item => item.shot.id === shot.id)), blocked, newTake })
+        setBusy(false)
+        return
+      }
+    }
     try {
       const results = await Promise.allSettled(shotsToRun.map(async shot => ({
         shot,
@@ -279,6 +297,14 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
       <button disabled={busy || generationInProgress || (!continuityGate && !continuityReadyShots.length)} onClick={() => continuityGate ? focusContinuityGate() : void generate(continuityReadyShots)} className="rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-4 py-2 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)] disabled:opacity-40">{busy ? "Submitting..." : continuityGate ? `${continuityGate.action === "inspect" ? "Review" : "Approve"} ${shots.findIndex(shot => shot.id === continuityGate.shotId) + 1}${continuityGate.nextShotName ? ` to unlock ${continuityGate.nextShotName}` : ""}` : `${hasTakes ? "Generate next continuity take" : "Generate opening take"} (${continuityReadyShots.length} ${continuityReadyShots.length === 1 ? "credit" : "credits"})`}</button>
     </div>
     {error && <p role="alert" className="mt-3 text-sm text-amber-200">{error}</p>}
+    {heldBatch && <div role="alert" className="mt-3 rounded-xl border border-amber-300/30 bg-amber-300/[0.06] p-4 text-sm text-amber-100">
+      <p className="font-medium">Nothing was submitted. {heldBatch.blocked.length} shot{heldBatch.blocked.length === 1 ? "" : "s"} can&apos;t send all their locked images:</p>
+      <ul className="mt-2 list-disc space-y-1.5 pl-5 text-xs text-amber-100/90">{heldBatch.blocked.map(item => <li key={item.shot.id}><strong>Shot {item.number} ({item.shot.name}):</strong> {item.issues.join(" ")}</li>)}</ul>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {heldBatch.ready.length > 0 && <button disabled={busy} className="rounded-full border border-amber-200/50 px-4 py-2 text-xs text-amber-50 hover:bg-amber-200/10 disabled:opacity-40" onClick={() => { const held = heldBatch; setHeldBatch(null); void generate(held.ready, held.newTake, true) }}>Generate only the {heldBatch.ready.length} ready shot{heldBatch.ready.length === 1 ? "" : "s"} (excludes {heldBatch.blocked.map(item => item.number).join(", ")})</button>}
+        <button className="rounded-full px-4 py-2 text-xs text-white/70 hover:bg-white/5" onClick={() => setHeldBatch(null)}>Cancel</button>
+      </div>
+    </div>}
     <div className={styles.shotStrip} aria-label="Choose shot">{shots.map((shot, index) => <button type="button" key={shot.id} aria-pressed={(focusedShot || shots[0]?.id) === shot.id} onClick={() => setFocusedShot(shot.id)}><span>SHOT 0{index + 1}</span><strong>{shot.name}</strong><small>{continuityGate?.shotId === shot.id ? `${continuityGate.action === "inspect" ? "Review take" : "Approve take"}${continuityGate.nextShotName ? ` · unlocks ${continuityGate.nextShotName}` : ""}` : shot.approved_take_id ? (index < shots.length - 1 && !hasApprovedContinuityFrame(shot) ? "Selected · inspect to continue" : "Take selected") : index > 0 && !hasApprovedContinuityFrame(shots[index - 1]) ? "Waiting for previous handoff" : shot.shot_generations.some(take => take.status === "completed") ? "Ready for review" : "Ready for footage"}</small></button>)}</div>
     <div className="mt-4">{shots.filter(shot => shot.id === (focusedShot || shots[0]?.id)).map(shot => {
       const jobs = [...shot.generation_jobs].sort((a, b) => (b.created_at || b.id).localeCompare(a.created_at || a.id)); const job = jobs[0]
@@ -296,8 +322,10 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
           <p className="text-xs text-white/60">Take {take.take_number} / {take.status}{shot.approved_take_id === take.id ? " / approved" : ""}</p>
           {(() => {
             const frames = takeFrames(take, references)
-            if (!frames.start && !frames.end) return null
+            const locked = (take.parameters as { locked_inputs?: { required_image_count?: number; binding_count?: number; endpoint?: string } } | null)?.locked_inputs
+            if (!frames.start && !frames.end && !locked) return null
             return <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+              {locked && <span className="rounded-full border border-[#8fd1b9]/30 bg-[#8fd1b9]/10 px-2.5 py-1 text-[#bfe9da]" title={`${locked.binding_count} bindings · ${locked.endpoint}`}>{locked.required_image_count} required image{locked.required_image_count === 1 ? "" : "s"} submitted</span>}
               {frames.start && <span className="rounded-full border border-gold-300/30 bg-gold-300/10 px-2.5 py-1 text-gold-200">Start: {frames.start}</span>}
               {frames.end && <span className="rounded-full border border-gold-300/30 bg-gold-300/10 px-2.5 py-1 text-gold-200">End: {frames.end}</span>}
               {frames.end && frames.match && <span className={frames.match.passed ? "text-gold-300" : "text-amber-200"}>{frames.match.passed ? "Continuity handoff: Passed ✓" : `End frame not reached (match ${Math.round((frames.match.ssim ?? 0) * 100)}%, needs ${Math.round(frames.match.threshold * 100)}%)`}</span>}

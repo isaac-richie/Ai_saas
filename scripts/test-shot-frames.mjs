@@ -5,6 +5,11 @@ import { createRequire } from "node:module"
 import vm from "node:vm"
 import ts from "typescript"
 
+// Pure module with no imports; the real lock-manifest check, never a stub.
+const longFormLocksModule = { exports: {} }
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/services/long-form-locks.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: longFormLocksModule, exports: longFormLocksModule.exports })
+
+
 // The real avoid-clause helper (no imports of its own), so provider tests follow its rules.
 const avoidClauseModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL("../src/core/utils/ai/avoid-clause.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: avoidClauseModule, exports: avoidClauseModule.exports })
@@ -101,6 +106,7 @@ vm.runInNewContext(transpile(read("../src/infrastructure/ai/providers/kie.provid
     if (id === "@/core/utils/ai/avoid-clause") return avoidClauseModule.exports
     if (id === "@/core/utils/ai/error-normalization") return { normalizeGenerationError: (message) => message }
     if (id === "@/core/config/kie-video-models") return kieModels
+    if (id === "@/core/services/long-form-locks") return longFormLocksModule.exports
     throw new Error(`Unexpected import: ${id}`)
   },
 })
