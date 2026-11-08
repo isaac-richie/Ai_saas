@@ -115,6 +115,13 @@ describe('Seedance 2.5: all originals as actual inputs (acceptance 8, 10)', () =
     assert.match(fresh.plan.promptNote, /reference image 1 is (?!the previous)/);
   });
 
+  it('the shot card status (screenshot: scene location + shot image on shot 2) is mapped, not blocked', () => {
+    // shotLockStatus plans later shots with this placeholder for the previous shot's last frame.
+    const status = planLockedRequest(resolveLocks([scene(b('bible-room', 'location', 'Room'))], [b('gold-bible', 'prop', 'Bible')]), SEEDANCE, { continuityStartUrl: 'continuity://previous-shot' });
+    assert.ok(status.ok, status.issues?.join(' '));
+    assert.equal(status.plan.referenceImageUrls.length, 3);
+  });
+
   it('the continuity frame counts toward the 30-image Seedance limit', () => {
     const many = (count) => Array.from({ length: count }, (_, i) => b(`img-${i}`, 'prop', `Prop ${i}`));
     assert.ok(planLockedRequest(resolveLocks([], many(29)), SEEDANCE, { continuityStartUrl: 'https://x/last.jpg' }).ok);
