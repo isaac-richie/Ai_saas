@@ -361,6 +361,68 @@ export function plannedSpans(shots: { title: string; durationSec: number }[]): S
   })
 }
 
+// ── Edits: films in a timeline ──────────────────────────────────────────────────────────────────
+
+/** A video clip on the edit's video track (only what audio planning needs). */
+export type EditClip = { id: string; start_ms: number; end_ms: number; metadata: Record<string, unknown> | null }
+/** film_shot_id → the film (lineage root) and shot it came from, with the film's current shot titles. */
+export type FilmShotIndex = Record<string, { rootId: string; shotNumber: number; shotName: string; titles: Record<number, string> }>
+export type FilmAudioData = { assets: AudioAsset[]; bindings: AudioBinding[] }
+export type TimelineFilm = {
+  rootId: string
+  spans: ShotSpan[]
+  /** Clip ids of each film shot in the edit, for muting their own sound. */
+  clipsByShot: Map<number, string[]>
+  foreign: { startMs: number; endMs: number }[]
+  currentTitles: Map<number, string>
+}
+
+/** Groups an edit's film clips by film, with each shot's place; everything else is foreign to that film. */
+export function groupFilmClips(videoClips: EditClip[], index: FilmShotIndex): TimelineFilm[] {
+  const films = new Map<string, TimelineFilm>()
+  for (const clip of videoClips) {
+    const ref = index[String((clip.metadata ?? {}).film_shot_id ?? "")]
+    if (!ref) continue
+    const entry: TimelineFilm = films.get(ref.rootId) ?? {
+      rootId: ref.rootId, spans: [], clipsByShot: new Map(), foreign: [],
+      currentTitles: new Map(Object.entries(ref.titles).map(([n, t]) => [Number(n), t])),
+    }
+    films.set(ref.rootId, entry)
+    if (!entry.spans.some(s => s.shotNumber === ref.shotNumber)) entry.spans.push({ shotNumber: ref.shotNumber, startMs: clip.start_ms, endMs: clip.end_ms, title: ref.shotName })
+    entry.clipsByShot.set(ref.shotNumber, [...(entry.clipsByShot.get(ref.shotNumber) ?? []), clip.id])
+  }
+  for (const film of films.values()) {
+    const own = new Set([...film.clipsByShot.values()].flat())
+    film.foreign = videoClips.filter(c => !own.has(c.id)).map(c => ({ startMs: c.start_ms, endMs: c.end_ms }))
+  }
+  return [...films.values()]
+}
+
+export type ExportAudio = {
+  cues: (AudioCue & { rootId: string })[]
+  mutedClipIds: string[]
+  issues: (AudioIssue & { rootId: string })[]
+  manifest: Record<string, unknown>[]
+}
+
+/**
+ * Plans every locked recording of every film in an edit. The export gate and the editor preview both
+ * use this, so what you hear while editing is what the export will contain.
+ */
+export function planEditAudio(videoClips: EditClip[], index: FilmShotIndex, audioByRoot: Record<string, FilmAudioData>): ExportAudio {
+  const result: ExportAudio = { cues: [], mutedClipIds: [], issues: [], manifest: [] }
+  for (const film of groupFilmClips(videoClips, index)) {
+    const audio = audioByRoot[film.rootId]
+    if (!audio?.bindings.length) continue
+    const plan = planFilmAudio(audio.bindings, new Map(audio.assets.map(a => [a.id, a])), film.spans, { foreign: film.foreign, currentTitles: film.currentTitles })
+    result.cues.push(...plan.cues.map(c => ({ ...c, rootId: film.rootId })))
+    result.issues.push(...plan.issues.map(i => ({ ...i, rootId: film.rootId })))
+    result.mutedClipIds.push(...plan.mutedShots.flatMap(n => film.clipsByShot.get(n) ?? []))
+    result.manifest.push({ production_root_id: film.rootId, ...audioManifest(plan) })
+  }
+  return result
+}
+
 /** One video clip as placed in the edit and as it actually lands in the rendered output. */
 export type RenderedClip = { startMs: number; endMs: number; outStartMs: number; outDurationMs: number }
 
@@ -388,6 +450,28 @@ export function remapCues<C extends AudioCue>(cues: C[], clips: RenderedClip[]):
     const durationMs = Math.max(50, endMs - startMs)
     return { ...cue, startMs, durationMs, fadeOutMs: Math.min(cue.fadeOutMs, Math.floor(durationMs / 2)), fadeInMs: Math.min(cue.fadeInMs, Math.floor(durationMs / 2)) }
   })
+}
+
+// ── Preview ──────────────────────────────────────────────────────────────────────────────────────
+
+/** Where a cue plays in output time: a recording keeps its length; a fill cue follows its span. */
+export function cueWindow(cue: Pick<AudioCue, "startMs" | "durationMs" | "fillsScope">, toOutputMs: (timelineMs: number) => number) {
+  const start = toOutputMs(cue.startMs)
+  const end = cue.fillsScope ? toOutputMs(cue.startMs + cue.durationMs - 1) + 1 : start + cue.durationMs
+  return { start, end: Math.max(start + 50, end) }
+}
+
+/** Position in the file and loudness at a moment of output time, or null when the cue is silent then. */
+export function cueStateAt(cue: Pick<AudioCue, "sourceInMs" | "loop" | "segmentMs" | "fadeInMs" | "fadeOutMs" | "gain">, window: { start: number; end: number }, outputMs: number): { fileSec: number; volume: number } | null {
+  if (outputMs < window.start || outputMs >= window.end) return null
+  const elapsed = outputMs - window.start
+  const fileMs = cue.sourceInMs + (cue.loop ? elapsed % Math.max(1, cue.segmentMs) : elapsed)
+  const length = window.end - window.start
+  let fade = 1
+  if (cue.fadeInMs > 0 && elapsed < cue.fadeInMs) fade = elapsed / cue.fadeInMs
+  if (cue.fadeOutMs > 0 && length - elapsed < cue.fadeOutMs) fade = Math.min(fade, (length - elapsed) / cue.fadeOutMs)
+  // Browsers can't play above 100%; a louder-than-original gain is heard at full volume in preview.
+  return { fileSec: fileMs / 1000, volume: Math.max(0, Math.min(1, cue.gain * fade)) }
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────────────────────────

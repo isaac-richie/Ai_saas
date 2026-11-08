@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import {
-  audioManifest, planFilmAudio,
-  type AudioAsset, type AudioBinding, type AudioCue, type AudioIssue, type AudioPurpose, type ShotSpan,
+  planEditAudio,
+  type AudioAsset, type AudioBinding, type AudioCue, type AudioPurpose, type EditClip, type ExportAudio, type FilmAudioData, type FilmShotIndex,
 } from "@/core/services/long-form-audio"
 import { isMissingLocksTable } from "@/core/services/long-form-lock-store"
 
@@ -70,31 +70,20 @@ export async function downloadAudio(db: SupabaseClient, path: string, name: stri
   return Buffer.from(await data.arrayBuffer())
 }
 
-type ClipRow = { id: string; start_ms: number; end_ms: number; metadata: Record<string, unknown> | null }
-
-export type TimelineFilm = {
-  rootId: string
-  spans: ShotSpan[]
-  /** Clip ids of each film shot in the edit, for muting their own sound. */
-  clipsByShot: Map<number, string[]>
-  foreign: { startMs: number; endMs: number }[]
-  currentTitles: Map<number, string>
-}
+type ClipRow = EditClip
 
 /**
- * Finds the Long Form films in an edit: video clips that came from film shots, grouped by film, with
- * each shot's place on the timeline. Clips from anywhere else are "foreign" to that film.
+ * Which Long Form film and shot each film clip in an edit came from. The newest plan for each scene
+ * names its shots; its lineage root owns the locks. Clips from anywhere else aren't listed.
  */
-export async function filmsInTimeline(db: SupabaseClient, userId: string, videoClips: ClipRow[]): Promise<TimelineFilm[]> {
+export async function filmShotIndex(db: SupabaseClient, userId: string, videoClips: ClipRow[]): Promise<FilmShotIndex> {
   const shotIds = [...new Set(videoClips.map(c => (c.metadata ?? {}).film_shot_id).filter((id): id is string => typeof id === "string"))]
-  if (!shotIds.length) return []
+  if (!shotIds.length) return {}
   const { data: shots } = await db.from("shots").select("id, scene_id, sequence_order, name").in("id", shotIds)
-  const shotById = new Map((shots ?? []).map(s => [s.id as string, s as { id: string; scene_id: string; sequence_order: number; name: string }]))
-  const sceneIds = [...new Set([...shotById.values()].map(s => s.scene_id))]
-  if (!sceneIds.length) return []
+  const sceneIds = [...new Set((shots ?? []).map(s => s.scene_id as string))]
+  if (!sceneIds.length) return {}
   const { data: jobs } = await db.from("production_jobs").select("id, parent_job_id, scene_id, plan, revision_number").in("scene_id", sceneIds).eq("user_id", userId)
-  // The newest plan for each scene names its shots; its lineage root owns the locks.
-  const filmByScene = new Map<string, { rootId: string; titles: Map<number, string>; revision: number }>()
+  const filmByScene = new Map<string, { rootId: string; titles: Record<number, string>; revision: number }>()
   for (const job of jobs ?? []) {
     const revision = Number(job.revision_number ?? 0)
     const existing = filmByScene.get(job.scene_id as string)
@@ -102,49 +91,32 @@ export async function filmsInTimeline(db: SupabaseClient, userId: string, videoC
     const deliverables = ((job.plan as { deliverables?: { title?: string }[] } | null)?.deliverables ?? [])
     filmByScene.set(job.scene_id as string, {
       rootId: (job.parent_job_id as string | null) || (job.id as string), revision,
-      titles: new Map(deliverables.map((d, i) => [i + 1, String(d.title ?? "")])),
+      titles: Object.fromEntries(deliverables.map((d, i) => [i + 1, String(d.title ?? "")])),
     })
   }
-  const films = new Map<string, TimelineFilm>()
-  for (const clip of videoClips) {
-    const shot = shotById.get(String((clip.metadata ?? {}).film_shot_id ?? ""))
-    const film = shot ? filmByScene.get(shot.scene_id) : undefined
-    if (!shot || !film) continue
-    const entry: TimelineFilm = films.get(film.rootId) ?? { rootId: film.rootId, spans: [], clipsByShot: new Map(), foreign: [], currentTitles: film.titles }
-    films.set(film.rootId, entry)
-    const number = Number(shot.sequence_order)
-    if (!entry.spans.some(s => s.shotNumber === number)) entry.spans.push({ shotNumber: number, startMs: clip.start_ms, endMs: clip.end_ms, title: shot.name })
-    entry.clipsByShot.set(number, [...(entry.clipsByShot.get(number) ?? []), clip.id])
+  const index: FilmShotIndex = {}
+  for (const shot of shots ?? []) {
+    const film = filmByScene.get(shot.scene_id as string)
+    if (film) index[shot.id as string] = { rootId: film.rootId, shotNumber: Number(shot.sequence_order), shotName: String(shot.name ?? ""), titles: film.titles }
   }
-  for (const film of films.values()) {
-    const own = new Set([...film.clipsByShot.values()].flat())
-    film.foreign = videoClips.filter(c => !own.has(c.id)).map(c => ({ startMs: c.start_ms, endMs: c.end_ms }))
-  }
-  return [...films.values()]
+  return index
 }
 
-export type ExportAudio = {
-  cues: (AudioCue & { rootId: string })[]
-  mutedClipIds: string[]
-  issues: (AudioIssue & { rootId: string })[]
-  manifest: Record<string, unknown>[]
+/** The recordings and placements of each film in the index. */
+export async function loadFilmsAudio(db: SupabaseClient, index: FilmShotIndex): Promise<Record<string, FilmAudioData>> {
+  const roots = [...new Set(Object.values(index).map(f => f.rootId))]
+  const out: Record<string, FilmAudioData> = {}
+  for (const rootId of roots) {
+    const audio = await loadFilmAudio(db, rootId)
+    if (audio.available && audio.bindings.length) out[rootId] = { assets: audio.assets, bindings: audio.bindings }
+  }
+  return out
 }
 
 /** Plans every locked recording of every film in this edit. Blocking issues stop the export. */
 export async function planTimelineAudio(db: SupabaseClient, userId: string, videoClips: ClipRow[]): Promise<ExportAudio> {
-  const films = await filmsInTimeline(db, userId, videoClips)
-  const result: ExportAudio = { cues: [], mutedClipIds: [], issues: [], manifest: [] }
-  for (const film of films) {
-    const audio = await loadFilmAudio(db, film.rootId)
-    if (!audio.available || !audio.bindings.length) continue
-    const assets = new Map(audio.assets.map(a => [a.id, a]))
-    const plan = planFilmAudio(audio.bindings, assets, film.spans, { foreign: film.foreign, currentTitles: film.currentTitles })
-    result.cues.push(...plan.cues.map(c => ({ ...c, rootId: film.rootId })))
-    result.issues.push(...plan.issues.map(i => ({ ...i, rootId: film.rootId })))
-    result.mutedClipIds.push(...plan.mutedShots.flatMap(n => film.clipsByShot.get(n) ?? []))
-    result.manifest.push({ production_root_id: film.rootId, ...audioManifest(plan) })
-  }
-  return result
+  const index = await filmShotIndex(db, userId, videoClips)
+  return planEditAudio(videoClips, index, await loadFilmsAudio(db, index))
 }
 
 /** A stable fingerprint of the edit's video clips (ids and positions), so a render can tell if they moved. */

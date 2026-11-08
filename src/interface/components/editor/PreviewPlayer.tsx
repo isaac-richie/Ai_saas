@@ -12,12 +12,13 @@ import { getGradeById } from '@/core/services/color-grading';
 import { DEFAULT_FRAME_FIT, isFrameFit } from '@/core/services/video-format';
 import { CAPTION_PREVIEW_CLASS, GRADE_PREVIEW_FILTER } from './labels';
 import { FILMSTRIP_FRAMES, useFilmstrip } from '@/interface/lib/media-thumbs';
+import { LockedAudioBadge, LockedAudioLayer, useEditorLockedAudio } from './LockedAudioLayer';
 
 /**
  * The stage. It fills its box at the timeline's aspect ratio, plays shots, music and text in
  * step with the playhead, and approximates the chosen look so edits are visible right away.
  */
-export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
+export function PreviewPlayer({ emptyHint, lockedAudioLoader }: { emptyHint?: React.ReactNode; lockedAudioLoader?: Parameters<typeof useEditorLockedAudio>[2] }) {
   const { clips, playhead_ms, tracks, is_playing, timeline, setPlayhead, setPlaying, togglePlay } = useTimelineStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const backRef = useRef<HTMLVideoElement>(null);
@@ -36,6 +37,9 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
   const current = index >= 0 ? videoClips[index] : null;
   const next = index >= 0 ? videoClips[index + 1] : videoClips[0];
   const outputMs = timelineToOutputMs(videoClips, playhead_ms);
+  // Long Form locked audio: heard here exactly where the export places it.
+  const lockedPlan = useEditorLockedAudio(timeline?.id, videoClips, lockedAudioLoader);
+  const mutedByLock = useMemo(() => new Set(lockedPlan?.mutedClipIds ?? []), [lockedPlan]);
 
   const song = clips.find((c) => c.track_id === musicTrack?.id);
   const caption = captionTrack?.visible
@@ -79,7 +83,8 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
     if (Math.abs(video.currentTime - target) > 0.25 * Math.max(1, speed)) video.currentTime = target;
     if (video.playbackRate !== speed) video.playbackRate = speed;
     video.volume = Math.max(0, Math.min(1, current.volume));
-    video.muted = Boolean(videoTrack?.muted);
+    // A shot whose dialogue was locked with "mute the shot's own sound" plays silent, as in the export.
+    video.muted = Boolean(videoTrack?.muted) || mutedByLock.has(current.id);
     if (is_playing && video.paused) video.play().catch(() => {});
     if (!is_playing && !video.paused) video.pause();
     // The blurred background is a second, silent copy kept in step with the picture.
@@ -90,7 +95,7 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
       if (is_playing && back.paused) back.play().catch(() => {});
       if (!is_playing && !back.paused) back.pause();
     }
-  }, [playhead_ms, current, is_playing, videoTrack?.muted]);
+  }, [playhead_ms, current, is_playing, videoTrack?.muted, mutedByLock]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -199,6 +204,8 @@ export function PreviewPlayer({ emptyHint }: { emptyHint?: React.ReactNode }) {
           <video key={`pre-${next.id}`} src={next.asset_url} preload="auto" muted className="hidden" aria-hidden />
         )}
         {song?.asset_url && <audio ref={audioRef} src={song.asset_url} preload="auto" className="hidden" />}
+        {lockedPlan && <LockedAudioLayer plan={lockedPlan} videoClips={videoClips} outputMs={outputMs} playing={is_playing} />}
+        {lockedPlan && <LockedAudioBadge plan={lockedPlan} />}
       </div>
     </div>
   );
