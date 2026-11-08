@@ -15,11 +15,11 @@ import { checkRateLimit } from "@/core/utils/security/rate-limit"
 import { productionPlanSchema } from "@/core/validation/production-crew"
 import {
   AI_AUDIO_CAPABILITIES, AUDIO_PLAYBACK, AUDIO_PURPOSES, buildAiAudioTask, defaultPlacement, parseAiAudioRecord,
-  type AudioAsset, type AudioPurpose,
+  type AudioAsset, type AudioPurpose, type FilmAudioData, type FilmShotIndex,
 } from "@/core/services/long-form-audio"
 import {
   AUDIO_BUCKET, AUDIO_MIME, AUDIO_PATH, MAX_AUDIO_BINDINGS, MAX_AUDIO_BYTES, MAX_AUDIO_MS,
-  downloadAudio, loadFilmAudio, sha256Hex, toAudioAsset,
+  downloadAudio, filmShotIndex, loadFilmAudio, loadFilmsAudio, sha256Hex, toAudioAsset,
 } from "@/core/services/long-form-audio-store"
 import { isMissingLocksTable, loadFilmLocks } from "@/core/services/long-form-lock-store"
 import { LONG_FORM_AI_AUDIO_ENABLED, LONG_FORM_AUDIO_ENABLED } from "@/core/config/feature-flags"
@@ -394,3 +394,26 @@ export async function filmMediaRevision(productionId: string): Promise<Result<{ 
 }
 
 export type AudioPurposeOption = { id: AudioPurpose; ai: boolean }
+
+export type EditorLockedAudio = { index: FilmShotIndex; audio: Record<string, FilmAudioData> }
+
+/**
+ * The locked audio of every Long Form film in an edit, for the editor's preview. The editor plans the
+ * cues itself from its live clip positions (with the same planner the export uses), so moving or
+ * trimming a shot updates what you hear before anything is saved.
+ */
+export async function getEditorLockedAudio(timelineId: string): Promise<Result<EditorLockedAudio>> {
+  if (!z.string().uuid().safeParse(timelineId).success) return { error: "Choose a timeline." }
+  const { db, user } = await session()
+  if (!user) return { error: "Please sign in." }
+  // RLS limits timelines to their owner; an unknown id simply has no clips.
+  const { data: tracks } = await db.from("timeline_tracks").select("id").eq("timeline_id", timelineId).eq("track_type", "video")
+  if (!tracks?.length) return { data: { index: {}, audio: {} } }
+  const { data: clips } = await db.from("timeline_clips").select("id, start_ms, end_ms, metadata").in("track_id", tracks.map(t => t.id))
+  try {
+    const index = await filmShotIndex(db, user.id, clips ?? [])
+    return { data: { index, audio: await loadFilmsAudio(db, index) } }
+  } catch {
+    return { error: "Could not load locked audio." }
+  }
+}

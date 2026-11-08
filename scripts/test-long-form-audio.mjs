@@ -442,3 +442,59 @@ describe('Wiring (acceptance 1, 10, 14, 15, 21, 24, 26, 28)', () => {
     assert.doesNotMatch(src('../src/core/actions/long-form-locks.ts'), /taggedShotReferences|selectShotReferences/);
   });
 });
+
+describe('Editor preview uses the export planner (spec §6: preview mix)', () => {
+  const { planEditAudio, cueWindow, cueStateAt, groupFilmClips } = audio;
+  const titles = { 1: 'One', 2: 'Two' };
+  const index = { fs1: { rootId: 'film', shotNumber: 1, shotName: 'One', titles }, fs2: { rootId: 'film', shotNumber: 2, shotName: 'Two', titles } };
+  const clips = [
+    { id: 'c1', start_ms: 0, end_ms: 4000, metadata: { film_shot_id: 'fs1' } },
+    { id: 'c2', start_ms: 4000, end_ms: 8000, metadata: { film_shot_id: 'fs2' } },
+    { id: 'c3', start_ms: 8000, end_ms: 13000, metadata: {} },
+  ];
+  const prayer = asset('prayer', 'dialogue', 2500), rain = asset('rain', 'ambience', 2000);
+  const audioByRoot = { film: { assets: [prayer, rain], bindings: [place(rain, 'scene', null, { loop: true }), place(prayer, 'shot', 2, { nativeAudio: 'mute', offsetMs: 500 })] } };
+  it('groups clips by film; other clips are foreign', () => {
+    const [film] = groupFilmClips(clips, index);
+    assert.deepEqual(film.spans.map((s) => [s.shotNumber, s.startMs, s.endMs]), [[1, 0, 4000], [2, 4000, 8000]]);
+    assert.deepEqual(film.foreign, [{ startMs: 8000, endMs: 13000 }]);
+  });
+  it('plans cues and mutes by clip id, ready for export', () => {
+    const plan = planEditAudio(clips, index, audioByRoot);
+    assert.equal(plan.issues.length, 0);
+    assert.deepEqual(plan.cues.map((c) => [c.bindingId === audioByRoot.film.bindings[0].id ? 'rain' : 'prayer', c.startMs, c.durationMs]), [['rain', 0, 8000], ['prayer', 4500, 2500]]);
+    assert.deepEqual(plan.mutedClipIds, ['c2']);
+  });
+  it('moving a shot in the editor moves its audio before anything is saved', () => {
+    const moved = [clips[1], { ...clips[0], start_ms: 4000, end_ms: 8000 }].map((c, i) => (i === 0 ? { ...c, start_ms: 0, end_ms: 4000 } : c));
+    const plan = planEditAudio(moved, index, audioByRoot);
+    assert.equal(plan.cues.find((c) => c.purpose === 'dialogue').startMs, 500);
+  });
+  it('the same issues the export would raise show in the preview', () => {
+    const undecided = { film: { assets: [prayer], bindings: [place(prayer, 'shot', 2)] } };
+    assert.deepEqual(planEditAudio(clips, index, undecided).issues.map((i) => i.kind), ['decision']);
+  });
+  it('cue windows follow transitions; a recording keeps its length', () => {
+    const shift = (ms) => (ms >= 4000 ? ms - 500 : ms);
+    assert.deepEqual(cueWindow({ startMs: 4500, durationMs: 2500, fillsScope: false }, shift), { start: 4000, end: 6500 });
+    assert.deepEqual(cueWindow({ startMs: 0, durationMs: 8000, fillsScope: true }, shift), { start: 0, end: 7500 });
+  });
+  it('loop position, fades and gain at any moment', () => {
+    const cue = { sourceInMs: 0, loop: true, segmentMs: 2000, fadeInMs: 1000, fadeOutMs: 1000, gain: 0.8 };
+    const w = { start: 0, end: 8000 };
+    assert.equal(cueStateAt(cue, w, -1), null);
+    assert.equal(cueStateAt(cue, w, 8000), null);
+    assert.deepEqual(cueStateAt(cue, w, 500), { fileSec: 0.5, volume: 0.4 });
+    assert.deepEqual(cueStateAt(cue, w, 4500), { fileSec: 0.5, volume: 0.8 });
+    assert.deepEqual(cueStateAt(cue, w, 7500), { fileSec: 1.5, volume: 0.4 });
+    assert.equal(cueStateAt({ ...cue, gain: 1.6, fadeInMs: 0, fadeOutMs: 0 }, w, 3000).volume, 1, 'preview caps at 100%');
+    assert.equal(cueStateAt({ ...cue, loop: false, sourceInMs: 1000 }, w, 2500).fileSec, 3.5);
+  });
+  it('the export gate and the preview share one planner', () => {
+    assert.match(src('../src/core/services/long-form-audio-store.ts'), /return planEditAudio\(videoClips, index, await loadFilmsAudio\(db, index\)\)/);
+    const layer = src('../src/interface/components/editor/LockedAudioLayer.tsx');
+    assert.match(layer, /planEditAudio\(videoClips, data\.index, data\.audio\)/);
+    const player = src('../src/interface/components/editor/PreviewPlayer.tsx');
+    assert.match(player, /video\.muted = Boolean\(videoTrack\?\.muted\) \|\| mutedByLock\.has\(current\.id\)/);
+  });
+});

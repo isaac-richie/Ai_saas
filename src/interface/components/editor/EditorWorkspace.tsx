@@ -46,6 +46,8 @@ export type RenderState = {
 };
 
 export interface EditorWorkspaceProps {
+  /** Loads Long Form locked audio for the preview; the dev preview passes sample data. */
+  lockedAudioLoader?: Parameters<typeof PreviewPlayer>[0]['lockedAudioLoader'];
   backHref: string;
   /** The project's name, shown in the top bar. */
   title?: string;
@@ -485,7 +487,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
               <div ref={workArea} className="flex min-w-0 flex-1 flex-col">
                 <section className="ed-glass ed-glass-lit flex min-h-0 flex-1 flex-col overflow-hidden rounded-[22px]">
                   <div className="relative min-h-0 flex-1 px-6 pb-3 pt-5">
-                    <PreviewPlayer emptyHint={emptyHint} />
+                    <PreviewPlayer emptyHint={emptyHint} lockedAudioLoader={props.lockedAudioLoader} />
                   </div>
                   <div className="border-t border-white/[0.05] bg-black/20 px-5 pb-3.5 pt-2.5">
                     <Transport
@@ -555,7 +557,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
                 {/* The stage is only as tall as the picture (at most about half the screen); the timeline gets the rest. */}
                 <section className="ed-glass ed-glass-lit shrink-0 rounded-[22px] p-2 sm:p-3">
                   <div style={{ height: `min(44dvh, calc((100vw - ${phone ? 44 : 50}px) * ${frameH / frameW}))` }}>
-                    <PreviewPlayer emptyHint={emptyHint} />
+                    <PreviewPlayer emptyHint={emptyHint} lockedAudioLoader={props.lockedAudioLoader} />
                   </div>
                   <div className="mt-2 px-1.5 pb-0.5">
                     <Transport

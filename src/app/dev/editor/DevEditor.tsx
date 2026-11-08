@@ -18,8 +18,8 @@ const sample = {
   timeline: { id: 'dev', project_id: 'dev', name: 'Main', fps: 24, resolution: '1920x1080', duration_ms: 13000, color_grade_id: 'natural', created_at: '', updated_at: '' },
   tracks: [track('v', 'video', 0), track('a', 'audio', 1), track('t', 'caption', 2)],
   clips: [
-    clip({ id: 's1', track_id: 'v', start_ms: 0, end_ms: 4000, asset_url: '/__dev/shot1.mp4', transition_out: 'crossfade', transition_out_ms: 500, metadata: { source_duration_ms: 4000, shot: { subject: 'Fractal bloom' } } }),
-    clip({ id: 's2', track_id: 'v', start_ms: 4000, end_ms: 8000, asset_url: '/__dev/shot2.mp4', metadata: { source_duration_ms: 4000, shot: { subject: 'Sunset sky' } } }),
+    clip({ id: 's1', track_id: 'v', start_ms: 0, end_ms: 4000, asset_url: '/__dev/shot1.mp4', transition_out: 'crossfade', transition_out_ms: 500, metadata: { source_duration_ms: 4000, film_shot_id: 'fs1', shot: { subject: 'Fractal bloom' } } }),
+    clip({ id: 's2', track_id: 'v', start_ms: 4000, end_ms: 8000, asset_url: '/__dev/shot2.mp4', metadata: { source_duration_ms: 4000, film_shot_id: 'fs2', shot: { subject: 'Sunset sky' } } }),
     clip({ id: 's3', track_id: 'v', start_ms: 8000, end_ms: 13000, asset_url: '/__dev/shot3.mp4', metadata: { source_duration_ms: 5000, shot: { subject: 'Starfield' } } }),
     clip({ id: 'm', track_id: 'a', clip_type: 'audio', start_ms: 0, end_ms: 13000, volume: 0.6, asset_url: '/__dev/song.mp3', metadata: { name: 'Golden Hour Demo', bpm: 120, beats: Array.from({ length: 40 }, (_, i) => i * 0.5), source_duration_ms: 20000 } }),
     clip({ id: 'c1', track_id: 't', clip_type: 'caption', start_ms: 600, end_ms: 3200, metadata: { text: 'Made with VisioWave', style: 'bold_center' } }),
@@ -27,6 +27,42 @@ const sample = {
 };
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** A short tone as a playable WAV data URL, so locked-audio preview works without real files. */
+function toneUrl(sec: number, hz: number) {
+  const rate = 8000, n = Math.round(sec * rate), bytes = new Uint8Array(44 + n * 2), v = new DataView(bytes.buffer);
+  const w = (o: number, t: string) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.sin((2 * Math.PI * hz * i) / rate) * 5000, true);
+  let bin = ''; for (const b of bytes) bin += String.fromCharCode(b);
+  return `data:audio/wav;base64,${btoa(bin)}`;
+}
+
+/** Sample Long Form film: shots 1 and 2 of the edit, with a looped rain bed and a muted-under prayer. */
+const devLockedAudio = async () => {
+  const sha = (c: string) => c.repeat(64);
+  const asset = (id: string, name: string, purpose: 'dialogue' | 'ambience', ms: number, url: string) => ({
+    id, origin: 'uploaded' as const, purpose, name, status: 'ready' as const, storagePath: url, playbackPath: url, sha256: sha(id[0]), mimeType: 'audio/wav',
+    byteSize: 1, durationMs: ms, generation: null, providerTaskId: null, errorMessage: null, createdAt: '',
+  });
+  const placement = { sourceInMs: 0, sourceOutMs: null, offsetMs: 0, gain: 1, fadeInMs: 0, fadeOutMs: 0, overflow: 'block' as const, dialogueDisplay: 'voice_over' as const, anchorTitle: '' };
+  const titles = { 1: 'Fractal bloom', 2: 'Sunset sky' };
+  return {
+    data: {
+      index: { fs1: { rootId: 'film', shotNumber: 1, shotName: 'Fractal bloom', titles }, fs2: { rootId: 'film', shotNumber: 2, shotName: 'Sunset sky', titles } },
+      audio: {
+        film: {
+          assets: [asset('rain', 'Rain bed', 'ambience', 2000, toneUrl(2, 180)), asset('prayer', "Sam's prayer", 'dialogue', 2500, toneUrl(2.5, 520))],
+          bindings: [
+            { ...placement, id: 'b-rain', scopeType: 'scene' as const, shotNumber: null, audioAssetId: 'rain', sha256: sha('r'), purpose: 'ambience' as const, playback: 'continuous' as const, loop: true, nativeAudio: 'keep' as const, gain: 0.4 },
+            { ...placement, id: 'b-prayer', scopeType: 'shot' as const, shotNumber: 2, audioAssetId: 'prayer', sha256: sha('p'), purpose: 'dialogue' as const, playback: 'once' as const, loop: false, nativeAudio: 'mute' as const, offsetMs: 500 },
+          ],
+        },
+      },
+    },
+  };
+};
 
 export function DevEditor() {
   const [render, setRender] = useState<RenderState>({ status: 'idle', progress: 0, stage: '', url: null, storageKey: null, error: null });
@@ -40,6 +76,7 @@ export function DevEditor() {
 
   return (
     <EditorWorkspace
+      lockedAudioLoader={devLockedAudio}
       backHref="/dashboard"
       title="Golden Hour — teaser"
       saving={false}
