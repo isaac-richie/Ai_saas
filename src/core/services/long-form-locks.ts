@@ -141,6 +141,11 @@ export type LockedRequestPlan = {
   manifest: ManifestEntry[]
   /** One line for the prompt naming what each reference is. */
   promptNote: string
+  /**
+   * Seedance only: the shot continues from the previous shot, but first frames can't ride with
+   * reference images, so the previous shot's last frame is sent as reference image 1 instead.
+   */
+  continuityAsReference: boolean
 }
 
 export type PlanResult = { ok: true; plan: LockedRequestPlan } | { ok: false; issues: string[] }
@@ -178,6 +183,7 @@ export function planLockedRequest(resolved: ResolvedLocks, model: string, option
 
   const elements: LockedRequestPlan["elements"] = []
   const referenceImageUrls: string[] = []
+  let continuityAsReference = false
   const describe = (b: ResolvedBinding) => [b.entityLabel || null, b.viewLabel || null].filter(Boolean).join(" / ")
   const noteParts: string[] = []
 
@@ -219,9 +225,14 @@ export function planLockedRequest(resolved: ResolvedLocks, model: string, option
   if (refs.length && cap.references.kind === "images") {
     const r = cap.references
     if (startUrl || endUrl) issues.push(`${cap.label} can't combine locked reference images with a locked start or end frame. Remove the frame locks, or switch to Kling 3.0 Pro.`)
-    else if (options.continuityStartUrl) issues.push(`This shot continues from the previous shot's last frame, and ${cap.label} can't combine that with reference images. Switch this shot to Kling 3.0 Pro, or lock its images on a shot that starts fresh.`)
+    // A continued shot normally opens on the previous shot's last frame, but Seedance can't take a
+    // first frame beside reference images. Locks are required and continuity is not, so the last
+    // frame rides as reference image 1 and the prompt asks the model to open on it.
+    else if (options.continuityStartUrl) continuityAsReference = true
     const images = distinct(refs)
-    if (images.length > r.max) issues.push(`${images.length} required images; ${cap.label} accepts ${r.max} reference images.`)
+    if (continuityAsReference && images.length + 1 > r.max) issues.push(`${images.length} required images plus the previous shot's last frame; ${cap.label} accepts ${r.max} reference images. Remove ${images.length + 1 - r.max} locked image${images.length + 1 - r.max === 1 ? "" : "s"}.`)
+    else if (images.length > r.max) issues.push(`${images.length} required images; ${cap.label} accepts ${r.max} reference images.`)
+    if (continuityAsReference) referenceImageUrls.push(options.continuityStartUrl!)
     for (const img of images) {
       if (!r.formats.includes(img.contentType)) issues.push(`${img.assetName} is a format ${cap.label} can't take as a reference.`)
       if (img.byteSize > r.maxBytes) issues.push(`${img.assetName} is over ${r.maxBytes / MB} MB.`)
@@ -232,7 +243,9 @@ export function planLockedRequest(resolved: ResolvedLocks, model: string, option
     }
     // Seedance references are role-free inputs, so one image can serve several bindings at one index.
     for (const b of refs) manifest.push(entry(b, `reference_image_urls[${referenceImageUrls.indexOf(b.assetUrl)}]`))
-    images.forEach((img, i) => noteParts.push(`reference image ${i + 1} is ${refs.filter(b => imageKey(b) === imageKey(img)).map(b => `${LOCK_ROLE_LABELS[b.role].toLowerCase()}${b.entityLabel ? ` ${b.entityLabel}` : ""}${b.viewLabel ? ` (${b.viewLabel})` : ""}`).join(" and ")}`))
+    const offset = continuityAsReference ? 1 : 0
+    if (continuityAsReference) noteParts.push("reference image 1 is the previous shot's final frame: open on it, matching its framing, lighting and positions")
+    images.forEach((img, i) => noteParts.push(`reference image ${i + 1 + offset} is ${refs.filter(b => imageKey(b) === imageKey(img)).map(b => `${LOCK_ROLE_LABELS[b.role].toLowerCase()}${b.entityLabel ? ` ${b.entityLabel}` : ""}${b.viewLabel ? ` (${b.viewLabel})` : ""}`).join(" and ")}`))
   }
 
   if (issues.length) return { ok: false, issues: [...new Set(issues)] }
@@ -246,7 +259,7 @@ export function planLockedRequest(resolved: ResolvedLocks, model: string, option
     noteParts.length ? `Reference images: ${noteParts.join("; ")}.` : "",
     people.size > 1 ? `Show exactly one of each named person (${[...people].join(", ")}).` : "",
   ].filter(Boolean).join(" ")
-  return { ok: true, plan: { endpoint: endpointKey, startFrameUrl: startUrl, endFrameUrl: endUrl, elements, referenceImageUrls, manifest, promptNote } }
+  return { ok: true, plan: { endpoint: endpointKey, startFrameUrl: startUrl, endFrameUrl: endUrl, elements, referenceImageUrls, manifest, promptNote, continuityAsReference } }
 }
 
 // ── Final payload check (the adapter's last line of defence) ─────────────────────────────────────

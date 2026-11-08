@@ -23,6 +23,18 @@ export function ownsAssetUrl(url: string, userId: string) {
   } catch { return false }
 }
 
+/**
+ * A take's inspected frame (the previous shot's last frame a continued shot opens on), stored by the
+ * inspect route at renders/{userId}/inspections/… and owned by that creator.
+ */
+export function ownsInspectionFrameUrl(url: string, userId: string) {
+  try {
+    const target = new URL(url)
+    const base = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || "")
+    return target.origin === base.origin && target.pathname.startsWith(`/storage/v1/object/public/renders/${userId}/inspections/`) && !target.search && !target.pathname.includes("..")
+  } catch { return false }
+}
+
 /** Keeps every asset's existing tag and gives untagged ones the lowest free number for their type. */
 export function labelProductionAssets(assets: ProductionAsset[]): ProductionAsset[] {
   const taken = { image: new Set<number>(), video: new Set<number>() }

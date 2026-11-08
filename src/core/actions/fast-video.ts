@@ -26,7 +26,7 @@ import { condensePrompt } from "@/core/services/prompt-condenser"
 import { frameCapability, frameDirective, frameIssues, hasShotFrames, validateOwnedFrames, type ShotFrames } from "@/core/validation/shot-frames"
 import { campaignLockDirective, campaignLockNegatives, campaignMode, campaignReferenceIssues, validateOwnedCampaignReferences, type CampaignReferences } from "@/core/validation/campaign-references"
 import { trimPromptBySegments } from "@/core/utils/ai/prompt-budget"
-import { ownsAssetUrl } from "@/core/validation/production-assets"
+import { ownsAssetUrl, ownsInspectionFrameUrl } from "@/core/validation/production-assets"
 import { findLightingPreset } from "@/core/config/lighting-presets"
 import { AVOID_RESERVE, buildAvoidClause, supportsNegativePrompt } from "@/core/utils/ai/avoid-clause"
 
@@ -440,8 +440,11 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     if (payload.prompt_inputs.media_references?.length || payload.prompt_inputs.campaign_references || payload.prompt_inputs.shot_frames || payload.settings.lip_sync) {
       return { error: "Locked images can't be combined with other reference features. Nothing was charged." }
     }
-    const lockedUrls = [...locked.required.map(r => r.url), ...(locked.reference_image_urls ?? [])]
-    if (lockedUrls.some(url => !ownsAssetUrl(url, user.id))) return { error: "A locked image doesn't belong to your account. Nothing was charged." }
+    const requiredUrls = new Set(locked.required.map(r => r.url))
+    if ([...requiredUrls].some(url => !ownsAssetUrl(url, user.id))) return { error: "A locked image doesn't belong to your account. Nothing was charged." }
+    // Beside the locks, a continued Seedance shot carries the previous shot's last frame as a reference.
+    const extras = (locked.reference_image_urls ?? []).filter(url => !requiredUrls.has(url))
+    if (extras.length > 1 || extras.some(url => !ownsAssetUrl(url, user.id) && !ownsInspectionFrameUrl(url, user.id))) return { error: "A locked image doesn't belong to your account. Nothing was charged." }
   }
 
   // Reject unsupported inputs before consuming quota or calling the provider.
