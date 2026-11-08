@@ -95,6 +95,20 @@ export class KieProvider extends BaseProvider {
     }
 
     /** True when GPT Image can produce the requested shape without cropping (or no shape was asked for). */
+    /**
+     * Seedance 2.5 takes 1:1, 4:3, 3:4, 16:9, 9:16, 21:9 or adaptive (docs.kie.ai/market/bytedance/seedance-2-5).
+     * Any other shape the app offers (4:5) goes to the nearest one it accepts instead of being refused.
+     */
+    static seedanceAspect(aspect: string): string {
+        const accepted = ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9"];
+        if (accepted.includes(aspect) || aspect === "adaptive") return aspect;
+        const match = aspect.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
+        if (!match || !Number(match[1]) || !Number(match[2])) return "adaptive";
+        const target = Math.log(Number(match[1]) / Number(match[2]));
+        const ratio = (r: string) => { const [w, h] = r.split(":").map(Number); return Math.log(w / h); };
+        return accepted.reduce((best, r) => Math.abs(ratio(r) - target) < Math.abs(ratio(best) - target) ? r : best);
+    }
+
     static gptImageMakesShape(aspect?: string): boolean {
         const match = (aspect || "").match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/);
         if (!match) return true;
@@ -151,7 +165,7 @@ export class KieProvider extends BaseProvider {
 
         // Kling 3.0, Seedance and the avatar have no such field; their avoid list is already in the prompt.
         if (request.negative_prompt && supportsNegativePrompt(model)) input.negative_prompt = request.negative_prompt;
-        if (request.aspect_ratio) input.aspect_ratio = request.aspect_ratio;
+        if (request.aspect_ratio) input.aspect_ratio = normalizedModel.includes("seedance-2-5") ? KieProvider.seedanceAspect(request.aspect_ratio) : request.aspect_ratio;
         if (request.quality) input.quality = request.quality;
         if (typeof request.seed === "number") input.seed = request.seed;
         if (typeof request.steps === "number") input.steps = request.steps;

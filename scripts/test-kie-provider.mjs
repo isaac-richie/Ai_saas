@@ -167,3 +167,97 @@ test("Seedance 2.5 receives reference videos only when no first frame is set", (
   assert.equal(provider.buildMarketInput({ prompt: "Recreate @video1", output_type: "video", image_prompt: "https://example.com/start.png", reference_video_urls: videos }, "bytedance/seedance-2-5").reference_video_urls, undefined)
   assert.equal(provider.buildMarketInput({ prompt: "Recreate @video1", output_type: "video", reference_video_urls: videos }, "kling-3.0/video").reference_video_urls, undefined)
 })
+
+// ── Continued Seedance shot with locked images: planner → provider payload, end to end ──────────
+{
+  const { planLockedRequest, resolveLocks, missingFromPayload } = longFormLocksModule.exports
+  // Values built inside the vm sandbox are compared as plain data.
+  const plain = (v) => JSON.parse(JSON.stringify(v))
+  const base = "https://p.supabase.co/storage/v1/object/public/elements/uid/"
+  const lastFrame = "https://p.supabase.co/storage/v1/object/public/renders/uid/inspections/s/t/frame-2.jpg"
+  let n = 0
+  const lock = (img, role, entity = "", scope = "shot") => ({
+    scopeType: scope, shotNumber: scope === "shot" ? 2 : null, assetId: `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
+    assetUrl: `${base}${img}.png`, sha256: img.padEnd(64, "0").slice(0, 64), assetName: img, contentType: "image/png",
+    byteSize: 400_000, width: 1024, height: 1024, role, entityLabel: entity, viewLabel: "",
+  })
+  // What production.ts builds for a continued shot whose plan uses reference mode.
+  const send = (plan, aspect = "16:9") => provider.buildMarketInput({
+    prompt: `Seamless continuation from reference image 1. A woman reads.\n${plan.promptNote}`, output_type: "video",
+    image_prompt: undefined, end_image_prompt: undefined, aspect_ratio: aspect, duration_seconds: 10,
+    reference_image_urls: plan.referenceImageUrls, required_inputs: plan.manifest.map(m => ({ field: m.field, url: m.assetUrl })),
+  }, "bytedance/seedance-2-5")
+
+  test("continued Seedance shot (the screenshot: 1 scene location + 1 shot image) reaches Kie whole", () => {
+    const resolved = resolveLocks([lock("bible-location", "location", "Room", "scene")], [lock("gold-bible", "prop", "Bible")])
+    assert.equal(resolved.requiredImageCount, 2)
+    const planned = planLockedRequest(resolved, "bytedance/seedance-2-5", { continuityStartUrl: lastFrame })
+    assert.ok(planned.ok, planned.issues?.join(" "))
+    const input = send(planned.plan)
+    assert.equal(input.first_frame_url, undefined, "a first frame never rides with references")
+    assert.equal(input.last_frame_url, undefined)
+    assert.deepEqual(plain(input.reference_image_urls), [lastFrame, `${base}bible-location.png`, `${base}gold-bible.png`])
+    assert.deepEqual(plain(missingFromPayload(input, planned.plan.manifest.map(m => ({ field: m.field, url: m.assetUrl })))), [])
+    assert.match(input.prompt, /reference image 1 is the previous shot's final frame.*reference image 2 is location Room.*reference image 3 is prop Bible/s)
+    assert.equal(input.aspect_ratio, "16:9")
+  })
+
+  test("every lock count from 1 to 29 plus the last frame maps exactly; 30 is refused before Kie", () => {
+    for (let count = 1; count <= 30; count++) {
+      const locks = Array.from({ length: count }, (_, i) => lock(`p${count}-${i}`, i % 3 ? "prop" : "character", `E${i}`, i % 2 ? "scene" : "shot"))
+      const planned = planLockedRequest(resolveLocks(locks.filter(l => l.scopeType === "scene"), locks.filter(l => l.scopeType === "shot")), "bytedance/seedance-2-5", { continuityStartUrl: lastFrame })
+      if (count === 30) { assert.equal(planned.ok, false); continue }
+      assert.ok(planned.ok, `${count}: ${planned.issues?.join(" ")}`)
+      const input = send(planned.plan)
+      assert.equal(input.reference_image_urls.length, count + 1)
+      assert.equal(input.reference_image_urls[0], lastFrame)
+      assert.equal(new Set(input.reference_image_urls).size, count + 1, "no image sent twice")
+      assert.deepEqual(plain(missingFromPayload(input, planned.plan.manifest.map(m => ({ field: m.field, url: m.assetUrl })))), [], `${count} locks`)
+    }
+  })
+
+  test("one image locked for two roles is sent once and both locks point at it", () => {
+    const shared = [lock("sam", "character", "Sam"), { ...lock("sam", "wardrobe", "Sam"), assetId: undefined }]
+    shared[1].assetId = shared[0].assetId
+    const planned = planLockedRequest(resolveLocks([], shared), "bytedance/seedance-2-5", { continuityStartUrl: lastFrame })
+    assert.ok(planned.ok, planned.issues?.join(" "))
+    assert.deepEqual(plain(planned.plan.referenceImageUrls), [lastFrame, `${base}sam.png`])
+    assert.deepEqual(plain([...new Set(planned.plan.manifest.map(m => m.field))]), ["reference_image_urls[1]"])
+  })
+
+  test("locked start frame + references still block on a continued shot (the creator asked for both)", () => {
+    const planned = planLockedRequest(resolveLocks([], [lock("open", "start_frame"), lock("sam", "character", "Sam")]), "bytedance/seedance-2-5", { continuityStartUrl: lastFrame })
+    assert.equal(planned.ok, false)
+    assert.match(planned.issues.join(" "), /locked start or end frame/)
+  })
+
+  test("frames-only continued Seedance shot keeps the locked opening frame and adaptive shape", () => {
+    const planned = planLockedRequest(resolveLocks([], [lock("close", "end_frame")]), "bytedance/seedance-2-5", { continuityStartUrl: lastFrame })
+    assert.ok(planned.ok)
+    assert.equal(planned.plan.continuityAsReference, false)
+    const input = provider.buildMarketInput({ prompt: "x", output_type: "video", image_prompt: lastFrame, end_image_prompt: planned.plan.endFrameUrl, aspect_ratio: "4:5", required_inputs: planned.plan.manifest.map(m => ({ field: m.field, url: m.assetUrl })) }, "bytedance/seedance-2-5")
+    assert.equal(input.first_frame_url, lastFrame)
+    assert.equal(input.reference_image_urls, undefined)
+    assert.equal(input.aspect_ratio, "adaptive")
+    assert.deepEqual(plain(missingFromPayload(input, planned.plan.manifest.map(m => ({ field: m.field, url: m.assetUrl })))), [])
+  })
+
+  test("a tampered payload (continuity frame dropped, locks shifted) fails the final check", () => {
+    const planned = planLockedRequest(resolveLocks([], [lock("a", "prop", "A"), lock("b", "prop", "B")]), "bytedance/seedance-2-5", { continuityStartUrl: lastFrame })
+    const input = send({ ...planned.plan, referenceImageUrls: planned.plan.referenceImageUrls.slice(1) })
+    assert.equal(missingFromPayload(input, planned.plan.manifest.map(m => ({ field: m.field, url: m.assetUrl }))).length, 2)
+  })
+
+  test("Seedance 2.5 shapes: accepted ones pass, 4:5 goes to the nearest accepted (3:4), junk to adaptive", () => {
+    const { KieProvider } = module.exports
+    for (const ok of ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"]) assert.equal(KieProvider.seedanceAspect(ok), ok)
+    assert.equal(KieProvider.seedanceAspect("4:5"), "3:4")
+    assert.equal(KieProvider.seedanceAspect("2.39:1"), "21:9")
+    assert.equal(KieProvider.seedanceAspect("0:1"), "adaptive")
+    assert.equal(KieProvider.seedanceAspect("wide"), "adaptive")
+    const planned = planLockedRequest(resolveLocks([], [lock("a", "prop", "A")]), "bytedance/seedance-2-5", { continuityStartUrl: lastFrame })
+    assert.equal(send(planned.plan, "4:5").aspect_ratio, "3:4")
+    // Kling keeps the shape it was given.
+    assert.equal(provider.buildMarketInput({ prompt: "x", output_type: "video", aspect_ratio: "16:9" }, "kling-3.0/video").aspect_ratio, "16:9")
+  })
+}
