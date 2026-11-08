@@ -14,13 +14,13 @@ export const MAX_BINDINGS_PER_SCOPE = 40
 type Row = {
   id: string; scope_type: "scene" | "shot"; shot_number: number | null; asset_id: string; asset_url: string; asset_sha256: string
   asset_name: string; content_type: LockBinding["contentType"]; byte_size: number; width: number; height: number
-  role: LockRole; entity_label: string; view_label: string
+  role: LockRole; entity_label: string; view_label: string; anchor_title?: string | null
 }
 
 export const toBinding = (row: Row): LockBinding => ({
   id: row.id, scopeType: row.scope_type, shotNumber: row.shot_number, assetId: row.asset_id, assetUrl: row.asset_url,
   sha256: row.asset_sha256, assetName: row.asset_name, contentType: row.content_type, byteSize: row.byte_size,
-  width: row.width, height: row.height, role: row.role, entityLabel: row.entity_label, viewLabel: row.view_label,
+  width: row.width, height: row.height, role: row.role, entityLabel: row.entity_label, viewLabel: row.view_label, anchorTitle: row.anchor_title ?? "",
 })
 
 export type FilmLocks = { available: boolean; revision: number; scene: LockBinding[]; shots: Record<number, LockBinding[]> }

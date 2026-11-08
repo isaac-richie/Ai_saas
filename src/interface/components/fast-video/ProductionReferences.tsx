@@ -4,13 +4,15 @@
 import { normalizeReferenceImage } from "./normalize-image"
 import { uploadReferenceFile } from "./upload-reference"
 import { useRef, useState } from "react"
-import { ImagePlus, Loader2, LockKeyhole, RefreshCw, X } from "lucide-react"
+import { AudioLines, ImagePlus, Loader2, LockKeyhole, RefreshCw, Sparkles, Upload, X } from "lucide-react"
 import { toast } from "sonner"
 import { MAX_PRODUCTION_REFERENCES, MAX_SHOT_REFERENCES, labelProductionAssets, type ProductionAsset } from "@/core/validation/production-assets"
 import styles from "./ProductionReferences.module.css"
 
-export function ProductionReferences({ assets, onChange, disabled = false, onBusy }: {
+export function ProductionReferences({ assets, onChange, disabled = false, onBusy, audio }: {
   assets: ProductionAsset[]; onChange?: (assets: ProductionAsset[]) => void | Promise<string | null | void>; disabled?: boolean; onBusy?: (busy: boolean) => void
+  /** The film's audio library, once the film exists: a separate count and its own upload / create actions. */
+  audio?: { count: number; aiEnabled: boolean; onOpen: (tab: "library" | "upload" | "ai") => void }
 }) {
   const [uploading, setUploading] = useState(false)
   /** The card being swapped: only it shows a spinner, the Add button stays as it is. */
@@ -80,7 +82,8 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
   }
   return <details className={styles.drawer} open>
     <summary><span><ImagePlus size={17} /> References <small>{assets.length}/{MAX_PRODUCTION_REFERENCES}</small></span>{locked && <LockKeyhole size={14} aria-label="References locked" />}</summary>
-    <p className={styles.help}>{locked ? "Saved with this brief. These images guide the crew's creative direction." : `Give your crew a visual starting point. Add up to ${MAX_PRODUCTION_REFERENCES}: each shot uses the ones that fit it best (up to ${MAX_SHOT_REFERENCES}). Mention a tag like @image3 in your brief to make sure a shot uses it.`}</p>
+    <p className={styles.help}>{locked ? "Saved with this brief. These images guide the crew's creative direction." : "Add images, videos and audio to your project. Lock images to make them required generation inputs. Lock audio to include the approved recording in your finished shot or scene. Supported generation inputs depend on the selected model and mode."}</p>
+    {!locked && <p className={styles.help}>{`Optional auto-selection: each shot also picks up to ${MAX_SHOT_REFERENCES} of these that fit it best, and a tag like @image3 in your brief helps the crew choose. Neither is a lock; to require an image, lock it in that shot's Locked media.`}</p>}
     {!locked && <div className={styles.controls}>
       <label>Reference purpose<select value={role} disabled={disabled || uploading} onChange={event => setRole(event.target.value as ProductionAsset["role"])}>{["character", "wardrobe", "product", "location", "lighting"].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
       <button type="button" disabled={disabled || uploading || assets.length >= MAX_PRODUCTION_REFERENCES} onClick={() => { replacementId.current = null; input.current?.click() }}>{uploading && !replacingId ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}{uploading && !replacingId ? "Uploading..." : "Add images or videos"}</button>
@@ -94,7 +97,13 @@ export function ProductionReferences({ assets, onChange, disabled = false, onBus
         <button type="button" className={styles.remove} disabled={disabled || uploading} aria-label={`Remove ${asset.name}`} onClick={() => onChange?.(assets.filter(item => item.id !== asset.id))}><X size={14} /></button>
       </div>}
     </figure>)}</div>}
-    <p className={styles.help}>Images set the look: people, places, products. Videos show the movement and pace you want. The first image opens your film; the rest guide every shot.</p>
+    <p className={styles.help}>Images set the look: people, places, products. Videos show the movement and pace you want. Opening frame: the crew picks the best match for each shot, whatever the upload order. To choose it yourself, lock an image as Start frame in that shot&apos;s Locked media.</p>
+    {audio ? <div className={styles.controls} data-testid="reference-audio">
+      <span className="flex items-center gap-1.5 text-sm text-white/75"><AudioLines size={16} /> Audio <small>{audio.count}</small></span>
+      <button type="button" disabled={disabled} onClick={() => audio.onOpen("upload")}><Upload size={16} />Upload audio</button>
+      <button type="button" disabled={disabled || !audio.aiEnabled} onClick={() => audio.onOpen("ai")}><Sparkles size={16} />Create with AI</button>
+      {audio.count > 0 && <button type="button" disabled={disabled} onClick={() => audio.onOpen("library")}>Film audio</button>}
+    </div> : !locked && <p className={styles.help}>Audio (dialogue, music, sound effects, ambience) can be added once the crew has planned your shots.</p>}
     {!locked && <p className={styles.help}>Any photo (JPG, PNG, WebP, HEIC; we convert and resize for you) or an MP4 / WebM / MOV video up to 25 MB. You can swap them until the first video starts.</p>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
   </details>

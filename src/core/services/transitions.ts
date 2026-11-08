@@ -124,7 +124,7 @@ export interface ClipTransitionPair {
 export function buildXfadeFilter(
   pairs: ClipTransitionPair[],
   options: { mute?: boolean; fps?: number } = {},
-): { inputArgs: string[]; filterComplex: string; maps: string[] } {
+): { inputArgs: string[]; filterComplex: string; maps: string[]; startsSec: number[] } {
   if (pairs.length === 0) throw new Error('Need at least one transition pair');
 
   const allPaths = [pairs[0].clip_a_path, ...pairs.map((p) => p.clip_b_path)];
@@ -137,6 +137,8 @@ export function buildXfadeFilter(
   let videoLabel = 'v0';
   let audioLabel = '0:a';
   let timelineSec = pairs[0].clip_a_duration_sec;
+  // Where each input clip starts in the output: a crossfade pulls the next clip earlier by its length.
+  const startsSec: number[] = [0];
 
   for (let i = 0; i < pairs.length; i++) {
     const pair = pairs[i];
@@ -153,6 +155,7 @@ export function buildXfadeFilter(
         audioLabel = nextA;
       }
       videoLabel = nextV;
+      startsSec.push(timelineSec);
       timelineSec += pair.clip_b_duration_sec;
       continue;
     }
@@ -167,6 +170,7 @@ export function buildXfadeFilter(
       ),
     ));
     const offset = Math.max(0, timelineSec - durSec);
+    startsSec.push(offset);
     filters.push(
       `[${videoLabel}][v${i + 1}]xfade=transition=${spec.ffmpeg_name}:duration=${durSec.toFixed(4)}:offset=${offset.toFixed(4)}[${nextV}]`,
     );
@@ -181,7 +185,7 @@ export function buildXfadeFilter(
   const maps = [`-map`, `[${videoLabel}]`];
   if (!options.mute) maps.push(`-map`, `[${audioLabel}]`);
 
-  return { inputArgs, filterComplex: filters.join(';'), maps };
+  return { inputArgs, filterComplex: filters.join(';'), maps, startsSec };
 }
 
 export function validateTransitionDuration(

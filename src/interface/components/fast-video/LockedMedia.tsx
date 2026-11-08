@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
-import { Check, Lock, Search, X } from "lucide-react"
+import { AudioLines, Check, ImageIcon, Lock, Search, X } from "lucide-react"
 import type { ProductionAsset } from "@/core/validation/production-assets"
 import { LOCK_ROLES, LOCK_ROLE_LABELS, type LockBinding, type LockRole } from "@/core/services/long-form-locks"
 import { getFilmLocks, preflightFilmLocks, saveLockScope, type FilmLockView, type ShotLockStatus } from "@/core/actions/long-form-locks"
+import { AudioLibraryPanel, AudioPlacements, DEFAULT_AUDIO_ACTIONS, type AudioActions } from "./LockedAudio"
 
 const noSubscribe = () => () => {}
 const useIsClient = () => useSyncExternalStore(noSubscribe, () => true, () => false)
@@ -54,42 +55,79 @@ export function useFilmLocks(productionId: string | null, active: boolean) {
   return { ...state, reload }
 }
 
+/** The film's audio library on its own (from the reference uploader): upload, create, preview. */
+export function FilmAudioDialog({ productionId, view, initialTab, onChanged, onClose, audioActions = DEFAULT_AUDIO_ACTIONS }: {
+  productionId: string; view: FilmLockView; initialTab: "library" | "upload" | "ai"; onChanged: () => Promise<void>; onClose: () => void; audioActions?: AudioActions
+}) {
+  const client = useIsClient()
+  if (!client) return null
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-6" onClick={onClose}>
+      <div role="dialog" aria-label="Film audio" onClick={e => e.stopPropagation()} className="relative h-[85dvh] w-full max-w-xl overflow-hidden rounded-t-3xl border border-white/10 bg-obsidian-900 text-white sm:h-[80dvh] sm:rounded-3xl">
+        <AudioLibraryPanel productionId={productionId} view={view} actions={audioActions} initialTab={initialTab} onChanged={onChanged} onClose={onClose} />
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 /** The summary row on a Long Form shot card, below Editing notes. */
-export function LockedImagesRow({ scene, shot, status, onEdit, disabled }: {
+export function LockedMediaRow({ scene, shot, status, audio, onEdit, disabled }: {
   scene: LockBinding[]
   shot: LockBinding[]
   status?: ShotLockStatus
+  /** Audio placements that apply to this shot (its own plus the scene's) and whether any needs attention. */
+  audio?: { count: number; needsAttention: boolean }
   onEdit: () => void
   disabled?: boolean
 }) {
   const all = [...scene, ...shot]
   const required = status?.requiredImageCount ?? new Set(all.map(b => `${b.assetUrl}#${b.sha256}`)).size
+  const audioCount = audio?.count ?? 0
   const thumbs = [...new Map(all.map(b => [b.assetUrl, b])).values()].slice(0, 4)
+  const counts = [required ? `${required} image${required === 1 ? "" : "s"}` : "", audioCount ? `${audioCount} audio` : ""].filter(Boolean).join(" · ")
   return (
-    <div className="mt-3 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-xs">
+    <div className="mt-3 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-xs" data-testid="locked-media-row">
       <div className="flex items-center gap-2">
         <Lock className="size-3.5 shrink-0 text-gold-300/80" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-white/80">
-          Locked images <span className={required ? "tabular-nums text-white" : "text-white/45"}>· {required ? `${required} required` : "None"}</span>
+          Locked media <span className={counts ? "tabular-nums text-white" : "text-white/45"}>· {counts || "None"}</span>
         </span>
         <button type="button" disabled={disabled} onClick={onEdit} className="shrink-0 rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] text-white/80 transition-colors hover:border-gold-300/50 hover:text-gold-50 disabled:opacity-40">
-          {required ? "Edit" : "Add"}
+          {counts ? "Edit" : "Add"}
         </button>
       </div>
-      {required ? (
-        <div className="mt-1.5 flex items-center gap-2 pl-5">
-          <span className="flex shrink-0 -space-x-1.5" aria-hidden>
-            {thumbs.map(b => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={b.assetUrl} src={b.assetUrl} alt="" className="size-5 rounded-full object-cover ring-1 ring-black" />
-            ))}
-          </span>
-          {required > thumbs.length ? <span className="text-white/45">+{required - thumbs.length}</span> : null}
-          <StatusChip status={status} />
+      {counts ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-5">
+          {required ? (
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="flex shrink-0 -space-x-1.5" aria-hidden>
+                {thumbs.map(b => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={b.assetUrl} src={b.assetUrl} alt="" className="size-5 rounded-full object-cover ring-1 ring-black" />
+                ))}
+              </span>
+              {required > thumbs.length ? <span className="text-white/45">+{required - thumbs.length}</span> : null}
+              <StatusChip status={status} />
+            </span>
+          ) : null}
+          {audioCount ? (
+            <span className={`flex items-center gap-1 ${audio?.needsAttention ? "text-amber-200" : "text-[#8fd1b9]"}`}>
+              <AudioLines className="size-3" aria-hidden />{audio?.needsAttention ? "Not ready to export" : "Audio ready for export"}
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>
   )
+}
+
+/** Audio placements that apply to a shot, and whether any needs a decision or timing fix. */
+export function shotAudioSummary(view: FilmLockView | null, shotNumber: number) {
+  if (!view?.audio.enabled) return undefined
+  const applies = view.audio.bindings.filter(b => b.scopeType === "scene" || b.shotNumber === shotNumber)
+  const ids = new Set(applies.map(b => b.id))
+  return { count: applies.length, needsAttention: view.audio.issues.some(i => (i.bindingId ? ids.has(i.bindingId) : false)) }
 }
 
 const modelName = (model: string) => model.includes("seedance") ? "Seedance 2.5" : model.includes("kling") ? "Kling 3.0 Pro" : model
@@ -101,7 +139,7 @@ function StatusChip({ status }: { status?: ShotLockStatus }) {
 }
 
 /** The editor for one shot's locks, with the scene's locks alongside. */
-export function LockedImagesEditor({ productionId, shotNumber, shotCount, shotTitle, view, status, onClose, onSaved, save: saveImpl = saveLockScope }: {
+export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTitle, view, status, onClose, onSaved, save: saveImpl = saveLockScope, audioActions = DEFAULT_AUDIO_ACTIONS, initialScope = "shot", onScopeChange }: {
   productionId: string
   shotNumber: number
   shotCount: number
@@ -112,12 +150,18 @@ export function LockedImagesEditor({ productionId, shotNumber, shotCount, shotTi
   onSaved: () => Promise<void>
   /** The save call; the dev preview passes a stand-in. */
   save?: typeof saveLockScope
+  audioActions?: AudioActions
+  /** The tab to open on; the editor reopens on the same tab after a save reloads it. */
+  initialScope?: "shot" | "scene"
+  onScopeChange?: (scope: "shot" | "scene") => void
 }) {
   const client = useIsClient()
-  const [scope, setScope] = useState<"shot" | "scene">("shot")
+  const [scope, setScopeState] = useState<"shot" | "scene">(initialScope)
+  const setScope = (next: "shot" | "scene") => { setScopeState(next); onScopeChange?.(next) }
   const [shotRows, setShotRows] = useState<Row[]>(() => (view.shots[shotNumber] ?? []).map(b => toRow(b, view.library)))
   const [sceneRows, setSceneRows] = useState<Row[]>(() => view.scene.map(b => toRow(b, view.library)))
   const [picking, setPicking] = useState(false)
+  const [addingAudio, setAddingAudio] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [confirmScene, setConfirmScene] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -153,10 +197,10 @@ export function LockedImagesEditor({ productionId, shotNumber, shotCount, shotTi
   if (!client) return null
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-6" onClick={onClose}>
-      <div role="dialog" aria-label={`Locked images for shot ${shotNumber}`} onClick={e => e.stopPropagation()} className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-obsidian-900 text-white sm:rounded-3xl">
+      <div role="dialog" aria-label={`Locked media for shot ${shotNumber}`} onClick={e => e.stopPropagation()} className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-obsidian-900 text-white sm:rounded-3xl">
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
           <div className="min-w-0">
-            <h2 className="text-[17px] font-medium">Locked images · Shot {shotNumber}</h2>
+            <h2 className="text-[17px] font-medium">Locked media · Shot {shotNumber}</h2>
             <p className="truncate text-xs text-white/50">{shotTitle}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-full text-white/60 hover:bg-white/5"><X size={18} /></button>
@@ -164,7 +208,7 @@ export function LockedImagesEditor({ productionId, shotNumber, shotCount, shotTi
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           <p className="text-[13px] leading-relaxed text-white/65">
-            Every locked image is sent to the video model as an actual image input. If the chosen model can&apos;t take the whole set, the shot won&apos;t generate. Nothing is dropped or swapped.
+            Locked images are sent to the video model as actual image inputs; if the model can&apos;t take the whole set, the shot won&apos;t generate. Locked audio plays in the finished export exactly as approved. Nothing is dropped, swapped or stretched. This guarantees the inputs, not perfect likeness or lip-sync.
           </p>
 
           <div role="tablist" aria-label="Apply to" className="grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1 text-sm">
@@ -194,6 +238,7 @@ export function LockedImagesEditor({ productionId, shotNumber, shotCount, shotTi
             </div>
           )}
 
+          <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.12em] text-white/50"><ImageIcon className="size-3.5" aria-hidden /> Images</h3>
           <section aria-label={scope === "shot" ? "This shot's locks" : "Scene locks"} className="space-y-2">
             <div className="flex items-center justify-between text-xs text-white/55">
               <span>{rows.length} binding{rows.length === 1 ? "" : "s"} · {imageCount(rows)} image{imageCount(rows) === 1 ? "" : "s"}</span>
@@ -249,6 +294,12 @@ export function LockedImagesEditor({ productionId, shotNumber, shotCount, shotTi
             )}
           </section>
 
+          <div className="border-t border-white/[0.06] pt-4">
+            <AudioPlacements productionId={productionId} view={view} scope={scope} shotNumber={shotNumber} actions={audioActions} onChanged={onSaved}
+              onAdd={() => setAddingAudio(true)}
+              disabledReason={dirty.shot || dirty.scene ? "Save or discard your image changes first; audio saves straight away." : undefined} />
+          </div>
+
           {message && <p role={message.tone === "error" ? "alert" : "status"} className={`rounded-xl px-3 py-2 text-sm ${message.tone === "error" ? "border border-red-400/30 bg-red-500/10 text-red-100" : "border border-[#b6ddd3]/30 bg-[#b6ddd3]/10 text-[#dff1ec]"}`}>{message.text}</p>}
         </div>
 
@@ -257,10 +308,15 @@ export function LockedImagesEditor({ productionId, shotNumber, shotCount, shotTi
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-white/15 py-2.5 text-sm text-white/80 hover:bg-white/5">Close</button>
             <button type="button" onClick={() => void save()} disabled={saving || !dirty[scope]} className="flex-[2] rounded-xl bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 py-2.5 text-sm font-medium text-black disabled:opacity-40">
-              {saving ? "Saving…" : confirmScene ? `Confirm: lock for all ${shotCount} shots` : scope === "scene" ? "Save scene locks" : "Save shot locks"}
+              {saving ? "Saving…" : confirmScene ? `Confirm: lock for all ${shotCount} shots` : scope === "scene" ? "Save scene image locks" : "Save shot image locks"}
             </button>
           </div>
         </footer>
+
+        {addingAudio && (
+          <AudioLibraryPanel productionId={productionId} view={view} actions={audioActions} onChanged={onSaved} onClose={() => setAddingAudio(false)}
+            target={{ scope, shotNumber, label: scope === "shot" ? `shot ${shotNumber}` : `the whole scene (${shotCount} shots)` }} />
+        )}
 
         {picking && (
           <LibraryPicker

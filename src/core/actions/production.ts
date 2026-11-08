@@ -13,7 +13,7 @@ import type { Json } from "@/core/types/db"
 import { labelProductionAssets, productionAssetsSchema, ownsAssetUrl, resolveReferenceTags, selectEndReference, selectOpeningReference, selectShotReferences, type ProductionAsset } from "@/core/validation/production-assets"
 import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
-import { planLockedRequest, resolveLocks } from "@/core/services/long-form-locks"
+import { movedLockIssues, planLockedRequest, resolveLocks } from "@/core/services/long-form-locks"
 import { loadFilmLocks, requestFingerprint, verifyPinnedImages } from "@/core/services/long-form-lock-store"
 
 const updateSchema = z.discriminatedUnion("action", [
@@ -104,12 +104,23 @@ export async function replaceProductionReferences(input: unknown) {
   if (!user) return { error: "Please sign in." }
   if (parsed.data.assets.some(asset => !ownsAssetUrl(asset.url, user.id))) return { error: "Choose references uploaded to your account." }
   const { data: job, error: jobError } = await db.from("production_jobs")
-    .select("id,status,scene_id")
+    .select("id,status,scene_id,parent_job_id")
     .eq("id", parsed.data.id)
     .eq("user_id", user.id)
     .in("status", ["brief", "awaiting_approval", "approved"])
     .maybeSingle()
   if (jobError || !job) return { error: "This production is not available for reference changes." }
+
+  // A locked image can't leave the library while a lock still requires it. (Replacing a file keeps the
+  // asset and its lock: the lock stays pinned to the version it was saved with.)
+  try {
+    const locks = await loadFilmLocks(db, (job.parent_job_id as string | null) || (job.id as string))
+    const keptIds = new Set(parsed.data.assets.map(asset => asset.id))
+    const required = [...locks.scene, ...Object.values(locks.shots).flat()].filter(binding => !keptIds.has(binding.assetId))
+    if (required.length) return { error: `"${required[0].assetName}" is a locked image. Remove it from Locked media first, then remove it here.` }
+  } catch {
+    return { error: "Could not check locked images. Your references are unchanged." }
+  }
 
   if (job.scene_id) {
     const { data: shots, error: shotsError } = await db.from("shots").select("id").eq("scene_id", job.scene_id)
@@ -475,6 +486,10 @@ export async function queueProductionShot(input: unknown) {
       error: `Cannot generate with this configuration. ${resolvedLocks.requiredImageCount} required image${resolvedLocks.requiredImageCount === 1 ? "" : "s"}: ${issues.join(" ")} Your locks are saved. No video job has been submitted.`,
       blocked: issues,
     })
+    const currentPlan = productionPlanSchema.safeParse(production.plan)
+    const currentTitle = currentPlan.success && shot.sequence_order ? currentPlan.data.deliverables[shot.sequence_order - 1]?.title : undefined
+    const moved = movedLockIssues(shot.sequence_order ? filmLocks.shots[shot.sequence_order] ?? [] : [], shot.sequence_order ?? 0, currentTitle)
+    if (moved.length) return blocked(moved)
     const lockPlan = planLockedRequest(resolvedLocks, model, { continuityStartUrl: shot.previous_shot_id ? continuityReferenceUrl : null })
     if (!lockPlan.ok) return blocked(lockPlan.issues)
     const fileIssues = await verifyPinnedImages(resolvedLocks.bindings)

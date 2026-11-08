@@ -5,9 +5,11 @@ import { createClient } from "@/infrastructure/supabase/server"
 import { labelProductionAssets, ownsAssetUrl, productionAssetsSchema, type ProductionAsset } from "@/core/validation/production-assets"
 import { productionPlanSchema } from "@/core/validation/production-crew"
 import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
-import { LOCK_ROLES, planLockedRequest, resolveLocks, type LockBinding } from "@/core/services/long-form-locks"
+import { LOCK_ROLES, movedLockIssues, planLockedRequest, resolveLocks, type LockBinding } from "@/core/services/long-form-locks"
+import { DIALOGUE_VOICES, planFilmAudio, plannedSpans, type AudioAsset, type AudioBinding, type AudioIssue } from "@/core/services/long-form-audio"
+import { loadFilmAudio } from "@/core/services/long-form-audio-store"
 import { MAX_BINDINGS_PER_SCOPE, fetchImage, isMissingLocksTable, loadFilmLocks } from "@/core/services/long-form-lock-store"
-import { LONG_FORM_LOCKS_ENABLED } from "@/core/config/feature-flags"
+import { LONG_FORM_AI_AUDIO_ENABLED, LONG_FORM_AUDIO_ENABLED, LONG_FORM_LOCKS_ENABLED } from "@/core/config/feature-flags"
 
 const bindingInput = z.object({
   assetId: z.string().uuid(),
@@ -34,7 +36,9 @@ async function ownedFilm(db: Session, userId: string, productionId: string) {
   const rootId = (job.parent_job_id as string | null) || (job.id as string)
   const parsed = productionAssetsSchema.safeParse(job.reference_assets ?? [])
   const library = (parsed.success ? labelProductionAssets(parsed.data) : []).filter(asset => asset.mediaType === "image")
-  return { job, rootId, library }
+  const plan = productionPlanSchema.safeParse(job.plan)
+  const shots = plan.success ? plan.data.deliverables.map(d => ({ title: d.title, durationSec: d.durationSeconds })) : []
+  return { job, rootId, library, shots }
 }
 
 export type FilmLockView = {
@@ -47,6 +51,20 @@ export type FilmLockView = {
   shots: Record<number, LockBinding[]>
   library: ProductionAsset[]
   safetyLimit: number
+  /** Current shot titles in plan order, for "this shot changed" checks. */
+  shotTitles: string[]
+  /** Planned length of each shot in seconds, for audio timing checks before an edit exists. */
+  shotSeconds: number[]
+  audio: {
+    enabled: boolean
+    aiEnabled: boolean
+    available: boolean
+    assets: AudioAsset[]
+    bindings: AudioBinding[]
+    voices: { id: string; name: string; note: string }[]
+    /** Timing and decision issues against the planned shot lengths. The export re-checks the real edit. */
+    issues: AudioIssue[]
+  }
 }
 
 /** The film's locks and image library, for the Long Form cards and editor. */
@@ -58,8 +76,22 @@ export async function getFilmLocks(productionId: string): Promise<{ data?: FilmL
   const film = await ownedFilm(db, user.id, productionId)
   if (!film) return { error: "Production not found." }
   try {
-    const locks = await loadFilmLocks(db, film.rootId)
-    return { data: { enabled: LONG_FORM_LOCKS_ENABLED, ...locks, rootId: film.rootId, library: film.library, safetyLimit: MAX_BINDINGS_PER_SCOPE } }
+    const [locks, audio] = await Promise.all([loadFilmLocks(db, film.rootId), loadFilmAudio(db, film.rootId)])
+    const titles = new Map(film.shots.map((shot, i) => [i + 1, shot.title]))
+    const issues = audio.bindings.length
+      ? planFilmAudio(audio.bindings, new Map(audio.assets.map(a => [a.id, a])), plannedSpans(film.shots), { currentTitles: titles }).issues
+      : []
+    return {
+      data: {
+        enabled: LONG_FORM_LOCKS_ENABLED, ...locks, rootId: film.rootId, library: film.library, safetyLimit: MAX_BINDINGS_PER_SCOPE,
+        shotTitles: film.shots.map(s => s.title),
+        shotSeconds: film.shots.map(s => s.durationSec),
+        audio: {
+          enabled: LONG_FORM_AUDIO_ENABLED, aiEnabled: LONG_FORM_AUDIO_ENABLED && LONG_FORM_AI_AUDIO_ENABLED, available: audio.available,
+          assets: audio.assets, bindings: audio.bindings, voices: DIALOGUE_VOICES.map(v => ({ ...v })), issues,
+        },
+      },
+    }
   } catch {
     return { error: "Could not load locked images." }
   }
@@ -113,6 +145,7 @@ export async function saveLockScope(input: unknown): Promise<{ data?: { revision
       asset_id: source.assetId, asset_url: source.assetUrl, asset_sha256: source.sha256, asset_name: source.assetName,
       content_type: source.contentType, byte_size: source.byteSize, width: source.width, height: source.height,
       role: item.role, entity_label: item.entityLabel, view_label: item.viewLabel,
+      anchor_title: parsed.data.shotNumber ? film.shots[parsed.data.shotNumber - 1]?.title ?? "" : "",
     })
   }
 
@@ -132,6 +165,8 @@ export type ShotLockStatus = {
   status: "none" | "mapped" | "blocked"
   issues: string[]
   model: string
+  /** The binding keys a take generated now would carry; a take whose snapshot differs is outdated. */
+  lockKeys: string[]
 }
 
 /**
@@ -153,15 +188,18 @@ export async function preflightFilmLocks(productionId: string): Promise<{ data?:
     data: plan.data.deliverables.map((shot, index) => {
       const shotNumber = index + 1
       const model = resolveKieVideoModelByFamily({ familyId: shot.modelFamilyId, useImageToVideo: true })
-      return shotLockStatus(locks.scene, locks.shots[shotNumber] ?? [], shotNumber, model)
+      return shotLockStatus(locks.scene, locks.shots[shotNumber] ?? [], shotNumber, model, shot.title)
     }),
   }
 }
 
-function shotLockStatus(scene: LockBinding[], shot: LockBinding[], shotNumber: number, model: string): ShotLockStatus {
+function shotLockStatus(scene: LockBinding[], shot: LockBinding[], shotNumber: number, model: string, title: string): ShotLockStatus {
   const resolved = resolveLocks(scene, shot)
-  if (!resolved.bindingCount) return { shotNumber, requiredImageCount: 0, bindingCount: 0, status: "none", issues: [], model }
+  if (!resolved.bindingCount) return { shotNumber, requiredImageCount: 0, bindingCount: 0, status: "none", issues: [], model, lockKeys: [] }
+  const lockKeys = resolved.bindings.map(b => b.key).sort()
+  const moved = movedLockIssues(shot, shotNumber, title)
+  if (moved.length) return { shotNumber, requiredImageCount: resolved.requiredImageCount, bindingCount: resolved.bindingCount, status: "blocked", issues: moved, model, lockKeys }
   // In a Long Form film every shot after the first continues from the previous shot's last frame.
   const planned = planLockedRequest(resolved, model, { continuityStartUrl: shotNumber > 1 ? "continuity://previous-shot" : null })
-  return { shotNumber, requiredImageCount: resolved.requiredImageCount, bindingCount: resolved.bindingCount, status: planned.ok ? "mapped" : "blocked", issues: planned.ok ? [] : planned.issues, model }
+  return { shotNumber, requiredImageCount: resolved.requiredImageCount, bindingCount: resolved.bindingCount, status: planned.ok ? "mapped" : "blocked", issues: planned.ok ? [] : planned.issues, model, lockKeys }
 }

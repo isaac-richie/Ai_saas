@@ -8,7 +8,7 @@ import { toast } from "sonner"
 import { approveTake } from "@/core/actions/takes"
 import { cancelGenerationJob } from "@/core/actions/generation-jobs"
 import { listProductionShots, pollProductionGeneration, queueProductionShot } from "@/core/actions/production"
-import { preflightFilmLocks } from "@/core/actions/long-form-locks"
+import { preflightFilmLocks, type ShotLockStatus } from "@/core/actions/long-form-locks"
 import { applyTakeCorrection, proposeTakeCorrection, recordTakeInspection, submitProductionEvaluation } from "@/core/actions/production-review"
 import styles from "./ProductionDesk.module.css"
 import { recoverFromStaleServerAction } from "@/interface/lib/server-action-recovery"
@@ -167,10 +167,13 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
     .sort()
     .join(",")
 
+  // Each shot's current locks, to mark takes made with different locks as outdated (history is kept).
+  const [lockChecks, setLockChecks] = useState<Record<number, ShotLockStatus>>({})
   const refresh = useCallback(async () => {
-    const result = await listProductionShots(productionId)
+    const [result, checks] = await Promise.all([listProductionShots(productionId), preflightFilmLocks(productionId).catch(() => null)])
     if (result.error) setError(result.error)
     else { setShots(result.data as Shot[]); setError("") }
+    if (checks?.data) setLockChecks(Object.fromEntries(checks.data.map(check => [check.shotNumber, check])))
   }, [productionId])
 
   useEffect(() => { void refresh() }, [refresh])
@@ -322,9 +325,13 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
           <p className="text-xs text-white/60">Take {take.take_number} / {take.status}{shot.approved_take_id === take.id ? " / approved" : ""}</p>
           {(() => {
             const frames = takeFrames(take, references)
-            const locked = (take.parameters as { locked_inputs?: { required_image_count?: number; binding_count?: number; endpoint?: string } } | null)?.locked_inputs
-            if (!frames.start && !frames.end && !locked) return null
+            const locked = (take.parameters as { locked_inputs?: { required_image_count?: number; binding_count?: number; endpoint?: string; resolved_bindings?: { key?: string }[] } } | null)?.locked_inputs
+            const current = lockChecks[shots.findIndex(item => item.id === shot.id) + 1]?.lockKeys
+            const takeKeys = (locked?.resolved_bindings ?? []).map(b => b.key ?? "").sort()
+            const outdated = current !== undefined && take.status === "completed" && (current.length !== takeKeys.length || current.some((key, i) => key !== takeKeys[i]))
+            if (!frames.start && !frames.end && !locked && !outdated) return null
             return <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+              {outdated && <span className="rounded-full border border-amber-300/40 bg-amber-300/10 px-2.5 py-1 text-amber-100" title="This take was made before the shot's locked images last changed. It is kept; generate a new take to use the current locks.">Outdated: locks changed since this take</span>}
               {locked && <span className="rounded-full border border-[#8fd1b9]/30 bg-[#8fd1b9]/10 px-2.5 py-1 text-[#bfe9da]" title={`${locked.binding_count} bindings · ${locked.endpoint}`}>{locked.required_image_count} required image{locked.required_image_count === 1 ? "" : "s"} submitted</span>}
               {frames.start && <span className="rounded-full border border-gold-300/30 bg-gold-300/10 px-2.5 py-1 text-gold-200">Start: {frames.start}</span>}
               {frames.end && <span className="rounded-full border border-gold-300/30 bg-gold-300/10 px-2.5 py-1 text-gold-200">End: {frames.end}</span>}

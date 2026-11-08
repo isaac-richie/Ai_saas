@@ -6,6 +6,7 @@ import { checkRateLimit } from '@/core/utils/security/rate-limit';
 import { BETA_LOCKED_MESSAGE, hasBetaAccess } from '@/core/services/beta-access';
 import { UnsafeUrlError } from '@/core/utils/security/safe-fetch';
 import { renderTimeline, RenderError } from '@/core/services/timeline-render-job';
+import { planTimelineAudio, videoClipFingerprint, type LockedAudioSnapshot } from '@/core/services/long-form-audio-store';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -48,11 +49,43 @@ export async function POST(request: Request) {
     .in('status', ['queued', 'rendering'])
     .lt('updated_at', new Date(Date.now() - STALE_MS).toISOString());
 
-  const { data: job, error } = await supabase
+  // Export gate: every locked recording of every Long Form film in this edit must be present, timed and
+  // decided before a render is queued. The plan is saved as the job's manifest and the render uses it.
+  const { data: timeline } = await supabase.from('timeline_projects').select('id, updated_at').eq('id', timelineId).maybeSingle();
+  if (!timeline) return NextResponse.json({ error: 'Timeline not found.' }, { status: 404 });
+  const { data: videoTracks } = await supabase.from('timeline_tracks').select('id').eq('timeline_id', timelineId).eq('track_type', 'video');
+  const { data: videoClips } = videoTracks?.length
+    ? await supabase.from('timeline_clips').select('id, start_ms, end_ms, take_id, asset_url, metadata').in('track_id', videoTracks.map((t) => t.id)).order('start_ms')
+    : { data: [] };
+  let lockedAudio: LockedAudioSnapshot | undefined;
+  let manifest: Record<string, unknown> | null = null;
+  try {
+    const audio = await planTimelineAudio(supabase, user.id, videoClips ?? []);
+    if (audio.issues.length) {
+      return NextResponse.json({
+        error: `Not ready to export: ${audio.issues[0].message}${audio.issues.length > 1 ? ` (+${audio.issues.length - 1} more)` : ''} Your video work is saved.`,
+        issues: audio.issues.map((issue) => issue.message),
+      }, { status: 409 });
+    }
+    lockedAudio = { cues: audio.cues, mutedClipIds: audio.mutedClipIds, clipFingerprint: videoClipFingerprint(videoClips ?? []) };
+    manifest = {
+      timeline_id: timelineId, timeline_updated_at: timeline.updated_at, clip_fingerprint: lockedAudio.clipFingerprint,
+      video: (videoClips ?? []).map((c) => ({ clip_id: c.id, take_id: c.take_id, start_ms: c.start_ms, end_ms: c.end_ms, film_shot_id: (c.metadata as Record<string, unknown> | null)?.film_shot_id ?? null })),
+      native_audio_muted_clips: audio.mutedClipIds,
+      locked_audio: audio.manifest,
+    };
+  } catch {
+    return NextResponse.json({ error: 'Could not check locked audio. Nothing was rendered.' }, { status: 503 });
+  }
+
+  const insertJob = (withManifest: boolean) => supabase
     .from('timeline_render_jobs')
-    .insert({ timeline_id: timelineId, user_id: user.id, status: 'queued', stage: 'Waiting to start' })
+    .insert({ timeline_id: timelineId, user_id: user.id, status: 'queued', stage: 'Waiting to start', ...(withManifest && manifest ? { manifest } : {}) })
     .select('id')
     .single();
+  let { data: job, error } = await insertJob(true);
+  // Before migration 0053 there is no manifest column; an edit with no locked audio still renders.
+  if (error && (error.code === 'PGRST204' || error.code === '42703') && !lockedAudio.cues.length) ({ data: job, error } = await insertJob(false));
   if (error || !job) {
     // The unique index allows one active render per timeline.
     const busy = error?.code === '23505';
@@ -70,6 +103,7 @@ export async function POST(request: Request) {
         userId: user.id,
         timelineId,
         ffmpeg,
+        lockedAudio,
         onProgress: async (progress, stage) => {
           await update({ progress, stage });
         },
