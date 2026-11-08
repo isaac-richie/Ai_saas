@@ -288,11 +288,11 @@ describe('Wiring (acceptance 1, 2, 13, 15, 17)', () => {
   const queue = src('../src/core/actions/production.ts');
   const quick = src('../src/interface/components/fast-video/FastVideoStudio.tsx');
 
-  it('the Locked images row sits directly below Editing notes on Long Form cards; Quick Shot is untouched', () => {
+  it('the Locked media row sits directly below Editing notes on Long Form cards; Quick Shot is untouched', () => {
     const notes = desk.indexOf('summary className="cursor-pointer">Editing notes</summary>');
-    const row = desk.indexOf('<LockedImagesRow');
+    const row = desk.indexOf('<LockedMediaRow');
     assert.ok(notes > 0 && row > notes && row - notes < 400);
-    assert.doesNotMatch(quick, /LockedImages|long-form-locks/);
+    assert.doesNotMatch(quick, /LockedImages|LockedMedia|long-form-locks/);
   });
 
   it('the queue blocks before creating a take or job, and snapshots the manifest on the take', () => {

@@ -17,7 +17,7 @@ import { ProductionShotSettings, ReviseProductionSettings, emptyShotSettings, ty
 
 import { latestFilms } from "@/core/utils/production/latest-films"
 import { ProductionPicker } from "./ProductionPicker"
-import { LockedImagesEditor, LockedImagesRow, useFilmLocks } from "./LockedImages"
+import { FilmAudioDialog, LockedMediaEditor, LockedMediaRow, shotAudioSummary, useFilmLocks } from "./LockedMedia"
 import { MentionTextarea, type MentionReference } from "./MentionTextarea"
 import { MAX_FILM_SHOTS, MIN_FILM_SHOTS } from "@/core/config/film"
 
@@ -51,6 +51,8 @@ export function ProductionDesk() {
   const [view, setView] = useState<ProductionView>("brief")
   const [sessionRestored, setSessionRestored] = useState(false)
   const [lockEditor, setLockEditor] = useState<number | null>(null)
+  const [lockScope, setLockScope] = useState<"shot" | "scene">("shot")
+  const [audioLibrary, setAudioLibrary] = useState<null | "library" | "upload" | "ai">(null)
   const films = latestFilms(jobs)
   const selectedRevision = jobs.find(job => job.id === selectedId)
   const selected = films.find(job => (job.parent_job_id || job.id) === (selectedRevision?.parent_job_id || selectedRevision?.id))
@@ -223,7 +225,9 @@ export function ProductionDesk() {
               return null
             }}
             disabled={busy}
+            audio={filmLocks.view?.audio.enabled && job.plan ? { count: filmLocks.view.audio.assets.length, aiEnabled: filmLocks.view.audio.aiEnabled, onOpen: tab => setAudioLibrary(tab) } : undefined}
           />
+          {filmLocks.view && audioLibrary && <FilmAudioDialog productionId={job.id} view={filmLocks.view} initialTab={audioLibrary} onChanged={filmLocks.reload} onClose={() => setAudioLibrary(null)} />}
           <details className="mt-3 text-sm text-white/60"><summary className="cursor-pointer">Read original brief</summary><p className="mt-3 whitespace-pre-wrap">{job.brief}</p></details>
           {view === "direction" && job.planning_stage && job.status === "brief" && <p className={styles.checkpoint}>Saved progress: {job.planning_stage === "brief" ? "Brief ready for the crew" : job.planning_stage === "story" ? "Visual direction underway" : job.planning_stage === "departments" ? "Department direction ready" : "Shot prompts ready for review"}</p>}
           {view === "direction" && job.planning_error && job.status === "brief" && <p role="status" className="mt-3 text-sm text-amber-200">{/no credits remaining|credit_balance_exhausted|insufficient_quota|ai planning credits are exhausted/i.test(job.planning_error) ? "AI planning is paused because the studio's OpenAI API credits are exhausted. The studio owner needs to add credits, then select Resume crew. Your saved work is safe." : "The crew paused at its saved checkpoint. Resume to continue; no completed planning work was lost."}</p>}
@@ -264,10 +268,10 @@ export function ProductionDesk() {
               {shot.continuityStartState && <div className="mt-3 rounded-lg border border-line bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
               <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2 whitespace-pre-wrap">{shot.masterPrompt}</p></details>
               {!!shot.productionNotes?.length && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
-              {filmLocks.view?.enabled && <LockedImagesRow scene={filmLocks.view.scene} shot={filmLocks.view.shots[index + 1] ?? []} status={filmLocks.statuses[index + 1]} disabled={busy || !filmLocks.view.available} onEdit={() => setLockEditor(index + 1)} />}
+              {filmLocks.view?.enabled && <LockedMediaRow scene={filmLocks.view.scene} shot={filmLocks.view.shots[index + 1] ?? []} status={filmLocks.statuses[index + 1]} audio={shotAudioSummary(filmLocks.view, index + 1)} disabled={busy || !filmLocks.view.available} onEdit={() => { setLockScope("shot"); setLockEditor(index + 1) }} />}
             </section>)}</div>
-            {filmLocks.view && !filmLocks.view.available && <p className="mt-3 text-xs text-white/45">Locked images need a database update before they can be saved.</p>}
-            {filmLocks.view && lockEditor !== null && <LockedImagesEditor
+            {filmLocks.view && !filmLocks.view.available && <p className="mt-3 text-xs text-white/45">Locked media needs a database update before it can be saved.</p>}
+            {filmLocks.view && lockEditor !== null && <LockedMediaEditor
               key={`${job.id}-${lockEditor}-${filmLocks.view.revision}`}
               productionId={job.id}
               shotNumber={lockEditor}
@@ -277,6 +281,8 @@ export function ProductionDesk() {
               status={filmLocks.statuses[lockEditor]}
               onClose={() => setLockEditor(null)}
               onSaved={filmLocks.reload}
+              initialScope={lockScope}
+              onScopeChange={setLockScope}
             />}
           </div>}
           {job.status === "brief" && <button disabled={busy} className="mt-4 rounded-full border border-gold-400/25 px-4 py-2 text-sm text-white transition-all duration-300 hover:border-gold-300/60 hover:bg-gold-400/10 hover:text-gold-50 disabled:pointer-events-none disabled:opacity-40" onClick={() => void run(async () => {

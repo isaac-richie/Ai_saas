@@ -30,6 +30,8 @@ export type LockBinding = {
   role: LockRole
   entityLabel: string
   viewLabel: string
+  /** Shot scope: the shot's title when the lock was saved, so a reordered or rewritten plan is caught. */
+  anchorTitle?: string
 }
 
 /** A required binding after scene + shot are combined; `scopes` says where it came from. */
@@ -68,6 +70,18 @@ export function resolveLocks(sceneBindings: LockBinding[], shotBindings: LockBin
   const bindings = [...byKey.values()]
   const imageKeys = [...new Set(bindings.map(imageKey))]
   return { bindings, imageKeys, requiredImageCount: imageKeys.length, bindingCount: bindings.length }
+}
+
+/**
+ * Shot locks were saved against a shot by its number. If the plan has since changed which shot sits at
+ * that number, generating with them could put one shot's images on another, so generation waits until
+ * the creator confirms (re-saves) them.
+ */
+export function movedLockIssues(shotBindings: Pick<LockBinding, "anchorTitle">[], shotNumber: number, currentTitle: string | undefined): string[] {
+  if (currentTitle === undefined) return []
+  const anchors = [...new Set(shotBindings.map(b => b.anchorTitle ?? "").filter(Boolean))]
+  const stale = anchors.find(title => title !== currentTitle)
+  return stale ? [`Shot ${shotNumber} is now "${currentTitle}", but its locked images were set for "${stale}". Open Locked media and save to confirm them.`] : []
 }
 
 // ── Capability registry ──────────────────────────────────────────────────────────────────────────

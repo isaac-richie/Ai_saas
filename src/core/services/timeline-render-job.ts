@@ -21,6 +21,8 @@ import { probeMedia } from '@/core/services/media-probe';
 import { fetchPublicBytes } from '@/core/utils/security/safe-fetch';
 import { clipSpeed } from '@/core/services/timeline-ops';
 import { DEFAULT_FRAME_FIT, isFrameFit } from '@/core/services/video-format';
+import { buildLockedAudioMixArgs, remapCues } from '@/core/services/long-form-audio';
+import { AUDIO_BUCKET, MAX_AUDIO_BYTES, sha256Hex, videoClipFingerprint, type LockedAudioSnapshot } from '@/core/services/long-form-audio-store';
 
 const execFileAsync = promisify(execFile);
 const MAX_CLIPS = 60;
@@ -39,6 +41,8 @@ export interface RenderContext {
   onProgress: (progress: number, stage: string) => Promise<void>;
   /** Downloads clip footage; defaults to the public-HTTPS-only fetcher. */
   fetchClip?: (url: string) => Promise<Buffer>;
+  /** Long Form locked audio, planned and checked when the export was requested. */
+  lockedAudio?: LockedAudioSnapshot;
 }
 
 /** A transition set on the last shot means "end the film this way": a fade out. */
@@ -82,6 +86,12 @@ export async function renderTimeline(ctx: RenderContext): Promise<{ url: string;
   const clips = allClips.filter((c) => c.track_id === videoTrack.id);
   if (clips.length === 0) throw new RenderError('Add clips to the timeline before rendering.');
   if (clips.length > MAX_CLIPS) throw new RenderError(`Renders are limited to ${MAX_CLIPS} clips.`);
+  const locked = ctx.lockedAudio;
+  // Locked audio was placed against these exact clip positions; an edit made since would misplace it.
+  if (locked && locked.cues.length && videoClipFingerprint(clips) !== locked.clipFingerprint) {
+    throw new RenderError('The edit changed after this export started. Export again so locked audio lines up.');
+  }
+  const mutedClips = new Set(locked?.mutedClipIds ?? []);
 
   const tmpDir = await mkdtemp(join(tmpdir(), 'timeline-render-'));
   try {
@@ -126,7 +136,8 @@ export async function renderTimeline(ctx: RenderContext): Promise<{ url: string;
         fps,
         colorFilter: grade ? buildColorGradeFilter(grade) : '',
         hasAudio: info.hasAudio,
-        volume: clip.volume,
+        // Approved dialogue replaces this shot's generated voice; the clip's own file is untouched.
+        volume: mutedClips.has(clip.id) ? 0 : clip.volume,
         fit,
         speed,
         fadeOut: i === clips.length - 1 ? endingFade(clip) : undefined,
@@ -137,6 +148,8 @@ export async function renderTimeline(ctx: RenderContext): Promise<{ url: string;
 
     await ctx.onProgress(62, 'Joining shots');
     let current = join(tmpDir, 'picture.mp4');
+    // Where each clip really starts in the output (transitions overlap clips), for placing locked audio.
+    let outStartsSec: number[] = [0];
     if (normalized.length === 1) {
       await execFileAsync(ffmpeg, ['-y', '-i', normalized[0], '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', current]);
     } else {
@@ -152,7 +165,8 @@ export async function renderTimeline(ctx: RenderContext): Promise<{ url: string;
           duration_ms: clips[i].transition_out_ms || TRANSITION_REGISTRY[transition]?.default_duration_ms || 0,
         });
       }
-      const { inputArgs, filterComplex, maps } = buildXfadeFilter(pairs, { fps });
+      const { inputArgs, filterComplex, maps, startsSec } = buildXfadeFilter(pairs, { fps });
+      outStartsSec = startsSec;
       await execFileAsync(ffmpeg, [
         '-y', ...inputArgs, '-filter_complex', filterComplex, ...maps,
         '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p',
@@ -193,6 +207,29 @@ export async function renderTimeline(ctx: RenderContext): Promise<{ url: string;
         await execFileAsync(ffmpeg, ['-y', '-i', current, '-c:v', 'copy', '-an', mixed]);
         current = mixed;
       }
+    }
+
+    if (locked?.cues.length) {
+      await ctx.onProgress(80, 'Adding locked audio');
+      const placed = remapCues(locked.cues, clips.map((c, i) => ({ startMs: c.start_ms, endMs: c.end_ms, outStartMs: Math.round((outStartsSec[i] ?? 0) * 1000), outDurationMs: Math.round(durations[i] * 1000) })));
+      const prepared = [];
+      for (let i = 0; i < placed.length; i++) {
+        const cue = placed[i];
+        const { data: file } = await supabase.storage.from(AUDIO_BUCKET).download(cue.path);
+        if (!file || file.size > MAX_AUDIO_BYTES) throw new RenderError('A locked recording is missing. Re-lock it, then export again.');
+        const bytes = Buffer.from(await file.arrayBuffer());
+        if (sha256Hex(bytes) !== cue.sha256) throw new RenderError('A locked recording has changed since it was approved. Re-lock it, then export again.');
+        const localPath = join(tmpDir, `locked-${i}`);
+        await writeFile(localPath, bytes);
+        prepared.push({ ...cue, localPath });
+      }
+      const withLocked = join(tmpDir, 'locked.mp4');
+      const baseHasAudio = (await probeMedia(ffmpeg, current)).hasAudio;
+      await execFileAsync(ffmpeg, buildLockedAudioMixArgs({ video: current, output: withLocked, totalSec, cues: prepared, baseHasAudio }), { maxBuffer: 16 * 1024 * 1024 });
+      const check = await probeMedia(ffmpeg, withLocked);
+      // The export must actually carry sound for its full length, or it isn't published.
+      if (!check.hasAudio || check.durationSec < totalSec - 0.25) throw new RenderError('Locked audio could not be added to the full video. Nothing was published.');
+      current = withLocked;
     }
 
     const captionTracks = new Set(tracks.filter((t) => t.track_type === 'caption' && t.visible).map((t) => t.id));
