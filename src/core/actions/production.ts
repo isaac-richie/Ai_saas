@@ -457,7 +457,7 @@ export async function queueProductionShot(input: unknown) {
   const providerPrompt = resolveReferenceTags(shotText, filmReferences)
   // Conditioning order, stated for the model: opening frame (position, light, pose) first, then the
   // references (who and what), then the shot's own action.
-  const continuationPrefix = shot.previous_shot_id
+  let continuationPrefix = shot.previous_shot_id
     ? "Seamless continuation from the opening frame, which is the previous shot's final frame: keep its framing, lighting, positions and every character's identity, then perform this shot's action. "
     : ""
   const family = shot.model === "seedance" ? "seedance" : "kling"
@@ -496,7 +496,8 @@ export async function queueProductionShot(input: unknown) {
     if (fileIssues.length) return blocked(fileIssues)
     const planInputs = lockPlan.plan
     if (planInputs.referenceImageUrls.length) {
-      // Seedance reference mode: no frame rides with references (the plan already refused a continued shot).
+      // Seedance reference mode: no frame rides with references. A continued shot's last frame is
+      // already in the references as image 1 (planInputs.continuityAsReference).
       continuityReferenceUrl = null
       endReferenceUrl = null
       referenceElements = []
@@ -511,6 +512,7 @@ export async function queueProductionShot(input: unknown) {
       required: planInputs.manifest.map(entry => ({ field: entry.field, url: entry.assetUrl })),
     }
     lockNote = planInputs.promptNote
+    if (planInputs.continuityAsReference) continuationPrefix = "Seamless continuation from reference image 1, which is the previous shot's final frame: open on it, keep its framing, lighting, positions and every character's identity, then perform this shot's action. "
     lockSnapshot = {
       binding_revision: filmLocks.revision,
       required_image_count: resolvedLocks.requiredImageCount,
@@ -518,7 +520,7 @@ export async function queueProductionShot(input: unknown) {
       provider: "kie", model, endpoint: planInputs.endpoint,
       resolved_bindings: resolvedLocks.bindings.map(b => ({ key: b.key, asset_id: b.assetId, asset_url: b.assetUrl, sha256: b.sha256, role: b.role, entity: b.entityLabel, view: b.viewLabel, scopes: b.scopes })),
       input_manifest: planInputs.manifest,
-      request_fingerprint: requestFingerprint({ model, duration, aspect, manifest: planInputs.manifest, start: continuityReferenceUrl, end: endReferenceUrl }),
+      request_fingerprint: requestFingerprint({ model, duration, aspect, manifest: planInputs.manifest, start: planInputs.continuityAsReference ? planInputs.referenceImageUrls[0] : continuityReferenceUrl, end: endReferenceUrl }),
     }
   }
 

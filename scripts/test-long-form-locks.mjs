@@ -90,12 +90,44 @@ describe('Seedance 2.5: all originals as actual inputs (acceptance 8, 10)', () =
     assert.match(over.issues.join(' '), /31 required images; Seedance 2.5 accepts 30/);
   });
 
-  it('references with a locked frame, or on a continued shot, are blocked (exclusive modes)', () => {
+  it('references with a locked start or end frame are blocked (exclusive modes)', () => {
     const withFrame = planLockedRequest(resolveLocks([], [...kitchen(), b('open', 'start_frame')]), SEEDANCE);
     assert.equal(withFrame.ok, false);
-    const continued = planLockedRequest(resolveLocks([], kitchen()), SEEDANCE, { continuityStartUrl: 'https://x/last.jpg' });
-    assert.equal(continued.ok, false);
-    assert.match(continued.issues[0], /continues from the previous shot/);
+    assert.match(withFrame.issues[0], /locked start or end frame/);
+  });
+
+  it('a continued Seedance shot sends the previous last frame as reference image 1, never as a first frame', () => {
+    const locks = kitchen();
+    const continued = planLockedRequest(resolveLocks([], locks), SEEDANCE, { continuityStartUrl: 'https://x/last.jpg' });
+    assert.ok(continued.ok, continued.issues?.join(' '));
+    const { plan } = continued;
+    assert.equal(plan.continuityAsReference, true);
+    assert.equal(plan.startFrameUrl, null);
+    assert.equal(plan.referenceImageUrls[0], 'https://x/last.jpg');
+    // Every lock still lands at its own index, after the continuity frame.
+    for (const m of plan.manifest) assert.equal(plan.referenceImageUrls[Number(m.field.match(/\[(\d+)\]/)[1])], m.assetUrl);
+    assert.ok(!plan.manifest.some((m) => m.field === 'reference_image_urls[0]'));
+    assert.match(plan.promptNote, /reference image 1 is the previous shot's final frame/);
+    assert.match(plan.promptNote, /reference image 2 is/);
+    // A fresh shot is unchanged.
+    const fresh = planLockedRequest(resolveLocks([], locks), SEEDANCE);
+    assert.equal(fresh.plan.continuityAsReference, false);
+    assert.match(fresh.plan.promptNote, /reference image 1 is (?!the previous)/);
+  });
+
+  it('the continuity frame counts toward the 30-image Seedance limit', () => {
+    const many = (count) => Array.from({ length: count }, (_, i) => b(`img-${i}`, 'prop', `Prop ${i}`));
+    assert.ok(planLockedRequest(resolveLocks([], many(29)), SEEDANCE, { continuityStartUrl: 'https://x/last.jpg' }).ok);
+    const full = planLockedRequest(resolveLocks([], many(30)), SEEDANCE, { continuityStartUrl: 'https://x/last.jpg' });
+    assert.equal(full.ok, false);
+    assert.match(full.issues.join(' '), /30 required images plus the previous shot's last frame; Seedance 2.5 accepts 30.*Remove 1 locked image\./);
+  });
+
+  it('Kling continued shots keep the opening frame beside their elements', () => {
+    const plan = planLockedRequest(resolveLocks([], [b('a', 'character', 'Sam', { viewLabel: 'front' }), b('b', 'character', 'Sam', { viewLabel: 'profile' })]), KLING, { continuityStartUrl: 'https://x/last.jpg' });
+    assert.ok(plan.ok);
+    assert.equal(plan.plan.continuityAsReference, false);
+    assert.equal(plan.plan.referenceImageUrls.length, 0);
   });
 
   it('frames only (start + end) map to first_frame_url / last_frame_url', () => {
