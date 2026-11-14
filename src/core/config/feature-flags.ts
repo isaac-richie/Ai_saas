@@ -22,3 +22,11 @@ export const LONG_FORM_AI_AUDIO_ENABLED = toBool(process.env.NEXT_PUBLIC_LONG_FO
 // input. Set NEXT_PUBLIC_LONG_FORM_VIDEO_REFS=false to hide the Videos section and stop new references
 // being saved. References already saved are still enforced at generation.
 export const LONG_FORM_VIDEO_REFS_ENABLED = toBool(process.env.NEXT_PUBLIC_LONG_FORM_VIDEO_REFS, true)
+
+// Mimic (beta): record or upload a performance and transform who or what is in it. Set
+// NEXT_PUBLIC_MIMIC=false to hide it and stop new takes.
+export const MIMIC_ENABLED = toBool(process.env.NEXT_PUBLIC_MIMIC, true)
+// Changing more than one person or object in a single take. Off until it has been proven on the model;
+// with it off, a take with several changes is saved but blocked from generating. Set
+// NEXT_PUBLIC_MIMIC_MULTI_SUBJECT=true once verified.
+export const MIMIC_MULTI_SUBJECT_ENABLED = toBool(process.env.NEXT_PUBLIC_MIMIC_MULTI_SUBJECT, false)

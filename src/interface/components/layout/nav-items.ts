@@ -1,11 +1,13 @@
-import { Clapperboard, Home, Images, Scissors, Settings, Sparkles, type LucideIcon } from "lucide-react"
-import { STUDIO_ENABLED } from "@/core/config/feature-flags"
+import { Clapperboard, Home, Images, Scissors, Settings, Sparkles, Users, type LucideIcon } from "lucide-react"
+import { MIMIC_ENABLED, STUDIO_ENABLED } from "@/core/config/feature-flags"
 
 export type NavItem = {
     name: string
     href: string
     icon: LucideIcon
     tour: string
+    /** A short tag after the name, such as "Beta". */
+    badge?: string
     disabled?: boolean
     /** The one primary action; the phone tab bar raises it in the middle. */
     primary?: boolean
@@ -18,6 +20,8 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
     { name: "Home", href: "/dashboard", icon: Home, tour: "nav-home", isActive: (pathname) => pathname === "/dashboard" },
     { name: "Create", href: "/dashboard/fast-video", icon: Sparkles, tour: "nav-create", primary: true, isActive: (pathname) => pathname.startsWith("/dashboard/fast-video") },
+    // The phone tab bar has four slots beside Create, so Mimic is reached there from the Edit page.
+    { name: "Mimic", badge: "Beta", href: "/dashboard/mimic", icon: Users, tour: "nav-mimic", disabled: !MIMIC_ENABLED, desktopOnly: true, isActive: (pathname) => pathname.startsWith("/dashboard/mimic") },
     { name: "Edit", href: "/dashboard/edit", icon: Scissors, tour: "nav-edit", isActive: (pathname) => pathname.startsWith("/dashboard/edit") },
     { name: "Studio", href: "/dashboard/studio", icon: Clapperboard, tour: "nav-studio", disabled: !STUDIO_ENABLED, desktopOnly: true, isActive: (pathname) => pathname.startsWith("/dashboard/studio") || pathname.startsWith("/dashboard/projects") || pathname.startsWith("/dashboard/sequences") },
     { name: "My videos", href: "/dashboard/gallery", icon: Images, tour: "nav-videos", isActive: (pathname) => pathname.startsWith("/dashboard/gallery") || pathname.startsWith("/dashboard/exports") },
