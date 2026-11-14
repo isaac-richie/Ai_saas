@@ -19,6 +19,7 @@ export function Header({ toggleSidebar }: HeaderProps) {
     const title = useMemo(() => {
         if (pathname.includes("/settings")) return "Settings"
         if (pathname.includes("/fast-video")) return "Create"
+        if (pathname.includes("/mimic")) return "Mimic"
         if (pathname.includes("/scenes/")) return "Scene"
         if (pathname.includes("/studio")) return "Studio"
         if (pathname.includes("/gallery")) return "My videos"
