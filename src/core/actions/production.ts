@@ -15,6 +15,8 @@ import { buildRevisionContext, revisionSaveError } from "@/core/utils/production
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 import { movedLockIssues, planLockedRequest, resolveLocks } from "@/core/services/long-form-locks"
 import { loadFilmLocks, requestFingerprint, verifyPinnedImages } from "@/core/services/long-form-lock-store"
+import { mediaCountLabel, resolveVideoRefs } from "@/core/services/long-form-video-refs"
+import { loadFilmVideoRefs, verifyPinnedClips } from "@/core/services/long-form-video-store"
 
 const updateSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("create"), brief: z.string().trim().min(8).max(50000), assets: productionAssetsSchema.default([]), shotSettings: productionShotSettingsSchema }),
@@ -118,6 +120,10 @@ export async function replaceProductionReferences(input: unknown) {
     const keptIds = new Set(parsed.data.assets.map(asset => asset.id))
     const required = [...locks.scene, ...Object.values(locks.shots).flat()].filter(binding => !keptIds.has(binding.assetId))
     if (required.length) return { error: `"${required[0].assetName}" is a locked image. Remove it from Locked media first, then remove it here.` }
+    // The same holds for a video a shot or scene uses as a reference.
+    const videoRefs = await loadFilmVideoRefs(db, (job.parent_job_id as string | null) || (job.id as string))
+    const usedVideo = [...videoRefs.scene, ...Object.values(videoRefs.shots).flat()].find(binding => !keptIds.has(binding.assetId))
+    if (usedVideo) return { error: `"${usedVideo.assetName}" is a video reference. Remove it from Locked media first, then remove it here.` }
   } catch {
     return { error: "Could not check locked images. Your references are unchanged." }
   }
@@ -478,26 +484,33 @@ export async function queueProductionShot(input: unknown) {
   let filmLocks
   try { filmLocks = await loadFilmLocks(db, productionRoot) } catch { return { error: "Could not check this shot's locked images. No video job has been submitted." } }
   const resolvedLocks = resolveLocks(filmLocks.scene, shot.sequence_order ? filmLocks.shots[shot.sequence_order] ?? [] : [])
-  let lockedInputs: { reference_image_urls?: string[]; required: { field: string; url: string }[] } | null = null
+  // Video references are required inputs in the same way: every effective clip is sent, or nothing is.
+  let filmVideoRefs
+  try { filmVideoRefs = await loadFilmVideoRefs(db, productionRoot) } catch { return { error: "Could not check this shot's video references. No video job has been submitted." } }
+  const shotVideoRefs = shot.sequence_order ? filmVideoRefs.shots[shot.sequence_order] ?? [] : []
+  const videoRefs = resolveVideoRefs(filmVideoRefs.scene, shotVideoRefs)
+  let lockedInputs: { reference_image_urls?: string[]; reference_video_urls?: string[]; required: { field: string; url: string }[] } | null = null
   let lockSnapshot: Record<string, unknown> | null = null
   let lockNote = ""
-  if (resolvedLocks.bindingCount) {
+  if (resolvedLocks.bindingCount || videoRefs.length) {
     const blocked = (issues: string[]) => ({
-      error: `Cannot generate with this configuration. ${resolvedLocks.requiredImageCount} required image${resolvedLocks.requiredImageCount === 1 ? "" : "s"}: ${issues.join(" ")} Your locks are saved. No video job has been submitted.`,
+      error: `Cannot generate with this configuration. Required: ${mediaCountLabel(resolvedLocks.requiredImageCount, videoRefs.length)}. ${issues.join(" ")} Your locked media is saved. No video job has been submitted.`,
       blocked: issues,
     })
     const currentPlan = productionPlanSchema.safeParse(production.plan)
     const currentTitle = currentPlan.success && shot.sequence_order ? currentPlan.data.deliverables[shot.sequence_order - 1]?.title : undefined
     const moved = movedLockIssues(shot.sequence_order ? filmLocks.shots[shot.sequence_order] ?? [] : [], shot.sequence_order ?? 0, currentTitle)
-    if (moved.length) return blocked(moved)
-    const lockPlan = planLockedRequest(resolvedLocks, model, { continuityStartUrl: shot.previous_shot_id ? continuityReferenceUrl : null })
+    const movedVideos = movedLockIssues(shotVideoRefs, shot.sequence_order ?? 0, currentTitle, "video references")
+    if (moved.length || movedVideos.length) return blocked([...moved, ...movedVideos])
+    const lockPlan = planLockedRequest(resolvedLocks, model, { continuityStartUrl: shot.previous_shot_id ? continuityReferenceUrl : null, videos: videoRefs })
     if (!lockPlan.ok) return blocked(lockPlan.issues)
-    const fileIssues = await verifyPinnedImages(resolvedLocks.bindings)
+    // Revalidated on every generation: a saved "mapped" status is never trusted for the files themselves.
+    const fileIssues = [...await verifyPinnedImages(resolvedLocks.bindings), ...await verifyPinnedClips(videoRefs)]
     if (fileIssues.length) return blocked(fileIssues)
     const planInputs = lockPlan.plan
-    if (planInputs.referenceImageUrls.length) {
-      // Seedance reference mode: no frame rides with references. A continued shot's last frame is
-      // already in the references as image 1 (planInputs.continuityAsReference).
+    if (planInputs.referenceImageUrls.length || planInputs.referenceVideoUrls.length) {
+      // Seedance reference mode (images, videos or both): no frame rides with references. A continued
+      // shot's last frame is already in the references as image 1 (planInputs.continuityAsReference).
       continuityReferenceUrl = null
       endReferenceUrl = null
       referenceElements = []
@@ -509,7 +522,11 @@ export async function queueProductionShot(input: unknown) {
     if (planInputs.endFrameUrl) endReferenceUrl = planInputs.endFrameUrl
     lockedInputs = {
       ...(planInputs.referenceImageUrls.length ? { reference_image_urls: planInputs.referenceImageUrls } : {}),
-      required: planInputs.manifest.map(entry => ({ field: entry.field, url: entry.assetUrl })),
+      ...(planInputs.referenceVideoUrls.length ? { reference_video_urls: planInputs.referenceVideoUrls } : {}),
+      required: [
+        ...planInputs.manifest.map(entry => ({ field: entry.field, url: entry.assetUrl })),
+        ...planInputs.videoManifest.map(entry => ({ field: entry.field, url: entry.clipUrl })),
+      ],
     }
     lockNote = planInputs.promptNote
     if (planInputs.continuityAsReference) continuationPrefix = "Seamless continuation from reference image 1, which is the previous shot's final frame: open on it, keep its framing, lighting, positions and every character's identity, then perform this shot's action. "
@@ -520,7 +537,11 @@ export async function queueProductionShot(input: unknown) {
       provider: "kie", model, endpoint: planInputs.endpoint,
       resolved_bindings: resolvedLocks.bindings.map(b => ({ key: b.key, asset_id: b.assetId, asset_url: b.assetUrl, sha256: b.sha256, role: b.role, entity: b.entityLabel, view: b.viewLabel, scopes: b.scopes })),
       input_manifest: planInputs.manifest,
-      request_fingerprint: requestFingerprint({ model, duration, aspect, manifest: planInputs.manifest, start: planInputs.continuityAsReference ? planInputs.referenceImageUrls[0] : continuityReferenceUrl, end: endReferenceUrl }),
+      // Exactly which clips, ranges and intents were submitted (the clip is the selected range, silent).
+      video_reference_count: videoRefs.length,
+      video_references: videoRefs.map(v => ({ key: v.key, asset_id: v.assetId, name: v.assetName, clip_url: v.clipUrl, sha256: v.sha256, trim_start_ms: v.trimStartMs, trim_end_ms: v.trimEndMs, clip_duration_ms: v.clipDurationMs, scopes: v.scopes, guidance: v.guidance })),
+      video_manifest: planInputs.videoManifest,
+      request_fingerprint: requestFingerprint({ model, duration, aspect, manifest: planInputs.manifest, videos: planInputs.videoManifest, start: planInputs.continuityAsReference ? planInputs.referenceImageUrls[0] : continuityReferenceUrl, end: endReferenceUrl }),
     }
   }
 

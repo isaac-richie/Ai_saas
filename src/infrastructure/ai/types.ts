@@ -25,8 +25,8 @@ export interface GenerationRequest {
     quality?: string;
     is_generate_audio?: boolean;
     /**
-     * Long Form image locks: every image that MUST appear in the provider payload, at the named field
-     * (e.g. `kling_elements[0].element_input_urls[1]`). The adapter refuses to submit if any is
+     * Long Form locked media: every image or reference clip that MUST appear in the provider payload, at
+     * the named field (e.g. `kling_elements[0].element_input_urls[1]`, `reference_video_urls[0]`). The adapter refuses to submit if any is
      * missing or substituted. Never set for unlocked requests.
      */
     required_inputs?: { field: string; url: string }[];

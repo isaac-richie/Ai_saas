@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
-import { AudioLines, Check, ImageIcon, Lock, Search, X } from "lucide-react"
+import { AudioLines, Check, Film, ImageIcon, Lock, Search, X } from "lucide-react"
 import type { ProductionAsset } from "@/core/validation/production-assets"
 import { LOCK_ROLES, LOCK_ROLE_LABELS, type LockBinding, type LockRole } from "@/core/services/long-form-locks"
 import { getFilmLocks, preflightFilmLocks, saveLockScope, type FilmLockView, type ShotLockStatus } from "@/core/actions/long-form-locks"
+import { mediaCountLabel, resolveVideoRefs, type VideoRefBinding } from "@/core/services/long-form-video-refs"
 import { AudioLibraryPanel, AudioPlacements, DEFAULT_AUDIO_ACTIONS, type AudioActions } from "./LockedAudio"
+import { DEFAULT_VIDEO_ACTIONS, VideoReferences, toVideoRow, videoCount, videoRowInput, videoRowsValid, type VideoRefActions, type VideoRow } from "./LockedVideoRefs"
 
 const noSubscribe = () => () => {}
 const useIsClient = () => useSyncExternalStore(noSubscribe, () => true, () => false)
@@ -72,9 +74,11 @@ export function FilmAudioDialog({ productionId, view, initialTab, onChanged, onC
 }
 
 /** The summary row on a Long Form shot card, below Editing notes. */
-export function LockedMediaRow({ scene, shot, status, audio, onEdit, disabled }: {
+export function LockedMediaRow({ scene, shot, videos, status, audio, onEdit, disabled }: {
   scene: LockBinding[]
   shot: LockBinding[]
+  /** Video references that apply to this shot: the scene's and its own. */
+  videos?: { scene: VideoRefBinding[]; shot: VideoRefBinding[] }
   status?: ShotLockStatus
   /** Audio placements that apply to this shot (its own plus the scene's) and whether any needs attention. */
   audio?: { count: number; needsAttention: boolean }
@@ -85,7 +89,8 @@ export function LockedMediaRow({ scene, shot, status, audio, onEdit, disabled }:
   const required = status?.requiredImageCount ?? new Set(all.map(b => `${b.assetUrl}#${b.sha256}`)).size
   const audioCount = audio?.count ?? 0
   const thumbs = [...new Map(all.map(b => [b.assetUrl, b])).values()].slice(0, 4)
-  const counts = [required ? `${required} image${required === 1 ? "" : "s"}` : "", audioCount ? `${audioCount} audio` : ""].filter(Boolean).join(" · ")
+  const videoRefs = status?.videoCount ?? (videos ? resolveVideoRefs(videos.scene, videos.shot).length : 0)
+  const counts = [required ? `${required} image${required === 1 ? "" : "s"}` : "", videoRefs ? `${videoRefs} video reference${videoRefs === 1 ? "" : "s"}` : "", audioCount ? `${audioCount} audio` : ""].filter(Boolean).join(" · ")
   return (
     <div className="mt-3 rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-xs" data-testid="locked-media-row">
       <div className="flex items-center gap-2">
@@ -99,15 +104,18 @@ export function LockedMediaRow({ scene, shot, status, audio, onEdit, disabled }:
       </div>
       {counts ? (
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-5">
-          {required ? (
+          {required || videoRefs ? (
             <span className="flex min-w-0 items-center gap-2">
-              <span className="flex shrink-0 -space-x-1.5" aria-hidden>
-                {thumbs.map(b => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={b.assetUrl} src={b.assetUrl} alt="" className="size-5 rounded-full object-cover ring-1 ring-black" />
-                ))}
-              </span>
+              {required ? (
+                <span className="flex shrink-0 -space-x-1.5" aria-hidden>
+                  {thumbs.map(b => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={b.assetUrl} src={b.assetUrl} alt="" className="size-5 rounded-full object-cover ring-1 ring-black" />
+                  ))}
+                </span>
+              ) : null}
               {required > thumbs.length ? <span className="text-white/45">+{required - thumbs.length}</span> : null}
+              {videoRefs ? <span className="flex shrink-0 items-center gap-1 text-white/60"><Film className="size-3" aria-hidden />{videoRefs}</span> : null}
               <StatusChip status={status} />
             </span>
           ) : null}
@@ -134,12 +142,12 @@ const modelName = (model: string) => model.includes("seedance") ? "Seedance 2.5"
 
 function StatusChip({ status }: { status?: ShotLockStatus }) {
   if (!status || status.status === "none") return <span className="truncate text-white/45">Not checked</span>
-  if (status.status === "mapped") return <span className="truncate text-[#8fd1b9]">{status.requiredImageCount} mapped · {modelName(status.model)}</span>
+  if (status.status === "mapped") return <span className="truncate text-[#8fd1b9]" title="Mapped: included in the outgoing request. It doesn't guarantee how closely the result follows it.">{status.requiredImageCount + status.videoCount} mapped · {modelName(status.model)}</span>
   return <span className="truncate text-amber-200" title={status.issues.join(" ")}>Can&apos;t generate on {modelName(status.model)}</span>
 }
 
 /** The editor for one shot's locks, with the scene's locks alongside. */
-export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTitle, view, status, onClose, onSaved, save: saveImpl = saveLockScope, audioActions = DEFAULT_AUDIO_ACTIONS, initialScope = "shot", onScopeChange }: {
+export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTitle, view, status, onClose, onSaved, save: saveImpl = saveLockScope, audioActions = DEFAULT_AUDIO_ACTIONS, videoActions = DEFAULT_VIDEO_ACTIONS, initialScope = "shot", onScopeChange, onLibraryChanged }: {
   productionId: string
   shotNumber: number
   shotCount: number
@@ -151,6 +159,10 @@ export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTit
   /** The save call; the dev preview passes a stand-in. */
   save?: typeof saveLockScope
   audioActions?: AudioActions
+  /** The video-reference calls; the dev preview passes stand-ins. */
+  videoActions?: VideoRefActions
+  /** Called after a video is uploaded into the film's library from here. */
+  onLibraryChanged?: () => Promise<void> | void
   /** The tab to open on; the editor reopens on the same tab after a save reloads it. */
   initialScope?: "shot" | "scene"
   onScopeChange?: (scope: "shot" | "scene") => void
@@ -167,6 +179,12 @@ export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTit
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ tone: "error" | "ok"; text: string } | null>(null)
   const [dirty, setDirty] = useState<{ shot: boolean; scene: boolean }>({ shot: false, scene: false })
+  const videoOn = view.video.enabled
+  const [shotVideos, setShotVideos] = useState<VideoRow[]>(() => (view.video.shots[shotNumber] ?? []).map(toVideoRow))
+  const [sceneVideos, setSceneVideos] = useState<VideoRow[]>(() => view.video.scene.map(toVideoRow))
+  const [videoDirty, setVideoDirty] = useState<{ shot: boolean; scene: boolean }>({ shot: false, scene: false })
+  /** The film's revision as this editor last saw it; an image save moves it before the video save. */
+  const [revision, setRevision] = useState(view.revision)
 
   const rows = scope === "shot" ? shotRows : sceneRows
   const setRows = (update: (rows: Row[]) => Row[]) => {
@@ -175,22 +193,45 @@ export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTit
     setDirty(d => ({ ...d, [scope]: true }))
     setMessage(null)
   }
+  const videoRows = scope === "shot" ? shotVideos : sceneVideos
+  const setVideoRows = (update: (rows: VideoRow[]) => VideoRow[]) => {
+    if (scope === "shot") setShotVideos(update)
+    else setSceneVideos(update)
+    setVideoDirty(d => ({ ...d, [scope]: true }))
+    setMessage(null)
+  }
+  const anyDirty = dirty.shot || dirty.scene || videoDirty.shot || videoDirty.scene
+  const videosValid = videoRowsValid(videoRows, view.video.maxClipSeconds)
   const combinedCount = imageCount([...sceneRows, ...shotRows])
+  const combinedVideos = videoOn ? videoCount([...sceneVideos, ...shotVideos]) : 0
   const visible = expanded ? rows : rows.slice(0, INITIAL_ROWS)
 
   const save = async () => {
     if (scope === "scene" && !confirmScene) { setConfirmScene(true); return }
     setSaving(true)
     setMessage(null)
-    const result = await saveImpl({
-      productionId, scope, shotNumber: scope === "shot" ? shotNumber : null, expectedRevision: view.revision,
-      bindings: rows.map(r => ({ assetId: r.assetId, assetUrl: r.assetUrl, role: r.role, entityLabel: r.entityLabel.trim(), viewLabel: r.viewLabel.trim() })),
-    }).catch(() => ({ error: "Could not save. Check your connection and try again." }))
+    const fail = (text: string) => { setSaving(false); setConfirmScene(false); setMessage({ tone: "error", text }) }
+    // Images first, then videos: each save moves the film's revision, so the second uses the first's.
+    let current = revision
+    if (dirty[scope]) {
+      const result = await saveImpl({
+        productionId, scope, shotNumber: scope === "shot" ? shotNumber : null, expectedRevision: current,
+        bindings: rows.map(r => ({ assetId: r.assetId, assetUrl: r.assetUrl, role: r.role, entityLabel: r.entityLabel.trim(), viewLabel: r.viewLabel.trim() })),
+      }).catch(() => ({ error: "Could not save. Check your connection and try again." }))
+      if ("error" in result && result.error) { fail(result.error); return }
+      if ("data" in result && result.data) { current = result.data.revision; setRevision(current) }
+      setDirty(d => ({ ...d, [scope]: false }))
+    }
+    if (videoDirty[scope]) {
+      const result = await videoActions.save({
+        productionId, scope, shotNumber: scope === "shot" ? shotNumber : null, expectedRevision: current, bindings: videoRows.map(videoRowInput),
+      }).catch(() => ({ error: "Could not save the video references. Check your connection and try again." }))
+      if ("error" in result && result.error) { fail(result.error); return }
+      setVideoDirty(d => ({ ...d, [scope]: false }))
+    }
     setSaving(false)
     setConfirmScene(false)
-    if ("error" in result && result.error) { setMessage({ tone: "error", text: result.error }); return }
-    setDirty(d => ({ ...d, [scope]: false }))
-    setMessage({ tone: "ok", text: "Locks saved." })
+    setMessage({ tone: "ok", text: "Media references saved." })
     await onSaved()
   }
 
@@ -208,14 +249,14 @@ export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTit
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           <p className="text-[13px] leading-relaxed text-white/65">
-            Locked images are sent to the video model as actual image inputs; if the model can&apos;t take the whole set, the shot won&apos;t generate. Locked audio plays in the finished export exactly as approved. Nothing is dropped, swapped or stretched. This guarantees the inputs, not perfect likeness or lip-sync.
+            Locked images are sent to the video model as actual image inputs; if the model can&apos;t take the whole set, the shot won&apos;t generate. Video references are sent the same way, as the selected range of the clip, to guide the shot; they are never placed in the finished film. Locked audio plays in the finished export exactly as approved. Nothing is dropped, swapped or stretched. This guarantees the inputs, not perfect likeness, movement or lip-sync.
           </p>
 
           <div role="tablist" aria-label="Apply to" className="grid grid-cols-2 gap-1 rounded-xl bg-black/30 p-1 text-sm">
             {(["shot", "scene"] as const).map(id => (
               <button key={id} type="button" role="tab" aria-selected={scope === id} onClick={() => { setScope(id); setExpanded(false); setConfirmScene(false); setMessage(null) }}
                 className={`rounded-lg px-3 py-2 transition-colors ${scope === id ? "bg-gold-200 font-medium text-[#1a160e]" : "text-white/70 hover:text-white"}`}>
-                {id === "shot" ? `This shot (${imageCount(shotRows)})` : `Entire scene (${imageCount(sceneRows)})`}
+                {id === "shot" ? `This shot (${imageCount(shotRows) + (videoOn ? videoCount(shotVideos) : 0)})` : `Entire scene (${imageCount(sceneRows) + (videoOn ? videoCount(sceneVideos) : 0)})`}
               </button>
             ))}
           </div>
@@ -277,18 +318,23 @@ export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTit
             {view.library.length === 0 && <p className="text-xs text-white/45">Upload references to the film first; locks use its library.</p>}
           </section>
 
-          <section className="rounded-xl border border-white/[0.07] bg-black/20 p-3 text-[13px]">
-            <p className="text-white/85">Shot {shotNumber} needs <strong>{combinedCount}</strong> image{combinedCount === 1 ? "" : "s"} in total (scene + this shot).</p>
-            {dirty.shot || dirty.scene ? (
+          {videoOn && (
+            <VideoReferences productionId={productionId} view={view} scope={scope} rows={videoRows} sceneRows={sceneVideos} setRows={setVideoRows}
+              status={status} dirty={anyDirty} saving={saving} actions={videoActions} onLibraryChanged={async () => { await onLibraryChanged?.() }} />
+          )}
+
+          <section className="rounded-xl border border-white/[0.07] bg-black/20 p-3 text-[13px]" data-testid="locked-media-check">
+            <p className="text-white/85">Shot {shotNumber} sends <strong>{mediaCountLabel(combinedCount, combinedVideos) || "no locked images or video references"}</strong> in total (scene + this shot).</p>
+            {anyDirty ? (
               <p className="mt-1 text-xs text-white/50">Not checked yet. Save to check against the shot&apos;s model.</p>
             ) : status?.status === "blocked" ? (
               <div className="mt-2 rounded-lg border border-amber-300/30 bg-amber-300/[0.06] p-3 text-amber-100">
                 <p className="font-medium">Cannot generate with this configuration.</p>
                 <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-amber-100/90">{status.issues.map((issue, i) => <li key={i}>{issue}</li>)}</ul>
-                <p className="mt-2 text-xs text-amber-100/70">Your locks are saved. No video job has been submitted. Change this shot&apos;s model in Sequence settings, or edit the locks.</p>
+                <p className="mt-2 text-xs text-amber-100/70">Your locked media is saved. No video job has been submitted. Change this shot&apos;s model in Sequence settings, or edit the references.</p>
               </div>
             ) : status?.status === "mapped" ? (
-              <p className="mt-1 text-xs text-[#8fd1b9]">{status.requiredImageCount} required · {status.requiredImageCount} mapped to the request. Files are checked again when you generate.</p>
+              <p className="mt-1 text-xs text-[#8fd1b9]">{mediaCountLabel(status.requiredImageCount, status.videoCount)} required · all mapped to the request. Mapped means included in the outgoing request; it doesn&apos;t guarantee how closely the result follows them. Files are checked again when you generate.</p>
             ) : (
               <p className="mt-1 text-xs text-white/50">Not checked.</p>
             )}
@@ -297,18 +343,18 @@ export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTit
           <div className="border-t border-white/[0.06] pt-4">
             <AudioPlacements productionId={productionId} view={view} scope={scope} shotNumber={shotNumber} actions={audioActions} onChanged={onSaved}
               onAdd={() => setAddingAudio(true)}
-              disabledReason={dirty.shot || dirty.scene ? "Save or discard your image changes first; audio saves straight away." : undefined} />
+              disabledReason={anyDirty ? "Save or discard your image and video changes first; audio saves straight away." : undefined} />
           </div>
 
           {message && <p role={message.tone === "error" ? "alert" : "status"} className={`rounded-xl px-3 py-2 text-sm ${message.tone === "error" ? "border border-red-400/30 bg-red-500/10 text-red-100" : "border border-[#b6ddd3]/30 bg-[#b6ddd3]/10 text-[#dff1ec]"}`}>{message.text}</p>}
         </div>
 
         <footer className="shrink-0 border-t border-white/[0.06] p-4">
-          {confirmScene && <p className="mb-2 text-xs text-amber-100">Scene locks apply to all {shotCount} shots in this film and can&apos;t be removed per shot. Save again to confirm.</p>}
+          {confirmScene && <p className="mb-2 text-xs text-amber-100">Scene references apply to all {shotCount} shots in this film and can&apos;t be removed per shot. Save again to confirm.</p>}
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-white/15 py-2.5 text-sm text-white/80 hover:bg-white/5">Close</button>
-            <button type="button" onClick={() => void save()} disabled={saving || !dirty[scope]} className="flex-[2] rounded-xl bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 py-2.5 text-sm font-medium text-black disabled:opacity-40">
-              {saving ? "Saving…" : confirmScene ? `Confirm: lock for all ${shotCount} shots` : scope === "scene" ? "Save scene image locks" : "Save shot image locks"}
+            <button type="button" onClick={() => void save()} disabled={saving || !(dirty[scope] || videoDirty[scope]) || (videoDirty[scope] && !videosValid)} className="flex-[2] rounded-xl bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 py-2.5 text-sm font-medium text-black disabled:opacity-40">
+              {saving ? (videoDirty[scope] ? "Saving and processing…" : "Saving…") : confirmScene ? `Confirm: apply to all ${shotCount} shots` : "Save media references"}
             </button>
           </div>
         </footer>

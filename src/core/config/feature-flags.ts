@@ -17,3 +17,8 @@ export const LONG_FORM_LOCKS_ENABLED = toBool(process.env.NEXT_PUBLIC_LONG_FORM_
 export const LONG_FORM_AUDIO_ENABLED = toBool(process.env.NEXT_PUBLIC_LONG_FORM_AUDIO, true)
 // AI-created audio costs provider credits; it can be switched off on its own.
 export const LONG_FORM_AI_AUDIO_ENABLED = toBool(process.env.NEXT_PUBLIC_LONG_FORM_AI_AUDIO, true)
+
+// Long Form video references: lock a clip from the film's library to a shot or scene as a real video
+// input. Set NEXT_PUBLIC_LONG_FORM_VIDEO_REFS=false to hide the Videos section and stop new references
+// being saved. References already saved are still enforced at generation.
+export const LONG_FORM_VIDEO_REFS_ENABLED = toBool(process.env.NEXT_PUBLIC_LONG_FORM_VIDEO_REFS, true)

@@ -268,7 +268,7 @@ export function ProductionDesk() {
               {shot.continuityStartState && <div className="mt-3 rounded-lg border border-line bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
               <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2 whitespace-pre-wrap">{shot.masterPrompt}</p></details>
               {!!shot.productionNotes?.length && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
-              {filmLocks.view?.enabled && <LockedMediaRow scene={filmLocks.view.scene} shot={filmLocks.view.shots[index + 1] ?? []} status={filmLocks.statuses[index + 1]} audio={shotAudioSummary(filmLocks.view, index + 1)} disabled={busy || !filmLocks.view.available} onEdit={() => { setLockScope("shot"); setLockEditor(index + 1) }} />}
+              {filmLocks.view?.enabled && <LockedMediaRow scene={filmLocks.view.scene} shot={filmLocks.view.shots[index + 1] ?? []} videos={filmLocks.view.video.enabled ? { scene: filmLocks.view.video.scene, shot: filmLocks.view.video.shots[index + 1] ?? [] } : undefined} status={filmLocks.statuses[index + 1]} audio={shotAudioSummary(filmLocks.view, index + 1)} disabled={busy || !filmLocks.view.available} onEdit={() => { setLockScope("shot"); setLockEditor(index + 1) }} />}
             </section>)}</div>
             {filmLocks.view && !filmLocks.view.available && <p className="mt-3 text-xs text-white/45">Locked media needs a database update before it can be saved.</p>}
             {filmLocks.view && lockEditor !== null && <LockedMediaEditor
@@ -281,6 +281,7 @@ export function ProductionDesk() {
               status={filmLocks.statuses[lockEditor]}
               onClose={() => setLockEditor(null)}
               onSaved={filmLocks.reload}
+              onLibraryChanged={async () => { await Promise.all([refresh().catch(() => undefined), filmLocks.reload()]) }}
               initialScope={lockScope}
               onScopeChange={setLockScope}
             />}

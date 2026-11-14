@@ -438,13 +438,15 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
   const locked = payload.prompt_inputs.locked_inputs ?? null
   if (locked) {
     if (payload.prompt_inputs.media_references?.length || payload.prompt_inputs.campaign_references || payload.prompt_inputs.shot_frames || payload.settings.lip_sync) {
-      return { error: "Locked images can't be combined with other reference features. Nothing was charged." }
+      return { error: "Locked media can't be combined with other reference features. Nothing was charged." }
     }
     const requiredUrls = new Set(locked.required.map(r => r.url))
     if ([...requiredUrls].some(url => !ownsAssetUrl(url, user.id))) return { error: "A locked image doesn't belong to your account. Nothing was charged." }
     // Beside the locks, a continued Seedance shot carries the previous shot's last frame as a reference.
     const extras = (locked.reference_image_urls ?? []).filter(url => !requiredUrls.has(url))
     if (extras.length > 1 || extras.some(url => !ownsAssetUrl(url, user.id) && !ownsInspectionFrameUrl(url, user.id))) return { error: "A locked image doesn't belong to your account. Nothing was charged." }
+    // Every reference video is a required input; nothing else may ride in that field.
+    if ((locked.reference_video_urls ?? []).some(url => !requiredUrls.has(url))) return { error: "A video reference doesn't belong to this shot's locked media. Nothing was charged." }
   }
 
   // Reject unsupported inputs before consuming quota or calling the provider.
@@ -705,7 +707,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
       end_image_prompt: endFramePrompt,
       audio_url: lipSyncAudioUrl,
       reference_image_urls: locked?.reference_image_urls?.length ? locked.reference_image_urls : referenceImageUrls,
-      reference_video_urls: referenceVideoUrls,
+      reference_video_urls: locked?.reference_video_urls?.length ? locked.reference_video_urls : referenceVideoUrls,
       required_inputs: locked?.required,
       reference_elements: payload.prompt_inputs.reference_elements,
       output_type: "video" as const,

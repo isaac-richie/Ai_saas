@@ -37,6 +37,8 @@ export const fastVideoRequestSchema = z.object({
      */
     locked_inputs: z.object({
       reference_image_urls: z.array(z.string().url()).max(30).optional(),
+      /** Long Form video references: the pinned clips, each also listed in `required`. */
+      reference_video_urls: z.array(z.string().url()).max(10).optional(),
       required: z.array(z.object({ field: z.string().max(80), url: z.string().url() })).min(1).max(64),
     }).optional().nullable(),
     variation_setting: z.enum(FAST_VIDEO_VARIATIONS),

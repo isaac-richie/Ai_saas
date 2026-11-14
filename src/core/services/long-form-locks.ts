@@ -5,7 +5,11 @@
  * Pure functions only, so each rule is testable without a database or a provider. Nothing here
  * truncates, substitutes, describes-instead-of-sends or switches models: when a set cannot be sent
  * whole, planning returns issues and generation is blocked.
+ *
+ * Video references (long-form-video-refs.ts) are planned here too, because what a model accepts beside
+ * images and frames is one decision. This file imports types only, so it loads anywhere.
  */
+import type { ResolvedVideoRef, VideoPurpose } from "./long-form-video-refs"
 
 export const LOCK_ROLES = ["character", "wardrobe", "location", "prop", "start_frame", "end_frame"] as const
 export type LockRole = (typeof LOCK_ROLES)[number]
@@ -77,11 +81,11 @@ export function resolveLocks(sceneBindings: LockBinding[], shotBindings: LockBin
  * that number, generating with them could put one shot's images on another, so generation waits until
  * the creator confirms (re-saves) them.
  */
-export function movedLockIssues(shotBindings: Pick<LockBinding, "anchorTitle">[], shotNumber: number, currentTitle: string | undefined): string[] {
+export function movedLockIssues(shotBindings: Pick<LockBinding, "anchorTitle">[], shotNumber: number, currentTitle: string | undefined, what = "images"): string[] {
   if (currentTitle === undefined) return []
   const anchors = [...new Set(shotBindings.map(b => b.anchorTitle ?? "").filter(Boolean))]
   const stale = anchors.find(title => title !== currentTitle)
-  return stale ? [`Shot ${shotNumber} is now "${currentTitle}", but its locked images were set for "${stale}". Open Locked media and save to confirm them.`] : []
+  return stale ? [`Shot ${shotNumber} is now "${currentTitle}", but its locked ${what} were set for "${stale}". Open Locked media and save to confirm them.`] : []
 }
 
 // ── Capability registry ──────────────────────────────────────────────────────────────────────────
@@ -89,6 +93,8 @@ export function movedLockIssues(shotBindings: Pick<LockBinding, "anchorTitle">[]
 // family label: an endpoint not listed here fails closed for locked generation.
 
 type Format = LockBinding["contentType"]
+/** What an endpoint accepts as reference videos: how many, and how long each and all together. */
+export type VideoCapability = { max: number; minMs: number; maxMs: number; totalMs: number }
 export type EndpointCapability = {
   key: string
   label: string
@@ -97,6 +103,8 @@ export type EndpointCapability = {
   references:
     | { kind: "elements"; maxElements: number; minPerElement: number; maxPerElement: number; formats: Format[]; maxBytes: number; withFrames: true }
     | { kind: "images"; max: number; formats: Format[]; maxBytes: number; minSide: number; maxSide: number; minAspect: number; maxAspect: number; withFrames: false }
+  /** Reference videos, or null when the endpoint has no documented video-reference input. */
+  videos: VideoCapability | null
 }
 
 const MB = 1024 * 1024
@@ -107,6 +115,7 @@ export const ENDPOINT_CAPABILITIES: Record<string, EndpointCapability> = {
     label: "Kling 3.0 Pro",
     frames: { start: true, end: true, formats: ["image/jpeg", "image/png", "image/webp"] },
     references: { kind: "elements", maxElements: 3, minPerElement: 2, maxPerElement: 4, formats: ["image/jpeg", "image/png"], maxBytes: 10 * MB, withFrames: true },
+    videos: null,
   },
   // docs.kie.ai/market/bytedance/seedance-2-5 — references are exclusive with first/last frames.
   "kie:bytedance/seedance-2-5": {
@@ -114,6 +123,9 @@ export const ENDPOINT_CAPABILITIES: Record<string, EndpointCapability> = {
     label: "Seedance 2.5",
     frames: { start: true, end: true, formats: ["image/jpeg", "image/png", "image/webp"] },
     references: { kind: "images", max: 30, formats: ["image/jpeg", "image/png", "image/webp"], maxBytes: 30 * MB, minSide: 300, maxSide: 6000, minAspect: 0.4, maxAspect: 2.5, withFrames: false },
+    // reference_video_urls: up to 10 clips, 2–30 s each, 30 s in total; like reference images, never
+    // beside a first or last frame.
+    videos: { max: 10, minMs: 2_000, maxMs: 30_000, totalMs: 30_000 },
   },
 }
 
@@ -124,6 +136,48 @@ export function endpointKeyFor(model: string): string | null {
   if (slug === "bytedance/seedance-2-5") return "kie:bytedance/seedance-2-5"
   return null
 }
+
+// ── Reference videos ─────────────────────────────────────────────────────────────────────────────
+
+/** The wording for a model that can't take the references, followed by what would work. */
+export const UNSUPPORTED_VIDEO_REFS = "This model does not support the selected video-reference inputs. Choose a compatible model or remove the incompatible references."
+
+const secs = (ms: number) => `${Number((ms / 1000).toFixed(1))} s`
+
+/** Checks the effective clips against one endpoint. Empty means every clip can be sent. */
+export function videoRefIssues(videos: ResolvedVideoRef[], cap: VideoCapability | null, label: string): string[] {
+  if (!videos.length) return []
+  if (!cap) return [`${UNSUPPORTED_VIDEO_REFS} ${label} can't take reference videos; Seedance 2.5 can.`]
+  const issues: string[] = []
+  if (videos.length > cap.max) issues.push(`${videos.length} reference videos; ${label} accepts ${cap.max}. Remove ${videos.length - cap.max}.`)
+  for (const video of videos) {
+    if (video.clipDurationMs < cap.minMs) issues.push(`${video.assetName}: ${secs(video.clipDurationMs)} is selected; ${label} needs at least ${secs(cap.minMs)} of reference video.`)
+    if (video.clipDurationMs > cap.maxMs) issues.push(`${video.assetName}: ${secs(video.clipDurationMs)} is selected; ${label} takes at most ${secs(cap.maxMs)} per reference video.`)
+  }
+  const total = videos.reduce((sum, video) => sum + video.clipDurationMs, 0)
+  if (total > cap.totalMs) issues.push(`The reference videos add up to ${secs(total)}; ${label} takes ${secs(cap.totalMs)} in total. Shorten a range or remove a video.`)
+  return issues
+}
+
+/** How each purpose is written for the model. Purposes are the creator's intent, sent as words. */
+const PURPOSE_PROMPTS: Record<VideoPurpose, string> = {
+  camera_movement: "its camera movement", subject_movement: "how its subject moves and acts", composition: "its framing and composition",
+  visual_style: "its visual style", continuity: "continuity with it",
+}
+
+/** One line for the prompt saying what each clip is for. Intent is stated, not guaranteed. */
+export function videoPromptNote(videos: ResolvedVideoRef[]): string {
+  if (!videos.length) return ""
+  const parts = videos.map((video, index) => {
+    const purposes = [...new Set(video.guidance.map(g => PURPOSE_PROMPTS[g.purpose]))].join(" and ")
+    const texts = [...new Set(video.guidance.map(g => g.text).filter(Boolean))].join(" ")
+    return `reference video ${index + 1} guides ${purposes} only${texts ? ` (${texts.replace(/[.\s]+$/, "")})` : ""}`
+  })
+  return `Reference videos: ${parts.join("; ")}. Take only that guidance from each video; people, places and objects come from this prompt and the reference images.`
+}
+
+/** Where one reference clip goes in the provider payload. */
+export type VideoManifestEntry = { key: string; clipUrl: string; sha256: string; assetId: string; trimStartMs: number; trimEndMs: number; clipDurationMs: number; purposes: VideoPurpose[]; field: string }
 
 // ── Planning: every binding → an actual request field ────────────────────────────────────────────
 
@@ -138,6 +192,9 @@ export type LockedRequestPlan = {
   elements: { name: string; description: string; image_urls: string[] }[]
   /** Seedance reference images. */
   referenceImageUrls: string[]
+  /** Seedance reference videos: the pinned clips, in order. */
+  referenceVideoUrls: string[]
+  videoManifest: VideoManifestEntry[]
   manifest: ManifestEntry[]
   /** One line for the prompt naming what each reference is. */
   promptNote: string
@@ -154,11 +211,18 @@ export type PlanResult = { ok: true; plan: LockedRequestPlan } | { ok: false; is
  * Builds the exact inputs for one shot, or says why it cannot be sent whole. `continuityStartUrl` is
  * the previous take's last frame the app normally opens a continued shot on (not a lock).
  */
-export function planLockedRequest(resolved: ResolvedLocks, model: string, options: { continuityStartUrl?: string | null } = {}): PlanResult {
+export function planLockedRequest(resolved: ResolvedLocks, model: string, options: { continuityStartUrl?: string | null; videos?: ResolvedVideoRef[] } = {}): PlanResult {
   const endpointKey = endpointKeyFor(model)
-  if (!endpointKey) return { ok: false, issues: [`Locked images can't be sent to ${model || "this model"}: it isn't a verified endpoint. Choose Kling 3.0 Pro or Seedance 2.5.`] }
+  const videos = options.videos ?? []
+  if (!endpointKey) {
+    return { ok: false, issues: [resolved.bindingCount || !videos.length
+      ? `Locked images can't be sent to ${model || "this model"}: it isn't a verified endpoint. Choose Kling 3.0 Pro or Seedance 2.5.`
+      : `${UNSUPPORTED_VIDEO_REFS} ${model || "This model"} isn't a verified endpoint for reference videos; Seedance 2.5 is.`] }
+  }
   const cap = ENDPOINT_CAPABILITIES[endpointKey]
-  const issues: string[] = []
+  const issues: string[] = videoRefIssues(videos, cap.videos, cap.label)
+  // Reference videos put the request in reference mode, exactly as reference images do.
+  const sendVideos = videos.length > 0 && cap.videos !== null
   const starts = resolved.bindings.filter(b => b.role === "start_frame")
   const ends = resolved.bindings.filter(b => b.role === "end_frame")
   const refs = resolved.bindings.filter(b => b.role !== "start_frame" && b.role !== "end_frame")
@@ -222,13 +286,14 @@ export function planLockedRequest(resolved: ResolvedLocks, model: string, option
     }
   }
 
-  if (refs.length && cap.references.kind === "images") {
+  if ((refs.length || sendVideos) && cap.references.kind === "images") {
     const r = cap.references
-    if (startUrl || endUrl) issues.push(`${cap.label} can't combine locked reference images with a locked start or end frame. Remove the frame locks, or switch to Kling 3.0 Pro.`)
+    if ((startUrl || endUrl) && refs.length) issues.push(`${cap.label} can't combine locked reference images with a locked start or end frame. Remove the frame locks, or switch to Kling 3.0 Pro.`)
+    if ((startUrl || endUrl) && sendVideos) issues.push(`${cap.label} can't combine reference videos with a locked start or end frame. Remove the frame locks or the video references.`)
     // A continued shot normally opens on the previous shot's last frame, but Seedance can't take a
-    // first frame beside reference images. Locks are required and continuity is not, so the last
-    // frame rides as reference image 1 and the prompt asks the model to open on it.
-    else if (options.continuityStartUrl) continuityAsReference = true
+    // first frame beside reference images or videos. Locks are required and continuity is not, so the
+    // last frame rides as reference image 1 and the prompt asks the model to open on it.
+    if (!startUrl && !endUrl && options.continuityStartUrl) continuityAsReference = true
     const images = distinct(refs)
     if (continuityAsReference && images.length + 1 > r.max) issues.push(`${images.length} required images plus the previous shot's last frame; ${cap.label} accepts ${r.max} reference images. Remove ${images.length + 1 - r.max} locked image${images.length + 1 - r.max === 1 ? "" : "s"}.`)
     else if (images.length > r.max) issues.push(`${images.length} required images; ${cap.label} accepts ${r.max} reference images.`)
@@ -248,6 +313,15 @@ export function planLockedRequest(resolved: ResolvedLocks, model: string, option
     images.forEach((img, i) => noteParts.push(`reference image ${i + 1 + offset} is ${refs.filter(b => imageKey(b) === imageKey(img)).map(b => `${LOCK_ROLE_LABELS[b.role].toLowerCase()}${b.entityLabel ? ` ${b.entityLabel}` : ""}${b.viewLabel ? ` (${b.viewLabel})` : ""}`).join(" and ")}`))
   }
 
+  const referenceVideoUrls: string[] = []
+  const videoManifest: VideoManifestEntry[] = []
+  if (sendVideos) {
+    videos.forEach((video, index) => {
+      referenceVideoUrls.push(video.clipUrl)
+      videoManifest.push({ key: video.key, clipUrl: video.clipUrl, sha256: video.sha256, assetId: video.assetId, trimStartMs: video.trimStartMs, trimEndMs: video.trimEndMs, clipDurationMs: video.clipDurationMs, purposes: [...new Set(video.guidance.map(g => g.purpose))], field: `reference_video_urls[${index}]` })
+    })
+  }
+
   if (issues.length) return { ok: false, issues: [...new Set(issues)] }
   // Every binding must have a place. If one does not, that is a bug: fail closed.
   const placed = new Set(manifest.map(m => m.bindingKey))
@@ -258,8 +332,9 @@ export function planLockedRequest(resolved: ResolvedLocks, model: string, option
   const promptNote = [
     noteParts.length ? `Reference images: ${noteParts.join("; ")}.` : "",
     people.size > 1 ? `Show exactly one of each named person (${[...people].join(", ")}).` : "",
+    videoPromptNote(sendVideos ? videos : []),
   ].filter(Boolean).join(" ")
-  return { ok: true, plan: { endpoint: endpointKey, startFrameUrl: startUrl, endFrameUrl: endUrl, elements, referenceImageUrls, manifest, promptNote, continuityAsReference } }
+  return { ok: true, plan: { endpoint: endpointKey, startFrameUrl: startUrl, endFrameUrl: endUrl, elements, referenceImageUrls, referenceVideoUrls, videoManifest, manifest, promptNote, continuityAsReference } }
 }
 
 // ── Final payload check (the adapter's last line of defence) ─────────────────────────────────────

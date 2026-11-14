@@ -325,14 +325,14 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
           <p className="text-xs text-white/60">Take {take.take_number} / {take.status}{shot.approved_take_id === take.id ? " / approved" : ""}</p>
           {(() => {
             const frames = takeFrames(take, references)
-            const locked = (take.parameters as { locked_inputs?: { required_image_count?: number; binding_count?: number; endpoint?: string; resolved_bindings?: { key?: string }[] } } | null)?.locked_inputs
+            const locked = (take.parameters as { locked_inputs?: { required_image_count?: number; binding_count?: number; endpoint?: string; resolved_bindings?: { key?: string }[]; video_reference_count?: number; video_references?: { key?: string }[] } } | null)?.locked_inputs
             const current = lockChecks[shots.findIndex(item => item.id === shot.id) + 1]?.lockKeys
-            const takeKeys = (locked?.resolved_bindings ?? []).map(b => b.key ?? "").sort()
+            const takeKeys = [...(locked?.resolved_bindings ?? []).map(b => b.key ?? ""), ...(locked?.video_references ?? []).map(v => `video:${v.key ?? ""}`)].sort()
             const outdated = current !== undefined && take.status === "completed" && (current.length !== takeKeys.length || current.some((key, i) => key !== takeKeys[i]))
             if (!frames.start && !frames.end && !locked && !outdated) return null
             return <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-              {outdated && <span className="rounded-full border border-amber-300/40 bg-amber-300/10 px-2.5 py-1 text-amber-100" title="This take was made before the shot's locked images last changed. It is kept; generate a new take to use the current locks.">Outdated: locks changed since this take</span>}
-              {locked && <span className="rounded-full border border-[#8fd1b9]/30 bg-[#8fd1b9]/10 px-2.5 py-1 text-[#bfe9da]" title={`${locked.binding_count} bindings · ${locked.endpoint}`}>{locked.required_image_count} required image{locked.required_image_count === 1 ? "" : "s"} submitted</span>}
+              {outdated && <span className="rounded-full border border-amber-300/40 bg-amber-300/10 px-2.5 py-1 text-amber-100" title="This take was made before the shot's locked images or video references last changed. It is kept; generate a new take to use the current locks.">Outdated: locks changed since this take</span>}
+              {locked && <span className="rounded-full border border-[#8fd1b9]/30 bg-[#8fd1b9]/10 px-2.5 py-1 text-[#bfe9da]" title={`${locked.binding_count} bindings · ${locked.endpoint}`}>{[locked.required_image_count ? `${locked.required_image_count} required image${locked.required_image_count === 1 ? "" : "s"}` : "", locked.video_reference_count ? `${locked.video_reference_count} video reference${locked.video_reference_count === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")} submitted</span>}
               {frames.start && <span className="rounded-full border border-gold-300/30 bg-gold-300/10 px-2.5 py-1 text-gold-200">Start: {frames.start}</span>}
               {frames.end && <span className="rounded-full border border-gold-300/30 bg-gold-300/10 px-2.5 py-1 text-gold-200">End: {frames.end}</span>}
               {frames.end && frames.match && <span className={frames.match.passed ? "text-gold-300" : "text-amber-200"}>{frames.match.passed ? "Continuity handoff: Passed ✓" : `End frame not reached (match ${Math.round((frames.match.ssim ?? 0) * 100)}%, needs ${Math.round(frames.match.threshold * 100)}%)`}</span>}

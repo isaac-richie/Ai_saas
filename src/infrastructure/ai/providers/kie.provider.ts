@@ -277,7 +277,7 @@ export class KieProvider extends BaseProvider {
         if (!request.required_inputs?.length) return;
         const missing = missingFromPayload(this.buildMarketInput(request, model), request.required_inputs);
         if (missing.length) {
-            throw new Error(`Locked images could not all be placed in the ${model} request (${missing.length} missing). Nothing was submitted.`);
+            throw new Error(`Locked media could not all be placed in the ${model} request (${missing.length} missing). Nothing was submitted.`);
         }
     }
 
@@ -493,7 +493,7 @@ export class KieProvider extends BaseProvider {
             if (preparedRequest.required_inputs?.length) {
                 const missing = missingFromPayload(body.input as Record<string, unknown>, preparedRequest.required_inputs);
                 if (missing.length) {
-                    return { content_type: "video", status: "failed", error: `Locked images could not all be placed in the ${model} request (${missing.length} missing). Nothing was submitted.` };
+                    return { content_type: "video", status: "failed", error: `Locked media could not all be placed in the ${model} request (${missing.length} missing). Nothing was submitted.` };
                 }
             }
 
