@@ -8,6 +8,8 @@ import type { FilmLockView, ShotLockStatus } from '@/core/actions/long-form-lock
 import type { LockBinding } from '@/core/services/long-form-locks';
 import { DIALOGUE_VOICES, defaultPlacement, planFilmAudio, plannedSpans, type AudioAsset, type AudioBinding } from '@/core/services/long-form-audio';
 import type { ProductionAsset } from '@/core/validation/production-assets';
+import type { VideoRefBinding } from '@/core/services/long-form-video-refs';
+import { DEFAULT_VIDEO_ACTIONS, type VideoRefActions } from '@/interface/components/fast-video/LockedVideoRefs';
 
 const pics = ['studio-plate-1.jpg', 'studio-plate-2.jpg', 'studio-plate-3.jpg', 'studio-plate-4.jpg', 'studio-plate-5.jpg', 'director.png', 'image1.jpeg', 'image2.jpeg', 'jpeg1.jpeg', 'jpeg2.jpeg', 'jpeg3.jpeg', 'jpeg4.jpeg'];
 const names = ['Sam front', 'Sam profile', 'Marcia', 'Leon', 'Kitchen wide', 'Kitchen detail', 'Sam indoor wardrobe', 'Bible', 'Bedroom', 'Street', 'Car', 'Mug'];
@@ -16,6 +18,15 @@ const library: ProductionAsset[] = pics.map((p, i) => ({ id: `00000000-0000-4000
 const bind = (i: number, role: LockBinding['role'], entity: string, view = '', scope: 'scene' | 'shot' = 'shot'): LockBinding => ({
   scopeType: scope, shotNumber: scope === 'scene' ? null : 2, assetId: library[i].id, assetUrl: library[i].url, sha256: String(i).repeat(64).slice(0, 64),
   assetName: library[i].name, contentType: 'image/jpeg', byteSize: 500000, width: 1600, height: 1200, role, entityLabel: entity, viewLabel: view, anchorTitle: scope === 'shot' ? 'Kitchen group' : '',
+});
+const videoLibrary: ProductionAsset[] = [
+  { id: '00000000-0000-4000-8000-0000000000a1', name: 'push-in reference.mp4', url: '/landing-720.mp4', role: 'character', mediaType: 'video', label: '@video1' },
+  { id: '00000000-0000-4000-8000-0000000000a2', name: 'handheld walk.mp4', url: '/interactiveshot.mp4', role: 'character', mediaType: 'video', label: '@video2' },
+];
+const videoRef = (i: number, id: string, scope: 'scene' | 'shot', startMs: number, endMs: number, purpose: VideoRefBinding['purpose'], text = ''): VideoRefBinding => ({
+  id, scopeType: scope, shotNumber: scope === 'scene' ? null : 1, assetId: videoLibrary[i].id, sourceUrl: videoLibrary[i].url, assetName: videoLibrary[i].name,
+  sourceDurationMs: 12000, trimStartMs: startMs, trimEndMs: endMs, clipUrl: videoLibrary[i].url, sha256: 'a'.repeat(64), byteSize: 900000,
+  clipDurationMs: endMs - startMs, width: 1280, height: 720, purpose, guidanceText: text, anchorTitle: scope === 'shot' ? 'Morning light' : '',
 });
 const titles = ['Morning light', 'Kitchen group', 'Street exit'];
 const seconds = [7, 10, 8];
@@ -61,11 +72,28 @@ export function DevLocks() {
     enabled: true, available: true, rootId: 'dev', revision, library, safetyLimit: 40, shotTitles: titles, shotSeconds: seconds,
     scene: [bind(0, 'character', 'Sam', 'front', 'scene'), bind(1, 'character', 'Sam', 'profile', 'scene'), bind(2, 'character', 'Marcia', '', 'scene'), bind(3, 'character', 'Leon', '', 'scene')],
     shots: { 2: [bind(4, 'location', 'Kitchen', 'wide'), bind(5, 'location', 'Kitchen', 'detail'), bind(6, 'wardrobe', 'Sam', 'indoor'), bind(6, 'prop', 'Sam')] },
+    video: {
+      enabled: true, available: true, library: videoLibrary, limitPerScope: 10, maxClipSeconds: 30, scene: [],
+      shots: {
+        1: [videoRef(0, '00000000-0000-4000-8000-0000000000b1', 'shot', 2000, 7000, 'camera_movement', 'Use the slow push-in and framing only')],
+        2: [videoRef(1, '00000000-0000-4000-8000-0000000000b2', 'shot', 0, 4000, 'subject_movement')],
+      },
+    },
     audio: { enabled: true, aiEnabled: true, available: true, assets: readyAssets, bindings, voices: DIALOGUE_VOICES.map((v) => ({ ...v })), issues },
   };
+  const videoActions: VideoRefActions = {
+    ...DEFAULT_VIDEO_ACTIONS,
+    uploadFile: async (file) => { log('upload-video', { name: file.name, size: file.size }); return URL.createObjectURL(file); },
+    addVideo: async (input) => {
+      const i = input as { name: string; url: string };
+      log('add-video', { name: i.name });
+      return { data: { asset: { id: crypto.randomUUID(), name: i.name, url: i.url, role: 'character', mediaType: 'video', label: '@video3' }, durationMs: 8000 } };
+    },
+    save: async (input) => { log('save-videos', input); return { data: { revision: 5 } }; },
+  };
   const statuses: Record<number, ShotLockStatus> = {
-    1: { shotNumber: 1, requiredImageCount: 4, bindingCount: 4, status: 'mapped', issues: [], model: 'bytedance/seedance-2-5', lockKeys: [] },
-    2: { shotNumber: 2, requiredImageCount: 7, bindingCount: 8, status: 'blocked', issues: ['5 locked subjects need 5 reference elements; Kling 3.0 Pro accepts 3. Remove subjects or switch to Seedance 2.5.'], model: 'kling-3.0/video', lockKeys: [] },
+    1: { shotNumber: 1, requiredImageCount: 4, bindingCount: 4, videoCount: 1, status: 'mapped', issues: [], model: 'bytedance/seedance-2-5', lockKeys: [] },
+    2: { shotNumber: 2, requiredImageCount: 7, bindingCount: 8, videoCount: 1, status: 'blocked', issues: ["This model does not support the selected video-reference inputs. Choose a compatible model or remove the incompatible references. Kling 3.0 Pro can't take reference videos; Seedance 2.5 can.", '5 locked subjects need 5 reference elements; Kling 3.0 Pro accepts 3. Remove subjects or switch to Seedance 2.5.'], model: 'kling-3.0/video', lockKeys: [] },
   };
 
   const bump = () => { setRevision((r) => r + 1); return { data: { revision: revision + 1 } }; };
@@ -120,7 +148,7 @@ export function DevLocks() {
             <p className="mt-2 text-xs text-white/50">{shot === 2 ? 'kling' : 'seedance'} / {seconds[shot - 1]}s requested / 16:9</p>
             <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2">Prompt…</p></details>
             <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary><p className="mt-2">Notes…</p></details>
-            <LockedMediaRow scene={view.scene} shot={view.shots[shot] ?? []} status={statuses[shot]} audio={shotAudioSummary(view, shot)} onEdit={() => { setScope('shot'); setOpen(shot); }} />
+            <LockedMediaRow scene={view.scene} shot={view.shots[shot] ?? []} videos={{ scene: view.video.scene, shot: view.video.shots[shot] ?? [] }} status={statuses[shot]} audio={shotAudioSummary(view, shot)} onEdit={() => { setScope('shot'); setOpen(shot); }} />
           </section>
         ))}
       </div>
@@ -130,7 +158,7 @@ export function DevLocks() {
         <LockedMediaEditor
           key={`${open}-${revision}`}
           productionId="00000000-0000-4000-8000-000000000000" shotNumber={open} shotCount={3} shotTitle={titles[open - 1] ?? ''} view={view} status={statuses[open]}
-          onClose={() => setOpen(null)} onSaved={async () => {}} audioActions={actions} initialScope={scope} onScopeChange={setScope}
+          onClose={() => setOpen(null)} onSaved={async () => {}} audioActions={actions} videoActions={videoActions} initialScope={scope} onScopeChange={setScope}
           save={async (input) => { log('save-images', input); return { data: { revision: 4 } }; }}
         />
       )}
