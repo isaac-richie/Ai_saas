@@ -26,7 +26,6 @@ export const LONG_FORM_VIDEO_REFS_ENABLED = toBool(process.env.NEXT_PUBLIC_LONG_
 // Mimic (beta): record or upload a performance and transform who or what is in it. Set
 // NEXT_PUBLIC_MIMIC=false to hide it and stop new takes.
 export const MIMIC_ENABLED = toBool(process.env.NEXT_PUBLIC_MIMIC, true)
-// Changing more than one person or object in a single take. Off until it has been proven on the model;
-// with it off, a take with several changes is saved but blocked from generating. Set
-// NEXT_PUBLIC_MIMIC_MULTI_SUBJECT=true once verified.
-export const MIMIC_MULTI_SUBJECT_ENABLED = toBool(process.env.NEXT_PUBLIC_MIMIC_MULTI_SUBJECT, false)
+// Changing several people or objects in one take (up to 6 changes, 4 of them with reference images).
+// On by default; set NEXT_PUBLIC_MIMIC_MULTI_SUBJECT=false to go back to one change per take.
+export const MIMIC_MULTI_SUBJECT_ENABLED = toBool(process.env.NEXT_PUBLIC_MIMIC_MULTI_SUBJECT, true)
