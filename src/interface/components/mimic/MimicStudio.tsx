@@ -1,8 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { AlertTriangle, Box, Check, Clock, Download, Film, Loader2, Pencil, Plus, ShieldCheck, Sparkles, Trash2, User } from "@/interface/components/ui/icons"
-import { FileArrowUp, FilmReel, VideoCamera } from "@phosphor-icons/react"
+import { Check, Loader2 } from "@/interface/components/ui/icons"
 import {
   createMimicTask, deleteMimicTask, duplicateMimicTask, generateMimic, listMimicTasks, refreshMimic, releaseUnconfirmedMimic, saveMimicTask, saveMimicToVideos,
   type MimicTaskView,
@@ -245,13 +244,13 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
   return (
     <div ref={top} className="scroll-mt-20 space-y-6 pb-28 lg:pb-0" data-testid="mimic-studio">
       {/* Where you are in the three steps, plus the result. */}
-      <ol className="flex items-center gap-1.5 overflow-x-auto text-[12px] sm:gap-2" aria-label="Steps">
+      <ol className="grid grid-cols-4 gap-2 sm:gap-3" aria-label="Steps">
         {["Perform", "Cast", "Review", "Result"].map((name, i) => (
-          <li key={name} className="flex items-center gap-2">
-            <span aria-current={i === step ? "step" : undefined} className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1.5 sm:gap-2 sm:px-3 ${i < step ? styles.stepDone : i === step ? styles.stepNow : "border-white/10 text-white/45"}`}>
-              <span className="grid size-4 place-items-center text-[10px] font-semibold">{i < step ? <Check className="size-3" aria-hidden /> : i + 1}</span>{name}
+          <li key={name} aria-current={i === step ? "step" : undefined} className="min-w-0">
+            <span className={`block h-[2px] rounded-full transition-colors duration-500 ${i < step ? "bg-gold-300/60" : i === step ? "bg-gold-200" : "bg-white/10"}`} aria-hidden />
+            <span className={`mt-2 flex items-baseline gap-1.5 truncate text-[12px] ${i === step ? "text-white" : i < step ? "text-white/60" : "text-white/35"}`}>
+              <span className="font-mono text-[10px] tabular-nums text-white/35">0{i + 1}</span>{name}
             </span>
-            {i < 3 && <span className="h-px w-2 shrink-0 bg-white/15 sm:w-5" aria-hidden />}
           </li>
         ))}
       </ol>
@@ -273,13 +272,12 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                 </div>
                 <p className="hidden text-xs text-white/45 md:block">Or drop a video anywhere here</p>
               </div>
-              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Where the take comes from">
-                {([["record", "Record", "With this camera", VideoCamera], ["upload", "Upload", "A file you have", FileArrowUp], ["library", "My videos", "Something you made", FilmReel]] as const).map(([id, title, hint, Icon]) => (
-                  <button key={id} type="button" role="radio" aria-checked={sourceTab === id} disabled={busySource}
-                    onClick={() => id === "library" ? void openLibrary() : setSourceTab(id)} className={`${styles.tile} p-3 text-left sm:p-4`}>
-                    <Icon className={`size-[22px] ${sourceTab === id ? "text-gold-200" : "text-white/55"}`} weight={sourceTab === id ? "fill" : "duotone"} aria-hidden />
-                    <span className="mt-2 block whitespace-nowrap text-[13px] text-white sm:text-sm">{title}</span>
-                    <span className="hidden text-[11px] text-white/45 sm:block">{hint}</span>
+              <div className="grid grid-cols-3 rounded-full border border-white/[0.08] bg-black/30 p-1" role="radiogroup" aria-label="Where the take comes from">
+                {([["record", "Record", "With this camera"], ["upload", "Upload", "A file you have"], ["library", "My videos", "Something you made"]] as const).map(([id, title, hint]) => (
+                  <button key={id} type="button" role="radio" aria-checked={sourceTab === id} disabled={busySource} title={hint}
+                    onClick={() => id === "library" ? void openLibrary() : setSourceTab(id)}
+                    className={`whitespace-nowrap rounded-full py-2 text-[13px] transition-colors duration-300 ${sourceTab === id ? "bg-white/[0.09] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]" : "text-white/50 hover:text-white/80"}`}>
+                    {title}
                   </button>
                 ))}
               </div>
@@ -288,8 +286,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
               {sourceTab === "upload" && (
                 <button type="button" disabled={busySource} onClick={() => fileInput.current?.click()} className={`${styles.monitor} grid aspect-[4/5] w-full place-items-center p-6 text-center transition-colors hover:border-gold-300/40 sm:aspect-video`}>
                   <span className="relative z-10">
-                    <span className="mx-auto grid size-14 place-items-center rounded-full border border-gold-300/30 bg-gold-300/[0.07]"><FileArrowUp className="size-7 text-gold-100" weight="duotone" aria-hidden /></span>
-                    <span className={`${styles.serif} mt-3 block text-xl text-white`}>Drop your take here</span>
+                    <span className={`${styles.serif} block text-[26px] text-gold-100`}>Drop your take here.</span>
                     <span className="mt-1 block text-sm text-white/55">or click to choose · MP4, MOV or WebM · {MIMIC_CAPABILITY.minClipMs / 1000}–{MAX_MIMIC_SOURCE_MS / 1000} s · under 80 MB</span>
                   </span>
                 </button>
@@ -323,7 +320,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                   {source.retry && <button type="button" onClick={source.retry} className="rounded-full border border-red-300/40 px-3 py-0.5 text-xs hover:bg-red-500/10">Try again</button>}
                 </p>
               )}
-              <p className="flex items-start gap-2 text-xs text-white/45"><ShieldCheck className="mt-px size-3.5 shrink-0 text-white/40" aria-hidden />Recording and uploading never generate anything or use your allowance. Your take is sent to an external video model only when you approve it.</p>
+              <p className="text-xs leading-relaxed text-white/40">Recording and uploading never generate anything or use your allowance. Your take is sent to an external video model only when you approve it.</p>
             </div>
           ) : (
             <div className="lux-glass space-y-4 rounded-[28px] p-4 sm:p-5">
@@ -340,7 +337,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                     {selected.parentTaskId && <span className="text-gold-200/80">New version</span>}
                   </p>
                 </div>
-                <button type="button" onClick={() => select(null)} className="flex shrink-0 items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-xs text-white/80 hover:bg-white/5"><Plus className="size-3.5" aria-hidden />New take</button>
+                <button type="button" onClick={() => select(null)} className="shrink-0 text-xs text-white/55 underline-offset-4 transition-colors hover:text-white hover:underline">New take</button>
               </div>
 
               {selected.resultUrl ? (
@@ -367,12 +364,12 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                 <div role="status" className="flex flex-wrap items-center gap-3 rounded-2xl border border-gold-300/25 bg-gold-300/[0.06] px-4 py-3 text-sm text-gold-50">
                   <Loader2 className="size-4 animate-spin text-gold-200" aria-hidden />
                   <span className="flex-1">{MIMIC_STATUS_LABELS[selected.status]} on {MIMIC_CAPABILITY.label}. This can take a few minutes; you can leave and come back.</span>
-                  {selected.submittedAt && <span className="flex items-center gap-1 tabular-nums text-gold-200/80"><Clock className="size-3.5" aria-hidden />{elapsed(selected.submittedAt, now)}</span>}
+                  {selected.submittedAt && <span className="tabular-nums text-gold-200/80">{elapsed(selected.submittedAt, now)}</span>}
                 </div>
               )}
               {selected.status === "unknown" && (
                 <div className="rounded-2xl border border-amber-300/30 bg-amber-300/[0.06] p-4 text-sm text-amber-100">
-                  <p className="flex items-center gap-2"><AlertTriangle className="size-4" aria-hidden />We couldn&apos;t confirm whether this take started, so it won&apos;t be retried automatically.</p>
+                  <p>We couldn&apos;t confirm whether this take started, so it won&apos;t be retried automatically.</p>
                   <button type="button" disabled={Boolean(busy)} onClick={() => void run(() => actions.release({ taskId: selected.id }), data => put(data as MimicTaskView))} className="mt-3 rounded-full border border-amber-200/40 px-3 py-1 text-xs hover:bg-amber-300/10 disabled:opacity-40">Check and release it</button>
                 </div>
               )}
@@ -380,13 +377,13 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
 
               {selected.status === "completed" && selected.resultUrl && (
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" disabled={Boolean(busy)} onClick={() => void run(() => actions.saveToVideos({ taskId: selected.id }), undefined, "Saved to My videos as a new clip.")} className={`${styles.goldButton} flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium`}><Check className="size-4" aria-hidden />Save to My videos</button>
-                  <a href={selected.resultUrl} download className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5 text-sm text-white/85 hover:bg-white/5"><Download className="size-4" aria-hidden />Download</a>
-                  <button type="button" disabled={Boolean(busy)} onClick={() => void run(() => actions.duplicate({ taskId: selected.id }), data => { put(data as MimicTaskView); select(data as MimicTaskView) })} className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5 text-sm text-white/85 hover:bg-white/5 disabled:opacity-40"><Pencil className="size-4" aria-hidden />Change and regenerate</button>
+                  <button type="button" disabled={Boolean(busy)} onClick={() => void run(() => actions.saveToVideos({ taskId: selected.id }), undefined, "Saved to My videos as a new clip.")} className={`${styles.goldButton} flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium`}>Save to My videos</button>
+                  <a href={selected.resultUrl} download className="rounded-full border border-white/15 px-4 py-2.5 text-sm text-white/85 hover:bg-white/5">Download</a>
+                  <button type="button" disabled={Boolean(busy)} onClick={() => void run(() => actions.duplicate({ taskId: selected.id }), data => { put(data as MimicTaskView); select(data as MimicTaskView) })} className="rounded-full border border-white/15 px-4 py-2.5 text-sm text-white/85 hover:bg-white/5 disabled:opacity-40">Change and regenerate</button>
                 </div>
               )}
               {!working && selected.status !== "unknown" && (
-                <button type="button" disabled={Boolean(busy)} onClick={() => { if (window.confirm("Delete this take? Its result is deleted too.")) void run(() => actions.remove({ taskId: selected.id }), () => { setTasks(list => list.filter(t => t.id !== selected.id)); select(null) }) }} className="flex items-center gap-1.5 text-xs text-white/40 hover:text-red-200 disabled:opacity-40"><Trash2 className="size-3.5" aria-hidden />Delete this take</button>
+                <button type="button" disabled={Boolean(busy)} onClick={() => { if (window.confirm("Delete this take? Its result is deleted too.")) void run(() => actions.remove({ taskId: selected.id }), () => { setTasks(list => list.filter(t => t.id !== selected.id)); select(null) }) }} className="text-xs text-white/35 underline-offset-4 hover:text-red-200 hover:underline disabled:opacity-40">Delete this take</button>
               )}
             </div>
           )}
@@ -430,10 +427,10 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                   </ul>
                 )}
                 <div className="grid grid-cols-2 gap-2">
-                  {([["person", "Add person", User], ["object", "Add object", Box]] as const).map(([type, text, Icon]) => (
+                  {([["person", "Add a person"], ["object", "Add an object"]] as const).map(([type, text]) => (
                     <button key={type} type="button" disabled={assignments.length >= MAX_MIMIC_ASSIGNMENTS} onClick={() => change({ assignments: [...assignments, newAssignment(type)] })}
-                      className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-gold-400/35 py-2.5 text-sm text-gold-100 transition-colors hover:bg-gold-500/[0.06] disabled:opacity-40">
-                      <Plus className="size-4" aria-hidden /><Icon className="size-4" aria-hidden />{text}
+                      className="rounded-2xl border border-white/[0.09] py-2.5 text-sm text-white/75 transition-colors hover:border-gold-300/40 hover:text-gold-50 disabled:opacity-40">
+                      {text}
                     </button>
                   ))}
                 </div>
@@ -500,7 +497,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                     </>
                   ) : (
                     <div className="rounded-2xl border border-amber-300/25 bg-amber-300/[0.05] p-3 text-amber-100">
-                      <p className="flex items-center gap-2 text-sm"><AlertTriangle className="size-4" aria-hidden />Not ready to generate yet</p>
+                      <p className="text-sm">Not ready to generate yet</p>
                       <ul className="mt-2 space-y-1.5 text-xs text-amber-100/85">{planned.issues.map((issue, i) => <li key={i} className="flex gap-2"><span aria-hidden>·</span>{issue}</li>)}</ul>
                     </div>
                   )}
@@ -547,7 +544,6 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                   <span className="relative block">
                     <video src={`${task.resultUrl ?? task.source.url}#t=0.1`} muted playsInline preload="metadata" className="aspect-video w-full bg-black object-cover" />
                     <span className="absolute left-2 top-2"><StatusPill status={task.status} /></span>
-                    {task.resultUrl && <Sparkles className="absolute right-2 top-2 size-4 text-gold-200 drop-shadow" aria-hidden />}
                   </span>
                   <span className="block truncate px-3 pt-2 text-[13px] text-white">{task.title}</span>
                   <span className="block px-3 pb-2.5 text-[11px] text-white/45">{sec(task.trimEndMs - task.trimStartMs)} · {task.assignments.length || "no"} change{task.assignments.length === 1 ? "" : "s"}{task.parentTaskId ? " · new version" : ""}</span>
@@ -565,7 +561,7 @@ function GenerateButton({ planned, rights, busy, onGenerate, compact }: { planne
   return (
     <button type="button" disabled={!planned.ok || !rights || Boolean(busy)} onClick={onGenerate}
       className={`${styles.goldButton} flex items-center justify-center gap-2 rounded-full font-medium ${compact ? "px-5 py-2.5 text-sm" : "flex-1 px-5 py-3 text-[15px]"}`}>
-      {busy === "generate" ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Film className="size-4" aria-hidden />}
+      {busy === "generate" && <Loader2 className="size-4 animate-spin" aria-hidden />}
       {busy === "generate" ? "Submitting…" : planned.ok ? `Generate · ${planned.plan.units}` : "Generate"}
     </button>
   )
