@@ -54,6 +54,7 @@ const draftOf = (task: MimicTaskView): Draft => ({
   trimStartMs: task.trimStartMs, trimEndMs: task.trimEndMs, assignments: task.assignments, instructions: task.instructions, audioPolicy: task.audioPolicy, resolution: task.resolution,
 })
 const newAssignment = (targetType: MimicAssignment["targetType"]): MimicAssignment => ({ id: crypto.randomUUID(), label: "", targetType, target: "", referenceUrls: [], instructions: "" })
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 const sec = (ms: number) => `${Number((ms / 1000).toFixed(1))} s`
 const elapsed = (from: string | null, now: number) => {
   if (!from) return ""
@@ -92,6 +93,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
   const [playhead, setPlayhead] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const fileInput = useRef<HTMLInputElement>(null)
+  const top = useRef<HTMLDivElement>(null)
   const preview = useRef<HTMLVideoElement>(null)
 
   const selected = tasks.find(task => task.id === selectedId) ?? null
@@ -128,6 +130,8 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
     setRights(false)
     setMessage(null)
     setPlayhead(null)
+    // Picking a take from the shelf at the bottom brings it into view, rather than leaving you mid-page.
+    top.current?.scrollIntoView({ behavior: "smooth", block: "start" })
   }
   const change = (patch: Partial<Draft>) => { setDraft(d => d ? { ...d, ...patch } : d); setDirty(true); setMessage(null) }
   const changeAssignment = (id: string, patch: Partial<MimicAssignment>) => {
@@ -234,19 +238,19 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
   // Where the creator is: perform, cast, review, result.
   const step = !selected ? 0 : working || selected.status === "completed" || selected.status === "unknown" ? 3 : planned?.ok ? 2 : 1
   const busySource = source.state === "uploading" || source.state === "preparing"
-  const summary: (readonly [string, string])[] = planned?.ok && settings ? mimicSummary(settings, planned.plan).map(line => { const at = line.indexOf(": "); return at > 0 ? [line.slice(0, at), line.slice(at + 2)] as const : ["", line] as const }) : []
+  const summary: (readonly [string, string])[] = planned?.ok && settings ? mimicSummary(settings, planned.plan).map(line => { const at = line.indexOf(": "); return at > 0 ? [line.slice(0, at), capitalise(line.slice(at + 2))] as const : ["Result", line] as const }) : []
   const assignments = draft?.assignments ?? []
 
   return (
-    <div className="space-y-6 pb-28 lg:pb-0" data-testid="mimic-studio">
+    <div ref={top} className="scroll-mt-20 space-y-6 pb-28 lg:pb-0" data-testid="mimic-studio">
       {/* Where you are in the three steps, plus the result. */}
-      <ol className="flex flex-wrap items-center gap-2 text-[12px]" aria-label="Steps">
+      <ol className="flex items-center gap-1.5 overflow-x-auto text-[12px] sm:gap-2" aria-label="Steps">
         {["Perform", "Cast", "Review", "Result"].map((name, i) => (
           <li key={name} className="flex items-center gap-2">
-            <span aria-current={i === step ? "step" : undefined} className={`flex items-center gap-2 rounded-full border px-3 py-1.5 ${i < step ? styles.stepDone : i === step ? styles.stepNow : "border-white/10 text-white/45"}`}>
+            <span aria-current={i === step ? "step" : undefined} className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1.5 sm:gap-2 sm:px-3 ${i < step ? styles.stepDone : i === step ? styles.stepNow : "border-white/10 text-white/45"}`}>
               <span className="grid size-4 place-items-center text-[10px] font-semibold">{i < step ? <Check className="size-3" aria-hidden /> : i + 1}</span>{name}
             </span>
-            {i < 3 && <span className="h-px w-5 bg-white/15" aria-hidden />}
+            {i < 3 && <span className="h-px w-2 shrink-0 bg-white/15 sm:w-5" aria-hidden />}
           </li>
         ))}
       </ol>
@@ -266,7 +270,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                   <p className="text-[10px] uppercase tracking-[0.18em] text-gold-300/80">Step 1</p>
                   <h2 className={`${styles.serif} text-2xl text-white`}>Your <em className="text-gold-100">performance</em></h2>
                 </div>
-                <p className="text-xs text-white/45">Or drop a video anywhere here</p>
+                <p className="hidden text-xs text-white/45 md:block">Or drop a video anywhere here</p>
               </div>
               <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Where the take comes from">
                 {([["record", "Record", "With this camera", Video], ["upload", "Upload", "A file you have", Upload], ["library", "My videos", "Something you made", Images]] as const).map(([id, title, hint, Icon]) => (
@@ -442,9 +446,9 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.16em] text-white/45">Sound</p>
                       <div role="radiogroup" aria-label="Sound" className="mt-1.5 flex rounded-full border border-white/10 bg-black/30 p-0.5 text-xs">
-                        {([["keep_source", "Keep my sound"], ["mute", "Silent"]] as const).map(([value, text]) => (
+                        {([["keep_source", "Keep sound"], ["mute", "Silent"]] as const).map(([value, text]) => (
                           <button key={value} type="button" role="radio" aria-checked={draft.audioPolicy === value} onClick={() => change({ audioPolicy: value })}
-                            className={`flex-1 rounded-full px-3 py-1.5 transition-colors ${draft.audioPolicy === value ? "bg-white/15 text-white" : "text-white/55 hover:text-white"}`}>{text}</button>
+                            className={`flex-1 whitespace-nowrap rounded-full px-3 py-1.5 transition-colors ${draft.audioPolicy === value ? "bg-white/15 text-white" : "text-white/55 hover:text-white"}`}>{text}</button>
                         ))}
                       </div>
                     </div>
@@ -463,7 +467,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
               </fieldset>
 
               {editable && planned && (
-                <div className={`${styles.callSheet} space-y-4 p-4 sm:p-5`} data-testid="mimic-approval">
+                <div id="mimic-call-sheet" className={`${styles.callSheet} scroll-mt-20 space-y-4 p-4 sm:p-5`} data-testid="mimic-approval">
                   <div className="flex items-end justify-between gap-2">
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.18em] text-gold-300/80">Step 3</p>
@@ -521,7 +525,9 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
       {selected && editable && planned && (
         <div className="fixed inset-x-0 bottom-[76px] z-30 border-t border-white/10 bg-obsidian-950/90 px-4 py-3 backdrop-blur-xl md:bottom-0 lg:hidden">
           <div className="mx-auto flex max-w-xl items-center gap-3">
-            <span className="min-w-0 flex-1 text-xs text-white/60">{planned.ok ? (rights ? "Ready when you are." : "Tick the rights box in the call sheet.") : `${planned.issues.length} thing${planned.issues.length === 1 ? "" : "s"} to fix first`}</span>
+            <button type="button" onClick={() => document.getElementById("mimic-call-sheet")?.scrollIntoView({ behavior: "smooth", block: "start" })} className="min-w-0 flex-1 text-left text-xs text-white/60 underline-offset-2 hover:underline">
+              {planned.ok ? (rights ? "Ready when you are." : "Tick the rights box in the call sheet.") : `${planned.issues.length} thing${planned.issues.length === 1 ? "" : "s"} to fix first`}
+            </button>
             <GenerateButton planned={planned} rights={rights} busy={busy} onGenerate={() => void generate()} compact />
           </div>
         </div>

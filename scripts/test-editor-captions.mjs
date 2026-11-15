@@ -78,7 +78,11 @@ describe('Wiring (spec 2.1, 2.6, 2.7)', () => {
     assert.doesNotMatch(route, /storage_key|Render the video first/);
     assert.match(route, /buildSpeechMixArgs\(cues, totalSec, audio\)/);
     assert.match(route, /timelineToOutputMs\(videoClips, clip\.start_ms\)/);
-    assert.doesNotMatch(src('../src/interface/components/editor/EditorView.tsx'), /storage_key: render\.storageKey/);
+    const view = src('../src/interface/components/editor/EditorView.tsx');
+    const at = view.indexOf('const onAutoCaptions');
+    const autoCaptions = view.slice(at, view.indexOf('\n  };', at));
+    assert.match(autoCaptions, /postJson\('\/api\/timeline\/captions', \{ timeline_id: timelineId\(\) \}\)/);
+    assert.doesNotMatch(autoCaptions, /storageKey/);
     assert.doesNotMatch(src('../src/interface/components/editor/TextPanel.tsx'), /hasRender/);
   });
   it('re-running replaces only automatic captions, never typed titles', () => {
