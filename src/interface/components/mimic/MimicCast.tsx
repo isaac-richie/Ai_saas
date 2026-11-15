@@ -41,9 +41,10 @@ export function MimicCastCard({ assignment: a, index, held, uploading, onChange,
             </button>
           ))}
         </div>
-        {held && <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/55" title="This beta sends one change per take. This one stays saved.">Saved · not sent</span>}
         <button type="button" aria-label={`Remove change ${index + 1}`} title="Removes this change. Nothing is removed from your footage." onClick={onRemove} className="ml-auto grid size-8 shrink-0 place-items-center rounded-full text-white/50 hover:bg-white/5 hover:text-white"><X size={15} /></button>
       </div>
+
+      {held && <p className="mt-2 text-[11px] text-white/50" title="This beta sends one change per take.">Saved · not sent in this beta (one change per take)</p>}
 
       <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,0.8fr)] sm:items-end">
         <label className="block min-w-0 text-[10px] uppercase tracking-[0.14em] text-white/45">In your take
