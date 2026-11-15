@@ -17,9 +17,9 @@ function devTranscripts(): SourceTranscript[] {
     return { source_key: key, language: 'english', words: parts.map((text, i) => ({ id: `w${i}`, text, start_ms: Math.round(startMs + i * step), end_ms: Math.round(startMs + (i + 0.8) * step), ...(text.startsWith('Visiowave') ? { low: true } : {}) })) };
   };
   return [
-    said('/__dev/shot1.mp4', 'So um this is where the bloom opens up.', 200, 3800),
-    said('/__dev/shot2.mp4', 'Uh the sky turns gold right about here.', 300, 3700),
-    said('/__dev/shot3.mp4', 'And then the stars, made with Visiowave.', 400, 4600),
+    said('/landing-720.mp4', 'So um this is where the bloom opens up.', 200, 3800),
+    said('/landing.mp4', 'Uh the sky turns gold right about here.', 300, 3700),
+    said('/interactiveshot.mp4', 'And then the stars, made with Visiowave.', 400, 4600),
   ];
 }
 
@@ -33,9 +33,9 @@ const sample = {
   timeline: { id: 'dev', project_id: 'dev', name: 'Main', fps: 24, resolution: '1920x1080', duration_ms: 13000, color_grade_id: 'natural', created_at: '', updated_at: '' },
   tracks: [track('v', 'video', 0), track('a', 'audio', 1), track('t', 'caption', 2)],
   clips: [
-    clip({ id: 's1', track_id: 'v', start_ms: 0, end_ms: 4000, asset_url: '/__dev/shot1.mp4', transition_out: 'crossfade', transition_out_ms: 500, metadata: { source_duration_ms: 4000, film_shot_id: 'fs1', shot: { subject: 'Fractal bloom' } } }),
-    clip({ id: 's2', track_id: 'v', start_ms: 4000, end_ms: 8000, asset_url: '/__dev/shot2.mp4', metadata: { source_duration_ms: 4000, film_shot_id: 'fs2', shot: { subject: 'Sunset sky' } } }),
-    clip({ id: 's3', track_id: 'v', start_ms: 8000, end_ms: 13000, asset_url: '/__dev/shot3.mp4', metadata: { source_duration_ms: 5000, shot: { subject: 'Starfield' } } }),
+    clip({ id: 's1', track_id: 'v', start_ms: 0, end_ms: 4000, asset_url: '/landing-720.mp4', transition_out: 'crossfade', transition_out_ms: 500, metadata: { source_duration_ms: 4000, film_shot_id: 'fs1', shot: { subject: 'Fractal bloom' } } }),
+    clip({ id: 's2', track_id: 'v', start_ms: 4000, end_ms: 8000, asset_url: '/landing.mp4', metadata: { source_duration_ms: 4000, film_shot_id: 'fs2', shot: { subject: 'Sunset sky' } } }),
+    clip({ id: 's3', track_id: 'v', start_ms: 8000, end_ms: 13000, asset_url: '/interactiveshot.mp4', metadata: { source_duration_ms: 5000, shot: { subject: 'Starfield' } } }),
     clip({ id: 'm', track_id: 'a', clip_type: 'audio', start_ms: 0, end_ms: 13000, volume: 0.6, asset_url: '/__dev/song.mp3', metadata: { name: 'Golden Hour Demo', bpm: 120, beats: Array.from({ length: 40 }, (_, i) => i * 0.5), source_duration_ms: 20000 } }),
     clip({ id: 'c1', track_id: 't', clip_type: 'caption', start_ms: 600, end_ms: 3200, metadata: { text: 'Made with VisioWave', style: 'bold_center' } }),
   ],
@@ -109,7 +109,7 @@ export function DevEditor() {
           setRender({ status: 'rendering', progress, stage, url: null, storageKey: null, error: null });
           await wait(700);
         }
-        setRender({ status: 'completed', progress: 100, stage: 'Done', url: '/__dev/shot1.mp4', storageKey: 'dev', error: null });
+        setRender({ status: 'completed', progress: 100, stage: 'Done', url: '/landing-720.mp4', storageKey: 'dev', error: null });
       }}
       onReframe={() => setNotice('Preview only: phone versions are made on the server.')}
       onAgent={async (instruction) => {
@@ -178,7 +178,7 @@ export function DevEditor() {
         const s = useTimelineStore.getState();
         const c = s.clips.find((x) => x.id === clipId);
         if (!c) return;
-        const others = ['/__dev/shot1.mp4', '/__dev/shot2.mp4', '/__dev/shot3.mp4'].filter((u) => u !== c.asset_url);
+        const others = ['/landing-720.mp4', '/landing-720.mp4', '/landing-720.mp4'].filter((u) => u !== c.asset_url);
         const next = applyTake({ ...c, asset_url: c.asset_url && c.asset_url.startsWith('/') ? `https://preview.local${c.asset_url}` : c.asset_url }, { url: others[0], source_duration_ms: 4000, created_at: new Date().toISOString() }, { keepLength: true });
         const fixed = { ...next, metadata: { ...(next.metadata as object), takes: ((next.metadata as { takes: { url: string }[] }).takes).map((t) => ({ ...t, url: t.url.replace('https://preview.local', '') })) } };
         const shots = rippleFrom(s.clips.filter((x) => x.track_id === c.track_id).map((x) => (x.id === clipId ? (fixed as TimelineClip) : x)));
