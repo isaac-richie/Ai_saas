@@ -65,6 +65,28 @@ export function segmentsToSrt(segments: CaptionSegment[]): string {
     .join('\n');
 }
 
+/** WebVTT subtitles: the same cues as SRT, with a header and dotted milliseconds. */
+export function segmentsToVtt(segments: CaptionSegment[]): string {
+  const cues = segments.map((seg) => `${formatSrtTime(seg.start_sec).replace(',', '.')} --> ${formatSrtTime(seg.end_sec).replace(',', '.')}\n${seg.text}\n`)
+  return `WEBVTT\n\n${cues.join('\n')}`
+}
+
+/**
+ * The timed speech captions on a timeline, ready for a subtitle file: in time order, empty and
+ * zero-length ones dropped. Titles the creator typed are left out unless asked for.
+ */
+export function timelineCaptionSegments(
+  clips: { start_ms: number; end_ms: number; metadata: unknown }[],
+  opts: { includeTitles?: boolean } = {},
+): CaptionSegment[] {
+  return clips
+    .map((c) => ({ c, meta: (c.metadata || {}) as { text?: unknown; source?: unknown } }))
+    .filter(({ meta }) => opts.includeTitles || meta.source === 'auto')
+    .map(({ c, meta }) => ({ start_sec: c.start_ms / 1000, end_sec: c.end_ms / 1000, text: String(meta.text ?? '').trim() }))
+    .filter((seg) => seg.text && seg.end_sec > seg.start_sec)
+    .sort((a, b) => a.start_sec - b.start_sec)
+}
+
 export function parseSrt(srt: string): CaptionSegment[] {
   const blocks = srt.trim().split(/\n\n+/);
   const segments: CaptionSegment[] = [];

@@ -20,7 +20,7 @@ const ROW: Record<string, number> = { video: 60, audio: 44, caption: 36, sfx: 36
 // Taller rows when the timeline has the room (tablets), so shots are easy to see and touch.
 const ROOMY_ROW: Record<string, number> = { video: 76, audio: 52, caption: 42, sfx: 42 };
 const TRACK_ICON = { video: AdjustGlyph, audio: MusicGlyph, caption: TextGlyph, sfx: MusicGlyph } as const;
-const TRACK_LABEL: Record<string, string> = { video: 'Shots', audio: 'Music', caption: 'Text', sfx: 'Sound' };
+const TRACK_LABEL: Record<string, string> = { video: 'Shots', audio: 'Audio', caption: 'Text', sfx: 'Sound' };
 // Each row has its own colour, used by its icon chip and its clips.
 const TRACK_TINT: Record<string, string> = {
   video: 'bg-gold-400/15 text-gold-200 ring-gold-300/25',

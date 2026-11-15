@@ -11,7 +11,7 @@ export const TABS: { id: Tab; label: string; title: string; blurb: string; icon:
   { id: 'clip', label: 'Adjust', title: 'Adjust', blurb: 'Fine-tune what you selected', icon: AdjustGlyph },
   { id: 'look', label: 'Look', title: 'Look', blurb: 'One color story for the whole video', icon: LookGlyph },
   { id: 'format', label: 'Format', title: 'Format', blurb: 'Frame shape and how footage fills it', icon: FormatGlyph },
-  { id: 'music', label: 'Music', title: 'Music', blurb: 'Soundtrack and beat sync', icon: MusicGlyph },
+  { id: 'music', label: 'Audio', title: 'Audio', blurb: 'Music, levels and beat sync', icon: MusicGlyph },
   { id: 'text', label: 'Text', title: 'Text', blurb: 'Titles and captions', icon: TextGlyph },
 ];
 

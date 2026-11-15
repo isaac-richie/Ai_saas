@@ -21,7 +21,7 @@ const STEPS = [
   { at: 93, label: 'Saving your video' },
 ];
 
-/** Make video: what will be made, how it's going, and the finished file. */
+/** Export video: renders the timeline as it is into a file. It never generates new shots. */
 export function ExportSheet({ open, onClose, render, summary, reframes, reframing, onRender, onReframe, review, onShareForReview, onOpenReviews }: {
   open: boolean;
   onClose: () => void;
@@ -56,13 +56,13 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
       onClick={(e) => {
         if (e.target === dialog.current) onClose();
       }}
-      aria-label="Make video"
+      aria-label="Export video"
       className="m-0 mt-auto w-full max-w-none bg-transparent p-0 text-white backdrop:bg-black/70 backdrop:backdrop-blur-sm sm:m-auto sm:w-[30rem]"
     >
       <div className="ed-glass ed-glass-lit max-h-[88dvh] overflow-y-auto rounded-t-3xl !bg-obsidian-900/95 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-[sheet-rise_0.28s_cubic-bezier(0.22,1,0.36,1)] sm:rounded-3xl sm:p-6">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-300/80">Make video</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-300/80">Export video</p>
             <h2 className="mt-1 text-xl font-light text-white">
               {render.status === 'completed' ? (
                 <>Your video is <span className="lux-serif text-gold-200">ready</span></>
@@ -170,7 +170,7 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
                 [FormatGlyph, 'Format', summary.format],
                 [AdjustGlyph, 'Shots', `${summary.shots} · ${formatClock(summary.lengthMs)}`],
                 [LookGlyph, 'Look', summary.look],
-                [MusicGlyph, 'Music', summary.music || 'None'],
+                [MusicGlyph, 'Audio', summary.music || 'None'],
                 [TextGlyph, 'Text', summary.texts ? `${summary.texts} on screen` : 'None'],
               ] as [Glyph, string, string][]).map(([Icon, k, v]) => (
                 <div key={k} className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
@@ -186,7 +186,7 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
               We put it together in full quality{summary.texts ? `, with your ${summary.texts} text${summary.texts === 1 ? '' : 's'}` : ''}. It keeps going if you close this.
             </p>
             <button onClick={onRender} disabled={summary.shots === 0} className="ed-gold flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold disabled:opacity-40">
-              <Clapperboard size={17} /> Make video
+              <Clapperboard size={17} /> Export video
             </button>
           </div>
         )}

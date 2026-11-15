@@ -35,7 +35,7 @@ export async function createReviewLink(timelineId: string): Promise<{ share: Own
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (!job?.output_url) return { error: 'Make your video first, then share it.' };
+  if (!job?.output_url) return { error: 'Export your video first, then share it.' };
 
   const { data: existing } = await supabase
     .from('video_shares')

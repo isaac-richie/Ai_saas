@@ -12,6 +12,10 @@ import { requireMediaRuntime, MediaRuntimeUnavailableError } from '@/core/utils/
 import { BETA_LOCKED_MESSAGE, hasBetaAccess } from '@/core/services/beta-access';
 import { probeMedia } from '@/core/services/media-probe';
 import { isCaptionStyle, wordsToCaptionSegments } from '@/core/services/captions';
+import { audibleCues, buildSpeechMixArgs, type SpeechCue } from '@/core/services/caption-audio';
+import { clipSpeed, timelineToOutputMs } from '@/core/services/timeline-ops';
+import { fetchPublicBytes, UnsafeUrlError } from '@/core/utils/security/safe-fetch';
+import type { TimelineClip } from '@/core/types/timeline';
 
 const execFileAsync = promisify(execFile);
 export const runtime = 'nodejs';
@@ -19,9 +23,12 @@ export const maxDuration = 180;
 
 const bodySchema = z.object({
   timeline_id: z.string().uuid(),
-  storage_key: z.string().max(300),
   style: z.string().default('standard'),
 });
+const MAX_CLIPS = 60;
+const MAX_CLIP_BYTES = 300 * 1024 * 1024;
+/** The speech model takes files up to 25 MB; mono 48 kbps keeps a long edit well under that. */
+const MAX_SPEECH_SEC = 40 * 60;
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -35,15 +42,22 @@ export async function POST(request: Request) {
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
-  const { timeline_id, storage_key } = parsed.data;
+  const { timeline_id } = parsed.data;
   const style = isCaptionStyle(parsed.data.style) ? parsed.data.style : 'standard';
 
-  const { data: timeline } = await supabase.from('timeline_projects').select('id, project_id').eq('id', timeline_id).maybeSingle();
+  // Row-level security limits timelines, tracks and clips to their owner.
+  const { data: timeline } = await supabase.from('timeline_projects').select('id').eq('id', timeline_id).maybeSingle();
   if (!timeline) return NextResponse.json({ error: 'Timeline not found.' }, { status: 404 });
-  const prefix = `${user.id}/timeline/${timeline.project_id}/${timeline_id}/`;
-  if (!storage_key.startsWith(prefix) || !/^render-\d+\.mp4$/.test(storage_key.slice(prefix.length))) {
-    return NextResponse.json({ error: 'Render the video first, then add captions.' }, { status: 400 });
-  }
+  const { data: tracks } = await supabase.from('timeline_tracks').select('id, track_type, muted').eq('timeline_id', timeline_id).order('order_index');
+  const videoTrack = tracks?.find((t) => t.track_type === 'video');
+  if (!videoTrack) return NextResponse.json({ error: 'Add clips to the timeline first.' }, { status: 400 });
+  if (videoTrack.muted) return NextResponse.json({ error: 'The shots track is muted, so there is no speech to caption.' }, { status: 422 });
+  const { data: clipRows } = await supabase.from('timeline_clips').select('*').eq('track_id', videoTrack.id).order('start_ms');
+  const videoClips = (clipRows || []) as TimelineClip[];
+  if (videoClips.length === 0) return NextResponse.json({ error: 'Add clips to the timeline first.' }, { status: 400 });
+  if (videoClips.length > MAX_CLIPS) return NextResponse.json({ error: `Auto captions work on edits of up to ${MAX_CLIPS} shots.` }, { status: 400 });
+  const totalSec = timelineToOutputMs(videoClips, Math.max(...videoClips.map((c) => c.end_ms))) / 1000;
+  if (!(totalSec > 0) || totalSec > MAX_SPEECH_SEC) return NextResponse.json({ error: 'This edit is too long to caption in one go.' }, { status: 400 });
 
   let ffmpeg: string;
   try {
@@ -53,18 +67,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 503 });
   }
 
-  const { data: file } = await supabase.storage.from('renders').download(storage_key);
-  if (!file) return NextResponse.json({ error: 'Could not find that render.' }, { status: 404 });
-
   const tmpDir = await mkdtemp(join(tmpdir(), 'timeline-captions-'));
   try {
-    const video = join(tmpDir, 'video.mp4');
-    await writeFile(video, Buffer.from(await file.arrayBuffer()));
-    if (!(await probeMedia(ffmpeg, video)).hasAudio) {
-      return NextResponse.json({ error: 'This video has no sound to caption. Add text captions instead.' }, { status: 422 });
+    // The edit as it is now, not an exported file: each shot's own sound, trimmed and timed as it plays.
+    const cues: SpeechCue[] = [];
+    for (let i = 0; i < videoClips.length; i++) {
+      const clip = videoClips[i];
+      if (!(clip.volume > 0)) continue;
+      let url = clip.asset_url;
+      if (!url && clip.take_id) {
+        const { data: take } = await supabase.from('shot_generations').select('output_url').eq('id', clip.take_id).maybeSingle();
+        url = take?.output_url ?? null;
+      }
+      if (!url) continue;
+      const path = join(tmpDir, `clip-${i}`);
+      await writeFile(path, await fetchPublicBytes(url, MAX_CLIP_BYTES, AbortSignal.timeout(60_000)));
+      if (!(await probeMedia(ffmpeg, path).catch(() => null))?.hasAudio) continue;
+      const startSec = timelineToOutputMs(videoClips, clip.start_ms) / 1000;
+      const endSec = timelineToOutputMs(videoClips, clip.end_ms) / 1000;
+      cues.push({ path, startSec, trimSec: Math.max(0, clip.trim_start_ms) / 1000, durationSec: endSec - startSec, speed: clipSpeed(clip), volume: clip.volume });
+    }
+    if (audibleCues(cues).length === 0) {
+      return NextResponse.json({ error: 'None of the shots has sound to caption. Add text instead.' }, { status: 422 });
     }
     const audio = join(tmpDir, 'speech.mp3');
-    await execFileAsync(ffmpeg, ['-v', 'error', '-y', '-i', video, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '48k', audio]);
+    await execFileAsync(ffmpeg, buildSpeechMixArgs(cues, totalSec, audio), { maxBuffer: 16 * 1024 * 1024 });
 
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const transcript = await client.audio.transcriptions.create(
@@ -84,17 +111,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No speech was found. Add text captions instead.' }, { status: 422 });
     }
 
-    const { data: tracks } = await supabase
-      .from('timeline_tracks')
-      .select('id, track_type')
-      .eq('timeline_id', timeline_id)
-      .order('order_index');
     let captionTrack = tracks?.find((t) => t.track_type === 'caption');
     if (!captionTrack) {
       const { data: created } = await supabase
         .from('timeline_tracks')
         .insert({ timeline_id, name: 'Captions', track_type: 'caption', order_index: tracks?.length ?? 0 })
-        .select('id, track_type')
+        .select('id, track_type, muted')
         .single();
       if (!created) throw new Error('track');
       captionTrack = created;
@@ -114,6 +136,7 @@ export async function POST(request: Request) {
     if (error) throw new Error('insert');
     return NextResponse.json({ captions: segments.length }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
+    if (error instanceof UnsafeUrlError) return NextResponse.json({ error: 'A shot could not be loaded for captioning.' }, { status: 400 });
     const status = (error as { status?: number }).status;
     if (status === 429) return NextResponse.json({ error: 'The captioning service is out of credit right now.' }, { status: 503 });
     return NextResponse.json({ error: 'Could not create captions. Try again.' }, { status: 500 });

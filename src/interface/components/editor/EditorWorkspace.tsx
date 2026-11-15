@@ -283,7 +283,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
     if (id === 'look') return <ColorGradePicker selectedId={timeline?.color_grade_id || 'natural'} onSelect={timelineStore.setGrade} row={!desktop} />;
     if (id === 'format') return <FormatPanel />;
     if (id === 'music') return <MusicPanel onUpload={props.onUploadMusic} onSyncToBeat={syncToBeat} />;
-    return <TextPanel onAddText={props.onAddText} onAutoCaptions={props.onAutoCaptions} hasRender={Boolean(props.render.storageKey)} />;
+    return <TextPanel onAddText={props.onAddText} onAutoCaptions={props.onAutoCaptions} />;
   };
 
   const pickVideos = () => videoInput.current?.click();
@@ -396,7 +396,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         <AnimatePresence>{props.render.status !== 'idle' && <RenderPill render={props.render} onClick={() => setExportOpen(true)} />}</AnimatePresence>
         {!phone && (
           <button onClick={makeVideo} disabled={shots.length === 0} className="ed-gold flex h-9 items-center gap-2 rounded-full px-4 text-[13px] font-semibold disabled:opacity-45">
-            <Clapperboard size={15} /> Make video
+            <Clapperboard size={15} /> Export video
           </button>
         )}
         {addingClips && props.onAddLibraryClips && props.projectId && (
@@ -526,7 +526,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
                     <ToolbarButton icon={Trash2} label="Delete" title="Delete (⌫)" disabled={!selected || selectedLocked} onClick={() => selected && timelineStore.removeClip(selected.id)} />
                     <span className="mx-1.5 h-5 w-px bg-white/[0.08]" />
                     <ToolbarButton icon={Type} label="Add text" onClick={() => { void props.onAddText(); }} disabled={shots.length === 0} />
-                    <ToolbarButton icon={Music2} label={song ? 'Music' : 'Add music'} onClick={() => openTool('music')} />
+                    <ToolbarButton icon={Music2} label={song ? 'Audio' : 'Add audio'} onClick={() => openTool('music')} />
                     <ToolbarButton icon={Wand2} label="AI edit" onClick={() => openTool('ai')} accent />
                     <div className="ml-auto flex items-center gap-1">
                       {pro && (

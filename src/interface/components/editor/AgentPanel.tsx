@@ -145,7 +145,7 @@ export function AgentPanel({ onSend, onAutoEdit, onNewTake, onRestoreVersion, ha
                 <span className="ed-orb block size-9" aria-hidden />
               </span>
               <p className="text-[13.5px] leading-relaxed text-[#cfc9b9]">
-                <span className="font-medium text-white">I can see every shot.</span> Let me cut the whole video, or ask for any change. Nothing is final; undo anything.
+                <span className="font-medium text-white">I work from the shots on your timeline.</span> Let me cut the whole video, or ask for a change to a shot or the whole edit. Nothing is final; undo anything.
               </p>
             </motion.div>
 

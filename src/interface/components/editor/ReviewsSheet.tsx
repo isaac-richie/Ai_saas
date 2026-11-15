@@ -83,7 +83,7 @@ export function ReviewsSheet({ open, onClose, shares, onJump, onResolve, onTurnO
 
         {shares.length === 0 && (
           <p className="rounded-2xl border border-line bg-white/[0.02] px-4 py-6 text-center text-sm text-[#b0b8c4]">
-            Make your video, then tap Share for review to send a link.
+            Export your video, then tap Share for review to send a link.
           </p>
         )}
 
