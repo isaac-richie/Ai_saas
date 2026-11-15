@@ -16,7 +16,7 @@ import { Label } from "@/interface/components/ui/label"
 import { Textarea } from "@/interface/components/ui/textarea"
 import { useState } from "react"
 import { createProject } from "@/core/actions/projects"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus } from "@/interface/components/ui/icons"
 import { useRouter } from "next/navigation"
 
 export function CreateProjectDialog() {

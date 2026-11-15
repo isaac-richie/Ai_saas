@@ -3,7 +3,7 @@ import path from 'node:path';
 import Image from 'next/image';
 import { CardClip } from './CardClip';
 import Link from 'next/link';
-import { ArrowRight, Clapperboard, Images, Sparkles } from 'lucide-react';
+import { ArrowRight, Clapperboard, Images, Sparkles } from '@/interface/components/ui/icons';
 
 const STARTS = [
   {

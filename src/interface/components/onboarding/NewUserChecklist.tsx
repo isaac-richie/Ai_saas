@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import Link from "next/link"
-import { CheckCircle2, Circle, Sparkles } from "lucide-react"
+import { CheckCircle2, Circle, Sparkles } from "@/interface/components/ui/icons"
 
 interface NewUserChecklistProps {
   projectCount: number

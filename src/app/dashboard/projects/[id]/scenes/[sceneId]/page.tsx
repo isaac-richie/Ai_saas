@@ -1,7 +1,7 @@
 import { getShots } from "@/core/actions/shots";
 import { getProjectById } from "@/core/actions/projects";
 import { getScenes } from "@/core/actions/scenes";
-import { Check } from "lucide-react";
+import { Check } from "@/interface/components/ui/icons";
 import { getSequences } from "@/core/actions/sequences";
 import { ShotBuilder } from "@/interface/components/shots/ShotBuilder";
 import { ShotList } from "@/interface/components/shots/ShotList";

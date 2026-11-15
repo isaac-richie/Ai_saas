@@ -1,5 +1,5 @@
 import { ReactNode } from "react"
-import { AlertTriangle, Inbox, Loader2 } from "lucide-react"
+import { AlertTriangle, Inbox, Loader2 } from "@/interface/components/ui/icons"
 import { CinematicSkeleton } from "@/interface/components/ui/CinematicSkeleton"
 
 interface StatePanelProps {

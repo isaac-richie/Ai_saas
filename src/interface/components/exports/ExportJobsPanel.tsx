@@ -12,7 +12,7 @@ import {
     getExportJobItems,
     retryExportJob,
 } from "@/core/actions/exports"
-import { Download, Loader2, RefreshCcw } from "lucide-react"
+import { Download, Loader2, RefreshCcw } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Film } from "lucide-react"
+import { Film } from "@/interface/components/ui/icons"
 import { getGalleryAssets, type GalleryAsset } from "@/core/actions/gallery"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/interface/components/ui/dialog"
 import { sameOriginMediaUrl } from "./frame-capture"

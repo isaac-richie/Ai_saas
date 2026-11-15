@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, AudioWaveform, Loader2, Lock, RefreshCw, Scissors, Trash2, Unlock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, AudioWaveform, Loader2, Lock, RefreshCw, Scissors, Trash2, Unlock } from '@/interface/components/ui/icons';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { TRANSITION_REGISTRY } from '@/core/services/transitions';
 import { CAPTION_STYLES, type CaptionStyle } from '@/core/services/captions';

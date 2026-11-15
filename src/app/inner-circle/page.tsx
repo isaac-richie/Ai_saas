@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Clapperboard, Film, MessageSquareQuote, Sparkles } from 'lucide-react';
+import { Clapperboard, Film, MessageSquareQuote, Sparkles } from '@/interface/components/ui/icons';
 import { AnimatedBrandMark } from '@/interface/components/branding/AnimatedBrandMark';
 import { InnerCircleForm } from '@/interface/components/landing/InnerCircleForm';
 import { InnerCircleShowcase } from '@/interface/components/landing/InnerCircleShowcase';

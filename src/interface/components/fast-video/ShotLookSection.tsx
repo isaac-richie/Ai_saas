@@ -1,7 +1,7 @@
 "use client"
 
 import type * as React from "react"
-import { Check, ChevronDown, Move3d } from "lucide-react"
+import { Check, ChevronDown, Move3d } from "@/interface/components/ui/icons"
 import { KIE_VIDEO_MODEL_FAMILIES, type KieVideoModelFamilyId } from "@/core/config/kie-video-models"
 import { MOTION_PRESETS, STYLE_PRESETS, type MotionPreset, type StylePreset } from "@/core/config/fast-video-presets"
 import { PresetPicker } from "./PresetPicker"

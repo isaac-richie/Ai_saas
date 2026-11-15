@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Keyboard, PanelLeftClose, PanelLeftOpen, Sparkles } from 'lucide-react';
+import { Keyboard, PanelLeftClose, PanelLeftOpen, Sparkles } from '@/interface/components/ui/icons';
 import { AdjustGlyph, FormatGlyph, LookGlyph, MusicGlyph, TextGlyph, type Glyph } from './glyphs';
 
 export type Tab = 'ai' | 'clip' | 'look' | 'format' | 'music' | 'text';

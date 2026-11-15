@@ -2,7 +2,7 @@
 "use client"
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { UploadCloud, Loader2, X, Sparkles } from "lucide-react"
+import { UploadCloud, Loader2, X, Sparkles } from "@/interface/components/ui/icons"
 import { uploadFrameImage } from "@/interface/components/fast-video/frame-capture"
 import { referenceClassificationSchema } from "@/core/validation/storyboard-direction"
 import { Button } from "@/interface/components/ui/button"

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, Copy, Loader2, Mail, Share2 } from 'lucide-react';
+import { Check, Copy, Loader2, Mail, Share2 } from '@/interface/components/ui/icons';
 import styles from '@/app/inner-circle/inner-circle.module.css';
 import { INNER_CIRCLE_ANSWER_SEPARATOR, INNER_CIRCLE_PROBLEMS as PROBLEMS } from '@/core/config/inner-circle';
 

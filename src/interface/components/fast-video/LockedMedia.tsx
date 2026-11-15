@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
 import { createPortal } from "react-dom"
-import { AudioLines, Check, Film, ImageIcon, Lock, Search, X } from "lucide-react"
+import { AudioLines, Check, Film, ImageIcon, Lock, Search, X } from "@/interface/components/ui/icons"
 import type { ProductionAsset } from "@/core/validation/production-assets"
 import { LOCK_ROLES, LOCK_ROLE_LABELS, type LockBinding, type LockRole } from "@/core/services/long-form-locks"
 import { getFilmLocks, preflightFilmLocks, saveLockScope, type FilmLockView, type ShotLockStatus } from "@/core/actions/long-form-locks"

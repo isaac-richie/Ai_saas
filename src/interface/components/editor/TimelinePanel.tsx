@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Blend, Lock, Plus, Unlock, Volume2, VolumeX } from 'lucide-react';
+import { Blend, Lock, Plus, Unlock, Volume2, VolumeX } from '@/interface/components/ui/icons';
 import { AdjustGlyph, MusicGlyph, TextGlyph } from './glyphs';
 import type { TimelineClip, TimelineTrack } from '@/core/types/timeline';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';

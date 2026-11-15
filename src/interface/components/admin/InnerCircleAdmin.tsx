@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Check, Copy, Search, Sparkles } from "lucide-react"
+import { Check, Copy, Search, Sparkles } from "@/interface/components/ui/icons"
 import { setInnerCircleAccess } from "@/core/actions/inner-circle"
 import type { Member } from "@/core/utils/inner-circle/insights"
 

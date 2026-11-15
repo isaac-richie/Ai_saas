@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Upload, X } from 'lucide-react';
+import { Check, Loader2, Upload, X } from '@/interface/components/ui/icons';
 import { listClipLibrary, type LibraryClip } from '@/core/actions/editor-hub';
 import { TopLayer } from '@/interface/components/system/TopLayer';
 

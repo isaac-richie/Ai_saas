@@ -1,6 +1,6 @@
 'use client';
 
-import { Check } from 'lucide-react';
+import { Check } from '@/interface/components/ui/icons';
 import { BUILT_IN_GRADES } from '@/core/services/color-grading';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useFilmstrip } from '@/interface/lib/media-thumbs';

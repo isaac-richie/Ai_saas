@@ -1,7 +1,7 @@
 'use client';
 
 import type * as React from 'react';
-import { Check } from 'lucide-react';
+import { Check } from '@/interface/components/ui/icons';
 import type { TransitionType } from '@/core/types/timeline';
 
 type Option = { id: TransitionType; label: string };

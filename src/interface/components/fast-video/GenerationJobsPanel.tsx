@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
-import { X, RefreshCw } from "lucide-react"
+import { X, RefreshCw } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 import {
   listGenerationJobs,

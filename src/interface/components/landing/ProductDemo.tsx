@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Film, Sparkles, Camera, Zap } from "lucide-react"
+import { Film, Sparkles, Camera, Zap } from "@/interface/components/ui/icons"
 import { ScrollScrubVideo } from "./ScrollScrubVideo"
 
 const fadeUpInitial = { opacity: 0, y: 28 }

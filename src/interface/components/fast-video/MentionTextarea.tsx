@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type * as React from "react"
-import { AudioLines, Film, ImagePlus } from "lucide-react"
+import { AudioLines, Film, ImagePlus } from "@/interface/components/ui/icons"
 import { createClient } from "@/infrastructure/supabase/client"
 import { Textarea } from "@/interface/components/ui/textarea"
 import { REFERENCE_BUCKET, referenceRoles, type MediaReference } from "@/core/validation/media-reference"

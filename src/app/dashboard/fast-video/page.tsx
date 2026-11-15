@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight } from '@/interface/components/ui/icons';
 import { FastVideoStudio } from '@/interface/components/fast-video/FastVideoStudio';
 import { getProjects } from '@/core/actions/projects';
 import { getScenes } from '@/core/actions/scenes';

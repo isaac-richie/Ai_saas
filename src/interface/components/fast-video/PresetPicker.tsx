@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type * as React from "react"
-import { Check, Play, Search, Star, X } from "lucide-react"
+import { Check, Play, Search, Star, X } from "@/interface/components/ui/icons"
 import { NoneTile } from "./preset-visuals"
 
 export type PresetOption = {

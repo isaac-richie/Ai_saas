@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AudioLines, ChevronDown } from 'lucide-react';
+import { AudioLines, ChevronDown } from '@/interface/components/ui/icons';
 import { getEditorLockedAudio, type EditorLockedAudio } from '@/core/actions/long-form-audio';
 import { cueStateAt, cueWindow, planEditAudio, type AudioCue, type EditClip, type ExportAudio } from '@/core/services/long-form-audio';
 import { timelineToOutputMs } from '@/core/services/timeline-ops';

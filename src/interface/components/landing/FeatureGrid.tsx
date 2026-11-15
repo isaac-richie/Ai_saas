@@ -8,7 +8,7 @@ import {
   Layers,
   KeyRound,
   PlayCircle,
-} from "lucide-react"
+} from "@/interface/components/ui/icons"
 
 const features = [
   {

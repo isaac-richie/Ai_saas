@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
-import { Camera, SkipForward, SkipBack, Play, Pause } from "lucide-react"
+import { Camera, SkipForward, SkipBack, Play, Pause } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 
 interface ShotPreviewTimelineProps {

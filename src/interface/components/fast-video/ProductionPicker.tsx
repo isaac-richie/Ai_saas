@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, ChevronDown, Loader2, Plus, Search, Trash2, X } from "lucide-react"
+import { Check, ChevronDown, Loader2, Plus, Search, Trash2, X } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 import { deleteProductions } from "@/core/actions/production"
 

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight } from '@/interface/components/ui/icons';
 import { getProjects } from '@/core/actions/projects';
 import { CreateProjectDialog } from '@/interface/components/dashboard/CreateProjectDialog';
 import { ProjectList } from '@/interface/components/dashboard/ProjectList';

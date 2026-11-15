@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2, Upload } from '@/interface/components/ui/icons';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useWaveform } from '@/interface/lib/media-thumbs';
 import type { TimelineClip } from '@/core/types/timeline';

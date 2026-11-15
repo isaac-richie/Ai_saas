@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useState } from "react"
-import { ImageOff } from "lucide-react"
+import { ImageOff } from "@/interface/components/ui/icons"
 
 const isVideo = (url: string) => /\.(mp4|webm|mov)($|\?)/i.test(url)
 

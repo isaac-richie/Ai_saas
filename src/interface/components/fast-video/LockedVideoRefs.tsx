@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState } from "react"
-import { Check, Film, Loader2, Play, Search, Upload, X } from "lucide-react"
+import { Check, Film, Loader2, Play, Search, Upload, X } from "@/interface/components/ui/icons"
 import type { ProductionAsset } from "@/core/validation/production-assets"
 import { ENDPOINT_CAPABILITIES, endpointKeyFor } from "@/core/services/long-form-locks"
 import {

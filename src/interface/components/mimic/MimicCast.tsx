@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type CSSProperties } from "react"
-import { Box, ImagePlus, Loader2, User, X } from "lucide-react"
+import { Box, ImagePlus, Loader2, User, X } from "@/interface/components/ui/icons"
 import { MAX_MIMIC_CHANGE_CHARS, MAX_MIMIC_TARGET_CHARS, MIMIC_CAPABILITY, type MimicAssignment } from "@/core/services/mimic"
 import styles from "./mimic.module.css"
 

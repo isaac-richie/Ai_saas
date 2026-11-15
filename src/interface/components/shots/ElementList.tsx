@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import { ImageIcon } from "lucide-react"
+import { ImageIcon } from "@/interface/components/ui/icons"
 import { getProjectElements } from "@/core/actions/elements"
 import { ElementDeleteButton } from "@/interface/components/shots/ElementDeleteButton"
 

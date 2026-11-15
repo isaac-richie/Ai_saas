@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Button } from "@/interface/components/ui/button"
 import { Input } from "@/interface/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/interface/components/ui/card"
-import { CheckCircle2, ShieldCheck } from "lucide-react"
+import { CheckCircle2, ShieldCheck } from "@/interface/components/ui/icons"
 import { createClient } from "@/infrastructure/supabase/client"
 import { humanizeAuthError } from "@/interface/components/auth/auth-error-message"
 

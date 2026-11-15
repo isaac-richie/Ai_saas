@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/interface/components/ui/di
 import { Textarea } from "@/interface/components/ui/textarea"
 import { Label } from "@/interface/components/ui/label"
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
-import { GripVertical, Camera, Aperture, Wand2, Loader2, Play, Sparkles, Check, Video, Trash2, ChevronRight, X, ListPlus, Copy as CopyIcon, Download, Columns2, Pin, Info } from "lucide-react"
+import { GripVertical, Camera, Aperture, Wand2, Loader2, Play, Sparkles, Check, Video, Trash2, ChevronRight, X, ListPlus, Copy as CopyIcon, Download, Columns2, Pin, Info } from "@/interface/components/ui/icons"
 import { generateShot, generateVideoShot, pollShotStatus } from "@/core/actions/generation"
 import { batchGenerate } from "@/core/actions/batch"
 import { updateShotStatus, removeShot } from "@/core/actions/shots"

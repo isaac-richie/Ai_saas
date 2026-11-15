@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { Clapperboard, Maximize2, Play } from 'lucide-react';
+import { Clapperboard, Maximize2, Play } from '@/interface/components/ui/icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import type { TimelineClip } from '@/core/types/timeline';

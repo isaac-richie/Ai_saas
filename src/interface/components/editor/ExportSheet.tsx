@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Clapperboard, Download, Loader2, MessageSquare, RotateCcw, Share2, Smartphone, Square, X } from 'lucide-react';
+import { Check, Clapperboard, Download, Loader2, MessageSquare, RotateCcw, Share2, Smartphone, Square, X } from '@/interface/components/ui/icons';
 import type { OwnerShare } from '@/core/actions/video-review';
 import { ShareLinkRow } from './ReviewsSheet';
 import type { RenderState } from './EditorWorkspace';

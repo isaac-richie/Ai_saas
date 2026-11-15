@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Clapperboard, Film, LayoutGrid, Scissors } from 'lucide-react';
+import { Clapperboard, Film, LayoutGrid, Scissors } from '@/interface/components/ui/icons';
 import { MaskHappy } from '@phosphor-icons/react/dist/ssr';
 import { MIMIC_ENABLED } from '@/core/config/feature-flags';
 import { listEditableWork, type EditableWork } from '@/core/actions/editor-hub';

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type * as React from "react"
-import { Camera, ImagePlus, Images, Link2, Loader2, Lock, X } from "lucide-react"
+import { Camera, ImagePlus, Images, Link2, Loader2, Lock, X } from "@/interface/components/ui/icons"
 import { createClient } from "@/infrastructure/supabase/client"
 import { REFERENCE_BUCKET } from "@/core/validation/media-reference"
 import { FRAME_INFLUENCES, frameCapability, type ShotFrame, type ShotFrames } from "@/core/validation/shot-frames"

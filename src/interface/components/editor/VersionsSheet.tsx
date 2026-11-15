@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { History, Loader2, RotateCcw, X } from 'lucide-react';
+import { History, Loader2, RotateCcw, X } from '@/interface/components/ui/icons';
 import type { RevisionSummary } from '@/core/actions/timeline-revisions';
 
 /** Saved versions of the cut (one before every AI edit); any of them can be put back. */

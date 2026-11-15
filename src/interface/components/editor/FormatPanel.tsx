@@ -1,6 +1,6 @@
 'use client';
 
-import { Check } from 'lucide-react';
+import { Check } from '@/interface/components/ui/icons';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useFilmstrip } from '@/interface/lib/media-thumbs';
 import { DEFAULT_FRAME_FIT, FRAME_FITS, VIDEO_FORMATS, formatFor, type FrameFit } from '@/core/services/video-format';

@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useRef, useState } from "react"
-import { ImagePlus, Loader2, Sparkles, X } from "lucide-react"
+import { ImagePlus, Loader2, Sparkles, X } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 import { MentionTextarea, type MentionReference } from "./MentionTextarea"
 import { normalizeReferenceImage } from "./normalize-image"

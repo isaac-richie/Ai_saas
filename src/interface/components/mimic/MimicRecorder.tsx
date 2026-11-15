@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Camera, Check, Grid3x3, Mic, RotateCcw, Upload, User } from "lucide-react"
+import { Camera, Check, Grid3x3, Mic, RotateCcw, Upload, User } from "@/interface/components/ui/icons"
 import styles from "./mimic.module.css"
 
 /** Recording stops by itself here: the longest take the model accepts. */

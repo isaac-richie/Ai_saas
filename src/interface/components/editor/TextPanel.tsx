@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Check, Download, Loader2, Plus } from 'lucide-react';
+import { Check, Download, Loader2, Plus } from '@/interface/components/ui/icons';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useFilmstrip } from '@/interface/lib/media-thumbs';
 import { CAPTION_STYLES, isCaptionStyle, segmentsToSrt, segmentsToVtt, timelineCaptionSegments, type CaptionStyle } from '@/core/services/captions';

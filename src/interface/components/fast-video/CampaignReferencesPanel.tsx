@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import type * as React from "react"
-import { AlertTriangle, ChevronDown, History, ImagePlus, Images, Lock, Package, Unlock, Upload, UserRound, X } from "lucide-react"
+import { AlertTriangle, ChevronDown, History, ImagePlus, Images, Lock, Package, Unlock, Upload, UserRound, X } from "@/interface/components/ui/icons"
 import { createClient } from "@/infrastructure/supabase/client"
 import { REFERENCE_BUCKET } from "@/core/validation/media-reference"
 import {

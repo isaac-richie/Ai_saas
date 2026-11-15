@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowUpRight, Sparkles } from "lucide-react"
+import { ArrowUpRight, Sparkles } from "@/interface/components/ui/icons"
 import { logout } from "@/core/actions/auth"
 import { TopLayer } from "./TopLayer"
 

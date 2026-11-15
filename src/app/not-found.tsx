@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowUpRight } from "lucide-react"
+import { ArrowUpRight } from "@/interface/components/ui/icons"
 import { TopLayer } from "@/interface/components/system/TopLayer"
 
 export const metadata = { title: "Page not found" }

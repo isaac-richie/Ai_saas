@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, ExternalLink, Link2Off, MessageSquare, X } from 'lucide-react';
+import { Check, Copy, ExternalLink, Link2Off, MessageSquare, X } from '@/interface/components/ui/icons';
 import { noteTime, type ShareStatus } from '@/core/services/video-review';
 import type { OwnerShare } from '@/core/actions/video-review';
 

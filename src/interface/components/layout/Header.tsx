@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import { usePathname } from "next/navigation"
 import { Button } from "@/interface/components/ui/button"
-import { Menu, HelpCircle } from "lucide-react"
+import { Menu, HelpCircle } from "@/interface/components/ui/icons"
 import { AnimatePresence, motion } from "framer-motion"
 import Link from "next/link"
 import { AnimatedBrandMark } from "@/interface/components/branding/AnimatedBrandMark"

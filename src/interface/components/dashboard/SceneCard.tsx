@@ -5,7 +5,7 @@ import { Scene, deleteScene, moveScene, renameScene } from "@/core/actions/scene
 import { Card, CardContent, CardHeader, CardTitle } from "@/interface/components/ui/card"
 import { Badge } from "@/interface/components/ui/badge"
 import Link from "next/link"
-import { ArrowDown, ArrowUp, Clapperboard, Film, Pencil, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, Clapperboard, Film, Pencil, Trash2 } from "@/interface/components/ui/icons"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 

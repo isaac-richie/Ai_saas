@@ -10,7 +10,7 @@ import {
 } from "@/interface/components/ui/table"
 import { Badge } from "@/interface/components/ui/badge"
 import { Button } from "@/interface/components/ui/button"
-import { Trash, Loader2, CheckCircle2, AlertCircle } from "lucide-react"
+import { Trash, Loader2, CheckCircle2, AlertCircle } from "@/interface/components/ui/icons"
 import { AddKeyDialog } from "./AddKeyDialog"
 import { deleteApiKey, listApiKeys, testApiKeyConnection } from "@/core/actions/api-keys"
 import { useEffect, useRef, useState } from "react"
