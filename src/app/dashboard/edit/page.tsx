@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Clapperboard, Film, LayoutGrid, Scissors, Users } from 'lucide-react';
+import { Clapperboard, Film, LayoutGrid, Scissors } from 'lucide-react';
+import { MaskHappy } from '@phosphor-icons/react/dist/ssr';
 import { MIMIC_ENABLED } from '@/core/config/feature-flags';
 import { listEditableWork, type EditableWork } from '@/core/actions/editor-hub';
 import { WorkspaceHeading } from '@/interface/components/layout/WorkspaceHeading';
@@ -35,7 +36,7 @@ export default async function EditHubPage() {
             <span className="block text-[15px] text-white">Mimic <span className="ml-1 rounded-full border border-gold-300/40 px-1.5 py-px text-[10px] uppercase tracking-wide text-gold-200">Beta</span></span>
             <span className="mt-1 block text-sm text-[#b0b8c4]">Record a performance and change who or what is in it.</span>
           </span>
-          <Users className="size-5 shrink-0 text-gold-200" />
+          <MaskHappy className="size-6 shrink-0 text-gold-200" weight="duotone" />
         </Link>
       )}
 

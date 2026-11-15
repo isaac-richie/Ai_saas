@@ -57,7 +57,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                                     aria-disabled="true"
                                     className={itemClassName}
                                 >
-                                    <item.icon className="size-4 shrink-0" />
+                                    <item.icon className="size-[18px] shrink-0" weight="duotone" />
                                     <span className={cn("transition-all", !isOpen && "md:hidden")}>{item.name}{item.badge ? <span className="ml-2 rounded-full border border-gold-300/40 px-1.5 py-px text-[10px] uppercase tracking-wide text-gold-200">{item.badge}</span> : null}</span>
                                     {isOpen ? (
                                         <span className="ml-auto inline-flex items-center gap-1 rounded-full border border-gold-400/20 bg-gold-400/5 px-2 py-0.5 text-[9px] uppercase tracking-[0.18em] text-gold-300/70">
@@ -91,7 +91,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                                             transition={{ type: "spring", stiffness: 420, damping: 36 }}
                                         />
                                     ) : null}
-                                    <item.icon className="size-[17px] shrink-0" strokeWidth={1.6} />
+                                    <item.icon className="size-[18px] shrink-0" weight={isActive ? "fill" : "duotone"} />
                                     <span className={cn("transition-all", !isOpen && "md:hidden")}>{item.name}{item.badge ? <span className="ml-2 rounded-full border border-gold-300/40 px-1.5 py-px text-[10px] uppercase tracking-wide text-gold-200">{item.badge}</span> : null}</span>
                                 </Link>
                             </motion.div>
