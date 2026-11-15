@@ -234,7 +234,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
   // Where the creator is: perform, cast, review, result.
   const step = !selected ? 0 : working || selected.status === "completed" || selected.status === "unknown" ? 3 : planned?.ok ? 2 : 1
   const busySource = source.state === "uploading" || source.state === "preparing"
-  const summary = planned?.ok && settings ? mimicSummary(settings, planned.plan).map(line => { const at = line.indexOf(": "); return at > 0 ? [line.slice(0, at), line.slice(at + 2)] as const : ["", line] as const }) : []
+  const summary: (readonly [string, string])[] = planned?.ok && settings ? mimicSummary(settings, planned.plan).map(line => { const at = line.indexOf(": "); return at > 0 ? [line.slice(0, at), line.slice(at + 2)] as const : ["", line] as const }) : []
   const assignments = draft?.assignments ?? []
 
   return (
@@ -471,7 +471,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                     </div>
                     {planned.ok && <span className="text-right"><span className={`${styles.serif} block text-3xl leading-none text-gold-100`}>{planned.plan.units}</span><span className="text-[10px] uppercase tracking-[0.14em] text-white/45">generation{planned.plan.units === 1 ? "" : "s"}</span></span>}
                   </div>
-                  {planned.ok && settings ? (
+                  {planned.ok ? (
                     <>
                       {/* Built from mimicSummary(settings, planned.plan): the same words the server checks against. */}
                       <dl className="divide-y divide-white/[0.06] text-[13px]">
