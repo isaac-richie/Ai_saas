@@ -1,0 +1,442 @@
+/* Mimic: a film monitor, a cast list and a call sheet, in the studio's obsidian and champagne. */
+
+.monitor {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(217, 192, 138, 0.06), transparent 60%),
+    #050605;
+  border: 1px solid rgba(217, 192, 138, 0.14);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    inset 0 -60px 80px -60px rgba(0, 0, 0, 0.9),
+    0 40px 80px -50px rgba(0, 0, 0, 0.95);
+  isolation: isolate;
+}
+
+/* Viewfinder brackets in each corner. */
+.monitor::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  z-index: 3;
+  pointer-events: none;
+  --c: rgba(243, 229, 192, 0.55);
+  --l: 22px;
+  background:
+    linear-gradient(var(--c), var(--c)) top left / var(--l) 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) top left / 1.5px var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) top right / var(--l) 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) top right / 1.5px var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom left / var(--l) 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom left / 1.5px var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom right / var(--l) 1.5px no-repeat,
+    linear-gradient(var(--c), var(--c)) bottom right / 1.5px var(--l) no-repeat;
+  opacity: 0.8;
+}
+
+.monitorRec::before {
+  --c: rgba(248, 113, 113, 0.85);
+}
+
+/* Rule-of-thirds grid. */
+.thirds {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent calc(33.333% - 0.5px), rgba(255, 255, 255, 0.16) calc(33.333% - 0.5px), rgba(255, 255, 255, 0.16) calc(33.333% + 0.5px), transparent calc(33.333% + 0.5px)),
+    linear-gradient(90deg, transparent calc(66.666% - 0.5px), rgba(255, 255, 255, 0.16) calc(66.666% - 0.5px), rgba(255, 255, 255, 0.16) calc(66.666% + 0.5px), transparent calc(66.666% + 0.5px)),
+    linear-gradient(transparent calc(33.333% - 0.5px), rgba(255, 255, 255, 0.16) calc(33.333% - 0.5px), rgba(255, 255, 255, 0.16) calc(33.333% + 0.5px), transparent calc(33.333% + 0.5px)),
+    linear-gradient(transparent calc(66.666% - 0.5px), rgba(255, 255, 255, 0.16) calc(66.666% - 0.5px), rgba(255, 255, 255, 0.16) calc(66.666% + 0.5px), transparent calc(66.666% + 0.5px));
+}
+
+/* Head-and-shoulders framing guide: the model reads people best this way. */
+.silhouette {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  z-index: 2;
+  width: min(46%, 340px);
+  aspect-ratio: 1 / 1.05;
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0.32;
+  background:
+    radial-gradient(closest-side, transparent 92%, rgba(243, 229, 192, 0.9) 94%, transparent 97%) 50% 14% / 42% 40% no-repeat,
+    radial-gradient(60% 90% at 50% 100%, transparent 94%, rgba(243, 229, 192, 0.9) 95.5%, transparent 97%) 50% 100% / 100% 52% no-repeat;
+}
+
+.scanline {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+
+/* Honest "working" state: a slow sweep, never a percentage. */
+.developing {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(243, 229, 192, 0.08) 45%, rgba(243, 229, 192, 0.16) 50%, rgba(243, 229, 192, 0.08) 55%, transparent 70%);
+  background-size: 250% 100%;
+  animation: mimicSweep 2.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes mimicSweep {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+.countdown {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-size: clamp(5rem, 16vw, 9rem);
+  line-height: 1;
+  color: #f6eedc;
+  text-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  animation: mimicPulse 1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+@keyframes mimicPulse {
+  0% { transform: scale(1.25); opacity: 0; }
+  25% { transform: scale(1); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: scale(0.92); opacity: 0; }
+}
+
+.recDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+  animation: mimicRec 1.4s ease-out infinite;
+}
+@keyframes mimicRec {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+  100% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}
+
+/* The record button: a ring that fills as the take runs out of time. */
+.recordButton {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 999px;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.recordButton:active {
+  transform: scale(0.94);
+}
+.recordButton:disabled {
+  opacity: 0.4;
+}
+.recordButton svg.ring {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+.recordCore {
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #fb7185, #dc2626 70%);
+  box-shadow: 0 8px 24px -6px rgba(220, 38, 38, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: border-radius 0.3s cubic-bezier(0.22, 1, 0.36, 1), width 0.3s, height 0.3s;
+}
+.recordCoreStop {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+/* Mic level: a row of bars that lights up from the left. */
+.meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+.meter span {
+  width: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 0.08s linear;
+}
+.meter span[data-on="true"] {
+  background: #8fd1b9;
+}
+.meter span[data-on="true"][data-hot="true"] {
+  background: #f2c48d;
+}
+
+/* Trim bar: filmstrip with a selected window. */
+.strip {
+  position: relative;
+  height: 56px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0b0c0b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.stripFrames {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+.stripFrames canvas,
+.stripFrames div {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  object-fit: cover;
+}
+.stripShade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(5, 6, 5, 0.72);
+  pointer-events: none;
+}
+.stripWindow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  border: 2px solid #e3cf9f;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 24px -6px rgba(227, 207, 159, 0.6);
+}
+.stripWindowBad {
+  border-color: #f2c48d;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 24px -6px rgba(242, 196, 141, 0.7);
+}
+.stripPlayhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+}
+/* Two native range inputs stacked over the strip: keyboard and screen-reader friendly handles. */
+.stripRange {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.stripRange::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+.stripRange::-moz-range-track {
+  height: 100%;
+  background: transparent;
+}
+.stripRange::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: auto;
+  width: 16px;
+  height: 56px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f6eedc, #d9c08a);
+  border: 2px solid #0e100e;
+  cursor: ew-resize;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+.stripRange::-moz-range-thumb {
+  pointer-events: auto;
+  width: 14px;
+  height: 52px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f6eedc, #d9c08a);
+  border: 2px solid #0e100e;
+  cursor: ew-resize;
+}
+.stripRange:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Cast cards. */
+.castCard {
+  position: relative;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition: border-color 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.castCard::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--cast);
+}
+.castCard:focus-within {
+  border-color: color-mix(in srgb, var(--cast) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cast) 25%, transparent), 0 20px 40px -30px color-mix(in srgb, var(--cast) 70%, transparent);
+}
+.castDim {
+  opacity: 0.55;
+}
+
+.refTray {
+  border-radius: 14px;
+  border: 1px dashed rgba(227, 207, 159, 0.28);
+  transition: border-color 0.2s, background 0.2s;
+}
+.refTrayActive {
+  border-color: #e3cf9f;
+  background: rgba(227, 207, 159, 0.07);
+}
+
+/* Call sheet: the approval summary. */
+.callSheet {
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(243, 229, 192, 0.05), rgba(243, 229, 192, 0.01)),
+    rgba(10, 11, 10, 0.6);
+  border: 1px solid rgba(217, 192, 138, 0.2);
+}
+.callSheet dt {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(227, 207, 159, 0.7);
+}
+
+.serif {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-weight: 400;
+}
+
+.goldButton {
+  background: linear-gradient(135deg, #f6eedc, #e3cf9f 45%, #c8a76a);
+  color: #1a160e;
+  box-shadow: 0 14px 30px -14px rgba(217, 192, 138, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s, opacity 0.2s;
+}
+.goldButton:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 36px -14px rgba(217, 192, 138, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.goldButton:disabled {
+  opacity: 0.38;
+  box-shadow: none;
+}
+
+/* Source choice tiles. */
+.tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.005));
+  transition: border-color 0.3s cubic-bezier(0.22, 1, 0.36, 1), transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s;
+}
+.tile:hover:not(:disabled) {
+  border-color: rgba(227, 207, 159, 0.45);
+  transform: translateY(-2px);
+  background: linear-gradient(160deg, rgba(243, 229, 192, 0.07), rgba(255, 255, 255, 0.005));
+}
+.tile[aria-pressed="true"],
+.tile[aria-checked="true"] {
+  border-color: #e3cf9f;
+  background: linear-gradient(160deg, rgba(243, 229, 192, 0.1), rgba(255, 255, 255, 0.01));
+}
+
+.drop {
+  outline: 2px dashed rgba(227, 207, 159, 0.8);
+  outline-offset: -10px;
+}
+
+/* Wipe compare: the result is revealed over the original. */
+.wipeTop {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 0 0 var(--split));
+}
+.wipeHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--split);
+  width: 2px;
+  transform: translateX(-1px);
+  background: #f6eedc;
+  box-shadow: 0 0 14px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  z-index: 4;
+}
+.wipeHandle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: #f6eedc;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+.wipeRange {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+}
+
+.stepDone {
+  background: rgba(143, 209, 185, 0.14);
+  color: #bfe9da;
+  border-color: rgba(143, 209, 185, 0.35);
+}
+.stepNow {
+  background: linear-gradient(135deg, #f6eedc, #d9c08a);
+  color: #1a160e;
+  border-color: transparent;
+}
+
+.rise {
+  animation: mimicRise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes mimicRise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .developing,
+  .countdown,
+  .recDot,
+  .rise {
+    animation: none;
+  }
+  .tile,
+  .goldButton,
+  .recordButton {
+    transition: none;
+  }
+}
