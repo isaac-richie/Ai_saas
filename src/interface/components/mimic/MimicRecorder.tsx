@@ -8,11 +8,31 @@ import styles from "./mimic.module.css"
 export const MAX_RECORD_MS = 15_000
 const MIN_RECORD_MS = 3_000
 const COUNTDOWN = 3
+/** Asks for the best picture the camera has (up to 4K); the browser settles on the closest mode it supports. */
+const NATIVE_QUALITY = { width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } }
+/** Bits per second for a sharp take at this size, kept so the longest take stays under about 45 MB. */
+export function recordingBitrate(width: number, height: number, fps = 30) {
+  const pixels = Number.isFinite(width * height) && width > 0 && height > 0 ? width * height : 1280 * 720
+  const rate = Number.isFinite(fps) && fps > 0 ? Math.min(fps, 60) : 30
+  return Math.round(Math.min(24_000_000, Math.max(6_000_000, pixels * rate * 0.2)))
+}
+/** "4K", "1080p", "720p": the short side, as people say it. */
+export function qualityLabel(width?: number, height?: number) {
+  if (!width || !height) return ""
+  const short = Math.min(width, height)
+  return short >= 2000 ? "4K" : `${short}p`
+}
 const RING = 2 * Math.PI * 35
 
 type Phase = "idle" | "starting" | "preview" | "countdown" | "recording" | "review" | "denied" | "unsupported"
 
 /** The recording format this browser can make, best first. */
+/** Read from the live track, so the rate always matches the camera actually in use. */
+function bitrateFor(media: MediaStream) {
+  const s = media.getVideoTracks()[0]?.getSettings()
+  return recordingBitrate(s?.width ?? 0, s?.height ?? 0, s?.frameRate ?? 30)
+}
+
 function pickMimeType(): string | null {
   if (typeof MediaRecorder === "undefined") return null
   return ["video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find(type => MediaRecorder.isTypeSupported(type)) ?? null
@@ -37,6 +57,7 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
   const [elapsedMs, setElapsedMs] = useState(0)
   const [level, setLevel] = useState(0)
   const [mirror, setMirror] = useState(true)
+  const [quality, setQuality] = useState({ width: 0, height: 0, fps: 30 })
   const [guides, setGuides] = useState<{ thirds: boolean; person: boolean }>({ thirds: false, person: true })
   const [take, setTake] = useState<{ url: string; blob: Blob; ms: number } | null>(null)
   const [note, setNote] = useState("")
@@ -104,7 +125,7 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
     stopStream()
     try {
       const media = await navigator.mediaDevices.getUserMedia({
-        video: { ...(camera ? { deviceId: { exact: camera } } : { facingMode: "user" }), width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+        video: { ...(camera ? { deviceId: { exact: camera } } : { facingMode: "user" }), ...NATIVE_QUALITY },
         audio: mic ? { deviceId: { exact: mic }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true },
       })
       stream.current = media
@@ -119,6 +140,8 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
       setMicId(media.getAudioTracks()[0]?.getSettings().deviceId ?? mic)
       // A rear camera isn't mirrored; a front camera is, like a mirror.
       setMirror(videoTrack?.getSettings().facingMode !== "environment")
+      const settings = videoTrack?.getSettings()
+      setQuality({ width: settings?.width ?? 0, height: settings?.height ?? 0, fps: settings?.frameRate ?? 30 })
       setPhase("preview")
     } catch (cause) {
       const name = cause instanceof DOMException ? cause.name : ""
@@ -146,7 +169,7 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
     const chunks: Blob[] = []
     const started = performance.now()
     let made: MediaRecorder
-    try { made = new MediaRecorder(media, { mimeType, videoBitsPerSecond: 6_000_000 }) } catch { setPhase("unsupported"); return }
+    try { made = new MediaRecorder(media, { mimeType, videoBitsPerSecond: bitrateFor(media) }) } catch { setPhase("unsupported"); return }
     recorder.current = made
     made.ondataavailable = event => { if (event.data.size) chunks.push(event.data) }
     made.onstop = () => {
@@ -227,6 +250,7 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
             <span className="flex items-center gap-2">
               {phase === "recording" ? <><span className={styles.recDot} aria-hidden /><span className="text-red-300">REC</span></> : <span className="text-white/60">STANDBY</span>}
               <span className="tabular-nums" role={phase === "recording" ? "timer" : undefined}>{clock(elapsedMs)} / {clock(MAX_RECORD_MS)}</span>
+              {qualityLabel(quality.width, quality.height) && <span className="rounded border border-white/20 px-1.5 py-px text-[10px] text-white/70" title={`Your camera at ${quality.width}×${quality.height}, ${Math.round(quality.fps)} fps`}>{qualityLabel(quality.width, quality.height)}</span>}
             </span>
             <span className="flex items-center gap-2" aria-label={`Microphone level ${Math.round(level * 100)} percent`}>
               <Mic className="size-3.5 text-white/60" aria-hidden />

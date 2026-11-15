@@ -24,6 +24,9 @@ import {
 import { createClient } from '@/infrastructure/supabase/client';
 import { diffTimeline, isEmptyDiff } from '@/interface/lib/timeline-diff';
 import { timelineToOutputMs } from '@/core/services/timeline-ops';
+import { getTimelineTranscripts, correctTranscriptWord } from '@/core/actions/transcript';
+import { transcriptCaptions, type SourceTranscript } from '@/core/services/transcript';
+import { isCaptionStyle } from '@/core/services/captions';
 import type { TimelineClip, TimelineProject, TimelineTrack } from '@/core/types/timeline';
 import { DEFAULT_FRAME_FIT } from '@/core/services/video-format';
 import { isStaleServerActionError, recoverFromStaleServerAction } from '@/interface/lib/server-action-recovery';
@@ -106,6 +109,8 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
   const [takeStatus, setTakeStatus] = useState<Record<string, TakeStatus>>({});
   const [reviews, setReviews] = useState<OwnerShare[]>([]);
   const takePolls = useRef(new Set<string>());
+  const [transcripts, setTranscripts] = useState<SourceTranscript[]>([]);
+  const [transcriptsReady, setTranscriptsReady] = useState(true);
 
   const current = (): Snapshot => {
     const s = useTimelineStore.getState();
@@ -282,6 +287,9 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       } else if (unsaved) {
         dropUnsaved(projectId);
       }
+      void getTimelineTranscripts(timeline.id)
+        .then(({ transcripts: list, ready }) => { setTranscripts(list); setTranscriptsReady(ready); })
+        .catch(() => {});
       // Shots regenerated in Create since they were brought in are flagged, never swapped.
       void getStoryboardUpdates(timeline.id)
         .then(({ updates }) => useTimelineStore.getState().setStoryboardUpdates(Object.fromEntries(updates.map((u) => [u.clip_id, { url: u.url, duration_ms: u.duration_ms }]))))
@@ -470,21 +478,28 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     return null;
   };
 
+  /** The text row, made on first use. Null (with the error shown) when it can't be made. */
+  const ensureCaptionTrack = async (): Promise<TimelineTrack | null> => {
+    const s = useTimelineStore.getState();
+    if (!s.timeline) return null;
+    const existing = s.tracks.find((t) => t.track_type === 'caption');
+    if (existing) return existing;
+    const res = await addTimelineTrack(s.timeline.id, 'Text', 'caption');
+    if (!res.track) {
+      setError(res.error || 'Could not add text.');
+      return null;
+    }
+    saved.current = { ...saved.current, tracks: [...saved.current.tracks, res.track] };
+    addTrack(res.track);
+    return res.track;
+  };
+
   /** Puts text on screen; `at` is in finished-video time. Returns false when the text row can't be made. */
   const addText = async (at: number | null, text: string, style: string, select: boolean) => {
     const s = useTimelineStore.getState();
     if (!s.timeline) return false;
-    let track = s.tracks.find((t) => t.track_type === 'caption');
-    if (!track) {
-      const res = await addTimelineTrack(s.timeline.id, 'Text', 'caption');
-      if (!res.track) {
-        setError(res.error || 'Could not add text.');
-        return false;
-      }
-      track = res.track;
-      saved.current = { ...saved.current, tracks: [...saved.current.tracks, track] };
-      addTrack(track);
-    }
+    const track = await ensureCaptionTrack();
+    if (!track) return false;
     const videoTrack = s.tracks.find((t) => t.track_type === 'video');
     let start = at ?? Math.round(timelineToOutputMs(s.clips.filter((c) => c.track_id === videoTrack?.id), s.playhead_ms));
     // Start after any text already on screen so two captions never stack.
@@ -587,6 +602,58 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
     return null;
   };
 
+  /** Transcribes every source not yet done, a few per request, until none are left. */
+  const onTranscribe = async (redo: boolean): Promise<string | null> => {
+    await flush();
+    let since: string | undefined;
+    for (let round = 0; round < 20; round++) {
+      const body = round === 0 ? { timeline_id: timelineId(), redo } : { timeline_id: timelineId(), ...(since ? { redo_since: since } : {}) };
+      const { ok, data } = await postJson('/api/timeline/transcript', body);
+      if (!ok) return data.error || 'Could not transcribe the edit.';
+      setTranscripts(data.transcripts || []);
+      if (data.failed) return `${data.failed} shot${data.failed === 1 ? '' : 's'} could not be transcribed. Try again in a moment.`;
+      if (!data.remaining) return null;
+      since = data.redo_since ?? undefined;
+    }
+    return 'This edit has a lot of shots; tap Transcribe again for the rest.';
+  };
+
+  const onCorrectWord = async (sourceKey: string, wordId: string, text: string): Promise<string | null> => {
+    const id = timelineId();
+    if (!id) return 'Open a project first.';
+    const res = await correctTranscriptWord(id, sourceKey, wordId, text);
+    if ('error' in res) return res.error;
+    setTranscripts((all) => all.map((t) => (t.source_key === sourceKey ? { ...t, words: res.words } : t)));
+    return null;
+  };
+
+  /** Automatic captions rebuilt from the transcript as the edit plays now. Typed titles stay. */
+  const onCaptionsFromTranscript = async (): Promise<string | null> => {
+    const s = useTimelineStore.getState();
+    const video = s.tracks.find((t) => t.track_type === 'video');
+    if (!video) return 'Add shots first.';
+    const segments = transcriptCaptions(s.clips.filter((c) => c.track_id === video.id), transcripts, video.muted);
+    if (!segments.length) return 'There are no spoken words in the edit to caption.';
+    const track = await ensureCaptionTrack();
+    if (!track) return 'Could not add captions.';
+    if (track.locked) return 'The text track is locked. Unlock it to update captions.';
+    const now = useTimelineStore.getState();
+    const auto = now.clips.filter((c) => c.track_id === track.id && (c.metadata as { source?: unknown } | null)?.source === 'auto');
+    const styles = new Set(auto.map((c) => (c.metadata as { style?: unknown }).style));
+    const kept = styles.size === 1 ? [...styles][0] : undefined;
+    const style = isCaptionStyle(kept) ? kept : 'standard';
+    const stamp = new Date().toISOString();
+    const made: TimelineClip[] = segments.slice(0, 500).map((seg) => ({
+      id: crypto.randomUUID(), track_id: track.id, take_id: null, asset_url: null, clip_type: 'caption',
+      start_ms: Math.round(seg.start_sec * 1000), end_ms: Math.round(seg.end_sec * 1000), trim_start_ms: 0, trim_end_ms: null,
+      volume: 1, opacity: 1, transition_in: null, transition_in_ms: 0, transition_out: null, transition_out_ms: 0, color_grade_id: null,
+      metadata: { text: seg.text, style, words: seg.words, source: 'auto' }, order_index: 0, created_at: stamp, updated_at: stamp,
+    }));
+    const drop = new Set(auto.map((c) => c.id));
+    now.commitClips([...now.clips.filter((c) => !drop.has(c.id)), ...made], `transcript-captions:${Date.now()}`);
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="grid h-[60vh] place-items-center">
@@ -618,6 +685,7 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
       projectId={projectId}
       onAddText={onAddText}
       onAutoCaptions={onAutoCaptions}
+      transcript={{ transcripts, ready: transcriptsReady, onTranscribe, onCorrect: onCorrectWord, onCaptions: onCaptionsFromTranscript }}
       onRegenerate={onRegenerate}
       onAutoEdit={onAutoEdit}
       onListVersions={onListVersions}
