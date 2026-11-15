@@ -298,3 +298,24 @@ describe('Wiring (approval, charging, ownership, originals)', () => {
     assert.ok(order.every((i) => i > 0) && order[0] < order[1] && order[1] < order[2], JSON.stringify(order));
   });
 });
+
+describe('Redesigned workspace', () => {
+  const dir = '../src/interface/components/mimic/';
+  it('the trim handles are native range inputs bounded by the model limits', () => {
+    const trimmer = src(`${dir}MimicTrimmer.tsx`);
+    assert.equal((trimmer.match(/type="range"/g) || []).length, 2);
+    assert.match(src(`${dir}MimicStudio.tsx`), /minMs=\{MIMIC_CAPABILITY\.minClipMs\} maxMs=\{MIMIC_CAPABILITY\.maxClipMs\}/);
+  });
+  it('the compare keeps both videos on one transport and labels the original as unchanged', () => {
+    const compare = src(`${dir}MimicCompare.tsx`);
+    assert.match(compare, /Original · unchanged/);
+    assert.match(compare, /Math\.abs\(follow\.currentTime - lead\.currentTime\) > 0\.12/);
+  });
+  it('a held change is marked, not hidden, when multi-subject is off', () => {
+    assert.match(src(`${dir}MimicStudio.tsx`), /held=\{!loaded\.multiSubject && index > 0\}/);
+    assert.match(src(`${dir}MimicCast.tsx`), /Saved · not sent/);
+  });
+  it('the dev preview never renders on production', () => {
+    assert.match(src('../src/app/dev/mimic/page.tsx'), /if \(production\) notFound\(\)/);
+  });
+});
