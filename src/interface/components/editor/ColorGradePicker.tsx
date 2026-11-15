@@ -6,6 +6,8 @@ import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useFilmstrip } from '@/interface/lib/media-thumbs';
 import { GRADE_PREVIEW_FILTER } from './labels';
 
+const SAMPLE_STILL = '/lighting/light_overcast.webp';
+
 /** Every look shown on a frame of the shot under the playhead, so choosing is seeing. */
 export function ColorGradePicker({ selectedId, onSelect, row = false }: {
   selectedId: string;
@@ -18,7 +20,8 @@ export function ColorGradePicker({ selectedId, onSelect, row = false }: {
   const shots = clips.filter((c) => c.track_id === videoTrack?.id);
   const shot = shots.find((c) => c.start_ms <= playhead_ms && c.end_ms > playhead_ms) ?? shots[0];
   const strip = useFilmstrip(shot?.asset_url);
-  const frame = strip?.frames[Math.floor((strip.frames.length - 1) / 2)];
+  // Before a shot's frame is ready (or with no shots yet), each look is shown on a real film still.
+  const frame = strip?.frames[Math.floor((strip.frames.length - 1) / 2)] ?? SAMPLE_STILL;
 
   return (
     <div className="space-y-3 p-4">
@@ -42,18 +45,15 @@ export function ColorGradePicker({ selectedId, onSelect, row = false }: {
               }`}
             >
               <div className="relative aspect-video overflow-hidden bg-black">
-                {frame ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={frame}
-                    alt=""
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    style={{ filter: GRADE_PREVIEW_FILTER[grade.id] ?? 'none' }}
-                  />
-                ) : (
-                  <div className={`h-full w-full ${grade.thumbnail_css}`} />
-                )}
-                {grade.id === 'cinematic-vignette' && frame && (
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={frame}
+                  alt=""
+                  loading="lazy"
+                  className={`h-full w-full object-cover transition-transform duration-500 group-hover:scale-105 ${frame === SAMPLE_STILL ? 'object-[50%_30%]' : ''}`}
+                  style={{ filter: GRADE_PREVIEW_FILTER[grade.id] ?? 'none' }}
+                />
+                {grade.id === 'cinematic-vignette' && (
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_50%,rgba(0,0,0,0.6))]" />
                 )}
               </div>

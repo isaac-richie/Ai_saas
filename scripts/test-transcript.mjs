@@ -222,3 +222,11 @@ describe('Camera records at the device\'s own quality', async () => {
     assert.deepEqual([qualityLabel(3840, 2160), qualityLabel(1080, 1920), qualityLabel(1280, 720), qualityLabel()], ['4K', '1080p', '720p', '']);
   });
 });
+
+describe('Look cards always show a real picture', () => {
+  it('a film still stands in until the shot frame is ready; no colour swatches', () => {
+    const picker = src('../src/interface/components/editor/ColorGradePicker.tsx');
+    assert.match(picker, /\?\? SAMPLE_STILL/);
+    assert.doesNotMatch(picker, /thumbnail_css/);
+  });
+});
