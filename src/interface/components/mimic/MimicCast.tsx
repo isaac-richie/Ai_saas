@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type CSSProperties } from "react"
-import { Box, ImagePlus, Loader2, User, X } from "@/interface/components/ui/icons"
+import { Loader2, X } from "@/interface/components/ui/icons"
 import { MAX_MIMIC_CHANGE_CHARS, MAX_MIMIC_TARGET_CHARS, MIMIC_CAPABILITY, type MimicAssignment } from "@/core/services/mimic"
 import styles from "./mimic.module.css"
 
@@ -34,10 +34,10 @@ export function MimicCastCard({ assignment: a, index, held, uploading, onChange,
       <div className="flex items-center gap-2">
         <span className="grid size-7 shrink-0 place-items-center rounded-full text-[12px] font-semibold text-[#1a160e]" style={{ background: colour }}>{index + 1}</span>
         <div role="radiogroup" aria-label="Person or object" className="flex rounded-full border border-white/10 bg-black/30 p-0.5 text-[11px]">
-          {([["person", "Person", User], ["object", "Object", Box]] as const).map(([value, text, Icon]) => (
+          {([["person", "Person"], ["object", "Object"]] as const).map(([value, text]) => (
             <button key={value} type="button" role="radio" aria-checked={a.targetType === value} onClick={() => onChange({ targetType: value })}
               className={`flex items-center gap-1 rounded-full px-2.5 py-1 transition-colors ${a.targetType === value ? "bg-white/15 text-white" : "text-white/55 hover:text-white"}`}>
-              <Icon className="size-3" aria-hidden />{text}
+              {text}
             </button>
           ))}
         </div>
@@ -72,7 +72,7 @@ export function MimicCastCard({ assignment: a, index, held, uploading, onChange,
         ))}
         {room > 0 && (
           <label className="grid size-16 cursor-pointer place-items-center rounded-lg border border-white/10 bg-black/30 text-gold-100 transition-colors hover:border-gold-300/50 hover:bg-gold-500/[0.06]">
-            {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <ImagePlus className="size-4" aria-hidden />}
+            {uploading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <span className="text-[11px] leading-tight">Add<br />image</span>}
             <span className="sr-only">Add reference images</span>
             <input type="file" accept="image/*,.heic,.heif" multiple hidden disabled={uploading} onChange={e => { const files = [...(e.target.files ?? [])].slice(0, room); e.target.value = ""; if (files.length) onAddImages(files) }} />
           </label>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Camera, Check, Grid3x3, Mic, RotateCcw, Upload, User } from "@/interface/components/ui/icons"
+import { Mic } from "@/interface/components/ui/icons"
 import styles from "./mimic.module.css"
 
 /** Recording stops by itself here: the longest take the model accepts. */
@@ -201,11 +201,10 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
     return (
       <div className={`${styles.monitor} grid aspect-[4/5] place-items-center p-6 text-center sm:aspect-video`} data-testid="mimic-recorder-fallback">
         <div className="relative z-10 max-w-sm">
-          <span className="mx-auto grid size-12 place-items-center rounded-full border border-white/10 bg-white/[0.04]"><Camera className="size-5 text-white/60" aria-hidden /></span>
-          <p className="mt-3 text-[15px] text-white">{phase === "denied" ? "Camera or microphone access was not allowed." : "This browser can't record video here."}</p>
+          <p className="text-[15px] text-white">{phase === "denied" ? "Camera or microphone access was not allowed." : "This browser can't record video here."}</p>
           <p className="mt-1 text-sm text-white/55">{phase === "denied" ? "Allow access in your browser's site settings and try again, or upload a video you already have." : "Upload a video you already have instead."}</p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
-            <button type="button" onClick={onUploadInstead} className={`${styles.goldButton} flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium`}><Upload className="size-4" aria-hidden />Upload a video instead</button>
+            <button type="button" onClick={onUploadInstead} className={`${styles.goldButton} rounded-full px-4 py-2 text-sm font-medium`}>Upload a video instead</button>
             {phase === "denied" && <button type="button" onClick={() => void open()} className="rounded-full border border-white/15 px-4 py-2 text-sm text-white/80 hover:bg-white/5">Try again</button>}
           </div>
         </div>
@@ -235,8 +234,8 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
             <div>
               <p className={`${styles.serif} text-[26px] leading-tight text-gold-100 sm:text-3xl`}>Your stage is ready.</p>
               <p className="mx-auto mt-2 max-w-[17rem] text-[13px] leading-relaxed text-white/60 sm:max-w-sm sm:text-sm">Stand back so your head, shoulders and hands are in frame. Good light on your face helps most.</p>
-              <button type="button" disabled={disabled} onClick={() => void open()} className={`${styles.goldButton} mt-5 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium`}>
-                <Camera className="size-4" aria-hidden />Turn on camera
+              <button type="button" disabled={disabled} onClick={() => void open()} className={`${styles.goldButton} mt-5 rounded-full px-6 py-2.5 text-sm font-medium`}>
+                Turn on camera
               </button>
             </div>
           </div>
@@ -270,8 +269,8 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
         <div className="flex flex-wrap items-center gap-1.5">
           {isLive && (
             <>
-              <button type="button" aria-pressed={guides.person} onClick={() => setGuides(g => ({ ...g, person: !g.person }))} title="Framing guide" className={`grid size-9 place-items-center rounded-full border transition-colors ${guides.person ? "border-gold-300/50 bg-gold-300/10 text-gold-100" : "border-white/10 text-white/55 hover:text-white"}`}><User className="size-4" aria-hidden /><span className="sr-only">Framing guide</span></button>
-              <button type="button" aria-pressed={guides.thirds} onClick={() => setGuides(g => ({ ...g, thirds: !g.thirds }))} title="Rule-of-thirds grid" className={`grid size-9 place-items-center rounded-full border transition-colors ${guides.thirds ? "border-gold-300/50 bg-gold-300/10 text-gold-100" : "border-white/10 text-white/55 hover:text-white"}`}><Grid3x3 className="size-4" aria-hidden /><span className="sr-only">Grid</span></button>
+              <button type="button" aria-pressed={guides.person} onClick={() => setGuides(g => ({ ...g, person: !g.person }))} title="Framing guide" className={`h-9 rounded-full border px-3 text-[11px] transition-colors ${guides.person ? "border-gold-300/50 bg-gold-300/10 text-gold-100" : "border-white/10 text-white/55 hover:text-white"}`}>Frame</button>
+              <button type="button" aria-pressed={guides.thirds} onClick={() => setGuides(g => ({ ...g, thirds: !g.thirds }))} title="Rule-of-thirds grid" className={`h-9 rounded-full border px-3 text-[11px] transition-colors ${guides.thirds ? "border-gold-300/50 bg-gold-300/10 text-gold-100" : "border-white/10 text-white/55 hover:text-white"}`}>Grid</button>
               <button type="button" aria-pressed={mirror} onClick={() => setMirror(m => !m)} title="Mirror the preview (the recording is never mirrored)" className={`h-9 rounded-full border px-3 text-[11px] transition-colors ${mirror ? "border-gold-300/50 bg-gold-300/10 text-gold-100" : "border-white/10 text-white/55 hover:text-white"}`}>Mirror</button>
             </>
           )}
@@ -291,8 +290,8 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
           )}
           {phase === "review" && take && (
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <button type="button" onClick={retake} className="flex items-center gap-2 rounded-full border border-white/15 px-4 py-2.5 text-sm text-white/85 hover:bg-white/5"><RotateCcw className="size-4" aria-hidden />Retake</button>
-              <button type="button" disabled={disabled} onClick={use} className={`${styles.goldButton} flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium`}><Check className="size-4" aria-hidden />Use this take</button>
+              <button type="button" onClick={retake} className="rounded-full border border-white/15 px-4 py-2.5 text-sm text-white/85 hover:bg-white/5">Retake</button>
+              <button type="button" disabled={disabled} onClick={use} className={`${styles.goldButton} rounded-full px-5 py-2.5 text-sm font-medium`}>Use this take</button>
             </div>
           )}
         </div>
