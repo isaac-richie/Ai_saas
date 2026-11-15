@@ -176,7 +176,7 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
 
   if (phase === "denied" || phase === "unsupported") {
     return (
-      <div className={`${styles.monitor} grid aspect-video place-items-center p-6 text-center`} data-testid="mimic-recorder-fallback">
+      <div className={`${styles.monitor} grid aspect-[4/5] place-items-center p-6 text-center sm:aspect-video`} data-testid="mimic-recorder-fallback">
         <div className="relative z-10 max-w-sm">
           <span className="mx-auto grid size-12 place-items-center rounded-full border border-white/10 bg-white/[0.04]"><Camera className="size-5 text-white/60" aria-hidden /></span>
           <p className="mt-3 text-[15px] text-white">{phase === "denied" ? "Camera or microphone access was not allowed." : "This browser can't record video here."}</p>
@@ -196,7 +196,7 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
 
   return (
     <div className="space-y-3" data-testid="mimic-recorder">
-      <div className={`${styles.monitor} ${phase === "recording" ? styles.monitorRec : ""} aspect-video`}>
+      <div className={`${styles.monitor} ${phase === "recording" ? styles.monitorRec : ""} aspect-[4/5] sm:aspect-video`}>
         {phase === "review" && take ? (
           <video key={take.url} src={take.url} controls playsInline autoPlay className="absolute inset-0 size-full object-contain" aria-label="Your take" />
         ) : (
@@ -208,10 +208,10 @@ export function MimicRecorder({ onUse, onUploadInstead, disabled }: { onUse: (fi
         {isLive && guides.person && phase !== "recording" && <div className={styles.silhouette} aria-hidden />}
 
         {phase === "idle" && (
-          <div className="absolute inset-0 z-10 grid place-items-center p-6 text-center">
+          <div className="absolute inset-0 z-10 grid place-items-center px-6 py-8 text-center">
             <div>
-              <p className={`${styles.serif} text-2xl text-gold-100 sm:text-3xl`}>Your stage is ready.</p>
-              <p className="mx-auto mt-2 max-w-sm text-sm text-white/60">Stand back so your head, shoulders and hands are in frame. Good light on your face helps most.</p>
+              <p className={`${styles.serif} text-[26px] leading-tight text-gold-100 sm:text-3xl`}>Your stage is ready.</p>
+              <p className="mx-auto mt-2 max-w-[17rem] text-[13px] leading-relaxed text-white/60 sm:max-w-sm sm:text-sm">Stand back so your head, shoulders and hands are in frame. Good light on your face helps most.</p>
               <button type="button" disabled={disabled} onClick={() => void open()} className={`${styles.goldButton} mt-5 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium`}>
                 <Camera className="size-4" aria-hidden />Turn on camera
               </button>

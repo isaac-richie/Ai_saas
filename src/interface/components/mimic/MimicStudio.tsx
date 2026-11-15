@@ -1,8 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { AlertTriangle, Box, Check, Clock, Download, Film, Loader2, Pencil, Plus, ShieldCheck, Sparkles, Trash2, Upload, User } from "@/interface/components/ui/icons"
-import { FilmReel, UploadSimple, VideoCamera } from "@phosphor-icons/react"
+import { AlertTriangle, Box, Check, Clock, Download, Film, Loader2, Pencil, Plus, ShieldCheck, Sparkles, Trash2, User } from "@/interface/components/ui/icons"
+import { FileArrowUp, FilmReel, VideoCamera } from "@phosphor-icons/react"
 import {
   createMimicTask, deleteMimicTask, duplicateMimicTask, generateMimic, listMimicTasks, refreshMimic, releaseUnconfirmedMimic, saveMimicTask, saveMimicToVideos,
   type MimicTaskView,
@@ -274,7 +274,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                 <p className="hidden text-xs text-white/45 md:block">Or drop a video anywhere here</p>
               </div>
               <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Where the take comes from">
-                {([["record", "Record", "With this camera", VideoCamera], ["upload", "Upload", "A file you have", UploadSimple], ["library", "My videos", "Something you made", FilmReel]] as const).map(([id, title, hint, Icon]) => (
+                {([["record", "Record", "With this camera", VideoCamera], ["upload", "Upload", "A file you have", FileArrowUp], ["library", "My videos", "Something you made", FilmReel]] as const).map(([id, title, hint, Icon]) => (
                   <button key={id} type="button" role="radio" aria-checked={sourceTab === id} disabled={busySource}
                     onClick={() => id === "library" ? void openLibrary() : setSourceTab(id)} className={`${styles.tile} p-3 text-left sm:p-4`}>
                     <Icon className={`size-[22px] ${sourceTab === id ? "text-gold-200" : "text-white/55"}`} weight={sourceTab === id ? "fill" : "duotone"} aria-hidden />
@@ -286,9 +286,9 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
 
               {sourceTab === "record" && <MimicRecorder disabled={busySource} onUse={file => void addSource(file, "recorded")} onUploadInstead={() => setSourceTab("upload")} />}
               {sourceTab === "upload" && (
-                <button type="button" disabled={busySource} onClick={() => fileInput.current?.click()} className={`${styles.monitor} grid aspect-video w-full place-items-center p-6 text-center transition-colors hover:border-gold-300/40`}>
+                <button type="button" disabled={busySource} onClick={() => fileInput.current?.click()} className={`${styles.monitor} grid aspect-[4/5] w-full place-items-center p-6 text-center transition-colors hover:border-gold-300/40 sm:aspect-video`}>
                   <span className="relative z-10">
-                    <span className="mx-auto grid size-14 place-items-center rounded-full border border-gold-300/30 bg-gold-300/[0.07]"><Upload className="size-6 text-gold-100" aria-hidden /></span>
+                    <span className="mx-auto grid size-14 place-items-center rounded-full border border-gold-300/30 bg-gold-300/[0.07]"><FileArrowUp className="size-7 text-gold-100" weight="duotone" aria-hidden /></span>
                     <span className={`${styles.serif} mt-3 block text-xl text-white`}>Drop your take here</span>
                     <span className="mt-1 block text-sm text-white/55">or click to choose · MP4, MOV or WebM · {MIMIC_CAPABILITY.minClipMs / 1000}–{MAX_MIMIC_SOURCE_MS / 1000} s · under 80 MB</span>
                   </span>
@@ -297,7 +297,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
               <input ref={fileInput} type="file" accept={VIDEO_TYPES.join(",")} hidden onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void addSource(file, "uploaded") }} />
               {sourceTab === "library" && (
                 library === null ? <p className="flex items-center gap-2 py-10 text-sm text-white/60"><Loader2 className="size-4 animate-spin" aria-hidden />Loading your videos…</p>
-                  : library.length === 0 ? <p className={`${styles.monitor} grid aspect-video place-items-center p-6 text-center text-sm text-white/60`}><span className="relative z-10">Nothing in My videos yet. Record or upload a take instead.</span></p>
+                  : library.length === 0 ? <p className={`${styles.monitor} grid aspect-[4/5] place-items-center p-6 text-center text-sm text-white/60 sm:aspect-video`}><span className="relative z-10">Nothing in My videos yet. Record or upload a take instead.</span></p>
                     : (
                       <ul className="grid max-h-[52dvh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
                         {library.map(item => (
