@@ -26,6 +26,7 @@ import { ClipPanel, type TakeStatus } from './ClipPanel';
 import { ColorGradePicker } from './ColorGradePicker';
 import { MusicPanel } from './MusicPanel';
 import { TextPanel } from './TextPanel';
+import { TranscriptPanel, type TranscriptPanelProps } from './TranscriptPanel';
 import { ExportSheet } from './ExportSheet';
 import { FormatPanel } from './FormatPanel';
 import { ToolRail, TABS, type Tab } from './ToolRail';
@@ -46,6 +47,8 @@ export type RenderState = {
 };
 
 export interface EditorWorkspaceProps {
+  /** The Transcript tool; hidden when not given. */
+  transcript?: TranscriptPanelProps;
   /** Loads Long Form locked audio for the preview; the dev preview passes sample data. */
   lockedAudioLoader?: Parameters<typeof PreviewPlayer>[0]['lockedAudioLoader'];
   backHref: string;
@@ -279,6 +282,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
           hasShots={shots.length > 0}
         />
       );
+    if (id === 'transcript') return props.transcript ? <TranscriptPanel {...props.transcript} /> : null;
     if (id === 'clip') return <ClipPanel onSyncToBeat={syncToBeat} onRegenerate={props.onRegenerate} takeStatus={props.takeStatus} />;
     if (id === 'look') return <ColorGradePicker selectedId={timeline?.color_grade_id || 'natural'} onSelect={timelineStore.setGrade} row={!desktop} />;
     if (id === 'format') return <FormatPanel />;
@@ -474,7 +478,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
                           animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: 10 }}
                           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                          className={`ed-scroll min-h-0 flex-1 ${tab === 'ai' ? 'flex flex-col' : 'overflow-y-auto'}`}
+                          className={`ed-scroll min-h-0 flex-1 ${tab === 'ai' || tab === 'transcript' ? 'flex flex-col' : 'overflow-y-auto'}`}
                         >
                           {panel(tab)}
                         </motion.div>
@@ -614,7 +618,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
                     key="sheet"
                     title={TABS.find((t) => t.id === sheet)!.title}
                     onClose={() => setSheet(null)}
-                    tall={sheet === 'ai'}
+                    tall={sheet === 'ai' || sheet === 'transcript'}
                     // Changes you judge by eye keep the preview bright and visible.
                     seeThrough={sheet === 'look' || sheet === 'format'}
                   >

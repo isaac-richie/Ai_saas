@@ -77,6 +77,14 @@ export const TextGlyph: Glyph = (p) => (
   </Svg>
 );
 
+/** Transcript: lines of text with one word picked out, the way a cut is chosen. */
+export const TranscriptGlyph: Glyph = (p) => (
+  <Svg {...p}>
+    <path d="M4 6.5h16M4 11.5h4.5M15.5 11.5H20M4 16.5h11" />
+    <rect x="9.5" y="9" width="5" height="5" rx="1.5" {...accent} />
+  </Svg>
+);
+
 /** Light: a sphere lit from the top-left, with the key light's rays coming in. */
 export const LightGlyph: Glyph = (p) => (
   <Svg {...p}>

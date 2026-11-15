@@ -7,6 +7,21 @@ import type { TimelineClip, TimelineTrack } from '@/core/types/timeline';
 import type { TakeStatus } from '@/interface/components/editor/ClipPanel';
 import { applyTake, rippleFrom } from '@/core/services/take-regenerate';
 import type { OwnerShare } from '@/core/actions/video-review';
+import { correctWords, transcriptCaptions, type SourceTranscript } from '@/core/services/transcript';
+
+/** Pretend transcripts for the three sample shots, timed in each shot's own footage. */
+function devTranscripts(): SourceTranscript[] {
+  const said = (key: string, line: string, startMs: number, endMs: number) => {
+    const parts = line.split(' ');
+    const step = (endMs - startMs) / parts.length;
+    return { source_key: key, language: 'english', words: parts.map((text, i) => ({ id: `w${i}`, text, start_ms: Math.round(startMs + i * step), end_ms: Math.round(startMs + (i + 0.8) * step), ...(text.startsWith('Visiowave') ? { low: true } : {}) })) };
+  };
+  return [
+    said('/__dev/shot1.mp4', 'So um this is where the bloom opens up.', 200, 3800),
+    said('/__dev/shot2.mp4', 'Uh the sky turns gold right about here.', 300, 3700),
+    said('/__dev/shot3.mp4', 'And then the stars, made with Visiowave.', 400, 4600),
+  ];
+}
 
 const base = { take_id: null, trim_start_ms: 0, trim_end_ms: null, volume: 1, opacity: 1, transition_in: null, transition_in_ms: 0, transition_out: null, transition_out_ms: 0, color_grade_id: null, order_index: 0, created_at: '', updated_at: '' };
 const clip = (c: Partial<TimelineClip> & Pick<TimelineClip, 'id' | 'track_id' | 'start_ms' | 'end_ms'>): TimelineClip =>
@@ -69,6 +84,7 @@ export function DevEditor() {
   const [notice, setNotice] = useState<string | null>(null);
   const [takeStatus, setTakeStatus] = useState<Record<string, TakeStatus>>({});
   const [reviews, setReviews] = useState<OwnerShare[]>([]);
+  const [transcripts, setTranscripts] = useState<SourceTranscript[]>([]);
 
   useEffect(() => {
     useTimelineStore.getState().load(sample);
@@ -110,6 +126,26 @@ export function DevEditor() {
         s.selectClip(id);
       }}
       onAutoCaptions={async () => { await wait(800); return 'Preview only: auto captions need a finished video.'; }}
+      transcript={{
+        transcripts,
+        ready: true,
+        onTranscribe: async () => { await wait(900); setTranscripts(devTranscripts()); return null; },
+        onCorrect: async (key, wordId, text) => {
+          await wait(300);
+          const t = transcripts.find((x) => x.source_key === key);
+          const words = t && correctWords(t.words, wordId, text);
+          if (!words) return 'Type the word as it should read (up to 60 characters).';
+          setTranscripts((all) => all.map((x) => (x.source_key === key ? { ...x, words } : x)));
+          return null;
+        },
+        onCaptions: async () => {
+          const s = useTimelineStore.getState();
+          const segs = transcriptCaptions(s.clips.filter((c) => c.track_id === 'v'), transcripts);
+          const made = segs.map((seg, i) => clip({ id: `auto${Date.now()}${i}`, track_id: 't', clip_type: 'caption', start_ms: Math.round(seg.start_sec * 1000), end_ms: Math.round(seg.end_sec * 1000), metadata: { text: seg.text, style: 'standard', source: 'auto' } }));
+          s.commitClips([...s.clips.filter((c) => (c.metadata as { source?: string }).source !== 'auto'), ...made], `dev-captions:${Date.now()}`);
+          return null;
+        },
+      }}
       takeStatus={takeStatus}
       reviews={reviews}
       onShareForReview={async () => {
