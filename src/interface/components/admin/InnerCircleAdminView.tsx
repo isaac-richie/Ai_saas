@@ -1,4 +1,4 @@
-import { ArrowUpRight, ChevronDown, KeyRound, MessageSquareQuote, Sparkles, Users } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, KeyRound, MessageSquareQuote, Sparkles, Users } from '@/interface/components/ui/icons';
 import { buildInsights, type WaitlistRow } from '@/core/utils/inner-circle/insights';
 import { AccessButton, CopyButton, MembersPanel, Monogram, type MemberRow } from '@/interface/components/admin/InnerCircleAdmin';
 

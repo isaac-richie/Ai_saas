@@ -4,7 +4,7 @@
 import { normalizeReferenceImage } from "./normalize-image"
 import { uploadReferenceFile } from "./upload-reference"
 import { useRef, useState } from "react"
-import { AudioLines, ImagePlus, Loader2, LockKeyhole, RefreshCw, Sparkles, Upload, X } from "lucide-react"
+import { AudioLines, ImagePlus, Loader2, LockKeyhole, RefreshCw, Sparkles, Upload, X } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 import { MAX_PRODUCTION_REFERENCES, MAX_SHOT_REFERENCES, labelProductionAssets, type ProductionAsset } from "@/core/validation/production-assets"
 import styles from "./ProductionReferences.module.css"

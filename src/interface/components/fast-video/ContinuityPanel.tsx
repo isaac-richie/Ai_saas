@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, ImagePlus, X } from "lucide-react"
+import { AlertTriangle, ImagePlus, X } from "@/interface/components/ui/icons"
 import { Input } from "@/interface/components/ui/input"
 import { referenceRoles, type MediaReference } from "@/core/validation/media-reference"
 

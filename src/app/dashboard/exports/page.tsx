@@ -1,6 +1,6 @@
 import { Metadata } from "next"
 import Link from "next/link"
-import { ArrowUpRight, Images } from "lucide-react"
+import { ArrowUpRight, Images } from "@/interface/components/ui/icons"
 import { listExportJobs } from "@/core/actions/exports"
 import { ExportJobsPanel } from "@/interface/components/exports/ExportJobsPanel"
 import { WorkspaceHeading } from "@/interface/components/layout/WorkspaceHeading"

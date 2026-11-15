@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowRight, Check, ListPlus, Loader2, Pencil, RotateCcw, Sparkles, Video } from "lucide-react"
+import { ArrowRight, Check, ListPlus, Loader2, Pencil, RotateCcw, Sparkles, Video } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 import { Button } from "@/interface/components/ui/button"
 import { generateShot, generateVideoShot } from "@/core/actions/generation"

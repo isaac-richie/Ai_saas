@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Card, CardContent } from "@/interface/components/ui/card"
 import { Button } from "@/interface/components/ui/button"
-import { Gauge } from "lucide-react"
+import { Gauge } from "@/interface/components/ui/icons"
 
 const REDUCE_MOTION_STORAGE_KEY = "aisas.motion.reduce"
 

@@ -2,7 +2,7 @@
 import { resolveLockedRoles } from "@/core/validation/media-reference"
 
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
-import { ImagePlus, Film, AudioLines, LockKeyhole, ChevronDown, Loader2, Check } from "lucide-react"
+import { ImagePlus, Film, AudioLines, LockKeyhole, ChevronDown, Loader2, Check } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 import { createClient } from "@/infrastructure/supabase/client"
 import { continueWithoutAnalysisTarget, labelReferences, planReferenceDelivery, type ReferenceDelivery, MAX_REFERENCE_BYTES, MAX_REFERENCES, REFERENCE_BUCKET, REFERENCE_MIME_TYPES, REFERENCE_ROLES, ROLE_CONTROLS, mediaReferenceSchema, referenceAnalysisSchema, referenceCompatibility, referenceConflicts, referenceRoles, unseenVideoReferences, withRoles, type MediaReference } from "@/core/validation/media-reference"

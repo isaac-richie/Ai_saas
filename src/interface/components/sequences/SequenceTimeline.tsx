@@ -2,7 +2,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { GripVertical, Trash2 } from "lucide-react"
+import { GripVertical, Trash2 } from "@/interface/components/ui/icons"
 import { Button } from "@/interface/components/ui/button"
 import { moveSequenceShot, removeSequenceShot } from "@/core/actions/sequences"
 import { toast } from "sonner"

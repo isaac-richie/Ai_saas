@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowUpRight, Download } from 'lucide-react';
+import { ArrowUpRight, Download } from '@/interface/components/ui/icons';
 import { MediaGallery } from '@/interface/components/media/MediaGallery';
 import { getGalleryAssets } from '@/core/actions/gallery';
 import { getProjects } from '@/core/actions/projects';

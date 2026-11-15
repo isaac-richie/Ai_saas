@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Users, X } from "lucide-react"
+import { Check, Users, X } from "@/interface/components/ui/icons"
 import { motion } from "framer-motion"
 
 type ComparisonRowProps = {

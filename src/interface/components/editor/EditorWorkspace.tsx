@@ -7,7 +7,7 @@ import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, ChevronLeft, Clapperboard, History, ImagePlus, Loader2, Maximize, MessageSquare, Music2, PanelLeftClose,
   Plus, Redo2, Scissors, SlidersHorizontal, Trash2, Type, Undo2, Upload, Wand2, X, ZoomIn, ZoomOut,
-} from 'lucide-react';
+} from '@/interface/components/ui/icons';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useMediaQuery } from '@/interface/hooks/use-media-query';
 import { useStoredValue } from '@/interface/hooks/use-stored-value';

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Film } from "lucide-react"
+import { Film } from "@/interface/components/ui/icons"
 import { motion, useScroll, useTransform, useMotionValueEvent, useReducedMotion } from "framer-motion"
 
 /**

@@ -2,7 +2,7 @@
 
 import type * as React from 'react'
 import { useState, useEffect } from 'react'
-import { Plus, Check, ExternalLink } from 'lucide-react'
+import { Plus, Check, ExternalLink } from '@/interface/components/ui/icons'
 import { toast } from 'sonner'
 
 // Define types since we are using TypeScript

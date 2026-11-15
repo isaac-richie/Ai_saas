@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Pause, Play, SkipBack, SkipForward } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pause, Play, SkipBack, SkipForward } from '@/interface/components/ui/icons';
 import type { TimelineClip } from '@/core/types/timeline';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { formatClock, formatTime } from './labels';

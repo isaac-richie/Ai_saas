@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Clock, Loader2, MessageSquare, RotateCcw, Send } from 'lucide-react';
+import { Check, Clock, Loader2, MessageSquare, RotateCcw, Send } from '@/interface/components/ui/icons';
 import { noteTime, type GuestShare, type ReviewNote, type ShareStatus } from '@/core/services/video-review';
 
 const NAME_KEY = 'visiowave.review-name';

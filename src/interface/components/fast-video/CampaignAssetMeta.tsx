@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Flag, Lock, Package, ShieldAlert, UserRound } from "lucide-react"
+import { Check, Flag, Lock, Package, ShieldAlert, UserRound } from "@/interface/components/ui/icons"
 import { applicableQualityChecks, type CampaignReferences, type QualityFlags } from "@/core/validation/campaign-references"
 
 /**

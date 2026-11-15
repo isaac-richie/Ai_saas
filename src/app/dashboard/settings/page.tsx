@@ -2,7 +2,7 @@ import { ApiKeyList } from '@/interface/components/settings/ApiKeyList';
 import { PreferredProviderCard } from '@/interface/components/settings/PreferredProviderCard';
 import { MotionSettingsCard } from '@/interface/components/settings/MotionSettingsCard';
 import { BillingPlanCard } from '@/interface/components/settings/BillingPlanCard';
-import { ShieldCheck, ArrowDownRight } from 'lucide-react';
+import { ShieldCheck, ArrowDownRight } from '@/interface/components/ui/icons';
 import { getMyBillingSnapshot } from '@/core/actions/billing';
 import { WorkspaceHeading } from '@/interface/components/layout/WorkspaceHeading';
 

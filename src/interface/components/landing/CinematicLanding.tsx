@@ -15,7 +15,7 @@ import {
   Film,
   Layers,
   WandSparkles,
-} from 'lucide-react';
+} from '@/interface/components/ui/icons';
 import { AnimatedBrandMark } from '@/interface/components/branding/AnimatedBrandMark';
 
 export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean }) {

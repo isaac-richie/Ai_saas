@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { AlertTriangle, Box, Check, Clock, Download, Film, Loader2, Pencil, Plus, ShieldCheck, Sparkles, Trash2, Upload, User } from "lucide-react"
+import { AlertTriangle, Box, Check, Clock, Download, Film, Loader2, Pencil, Plus, ShieldCheck, Sparkles, Trash2, Upload, User } from "@/interface/components/ui/icons"
 import { FilmReel, UploadSimple, VideoCamera } from "@phosphor-icons/react"
 import {
   createMimicTask, deleteMimicTask, duplicateMimicTask, generateMimic, listMimicTasks, refreshMimic, releaseUnconfirmedMimic, saveMimicTask, saveMimicToVideos,

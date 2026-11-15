@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
-import { ArrowRight, Chrome, Zap, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, Chrome, Zap, CheckCircle2, Eye, EyeOff } from '@/interface/components/ui/icons';
 import { signup } from '@/core/actions/auth';
 import { signupSchema, SignupInput } from '@/core/types/auth';
 import { createClient } from '@/infrastructure/supabase/client';

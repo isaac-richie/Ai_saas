@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, type CSSProperties } from "react"
-import { Columns2, Pause, Play, Volume2, VolumeX } from "lucide-react"
+import { Columns2, Pause, Play, Volume2, VolumeX } from "@/interface/components/ui/icons"
 import styles from "./mimic.module.css"
 
 type Mode = "wipe" | "side" | "result"

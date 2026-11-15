@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "@/interface/components/ui/icons"
 import { Select as SelectPrimitive } from "radix-ui"
 
 import { cn } from "@/core/utils/index"

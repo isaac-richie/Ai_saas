@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Aperture, Camera, Check, Palette, Sparkles, X } from "lucide-react"
+import { Aperture, Camera, Check, Palette, Sparkles, X } from "@/interface/components/ui/icons"
 import type { PromptCategory } from "@/core/utils/prompts/builder"
 import { AspectGlyph } from "@/interface/components/fast-video/PresetPicker"
 

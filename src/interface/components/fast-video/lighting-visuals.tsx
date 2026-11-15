@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import type * as React from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion } from "framer-motion"
-import { Check, LayoutGrid, X } from "lucide-react"
+import { Check, LayoutGrid, X } from "@/interface/components/ui/icons"
 import { LIGHTING_GROUP_GLYPHS, LightGlyph } from "@/interface/components/editor/glyphs"
 import { LIGHTING_GROUPS, LIGHTING_PRESETS, findLightingPreset, type LightingGroup, type LightingPreset } from "@/core/config/lighting-presets"
 

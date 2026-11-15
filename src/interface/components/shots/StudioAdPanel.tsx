@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { WandSparkles, Loader2, Copy, ShieldCheck, AlertTriangle, Sparkles, Wand2 } from 'lucide-react';
+import { WandSparkles, Loader2, Copy, ShieldCheck, AlertTriangle, Sparkles, Wand2 } from '@/interface/components/ui/icons';
 import { Button } from '@/interface/components/ui/button';
 import { Textarea } from '@/interface/components/ui/textarea';
 import {

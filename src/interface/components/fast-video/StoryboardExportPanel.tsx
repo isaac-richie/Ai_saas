@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/interface/components/ui/button"
-import { Film, Loader2, Wand2 } from "lucide-react"
+import { Film, Loader2, Wand2 } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 import { approvedForRender, type ShotReview } from "./storyboard-continuity"
 import { queueGalleryExport, type ExportProfile } from "@/core/actions/exports"

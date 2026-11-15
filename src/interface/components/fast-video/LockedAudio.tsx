@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { AudioLines, Loader2, Mic, Music2, Sparkles, Upload, Waves, X, Zap } from "lucide-react"
+import { AudioLines, Loader2, Mic, Music2, Sparkles, Upload, Waves, X, Zap } from "@/interface/components/ui/icons"
 import { createClient } from "@/infrastructure/supabase/client"
 import {
   AI_AUDIO_CAPABILITIES, AUDIO_PURPOSES, AUDIO_PURPOSE_LABELS, defaultPlacement, voicePreviewUrl,

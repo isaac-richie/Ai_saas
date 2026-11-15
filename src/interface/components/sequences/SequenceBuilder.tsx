@@ -8,7 +8,7 @@ import { Button } from "@/interface/components/ui/button"
 import { Badge } from "@/interface/components/ui/badge"
 import { moveSequenceShot, removeSequenceShot, updateSequenceFinishing, updateSequenceShotEdit } from "@/core/actions/sequences"
 import { SequenceTimeline } from "@/interface/components/sequences/SequenceTimeline"
-import { ArrowUp, ArrowDown, Trash2, Clapperboard, Film, Video, Upload } from "lucide-react"
+import { ArrowUp, ArrowDown, Trash2, Clapperboard, Film, Video, Upload } from "@/interface/components/ui/icons"
 import { toast } from "sonner"
 
 type SequenceItem = {

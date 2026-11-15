@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { CloudDownload, CloudUpload } from "lucide-react"
+import { CloudDownload, CloudUpload } from "@/interface/components/ui/icons"
 import { referenceLibrarySchema, type MediaReference } from "@/core/validation/media-reference"
 import { hasShotFrames, shotFramesSchema, type ShotFrames } from "@/core/validation/shot-frames"
 

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2, Upload } from '@/interface/components/ui/icons';
 import { startBlankEdit } from '@/core/actions/editor-hub';
 
 /** Starts an empty edit and opens it, where the creator adds videos from their own device. */

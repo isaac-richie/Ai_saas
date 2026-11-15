@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUp, Check, Eye, History, Music2, RefreshCw, Sun, Timer, Undo2, Wand2 } from 'lucide-react';
+import { ArrowUp, Check, Eye, History, Music2, RefreshCw, Sun, Timer, Undo2, Wand2 } from '@/interface/components/ui/icons';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { AUTO_EDIT_STYLES, type AutoEditStyle } from '@/core/services/auto-edit';
 

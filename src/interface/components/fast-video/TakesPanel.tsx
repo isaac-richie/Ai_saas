@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/interface/components/ui/button"
-import { Check, Trash2, Play, RotateCcw } from "lucide-react"
+import { Check, Trash2, Play, RotateCcw } from "@/interface/components/ui/icons"
 import type { MediaReference } from "@/core/validation/media-reference"
 
 export type TakeItem = {

@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Clapperboard, Clock, Film, Images, Volume2 } from "lucide-react"
+import { Check, Clapperboard, Clock, Film, Images, Volume2 } from "@/interface/components/ui/icons"
 import type * as React from "react"
 import type { PromptTemplate } from "@/core/config/fast-video-templates"
 import { MOTION_PRESETS, STYLE_PRESETS } from "@/core/config/fast-video-presets"

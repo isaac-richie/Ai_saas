@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type * as React from "react"
-import { Clapperboard, Sparkles } from "lucide-react"
+import { Clapperboard, Sparkles } from "@/interface/components/ui/icons"
 
 export type CreateMode = "quick" | "film"
 

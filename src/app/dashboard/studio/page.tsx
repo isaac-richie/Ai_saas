@@ -5,7 +5,7 @@ import { CreateProjectDialog } from "@/interface/components/dashboard/CreateProj
 import { getProjects } from "@/core/actions/projects";
 import { getScenes } from "@/core/actions/scenes";
 import { STUDIO_ENABLED } from "@/core/config/feature-flags";
-import { ArrowRight, Lock } from "lucide-react";
+import { ArrowRight, Lock } from "@/interface/components/ui/icons";
 import { DeleteProjectButton } from "@/interface/components/dashboard/DeleteProjectButton";
 import { WorkspaceHeading } from "@/interface/components/layout/WorkspaceHeading";
 

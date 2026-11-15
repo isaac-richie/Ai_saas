@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Dialog, DialogContent, DialogTitle } from "@/interface/components/ui/dialog"
 import { Input } from "@/interface/components/ui/input"
 import { Button } from "@/interface/components/ui/button"
-import { Command, Film, FolderKanban, GalleryHorizontalEnd, Sparkles, Video, Wand2 } from "lucide-react"
+import { Command, Film, FolderKanban, GalleryHorizontalEnd, Sparkles, Video, Wand2 } from "@/interface/components/ui/icons"
 
 type CommandItem = {
   id: string

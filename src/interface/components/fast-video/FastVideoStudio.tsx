@@ -73,7 +73,7 @@ import {
   Pencil,
   Check,
   X,
-} from "lucide-react"
+} from "@/interface/components/ui/icons"
 import { buildMediaFilename } from "@/lib/download-filename"
 import { saveFastVideoClipToGallery } from "@/core/actions/fast-video"
 import { TakesPanel, type TakeItem } from "./TakesPanel"

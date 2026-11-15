@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Sparkles, ArrowRight, Loader2, Check, Copy } from "lucide-react"
+import { Sparkles, ArrowRight, Loader2, Check, Copy } from "@/interface/components/ui/icons"
 
 const fadeUpInitial = { opacity: 0, y: 24 }
 const fadeUpAnimate = { opacity: 1, y: 0 }

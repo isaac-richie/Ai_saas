@@ -2,7 +2,7 @@
 
 import { toast } from "sonner"
 import { useState } from "react"
-import { Trash2 } from "lucide-react"
+import { Trash2 } from "@/interface/components/ui/icons"
 import { useRouter } from "next/navigation"
 import { deleteElement } from "@/core/actions/elements"
 import { Button } from "@/interface/components/ui/button"
