@@ -196,13 +196,18 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 ref={video}
                 poster="/landing-poster.webp?v=20260912"
                 preload="auto"
-                // Starts on its own (browsers only allow that muted); native controls let anyone
-                // unmute, pause, scrub, rewind or go fullscreen. Reduced-motion visitors start paused.
+                // A backdrop, not a player: it starts on its own (browsers only allow that muted) and
+                // has no native controls, so nothing sits over the headline. The sound button below is
+                // the one control. Reduced-motion visitors start paused; a tap starts it.
                 autoPlay
                 muted
                 playsInline
                 loop
-                controls
+                disablePictureInPicture
+                disableRemotePlayback
+                controlsList="nodownload nofullscreen noremoteplayback"
+                tabIndex={-1}
+                onContextMenu={(event) => event.preventDefault()}
                 onClick={() => { if (!playing) void toggleFilm() }}
                 onVolumeChange={(event) => setMuted(event.currentTarget.muted)}
                 onCanPlay={(event) => {

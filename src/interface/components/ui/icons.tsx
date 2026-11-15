@@ -176,3 +176,24 @@ export const XIcon = icon(PhX, "XIcon")
 export const Zap = icon(PhLightning, "Zap")
 export const ZoomIn = icon(PhMagnifyingGlassPlus, "ZoomIn")
 export const ZoomOut = icon(PhMagnifyingGlassMinus, "ZoomOut")
+
+/**
+ * Create: Visiowave's own mark for making a shot. A four-point spark inside a camera's viewfinder
+ * corners. Drawn in the same weights as the Phosphor icons around it: regular is outlines, duotone
+ * adds a soft fill to the spark, fill makes the spark solid and the corners heavier.
+ */
+export function CreateGlyph({ size = 24, weight = "duotone", className, ...rest }: AppIconProps) {
+  const solid = weight === "fill" || weight === "bold"
+  const labelled = Boolean(rest["aria-label"] || rest["aria-labelledby"])
+  const corner = solid ? 2.1 : weight === "thin" || weight === "light" ? 1.3 : 1.7
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"
+      className={className} aria-hidden={labelled ? undefined : true} {...rest}>
+      <path d="M3.5 8.5V6a2.5 2.5 0 0 1 2.5-2.5h2.5M15.5 3.5H18A2.5 2.5 0 0 1 20.5 6v2.5M20.5 15.5V18a2.5 2.5 0 0 1-2.5 2.5h-2.5M8.5 20.5H6A2.5 2.5 0 0 1 3.5 18v-2.5" strokeWidth={corner} />
+      <path
+        d="M12 6.6c.55 2.85 2.55 4.85 5.4 5.4-2.85.55-4.85 2.55-5.4 5.4-.55-2.85-2.55-4.85-5.4-5.4 2.85-.55 4.85-2.55 5.4-5.4Z"
+        fill="currentColor" fillOpacity={solid ? 1 : weight === "duotone" ? 0.28 : 0} strokeWidth={solid ? 1.2 : 1.6}
+      />
+    </svg>
+  )
+}
