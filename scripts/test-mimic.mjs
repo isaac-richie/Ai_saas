@@ -319,3 +319,9 @@ describe('Redesigned workspace', () => {
     assert.match(src('../src/app/dev/mimic/page.tsx'), /if \(production\) notFound\(\)/);
   });
 });
+
+describe('Several changes in one take', () => {
+  it('are on unless switched off', () => {
+    assert.match(src('../src/core/config/feature-flags.ts'), /NEXT_PUBLIC_MIMIC_MULTI_SUBJECT, true\)/);
+  });
+});

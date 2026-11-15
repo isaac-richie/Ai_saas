@@ -42,7 +42,7 @@ export function DevMimic() {
     };
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
     return {
-      list: (async () => ({ data: { tasks: store.tasks, multiSubject: false, available: true } })) as MimicActions['list'],
+      list: (async () => ({ data: { tasks: store.tasks, multiSubject: true, available: true } })) as MimicActions['list'],
       create: (async (input: unknown) => {
         const { url, name, origin } = input as { url: string; name: string; origin: MimicTaskView['source']['origin'] };
         await wait(900);
