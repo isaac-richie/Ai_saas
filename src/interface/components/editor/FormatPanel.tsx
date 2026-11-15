@@ -109,7 +109,7 @@ export function FormatPanel() {
           })}
         </div>
       </section>
-      <p className="text-xs leading-relaxed text-[#7d858f]">The preview above shows the new shape right away. Make video again to get a file in this shape.</p>
+      <p className="text-xs leading-relaxed text-[#7d858f]">The preview above shows the new shape right away. Export the video again to get a file in this shape.</p>
     </div>
   );
 }

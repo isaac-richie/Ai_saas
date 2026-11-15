@@ -579,9 +579,9 @@ export function EditorView({ projectId, title }: { projectId: string; title?: st
   };
 
   const onAutoCaptions = async (): Promise<string | null> => {
-    if (!render.storageKey) return 'Make your video first.';
+    // Captions are made from the edit as it is now; no export is needed first.
     await flush();
-    const { ok, data } = await postJson('/api/timeline/captions', { timeline_id: timelineId(), storage_key: render.storageKey });
+    const { ok, data } = await postJson('/api/timeline/captions', { timeline_id: timelineId() });
     if (!ok) return data.error || 'Could not create captions.';
     await loadTimeline(`captions:${Date.now()}`);
     return null;

@@ -1,10 +1,10 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Check, Loader2, Plus } from 'lucide-react';
+import { Check, Download, Loader2, Plus } from 'lucide-react';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { useFilmstrip } from '@/interface/lib/media-thumbs';
-import { CAPTION_STYLES, isCaptionStyle, type CaptionStyle } from '@/core/services/captions';
+import { CAPTION_STYLES, isCaptionStyle, segmentsToSrt, segmentsToVtt, timelineCaptionSegments, type CaptionStyle } from '@/core/services/captions';
 import { CAPTION_PREVIEW_CLASS, formatClock } from './labels';
 
 const STYLE_IDS = Object.keys(CAPTION_STYLES) as CaptionStyle[];
@@ -33,10 +33,22 @@ function CaptionsArt() {
   );
 }
 
-export function TextPanel({ onAddText, onAutoCaptions, hasRender }: {
+/** Saves a subtitle file in the browser. */
+function download(name: string, text: string, type: string) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Speech captions come from auto captions; anything typed is a title, independent of the sound. */
+const isSpeechCaption = (metadata: unknown) => (metadata as { source?: unknown } | null)?.source === 'auto';
+
+export function TextPanel({ onAddText, onAutoCaptions }: {
   onAddText: () => Promise<void>;
   onAutoCaptions: () => Promise<string | null>;
-  hasRender: boolean;
 }) {
   const { clips, tracks, playhead_ms, selectClip, commitClips } = useTimelineStore();
   const [busy, setBusy] = useState<'add' | 'auto' | null>(null);
@@ -46,6 +58,7 @@ export function TextPanel({ onAddText, onAutoCaptions, hasRender }: {
   const captions = clips.filter((c) => c.track_id === captionTrack?.id).sort((a, b) => a.start_ms - b.start_ms);
   const styles = new Set(captions.map((c) => (c.metadata as { style?: string })?.style).map((s) => (isCaptionStyle(s) ? s : 'standard')));
   const current = styles.size === 1 ? [...styles][0] : null;
+  const spoken = captions.filter((c) => isSpeechCaption(c.metadata));
 
   // The style cards show the shot under the playhead, so the choice is made on your own picture.
   const videoTrack = tracks.find((t) => t.track_type === 'video');
@@ -109,8 +122,7 @@ export function TextPanel({ onAddText, onAutoCaptions, hasRender }: {
         <CaptionsArt />
         <p className="mt-2 text-[14px] font-medium text-white">Auto captions</p>
         <p className="mt-0.5 text-[12.5px] leading-relaxed text-[#9aa3ad]">
-          Listens to your video and writes down what&apos;s said, timed to each word.
-          {!hasRender && ' Make your video once first so there’s sound to listen to.'}
+          Listens to your edit as it is now and writes down what&apos;s said, timed to each word. No export needed. Running it again replaces earlier captions; titles you typed stay.
         </p>
         <button
           onClick={async () => {
@@ -120,7 +132,7 @@ export function TextPanel({ onAddText, onAutoCaptions, hasRender }: {
             setBusy(null);
             setMessage(problem ? { tone: 'error', text: problem } : { tone: 'ok', text: 'Captions added. Tap one to change it.' });
           }}
-          disabled={!hasRender || busy !== null}
+          disabled={busy !== null}
           className="mt-3 flex h-9 items-center gap-2 rounded-full border border-[#b6ddd3]/40 px-4 text-[13px] text-[#dff1ec] transition-colors hover:bg-[#b6ddd3]/10 disabled:opacity-40"
         >
           {busy === 'auto' && <Loader2 size={14} className="animate-spin" />} {busy === 'auto' ? 'Listening…' : 'Create auto captions'}
@@ -132,15 +144,31 @@ export function TextPanel({ onAddText, onAutoCaptions, hasRender }: {
         </p>
       )}
 
+      {spoken.length > 0 && (
+        <section className="space-y-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-3">
+          <p className="text-[13px] text-white">Subtitle file</p>
+          <p className="text-[12px] leading-relaxed text-[#9aa3ad]">The {spoken.length} speech caption{spoken.length === 1 ? '' : 's'}, with your spelling fixes, for players and platforms that load subtitles separately. Titles aren&apos;t included.</p>
+          <div className="flex gap-2">
+            {([['SRT', 'srt', 'application/x-subrip', segmentsToSrt], ['VTT', 'vtt', 'text/vtt', segmentsToVtt]] as const).map(([label, ext, type, write]) => (
+              <button key={ext} onClick={() => download(`captions.${ext}`, write(timelineCaptionSegments(captions)), type)}
+                className="flex h-8 items-center gap-1.5 rounded-full border border-white/15 px-3 text-[12px] text-[#e8e2d2] transition-colors hover:bg-white/[0.06]">
+                <Download size={13} /> {label}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {captions.length > 0 && (
         <section className="space-y-2">
-          <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#b0b8c4]">On screen · {captions.length}</h4>
+          <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#b0b8c4]">On screen · {spoken.length} caption{spoken.length === 1 ? '' : 's'} · {captions.length - spoken.length} title{captions.length - spoken.length === 1 ? '' : 's'}</h4>
           <ul className="space-y-1">
             {captions.slice(0, 50).map((c) => (
               <li key={c.id}>
                 <button onClick={() => selectClip(c.id)} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-white/[0.05]">
                   <span className="shrink-0 rounded-md bg-[#c9b6e8]/12 px-1.5 py-0.5 font-mono text-[10.5px] tabular-nums text-[#d9c9f3]">{formatClock(c.start_ms)}</span>
-                  <span className="min-w-0 truncate text-[13px] text-[#e8e2d2]">{String((c.metadata as { text?: string })?.text || 'Text')}</span>
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-[#e8e2d2]">{String((c.metadata as { text?: string })?.text || 'Text')}</span>
+                  <span className="shrink-0 text-[10px] uppercase tracking-wide text-[#7d858f]">{isSpeechCaption(c.metadata) ? 'Caption' : 'Title'}</span>
                 </button>
               </li>
             ))}
