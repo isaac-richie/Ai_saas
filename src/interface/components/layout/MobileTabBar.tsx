@@ -37,7 +37,7 @@ export function MobileTabBar() {
                                             ? "border border-gold-300/50 bg-[#141614] text-gold-200 shadow-[0_10px_30px_-12px_rgba(0,0,0,0.9)]"
                                             : "bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[#1a160e] shadow-[0_10px_30px_-8px_rgba(217,192,138,0.75),inset_0_1px_0_rgba(255,255,255,0.6)]"
                                     )}>
-                                        <Icon className="size-6" strokeWidth={1.8} />
+                                        <Icon className="size-6" weight="fill" />
                                     </span>
                                     <span className={cn("text-[11px] font-medium", active ? "text-gold-100" : "text-[#d6d0c0]")}>{item.name}</span>
                                 </Link>
@@ -55,7 +55,7 @@ export function MobileTabBar() {
                                     active ? "text-gold-200" : "text-[#a9aba3] active:text-white"
                                 )}
                             >
-                                <Icon className="size-[22px]" strokeWidth={active ? 2 : 1.6} />
+                                <Icon className="size-[22px]" weight={active ? "fill" : "duotone"} />
                                 {item.name}
                                 <span className={cn("h-0.5 w-4 rounded-full transition-opacity", active ? "bg-gold-300 opacity-100" : "opacity-0")} />
                             </Link>

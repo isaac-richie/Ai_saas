@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { AlertTriangle, Box, Check, Clock, Download, Film, Images, Loader2, Pencil, Plus, ShieldCheck, Sparkles, Trash2, Upload, User, Video } from "lucide-react"
+import { AlertTriangle, Box, Check, Clock, Download, Film, Loader2, Pencil, Plus, ShieldCheck, Sparkles, Trash2, Upload, User } from "lucide-react"
+import { FilmReel, UploadSimple, VideoCamera } from "@phosphor-icons/react"
 import {
   createMimicTask, deleteMimicTask, duplicateMimicTask, generateMimic, listMimicTasks, refreshMimic, releaseUnconfirmedMimic, saveMimicTask, saveMimicToVideos,
   type MimicTaskView,
@@ -273,11 +274,11 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                 <p className="hidden text-xs text-white/45 md:block">Or drop a video anywhere here</p>
               </div>
               <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Where the take comes from">
-                {([["record", "Record", "With this camera", Video], ["upload", "Upload", "A file you have", Upload], ["library", "My videos", "Something you made", Images]] as const).map(([id, title, hint, Icon]) => (
+                {([["record", "Record", "With this camera", VideoCamera], ["upload", "Upload", "A file you have", UploadSimple], ["library", "My videos", "Something you made", FilmReel]] as const).map(([id, title, hint, Icon]) => (
                   <button key={id} type="button" role="radio" aria-checked={sourceTab === id} disabled={busySource}
                     onClick={() => id === "library" ? void openLibrary() : setSourceTab(id)} className={`${styles.tile} p-3 text-left sm:p-4`}>
-                    <Icon className={`size-5 ${sourceTab === id ? "text-gold-200" : "text-white/55"}`} aria-hidden />
-                    <span className="mt-2 block text-sm text-white">{title}</span>
+                    <Icon className={`size-[22px] ${sourceTab === id ? "text-gold-200" : "text-white/55"}`} weight={sourceTab === id ? "fill" : "duotone"} aria-hidden />
+                    <span className="mt-2 block whitespace-nowrap text-[13px] text-white sm:text-sm">{title}</span>
                     <span className="hidden text-[11px] text-white/45 sm:block">{hint}</span>
                   </button>
                 ))}
