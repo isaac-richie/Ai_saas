@@ -29,7 +29,7 @@ export function ProductDemo() {
           <div className="relative z-10">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-gold-400/20 bg-gold-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-gold-300">
               <Zap className="h-3 w-3" />
-              Fast Track
+              Quick video
             </div>
 
             <h3 className="mb-2 text-lg font-semibold text-white/90">
@@ -69,14 +69,14 @@ export function ProductDemo() {
           <div className="relative z-10">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-orange-300">
               <Sparkles className="h-3 w-3" />
-              Studio Mode
+              Scene Studio
             </div>
 
             <h3 className="mb-2 text-lg font-semibold text-white/90">
               Full cinematic control
             </h3>
             <p className="mb-5 text-[13px] leading-relaxed text-white/45">
-              Build shots with real film vocabulary. The AI Director scores your prompt for production readiness and refines it automatically.
+              Build shots with real film vocabulary. The Assistant Director scores your prompt for production readiness and refines it automatically.
             </p>
 
             <div className="space-y-2">
@@ -86,7 +86,7 @@ export function ProductDemo() {
               </div>
               <div className="flex items-center gap-3 text-[12px] text-white/55">
                 <Sparkles className="h-4 w-4 text-orange-300/70" />
-                AI Director prompt refinement
+                Assistant Director prompt refinement
               </div>
               <div className="flex items-center gap-3 text-[12px] text-white/55">
                 <Film className="h-4 w-4 text-orange-300/70" />

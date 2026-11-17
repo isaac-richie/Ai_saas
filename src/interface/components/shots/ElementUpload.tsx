@@ -121,7 +121,7 @@ export function ElementUpload({ projectId, onUploadSuccess }: ElementUploadProps
     return (
         <form id="project-references" onSubmit={handleSubmit} className="scroll-mt-24 space-y-3 rounded-2xl border border-line bg-white/[0.02] p-5 text-white">
             <div>
-                <h2 className="text-[15px] font-medium text-[#f3eee2]">Project references</h2>
+                <h2 className="text-[15px] font-medium text-[#f3eee2]">References</h2>
                 <p className="mt-1 text-[13px] text-[#9aa1ab]">Characters, products and places you reuse across shots.</p>
             </div>
             <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handleFileSelect} />

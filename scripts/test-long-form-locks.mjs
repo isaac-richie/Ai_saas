@@ -327,7 +327,7 @@ describe('Wiring (acceptance 1, 2, 13, 15, 17)', () => {
   const queue = src('../src/core/actions/production.ts');
   const quick = src('../src/interface/components/fast-video/FastVideoStudio.tsx');
 
-  it('the Locked media row sits directly below Editing notes on Long Form cards; Quick Shot is untouched', () => {
+  it('the Locked row sits directly below Editing notes on Long Form cards; Quick Shot is untouched', () => {
     const notes = desk.indexOf('summary className="cursor-pointer">Editing notes</summary>');
     const row = desk.indexOf('<LockedMediaRow');
     assert.ok(notes > 0 && row > notes && row - notes < 400);

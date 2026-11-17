@@ -189,7 +189,7 @@ describe('The adapter sends the real clip or nothing (AC05, AC06)', () => {
     assert.equal(createCalls().length, 0);
     await assert.rejects(
       provider.prepareRequest({ prompt: 'x', model: SEEDANCE, output_type: 'video', reference_video_urls: plan.referenceVideoUrls.slice(0, 1), required_inputs: required(plan) }),
-      /Locked media could not all be placed/,
+      /Locked references could not all be placed/,
     );
   });
 
@@ -316,7 +316,7 @@ describe('Wiring (AC04, AC05, AC06, AC08, AC10, AC11)', () => {
   });
 
   it('a video in use as a reference cannot be removed from the library', () => {
-    assert.match(queue, /is a video reference\. Remove it from Locked media first/);
+    assert.match(queue, /is a video reference\. Unlock it from its shot first/);
   });
 
   it('reference clips never reach the export (AC08)', () => {

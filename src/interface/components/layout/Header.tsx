@@ -21,7 +21,7 @@ export function Header({ toggleSidebar }: HeaderProps) {
         if (pathname.includes("/fast-video")) return "Create"
         if (pathname.includes("/mimic")) return "Mimic"
         if (pathname.includes("/scenes/")) return "Scene"
-        if (pathname.includes("/studio")) return "Studio"
+        if (pathname.includes("/studio")) return "Scene Studio"
         if (pathname.includes("/gallery")) return "My videos"
         if (pathname.includes("/exports")) return "Downloads"
         if (pathname.includes("/projects")) return "Project"

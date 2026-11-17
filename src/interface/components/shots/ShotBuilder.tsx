@@ -452,8 +452,8 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
         form.setValue("providerSlug", providerTarget === "kie" ? "kie" : "auto")
 
         toast.success("Assistant Director prompt applied", {
-            description: "Nothing is generated yet. Press Generate image when ready.",
-            action: { label: "Generate image", onClick: () => void handleAddAndGenerate() },
+            description: "Nothing is generated yet. Press Generate images when ready.",
+            action: { label: "Generate images", onClick: () => void handleAddAndGenerate() },
         })
         requestAnimationFrame(() => composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }))
     }
@@ -559,7 +559,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
             if (!response.ok || typeof body.prompt !== "string") throw new Error(body.error || "Couldn't enhance right now")
             setEnhanceUndo(current)
             form.setValue("subject", body.prompt, { shouldDirty: true })
-            toast.success("AI-enhanced prompt ready", { description: "Nothing is generated until you press Generate image.", action: { label: "Undo", onClick: () => { form.setValue("subject", current); setEnhanceUndo(null) } } })
+            toast.success("AI-enhanced prompt ready", { description: "Nothing is generated until you press Generate images.", action: { label: "Undo", onClick: () => { form.setValue("subject", current); setEnhanceUndo(null) } } })
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Couldn't enhance right now")
         } finally {
@@ -679,7 +679,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button type="button" variant="studio" onClick={() => void handleAddAndGenerate()} disabled={isSaving || isGenerating} className="h-11 flex-[1_1_100%] px-6 text-[13px] font-semibold sm:flex-none">
                                     {isSaving || isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                                    {isGenerating ? "Generating images…" : isSaving ? "Preparing…" : "Generate image"}
+                                    {isGenerating ? "Generating images…" : isSaving ? "Preparing…" : "Generate images"}
                                 </Button>
                                 <Button type="button" variant="studioSecondary" onClick={() => void handleEnhance()} disabled={isEnhancing || isSaving || isGenerating} className="h-11 flex-1 sm:flex-none">
                                     {isEnhancing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
@@ -1011,7 +1011,7 @@ export function ShotBuilder({ projectId, sceneId, onShotCreated, shots = [], seq
             <details className="group/tools studio-card rounded-2xl text-white">
                 <summary className="flex cursor-pointer select-none list-none items-center justify-between px-5 py-4 [&::-webkit-details-marker]:hidden">
                     <span>
-                        <span className="block text-[14px] font-medium text-[#ece6d6]">Director tools</span>
+                        <span className="block text-[14px] font-medium text-[#ece6d6]">Prompt and looks</span>
                         <span className="block text-[12.5px] text-[#9aa1ab]">Assistant Director variants, the full prompt, and saved looks.</span>
                     </span>
                     <ChevronDown className="h-4 w-4 text-white/50 transition group-open/tools:rotate-180" />

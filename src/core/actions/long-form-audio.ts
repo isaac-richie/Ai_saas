@@ -147,7 +147,7 @@ export async function createAiAudio(input: unknown): Promise<Result<AudioAsset>>
   if (!apiKey) return { error: "The audio service isn't connected. Nothing was created." }
   const units = AI_AUDIO_CAPABILITIES[request.purpose].units
   const quota = await reserveUsageQuota(db, user.id, "fast_video", undefined, units)
-  if (!quota.allowed || !quota.reservationId) return { error: quota.message || "Your generation allowance is used up." }
+  if (!quota.allowed || !quota.reservationId) return { error: quota.message || "You've used all your Generations." }
 
   const name = (request.name || request.text).replace(/\s+/g, " ").trim().slice(0, 80) || "AI audio"
   const generation = {
@@ -169,7 +169,7 @@ export async function createAiAudio(input: unknown): Promise<Result<AudioAsset>>
     const save = () => db.from("long_form_audio_assets").update({ provider_task_id: created.taskId }).eq("id", row.id).select("*").maybeSingle()
     let { data: started } = await save()
     if (!started) ({ data: started } = await save())
-    if (!started) return { error: "The audio started, but we couldn't record it. It may still count toward your allowance; remove it after a few minutes and try again." }
+    if (!started) return { error: "The audio started, but we couldn't record it. It may still count toward your Generations; remove it after a few minutes and try again." }
     return { data: toAudioAsset(started) }
   }
   if (created.definite) {
@@ -308,7 +308,7 @@ const placementRow = (p: z.infer<typeof placementSchema>) => ({
 async function rpcRevision(db: Db, fn: string, args: Record<string, unknown>): Promise<Result<{ revision: number }>> {
   const { data, error } = await db.rpc(fn, args)
   if (missingTable(error) || error?.code === "PGRST202") return { error: MIGRATION }
-  if (error?.code === "40001") return { error: "Locked media changed in another window. Reload to see the latest, then try again.", stale: true }
+  if (error?.code === "40001") return { error: "Locked references changed in another window. Reload to see the latest, then try again.", stale: true }
   if (error?.code === "P0002") return { error: "That placement no longer exists. Reload and try again.", stale: true }
   if (error) return { error: "Could not save the audio lock. Nothing was changed." }
   return { data: { revision: Number(data) } }
@@ -390,7 +390,7 @@ export async function filmMediaRevision(productionId: string): Promise<Result<{ 
   if (!user) return { error: "Please sign in." }
   const film = await ownedFilm(db, user.id, productionId)
   if (!film) return { error: "Production not found." }
-  try { return { data: { revision: (await loadFilmLocks(db, film.rootId)).revision } } } catch { return { error: "Could not load locked media." } }
+  try { return { data: { revision: (await loadFilmLocks(db, film.rootId)).revision } } } catch { return { error: "Could not load locked references." } }
 }
 
 export type AudioPurposeOption = { id: AudioPurpose; ai: boolean }

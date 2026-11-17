@@ -92,7 +92,7 @@ export async function startBlankEdit(): Promise<{ projectId?: string; error?: st
   const limit = await canCreateProject(db, user.id);
   if (!limit.allowed) return { error: limit.message };
   const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  const { data, error } = await db.from('projects').insert({ user_id: user.id, name: `My edit · ${date}`, description: 'Edited from my own videos' }).select('id').single();
+  const { data, error } = await db.from('projects').insert({ user_id: user.id, name: `Edit · ${date}`, description: 'Edited from my own videos' }).select('id').single();
   if (error || !data) return { error: 'Could not start a new edit. Try again.' };
   return { projectId: data.id };
 }

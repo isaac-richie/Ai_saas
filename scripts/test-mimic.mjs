@@ -145,7 +145,7 @@ describe('What the creator approves (cost, sound and changes before any spend)',
     const lines = mimicSummary(s, planMimicRequest(s).plan).join('\n');
     assert.match(lines, /Changes: the man on the left → Sam\./);
     assert.match(lines, /your take's own sound is kept.*lips may not match/);
-    assert.match(lines, /Cost: 1 generation from your allowance\./);
+    assert.match(lines, /Cost: 1 generation\./);
     assert.match(lines, /Your recording is not changed\./);
   });
   it('sound is stated for a muted take and for a take with no sound', () => {

@@ -320,7 +320,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                   {source.retry && <button type="button" onClick={source.retry} className="rounded-full border border-red-300/40 px-3 py-0.5 text-xs hover:bg-red-500/10">Try again</button>}
                 </p>
               )}
-              <p className="text-xs leading-relaxed text-white/40">Recording and uploading never generate anything or use your allowance. Your take is sent to an external video model only when you approve it.</p>
+              <p className="text-xs leading-relaxed text-white/40">Recording and uploading never generate anything or use your Generations. Your take is sent to an external video model only when you approve it.</p>
             </div>
           ) : (
             <div className="lux-glass space-y-4 rounded-[28px] p-4 sm:p-5">
@@ -510,7 +510,7 @@ export function MimicStudio({ actions = DEFAULT_MIMIC_ACTIONS }: { actions?: Mim
                     <GenerateButton planned={planned} rights={rights} busy={busy} onGenerate={() => void generate()} />
                     <SaveButton dirty={dirty} busy={busy} onSave={() => { setBusy("save"); void save().then(saved => { if (saved) setMessage({ tone: "ok", text: "Saved." }) }).finally(() => setBusy(null)) }} />
                   </div>
-                  <p className="text-[11px] leading-relaxed text-white/40">Counted from your allowance, the same as Create. The result aims to keep your performance and match your references; that can&apos;t be guaranteed.</p>
+                  <p className="text-[11px] leading-relaxed text-white/40">Counts toward your Generations, the same as Create. The result aims to keep your performance and match your references; that can&apos;t be guaranteed.</p>
                 </div>
               )}
             </>

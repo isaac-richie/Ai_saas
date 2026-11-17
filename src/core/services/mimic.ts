@@ -257,7 +257,7 @@ export function mimicSummary(settings: MimicSettings, plan: MimicPlan): string[]
     settings.audioPolicy === "mute" ? "Sound: the result is silent."
       : settings.source.hasAudio ? "Sound: your take's own sound is kept. The new look does not change the voice, and lips may not match perfectly."
         : "Sound: your take has no sound, so the result is silent.",
-    `Cost: ${plan.units} generation${plan.units === 1 ? "" : "s"} from your allowance.`,
+    `Cost: ${plan.units} generation${plan.units === 1 ? "" : "s"}.`,
     "Saved as a new take. Your recording is not changed.",
   ]
 }

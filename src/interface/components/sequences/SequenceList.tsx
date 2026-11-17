@@ -66,7 +66,7 @@ export function SequenceList({ sequences }: SequenceListProps) {
                                 href={`/dashboard/sequences/${sequence.id}`}
                                 className="rounded-lg border border-line bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
                             >
-                                Open Builder
+                                Edit sequence
                             </a>
                             {sequence.output_url && (
                                 <a
@@ -75,7 +75,7 @@ export function SequenceList({ sequences }: SequenceListProps) {
                                     rel="noopener noreferrer"
                                     className="rounded-lg border border-line bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
                                 >
-                                    View Output
+                                    View film
                                 </a>
                             )}
                             <Button
@@ -84,7 +84,7 @@ export function SequenceList({ sequences }: SequenceListProps) {
                                 disabled={stitchingId === sequence.id}
                                 className="rounded-lg border border-line bg-white/10 px-3 py-1 text-xs text-white hover:bg-white/20"
                             >
-                                {stitchingId === sequence.id ? "Rendering..." : "Stitch Video"}
+                                {stitchingId === sequence.id ? "Building..." : "Build film"}
                             </Button>
                         </div>
                     </CardContent>

@@ -277,7 +277,7 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 {
                   icon: WandSparkles,
                   title: 'Direct every detail.',
-                  body: 'Turn an idea into a detailed shot with help from your AI Director. Set the subject, lighting and camera movement.',
+                  body: 'Turn an idea into a detailed shot with help from your Assistant Director. Set the subject, lighting and camera movement.',
                   number: '01',
                 },
                 {
@@ -321,11 +321,11 @@ export function CinematicLanding({ isAuthenticated }: { isAuthenticated: boolean
                 <em>More instinct.</em>
               </h2>
               <p>
-                The magic is in your point of view. Fast Track gives you a focused space to explore
+                The magic is in your point of view. Quick video gives you a focused space to explore
                 it, without getting lost in the setup.
               </p>
               <Link href={destination} className="cinema-text-link">
-                Try Fast Track
+                Try Quick video
                 <ArrowUpRight size={20} />
               </Link>
               <div className="cinema-editorial-note">

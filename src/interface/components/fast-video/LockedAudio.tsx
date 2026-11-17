@@ -286,7 +286,7 @@ function CreateAudioForm({ productionId, view, actions, onAdded, onError }: { pr
       )}
       <p className="text-xs leading-relaxed text-white/45">
         {purpose === "music" ? "The length is a target; we check the real length before you lock it." : capability.durationControl ? "" : "Its length can't be set in advance; we show the real length when it's ready."}{" "}
-        Creating a take uses {capability.units} generation{capability.units === 1 ? "" : "s"} from your allowance, including takes you don&apos;t keep. Nothing is locked until you preview it and choose Use and lock.
+        Creating a take uses {capability.units} generation{capability.units === 1 ? "" : "s"}, including takes you don&apos;t keep. Nothing is locked until you preview it and choose Use and lock.
       </p>
       <button type="button" disabled={busy || !text.trim()} onClick={() => void submit()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 py-2.5 text-sm font-medium text-black disabled:opacity-40">
         {busy ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} Create take

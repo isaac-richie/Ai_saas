@@ -27,7 +27,7 @@ const features = [
   },
   {
     icon: WandSparkles,
-    title: "AI Director (Studio AD)",
+    title: "Assistant Director",
     description:
       "An AI assistant director generates production-ready prompt packets with quality scoring and iterative refinement.",
     accent: "orange",

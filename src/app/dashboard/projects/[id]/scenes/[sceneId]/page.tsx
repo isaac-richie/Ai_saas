@@ -37,9 +37,10 @@ export default async function ScenePage(props: ScenePageProps) {
     const options = shots.flatMap((shot: { options?: { status?: string | null; output_url?: string | null }[] }) => shot.options || []);
     const steps = [
         { label: "Add a shot", done: shots.length > 0 },
-        { label: "Generate takes", done: options.some((opt) => opt.status === "completed" || opt.status === "approved") },
-        { label: "Approve, then animate", done: options.some((opt) => opt.status === "approved") && options.some((opt) => /\.mp4($|\?)/i.test(opt.output_url || "")) },
-        { label: "Sequence and export", done: sequences.length > 0 },
+        { label: "Generate images", done: options.some((opt) => opt.status === "completed" || opt.status === "approved") },
+        { label: "Choose image", done: options.some((opt) => opt.status === "approved") },
+        { label: "Animate", done: options.some((opt) => opt.status === "approved") && options.some((opt) => /\.mp4($|\?)/i.test(opt.output_url || "")) },
+        { label: "Build film", done: sequences.length > 0 },
     ];
     const currentStep = steps.findIndex((step) => !step.done);
 
@@ -49,9 +50,9 @@ export default async function ScenePage(props: ScenePageProps) {
         <div className="workspace-page">
             <WorkspaceHeading
                 label="SCENE"
-                crumbs={[{ label: "Studio", href: "/dashboard/studio" }, { label: projectName, href: `/dashboard/projects/${params.id}` }]}
+                crumbs={[{ label: "Scene Studio", href: "/dashboard/studio" }, { label: projectName, href: `/dashboard/projects/${params.id}` }]}
                 title={sceneName}
-                description="Describe each shot, choose the best image, then bring it to life."
+                description="Describe each shot, generate images, choose one, then animate it."
             />
 
             <div className="grid min-w-0 gap-8 xl:grid-cols-3">

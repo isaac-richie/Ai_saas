@@ -10,7 +10,7 @@ import { DeleteProjectButton } from "@/interface/components/dashboard/DeleteProj
 import { WorkspaceHeading } from "@/interface/components/layout/WorkspaceHeading";
 
 export const metadata: Metadata = {
-    title: "Studio",
+    title: "Scene Studio",
 };
 
 export default async function StudioPage() {
@@ -26,10 +26,10 @@ export default async function StudioPage() {
                         <div className="mx-auto mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-line bg-white/10">
                             <Lock className="h-5 w-5 text-white/80" />
                         </div>
-                        <Badge className="mb-4 rounded-full border border-gold-400/25 bg-gold-400/[0.07] px-3 text-[10px] font-medium uppercase tracking-[0.22em] text-gold-200">Studio</Badge>
-                        <h1 className="text-3xl font-light tracking-[-0.04em] text-[#f6f1e4] md:text-[42px] md:leading-[1.08]">Studio Is Not Available In Beta</h1>
+                        <Badge className="mb-4 rounded-full border border-gold-400/25 bg-gold-400/[0.07] px-3 text-[10px] font-medium uppercase tracking-[0.22em] text-gold-200">Scene Studio</Badge>
+                        <h1 className="text-3xl font-light tracking-[-0.04em] text-[#f6f1e4] md:text-[42px] md:leading-[1.08]">Scene Studio is not available in beta</h1>
                         <p className="mt-3 text-sm text-white/55 md:text-base">
-                            The Studio workspace is currently locked while we stabilize beta operations. It will be enabled automatically for mainnet release.
+                            Scene Studio is currently locked while we stabilize beta operations. It will be enabled automatically for mainnet release.
                         </p>
                         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
                             <Link href="/dashboard/fast-video" className="rounded-xl border border-line bg-white/10 px-4 py-2 text-sm text-white hover:bg-gold-400/[0.12] hover:text-gold-50">
@@ -79,8 +79,8 @@ export default async function StudioPage() {
     return (
         <div className="workspace-page">
             <WorkspaceHeading
-                label="STUDIO"
-                title="Make a longer film, scene by scene."
+                label="SCENE STUDIO"
+                title="Build your film, shot by shot."
                 description="Plan the scenes, pick the best image for every shot, then bring each one to life."
                 actions={<CreateProjectDialog />}
             />
@@ -89,7 +89,7 @@ export default async function StudioPage() {
                 <section data-reveal="card" className="space-y-4">
                     <ol className="grid gap-3 md:grid-cols-3">
                         {[
-                            { step: "1", title: "Start a film project", body: "Give it a name, like “Summer lookbook” or “Episode 1”." },
+                            { step: "1", title: "Start a project", body: "Give it a name, like “Summer lookbook” or “Episode 1”." },
                             { step: "2", title: "Add your scenes", body: "One scene per place or moment in your story." },
                             { step: "3", title: "Build each shot", body: "Describe it, choose the best image, then animate it into video." },
                         ].map(({ step, title, body }) => (
@@ -136,7 +136,7 @@ export default async function StudioPage() {
             {projects.length > 0 ? (
                 <section data-reveal="card" className="space-y-3">
                     <div>
-                        <h2 className="text-2xl font-light tracking-[-0.035em] text-[#f6f1e4]">Film projects <span className="text-[15px] text-[#B0B8C4]">{projects.length}</span></h2>
+                        <h2 className="text-2xl font-light tracking-[-0.035em] text-[#f6f1e4]">Projects <span className="text-[15px] text-[#B0B8C4]">{projects.length}</span></h2>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         {projects.map((project) => {

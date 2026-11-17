@@ -537,7 +537,7 @@ function normalizeCampaignPlan(input: StudioAdCampaignRequest, plan: StudioAdCam
 
     return {
       id: cleanText(item.id || `ugc_${index + 1}`).toLowerCase().replace(/[^a-z0-9_/-]+/g, '_').slice(0, 80),
-      title: cleanText(item.title || `UGC Video ${index + 1}`).slice(0, 120),
+      title: cleanText(item.title || `Ad ${index + 1}`).slice(0, 120),
       conceptType: cleanText(item.conceptType || 'UGC concept').slice(0, 80),
       hook: cleanText(item.hook || 'Creator opens with a clear product moment.').slice(0, 220),
       creatorDirection: cleanText(item.creatorDirection || 'Creator demonstrates the product naturally on camera.').slice(0, 500),
@@ -570,7 +570,7 @@ function normalizeCampaignPlan(input: StudioAdCampaignRequest, plan: StudioAdCam
     const index = deliverables.length + 1;
     deliverables.push({
       id: `ugc_${index}`,
-      title: `UGC Video ${index}`,
+      title: `Ad ${index}`,
       conceptType: 'UGC concept',
       hook: 'Creator opens with a clear product proof moment.',
       creatorDirection: 'Creator demonstrates the product naturally with handheld phone-camera energy.',
@@ -663,7 +663,7 @@ export class StudioAdService {
   constructor(apiKey?: string) {
     const key = apiKey || process.env.OPENAI_API_KEY;
     if (!key) {
-      throw new Error('Missing OPENAI_API_KEY for Studio AD.');
+      throw new Error('Missing OPENAI_API_KEY for the Assistant Director.');
     }
 
     this.client = new OpenAI({ apiKey: key });
@@ -699,16 +699,16 @@ export class StudioAdService {
 
         const content = completion.choices?.[0]?.message?.content;
         if (!content) {
-          throw new Error('Studio AD returned an empty response.');
+          throw new Error('The Assistant Director returned an empty response.');
         }
 
         return JSON.parse(content);
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error('Studio AD completion failed.');
+        lastError = error instanceof Error ? error : new Error('The Assistant Director could not finish.');
       }
     }
 
-    throw lastError || new Error('Studio AD completion failed.');
+    throw lastError || new Error('The Assistant Director could not finish.');
   }
 
   async directShot(input: StudioAdRequest): Promise<StudioAdPacket> {

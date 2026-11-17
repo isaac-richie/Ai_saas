@@ -131,10 +131,10 @@ test('public test period: free plan is unlimited and Studio is open by default',
   assert.doesNotMatch(gallery, /\(Moved\)/)
 })
 
-test('Scene Builder prompt can be generated in place or sent to Fast Track', () => {
+test('Scene Builder prompt can be generated in place or sent to Quick video', () => {
   const builder = read('../src/interface/components/shots/ShotBuilder.tsx')
   assert.match(builder, /const shotId = await saveShot\(data\)[\s\S]*await generateShot\(shotId\)/)
-  assert.match(builder, /"Generate image"/)
+  assert.match(builder, /"Generate images"/)
   assert.match(builder, /Enhance with AI/)
   assert.match(builder, /Undo enhance/, 'AI changes can be undone')
   assert.match(builder, /continuity_image_url: continuation\.imageUrl/, 'continued shots start from the approved image')
@@ -162,7 +162,7 @@ test('homepage uses the approved copy and plain-language actions', () => {
   assert.equal((landing.match(/Enter the studio/g) || []).length, 3, 'nav, mobile nav and closing CTA')
   assert.doesNotMatch(landing, /Enter studio\b/)
   assert.doesNotMatch(landing, /Sign in/)
-  for (const line of ['Direct every detail.', 'Shape every detail.', 'Room to find the right cut.', 'Try Fast Track', 'A cinematic AI studio for stories only you can tell.', 'Video generation']) {
+  for (const line of ['Direct every detail.', 'Shape every detail.', 'Room to find the right cut.', 'Try Quick video', 'A cinematic AI studio for stories only you can tell.', 'Video generation']) {
     assert.ok(landing.includes(line), line)
   }
   assert.match(landing, /aria-label="Visiowave on Instagram"/)

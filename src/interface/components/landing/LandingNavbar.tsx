@@ -70,7 +70,7 @@ export function LandingNavbar({ isAuthenticated }: { isAuthenticated: boolean })
                             href="/dashboard/studio"
                             className="beam-button inline-flex items-center rounded-full bg-gradient-to-r from-[#f3e5c0] via-[#d9c08a] to-[#b08d52] px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 sm:px-4 sm:py-2 sm:text-sm"
                         >
-                            Launch Studio
+                            Launch Scene Studio
                         </Link>
                     ) : (
                         <div className="flex items-center gap-3">

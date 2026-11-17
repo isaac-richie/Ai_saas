@@ -85,7 +85,7 @@ export function movedLockIssues(shotBindings: Pick<LockBinding, "anchorTitle">[]
   if (currentTitle === undefined) return []
   const anchors = [...new Set(shotBindings.map(b => b.anchorTitle ?? "").filter(Boolean))]
   const stale = anchors.find(title => title !== currentTitle)
-  return stale ? [`Shot ${shotNumber} is now "${currentTitle}", but its locked ${what} were set for "${stale}". Open Locked media and save to confirm them.`] : []
+  return stale ? [`Shot ${shotNumber} is now "${currentTitle}", but its locked ${what} were set for "${stale}". Open Locked on that shot and save to confirm them.`] : []
 }
 
 // ── Capability registry ──────────────────────────────────────────────────────────────────────────

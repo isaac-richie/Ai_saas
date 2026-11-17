@@ -44,7 +44,7 @@ export function BillingPlanCard({
             </p>
           </div>
           <div className="rounded-xl border border-line bg-white/5 p-3">
-            <p className="text-xs uppercase tracking-[0.14em] text-white/45">Studio</p>
+            <p className="text-xs uppercase tracking-[0.14em] text-white/45">Scene Studio</p>
             <p className="mt-1 text-sm font-medium text-white/85">
               {usageLabel(billing.studioGenerationsUsed, billing.maxStudioGenerations)}
             </p>
@@ -87,7 +87,7 @@ export function BillingPlanCard({
         {!isPro && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gold-400/30 bg-gold-400/10 p-3">
             <p className="text-sm text-gold-100">
-              Upgrade to Studio Pro for unlimited Studio and Quick video generations.
+              Upgrade to Studio Pro for unlimited Scene Studio and Quick video generations.
             </p>
             {checkoutUrl ? (
               <Link

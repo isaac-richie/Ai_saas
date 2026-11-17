@@ -80,7 +80,7 @@ function rowIssue(r: VideoRow, maxClipSeconds: number): string | null {
 /** True when every row has a usable range, so the section can be saved. */
 export const videoRowsValid = (rows: VideoRow[], maxClipSeconds: number) => rows.every(r => r.durationMs !== null && !rowIssue(r, maxClipSeconds))
 
-/** The Videos section of the Locked media editor, between Images and Audio. */
+/** The Videos section of the Locked editor, between Images and Audio. */
 export function VideoReferences({ productionId, view, scope, rows, sceneRows, setRows, status, dirty, saving, actions = DEFAULT_VIDEO_ACTIONS, onLibraryChanged }: {
   productionId: string
   view: FilmLockView

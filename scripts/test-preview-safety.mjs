@@ -87,7 +87,7 @@ test("Fast Track reserves one unit per 10 seconds started and explains a clip th
   assert.equal(calls[0].args.p_units, 2)
   const denied = await reserveUsageQuota(db, "user", "fast_video", "clip-b", 3)
   assert.equal(denied.allowed, false)
-  assert.match(denied.message, /uses 3 Fast Track generations and you have 2 left/)
+  assert.match(denied.message, /uses 3 Quick video generations and you have 2 left/)
 })
 
 test("before migration 0042 the one-unit reserve function is still used instead of blocking generations", async () => {

@@ -7,7 +7,7 @@ import { AdjustGlyph, FormatGlyph, TranscriptGlyph, LookGlyph, MusicGlyph, TextG
 export type Tab = 'ai' | 'transcript' | 'clip' | 'look' | 'format' | 'music' | 'text';
 
 export const TABS: { id: Tab; label: string; title: string; blurb: string; icon: Glyph | typeof Sparkles }[] = [
-  { id: 'ai', label: 'AI', title: 'AI Director', blurb: 'Cuts, grades and times your video', icon: Sparkles },
+  { id: 'ai', label: 'AI', title: 'AI Editor', blurb: 'Cuts, grades and times your video', icon: Sparkles },
   { id: 'transcript', label: 'Words', title: 'Transcript', blurb: 'Edit the video by editing its words', icon: TranscriptGlyph },
   { id: 'clip', label: 'Adjust', title: 'Adjust', blurb: 'Fine-tune what you selected', icon: AdjustGlyph },
   { id: 'look', label: 'Look', title: 'Look', blurb: 'One color story for the whole video', icon: LookGlyph },

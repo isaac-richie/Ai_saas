@@ -145,7 +145,7 @@ export function ProductionShotSettings({ value, onChange, disabled }: { value: S
         />
       </div>
     </div>
-    <div className={styles.footnote} aria-live="polite"><span>{incomplete ? `${incomplete} ${incomplete === 1 ? "shot needs" : "shots need"} a model or duration. Tip: set a model for all shots above.` : "All shots configured."}</span><span>Longer films use more generation credits.</span></div>
+    <div className={styles.footnote} aria-live="polite"><span>{incomplete ? `${incomplete} ${incomplete === 1 ? "shot needs" : "shots need"} a model or duration. Tip: set a model for all shots above.` : "All shots configured."}</span><span>Longer films use more generations.</span></div>
   </fieldset>
 }
 
@@ -155,7 +155,7 @@ export function ReviseProductionSettings({ initial, disabled, onSubmit }: { init
   const changed = JSON.stringify(value) !== JSON.stringify(initial)
   return <details className={styles.revision}><summary><span className={styles.summaryIcon} aria-hidden="true">＋</span><span>Sequence settings<small>Models, timing, lighting & film length</small></span><span className={styles.summaryAction}>Edit sequence</span></summary>
     <ProductionShotSettings value={value} onChange={setValue} disabled={disabled} />
-    <div className={styles.savebar}><div><strong>{changed ? "Ready for a new direction?" : "Your current sequence"}</strong><p>Rebuilding retimes the plan and uses AI planning credits. Existing takes stay in their workspace.</p></div><div className={styles.actions}>
+    <div className={styles.savebar}><div><strong>{changed ? "Ready for a new direction?" : "Your current sequence"}</strong><p>Rebuilding asks the AI to retime the plan. Existing takes stay in their workspace.</p></div><div className={styles.actions}>
       {changed && <button type="button" disabled={disabled} className={styles.reset} onClick={() => setValue(initial)}>Reset changes</button>}
       <button type="button" disabled={disabled || !parsed.success || !changed} onClick={() => { if (!disabled && parsed.success && changed) onSubmit(parsed.data) }} className={styles.rebuild}>{disabled ? "Working…" : "Rebuild production plan"}<span aria-hidden="true">↗</span></button>
     </div></div>

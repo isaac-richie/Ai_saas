@@ -1236,7 +1236,7 @@
 .ed-gold:active:not(:disabled) { transform: scale(0.97); }
 .ed-gold:disabled::after { animation: none; }
 
-/* The AI Director's orb. */
+/* The AI Editor's orb. */
 .ed-orb {
   position: relative;
   border-radius: 9999px;

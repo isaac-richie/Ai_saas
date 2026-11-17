@@ -23,8 +23,8 @@ const STEPS: TourStep[] = [
   },
   {
     id: "studio",
-    title: "Studio, for longer stories",
-    description: "Plan a film scene by scene: pick the best image for each shot, then bring it to life.",
+    title: "Scene Studio, for longer stories",
+    description: "Build your film shot by shot: choose the best image for each shot, then animate it.",
     selector: "[data-tour='nav-studio']",
   },
   {

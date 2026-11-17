@@ -278,7 +278,7 @@ export async function generateMimic(input: unknown): Promise<Result<MimicTaskVie
   if (mimicMissingFromPayload(providerInput, plan.required).length) return release("A reference could not be placed in the request. Nothing was submitted or charged.", sentPath)
 
   const quota = await reserveUsageQuota(db, user.id, "fast_video", undefined, plan.units)
-  if (!quota.allowed || !quota.reservationId) return release(quota.message || "Your generation allowance is used up.", sentPath)
+  if (!quota.allowed || !quota.reservationId) return release(quota.message || "You've used all your Generations.", sentPath)
 
   const manifest = {
     provider: plan.provider, model: plan.model, input: providerInput, assignments: plan.manifest, units: plan.units,
@@ -294,7 +294,7 @@ export async function generateMimic(input: unknown): Promise<Result<MimicTaskVie
     }).eq("id", row.id).select("*").maybeSingle()
     let { data: started } = await save()
     if (!started) ({ data: started } = await save())
-    if (!started) return { error: "The take started, but we couldn't record it. It may still count toward your allowance; contact support if it doesn't appear." }
+    if (!started) return { error: "The take started, but we couldn't record it. It may still count toward your Generations; contact support if it doesn't appear." }
     return { data: toView(started as Row) }
   }
   if (created.definite) {

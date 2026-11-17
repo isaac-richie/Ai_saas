@@ -252,7 +252,7 @@ export function planFilmAudio(
     if (b.scopeType === "shot" && options.currentTitles) {
       const now = options.currentTitles.get(b.shotNumber!)
       if (b.anchorTitle && now !== undefined && now !== b.anchorTitle) {
-        issues.push({ bindingId: b.id, kind: "moved", message: `Shot ${b.shotNumber} is now "${now}", but this audio was locked to "${b.anchorTitle}". Open Locked media and confirm or move it.` })
+        issues.push({ bindingId: b.id, kind: "moved", message: `Shot ${b.shotNumber} is now "${now}", but this audio was locked to "${b.anchorTitle}". Open Locked on that shot and confirm or move it.` })
         continue
       }
     }
