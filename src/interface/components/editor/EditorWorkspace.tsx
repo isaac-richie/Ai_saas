@@ -304,7 +304,8 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
         <p className="mt-1 text-[13px] text-[#9aa3ad]">Bring in your generated shots, or videos from your phone or computer.</p>
       </div>
       <div className="flex flex-wrap justify-center gap-2">
-        <button onClick={props.onImport} disabled={props.importing} className="ed-gold inline-flex h-10 items-center gap-2 rounded-full px-4 text-[13px] font-semibold disabled:opacity-50">
+        {/* Opens the picker (this project, or all your videos) so a fresh edit can still reach shots made elsewhere. */}
+        <button onClick={() => (props.onAddLibraryClips ? setAddingClips(true) : props.onImport())} disabled={props.importing} className="ed-gold inline-flex h-10 items-center gap-2 rounded-full px-4 text-[13px] font-semibold disabled:opacity-50">
           {props.importing ? <Loader2 size={15} className="animate-spin" /> : <ImagePlus size={15} />} Add my generated shots
         </button>
         <button onClick={pickVideos} disabled={props.importing} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-[13px] text-white transition-colors hover:border-white/30 disabled:opacity-50">
@@ -636,6 +637,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
             summary={summary}
             reframes={props.reframes}
             reframing={props.reframing}
+            downloadTitle={props.title}
             onRender={props.onRender}
             onReframe={props.onReframe}
             review={props.reviews?.find((r) => r.storage_key === props.render.storageKey) ?? null}

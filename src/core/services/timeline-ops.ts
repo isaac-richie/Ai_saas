@@ -1,5 +1,5 @@
 import type { TimelineClip } from '@/core/types/timeline';
-import { MIN_CLIP_MS, alignCutsToBeats, rippleClips, transitionOverlapMs } from '@/core/services/edit-agent';
+import { MIN_CLIP_MS, alignCutsToBeats, isClipLocked, rippleClips, transitionOverlapMs } from '@/core/services/edit-agent';
 
 type Clip = Pick<TimelineClip, 'id' | 'track_id' | 'start_ms' | 'end_ms' | 'trim_start_ms' | 'metadata'>;
 
@@ -94,6 +94,32 @@ export function removeAndRipple<T extends Clip>(clips: T[], id: string): T[] {
   const clip = clips.find((c) => c.id === id);
   if (!clip) return clips;
   return rippleTrack(clips.filter((c) => c.id !== id), clip.track_id);
+}
+
+export type DuplicateResult<T> = { ok: true; clips: T[]; copyId: string } | { ok: false; reason: 'missing' | 'locked' };
+
+/**
+ * Copies a clip and places the copy straight after it on the same track. The copy points at the
+ * same footage and keeps its in/out points, length, speed, volume, fades, look and transition, but
+ * is its own clip: changing or deleting it never touches the original. Every other clip on that
+ * track that starts after the original moves right by the copy's length, so nothing is overwritten
+ * and other tracks never move. If a clip that would have to move is locked, nothing changes.
+ */
+export function duplicateClip<T extends Clip>(clips: T[], id: string, newId: string): DuplicateResult<T> {
+  const source = clips.find((c) => c.id === id);
+  if (!source) return { ok: false, reason: 'missing' };
+  const length = source.end_ms - source.start_ms;
+  const moves = (c: T) => c.id !== id && c.track_id === source.track_id && c.start_ms > source.start_ms;
+  if (clips.some((c) => moves(c) && isClipLocked(c))) return { ok: false, reason: 'locked' };
+  const meta = { ...((source.metadata as Record<string, unknown> | null) || {}) };
+  // A lock approves one placed clip; the new copy starts unlocked so it can be edited.
+  delete meta.locked;
+  const copy = { ...source, id: newId, start_ms: source.end_ms, end_ms: source.end_ms + length, metadata: meta } as T;
+  const next = clips.flatMap((c) => {
+    if (c.id === id) return [c, copy];
+    return moves(c) ? [{ ...c, start_ms: c.start_ms + length, end_ms: c.end_ms + length }] : [c];
+  });
+  return { ok: true, clips: next, copyId: newId };
 }
 
 /** Splits a clip in two at a timeline position; both halves keep the same footage and settings. */

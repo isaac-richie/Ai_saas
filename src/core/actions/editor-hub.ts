@@ -2,6 +2,7 @@
 
 import { createClient } from '@/infrastructure/supabase/server';
 import { canCreateProject } from '@/core/services/billing';
+import { buildClipLibrary, type LibraryClip, type LibraryShotRow, type LibraryStoryboardRow } from '@/core/services/clip-library';
 
 export type EditableWork = {
   projectId: string;
@@ -105,14 +106,19 @@ function maxDate(a: string, b: string) {
   return a > b ? a : b;
 }
 
-export type LibraryClip = { url: string; title: string; durationMs: number; source: string; projectId: string };
+export type { LibraryClip } from '@/core/services/clip-library';
 
-/** Every finished clip the creator owns: storyboard shots and film takes, newest first. */
+/**
+ * Every finished video the creator owns: storyboard shots and film takes, newest first. A failed
+ * lookup is reported as an error, never as an empty library.
+ */
 export async function listClipLibrary(): Promise<{ data?: LibraryClip[]; error?: string }> {
   const db = await createClient();
   const { data: { user } } = await db.auth.getUser();
-  if (!user) return { error: 'Please sign in.' };
-  const { data: projects } = await db.from('projects').select('id,name').eq('user_id', user.id).limit(200);
+  if (!user) return { error: 'Please sign in again to see your clips.' };
+  const failed = { error: "Couldn't load your clips. Check your connection and try again." };
+  const { data: projects, error: projectsError } = await db.from('projects').select('id,name').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(200);
+  if (projectsError) return failed;
   const projectName = new Map((projects || []).map((p) => [p.id as string, p.name as string]));
   if (!projectName.size) return { data: [] };
   const ids = [...projectName.keys()];
@@ -121,27 +127,18 @@ export async function listClipLibrary(): Promise<{ data?: LibraryClip[]; error?:
     db.from('fast_video_storyboard_items').select('url,duration_seconds,subject,project_id,created_at').in('project_id', ids).eq('status', 'ready').not('url', 'is', null).order('created_at', { ascending: false }).limit(300),
     db.from('scenes').select('id,project_id').in('project_id', ids),
   ]);
+  if (storyboard.error || scenes.error) return failed;
   const sceneProject = new Map((scenes.data || []).map((s) => [s.id as string, s.project_id as string]));
-  const { data: shots } = sceneProject.size
-    ? await db.from('shots').select('name,scene_id,shot_generations!shot_generations_shot_id_fkey(output_url,status,duration_seconds,take_number,created_at)').in('scene_id', [...sceneProject.keys()]).limit(500)
-    : { data: [] };
-
-  const clips: (LibraryClip & { at: string })[] = [];
-  for (const item of storyboard.data || []) {
-    clips.push({ url: item.url!, title: item.subject || 'Storyboard shot', durationMs: Math.max(1, item.duration_seconds || 5) * 1000, source: projectName.get(item.project_id) || 'Storyboard', projectId: item.project_id, at: item.created_at });
+  let shots: LibraryShotRow[] = [];
+  if (sceneProject.size) {
+    const res = await db
+      .from('shots')
+      .select('name,scene_id,shot_generations!shot_generations_shot_id_fkey(output_url,status,duration_seconds,take_number,created_at,parameters)')
+      .in('scene_id', [...sceneProject.keys()])
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (res.error) return failed;
+    shots = (res.data || []) as LibraryShotRow[];
   }
-  for (const shot of shots || []) {
-    const projectId = sceneProject.get(shot.scene_id as string)!;
-    for (const take of (shot.shot_generations || []) as { output_url: string | null; status: string; duration_seconds: number | null; take_number: number; created_at: string }[]) {
-      if (take.status !== 'completed' || !take.output_url) continue;
-      clips.push({ url: take.output_url, title: `${shot.name || 'Shot'} · take ${take.take_number}`, durationMs: Math.max(1, take.duration_seconds || 5) * 1000, source: projectName.get(projectId) || 'Film', projectId, at: take.created_at });
-    }
-  }
-  const seen = new Set<string>();
-  return {
-    data: clips
-      .sort((a, b) => b.at.localeCompare(a.at))
-      .filter((c) => (seen.has(c.url) ? false : (seen.add(c.url), true)))
-      .map((c) => ({ url: c.url, title: c.title, durationMs: c.durationMs, source: c.source, projectId: c.projectId })),
-  };
+  return { data: buildClipLibrary({ projectName, storyboard: (storyboard.data || []) as LibraryStoryboardRow[], sceneProject, shots }) };
 }

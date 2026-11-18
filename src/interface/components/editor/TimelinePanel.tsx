@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Blend, Lock, Plus, Unlock, Volume2, VolumeX } from '@/interface/components/ui/icons';
+import { Blend, CopyPlus, Lock, Plus, Scissors, Trash2, Unlock, Volume2, VolumeX } from '@/interface/components/ui/icons';
+import { TopLayer } from '@/interface/components/system/TopLayer';
+import { duplicateClipWithFeedback } from './duplicate-clip';
 import { AdjustGlyph, MusicGlyph, TextGlyph } from './glyphs';
 import type { TimelineClip, TimelineTrack } from '@/core/types/timeline';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
@@ -50,6 +52,9 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
   } = useTimelineStore();
   const scroller = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
+  // Right-click menu for a video or audio clip.
+  const [menu, setMenu] = useState<{ clipId: string; x: number; y: number } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
   const dragCount = useRef(0);
   const programmatic = useRef<number | null>(null);
   const pinch = useRef<{ dist: number; ppm: number } | null>(null);
@@ -380,6 +385,15 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
                         rowHeight={rowHeight[track.track_type]}
                         onDown={(e, edge) => startClipDrag(e, clip, track, edge)}
                         onSelect={() => selectClip(clip.id)}
+                        onMenu={track.track_type === 'video' || track.track_type === 'audio' ? (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          selectClip(clip.id);
+                          const box = e.currentTarget.getBoundingClientRect();
+                          // A keyboard menu key has no pointer position; open beside the clip instead.
+                          const fromKeyboard = e.clientX === 0 && e.clientY === 0;
+                          setMenu({ clipId: clip.id, x: fromKeyboard ? box.left + 8 : e.clientX, y: fromKeyboard ? box.bottom : e.clientY });
+                        } : undefined}
                       />
                     );
                   })}
@@ -447,6 +461,7 @@ export function TimelinePanel({ centered = false, roomy = false, fitSignal = 0, 
         </div>
         {centered && <Playhead left="50%" ms={playhead_ms} playing={is_playing} />}
       </div>
+      {menu && <ClipMenu clipId={menu.clipId} x={menu.x} y={menu.y} onClose={closeMenu} />}
     </div>
   );
 }
@@ -467,7 +482,7 @@ function Playhead({ left, ms, playing }: { left: number | string; ms: number; pl
   );
 }
 
-function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, beats, rowHeight, onDown, onSelect }: {
+function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, beats, rowHeight, onDown, onSelect, onMenu }: {
   clip: TimelineClip;
   track: TimelineTrack;
   left: number;
@@ -480,6 +495,7 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
   rowHeight: number;
   onDown: (e: React.PointerEvent, edge?: 'start' | 'end') => void;
   onSelect: () => void;
+  onMenu?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   const kind = track.track_type;
   const meta = (clip.metadata || {}) as { name?: string; text?: string; shot?: { subject?: string }; review_note?: unknown };
@@ -509,7 +525,8 @@ function ClipBlock({ clip, track, left, width, ppm, number, selected, dragDx, be
         }
       }}
       onClick={(e) => e.stopPropagation()}
-      onPointerDown={(e) => onDown(e)}
+      onContextMenu={onMenu}
+      onPointerDown={(e) => { if (e.button === 0) onDown(e); }}
       className={`group absolute inset-y-[5px] overflow-hidden rounded-[10px] border shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_6px_14px_-8px_rgba(0,0,0,0.9)] transition-[border-color,box-shadow,filter] duration-200 ${tone} ${
         selected ? 'z-10 !border-gold-200 shadow-[0_0_0_1px_#e3cf9f,0_0_26px_-4px_rgba(217,192,138,0.8)]' : 'hover:border-white/25 hover:brightness-110'
       } ${dragDx !== null ? 'z-20 scale-[1.02] opacity-90 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.95)]' : ''} ${track.locked || isClipLocked(clip) ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
@@ -633,3 +650,52 @@ function WaveformStrip({ clip, width }: { clip: TimelineClip; width: number }) {
 }
 
 export const ZOOM_LIMITS = { MIN_PPMS, MAX_PPMS };
+
+/** Duplicate, split or delete one clip, from a right-click (or the keyboard's menu key). */
+function ClipMenu({ clipId, x, y, onClose }: { clipId: string; x: number; y: number; onClose: () => void }) {
+  const { clips, tracks, playhead_ms, split, removeClip } = useTimelineStore();
+  const ref = useRef<HTMLDivElement>(null);
+  const clip = clips.find((c) => c.id === clipId);
+  const track = tracks.find((t) => t.id === clip?.track_id);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    const close = (e: Event) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('pointerdown', close, true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onClose);
+    window.addEventListener('scroll', onClose, true);
+    return () => {
+      window.removeEventListener('pointerdown', close, true);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('scroll', onClose, true);
+    };
+  }, [onClose]);
+  if (!clip || !track) return null;
+  const locked = track.locked || isClipLocked(clip);
+  const canSplit = playhead_ms > clip.start_ms + 300 && playhead_ms < clip.end_ms - 300;
+  const item = 'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] text-[#ece6d6] hover:bg-white/[0.06] focus:bg-white/[0.06] focus:outline-none disabled:opacity-40 disabled:hover:bg-transparent';
+  const act = (fn: () => void) => () => { fn(); onClose(); };
+  return (
+    <TopLayer>
+      <div
+        ref={ref}
+        role="menu"
+        aria-label="Clip options"
+        className="fixed z-[130] w-52 rounded-xl border border-white/10 bg-[#141512]/95 p-1.5 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.9)] backdrop-blur"
+        style={{ left: Math.min(x, window.innerWidth - 216), top: Math.min(y, window.innerHeight - 140) }}
+      >
+        <button role="menuitem" className={item} disabled={track.locked} onClick={act(() => duplicateClipWithFeedback(clip.id))}>
+          <CopyPlus size={15} /> Duplicate
+        </button>
+        <button role="menuitem" className={item} disabled={locked || !canSplit} onClick={act(() => split(clip.id, playhead_ms))}>
+          <Scissors size={15} /> Split at playhead
+        </button>
+        <button role="menuitem" className={`${item} !text-red-200`} disabled={locked} onClick={act(() => removeClip(clip.id))}>
+          <Trash2 size={15} /> Delete
+        </button>
+      </div>
+    </TopLayer>
+  );
+}

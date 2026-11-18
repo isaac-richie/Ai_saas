@@ -4,6 +4,8 @@ import { createClient } from '@/infrastructure/supabase/server';
 import type { TimelineProject, TimelineTrack, TimelineClip } from '@/core/types/timeline';
 import { shotInfoFromStoryboard } from '@/core/services/shot-context';
 import { listClipLibrary } from '@/core/actions/editor-hub';
+import { isVideoTake } from '@/core/services/clip-library';
+import { exportFileName, isOwnRenderKey, renderKeyFromUrl } from '@/core/services/export-download';
 import { validClipValue } from '@/core/services/clip-validation';
 import { VIDEO_FORMATS, isFormatResolution, isFrameFit } from '@/core/services/video-format';
 
@@ -239,18 +241,22 @@ export async function importStoryboardToTimeline(projectId: string) {
   const videoTrack = tracks?.find((t) => t.track_type === 'video');
   if (!videoTrack) return { error: 'No video track found' };
 
-  const { data: storyboardItems } = await supabase
+  const loadFailed = { error: "Couldn't load your shots. Check your connection and try again." };
+  const { data: storyboardItems, error: storyboardError } = await supabase
     .from('fast_video_storyboard_items')
     .select('id, url, duration_seconds, order_index, scene_id, subject, prompt, enhanced_prompt')
     .eq('project_id', projectId)
     .eq('status', 'ready')
     .order('order_index');
+  if (storyboardError) return loadFailed;
 
   // A project can hold several scenes: keep each scene together, in story order.
-  const { data: scenes } = await supabase.from('scenes').select('id, name, sequence_order, created_at').eq('project_id', projectId);
+  const { data: scenes, error: scenesError } = await supabase.from('scenes').select('id, name, sequence_order, created_at').eq('project_id', projectId);
+  if (scenesError) return loadFailed;
   // Films keep their footage as shot takes, not storyboard items: bring in each shot's approved take,
   // or its latest finished one.
   const filmTakes = await filmShotTakes(supabase, (scenes || []).map((sc) => sc.id));
+  if (!filmTakes) return loadFailed;
   const items: Array<{ id: string; url: string | null; duration_seconds: number | null; order_index: number; scene_id: string; subject: string | null; prompt: string | null; enhanced_prompt: string | null; film_shot_id?: string }> = [
     ...(storyboardItems || []),
     ...filmTakes,
@@ -364,14 +370,16 @@ type Db = Awaited<ReturnType<typeof createClient>>;
 
 async function filmShotTakes(supabase: Db, sceneIds: string[]) {
   if (!sceneIds.length) return [];
-  const { data: shots } = await supabase
+  const { data: shots, error } = await supabase
     .from('shots')
-    .select('id, name, prompt_text, sequence_order, scene_id, approved_take_id, shot_generations!shot_generations_shot_id_fkey(id, output_url, status, duration_seconds, created_at)')
+    .select('id, name, prompt_text, sequence_order, scene_id, approved_take_id, shot_generations!shot_generations_shot_id_fkey(id, output_url, status, duration_seconds, created_at, parameters)')
     .in('scene_id', sceneIds)
     .order('sequence_order');
+  if (error) return null;
   return (shots || []).flatMap((shot) => {
-    const takes = ((shot.shot_generations || []) as { id: string; output_url: string | null; status: string; duration_seconds: number | null; created_at: string }[])
-      .filter((t) => t.status === 'completed' && t.output_url)
+    // Scene Studio keeps still images as takes too; only finished videos belong on the timeline.
+    const takes = ((shot.shot_generations || []) as { id: string; output_url: string | null; status: string; duration_seconds: number | null; created_at: string; parameters?: unknown }[])
+      .filter((t) => t.status === 'completed' && isVideoTake(t))
       .sort((a, b) => b.created_at.localeCompare(a.created_at));
     const take = takes.find((t) => t.id === shot.approved_take_id) || takes[0];
     if (!take) return [];
@@ -450,4 +458,24 @@ export async function addLibraryClips(projectId: string, urls: string[]) {
   if (error) return { error: 'Could not add those clips. Try again.' };
   await supabase.from('timeline_projects').update({ duration_ms: cursor_ms }).eq('id', timeline.id);
   return { success: true, clip_count: clips.length, duration_ms: cursor_ms };
+}
+
+/**
+ * A short-lived link that saves a finished export (or one of its phone versions) as a file. The
+ * stored file is served as an attachment, so the browser downloads it instead of playing it in a
+ * tab. A fresh link is made on every click, so an old or expired one never matters. Nothing is
+ * rendered again and no generations are used.
+ */
+export async function getExportDownloadLink(url: string, title?: string | null): Promise<{ url?: string; fileName?: string; error?: string }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Please sign in again to download your video.' };
+  const key = renderKeyFromUrl(url, process.env.NEXT_PUBLIC_SUPABASE_URL);
+  if (!key || !isOwnRenderKey(key, user.id)) return { error: 'That video is not one of your exports. Export it again from the editor.' };
+  const fileName = exportFileName(title, key);
+  const { data, error } = await supabase.storage.from('renders').createSignedUrl(key, 10 * 60, { download: fileName });
+  if (error || !data?.signedUrl) {
+    return { error: /not.?found/i.test(error?.message || '') ? 'This export is no longer stored. Export the video again.' : "Couldn't start the download. Check your connection and try again." };
+  }
+  return { url: data.signedUrl, fileName };
 }

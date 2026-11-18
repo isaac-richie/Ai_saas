@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Upload, X } from '@/interface/components/ui/icons';
 import { listClipLibrary, type LibraryClip } from '@/core/actions/editor-hub';
+import { defaultClipSource, filterClips, type ClipSource } from '@/core/services/clip-library';
 import { TopLayer } from '@/interface/components/system/TopLayer';
 
 /**
@@ -19,17 +20,25 @@ export function AddClipsDialog({ projectId, busy, onClose, onUploadFromDevice, o
   const [clips, setClips] = useState<LibraryClip[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
-  const [source, setSource] = useState<'all' | 'other' | 'this'>('other');
+  const [source, setSource] = useState<ClipSource | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
+  // Loads on every open (the dialog unmounts on close), so newly finished clips always show.
   useEffect(() => {
     let live = true;
-    listClipLibrary().then((res) => {
-      if (!live) return;
-      if (res.data) setClips(res.data);
-      else setError(res.error || 'Could not load your clips.');
-    });
+    listClipLibrary()
+      .then((res) => {
+        if (!live) return;
+        if (res.data) {
+          setClips(res.data);
+          setSource((current) => current ?? defaultClipSource(res.data!, projectId));
+        } else setError(res.error || "Couldn't load your clips.");
+      })
+      .catch(() => { if (live) setError("Couldn't reach Visiowave. Check your connection and try again."); });
     return () => { live = false; };
-  }, []);
+  }, [attempt, projectId]);
+
+  const retry = useCallback(() => { setError(null); setClips(null); setAttempt((n) => n + 1); }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -37,7 +46,7 @@ export function AddClipsDialog({ projectId, busy, onClose, onUploadFromDevice, o
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const shown = useMemo(() => (clips || []).filter((c) => source === 'all' || (source === 'this' ? c.projectId === projectId : c.projectId !== projectId)), [clips, source, projectId]);
+  const shown = useMemo(() => filterClips(clips || [], source ?? 'all', projectId), [clips, source, projectId]);
   const toggle = (url: string) => setPicked((p) => (p.includes(url) ? p.filter((u) => u !== url) : [...p, url]));
 
   return (
@@ -76,18 +85,25 @@ export function AddClipsDialog({ projectId, busy, onClose, onUploadFromDevice, o
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-medium uppercase tracking-[0.14em] text-[#9aa3ad]">From my work</p>
               <div role="radiogroup" aria-label="Which clips" className="flex gap-1 rounded-xl border border-line p-1 text-xs">
-                {([['other', 'Other projects'], ['this', 'This project'], ['all', 'All']] as const).map(([id, label]) => (
+                {([['this', 'This project'], ['all', 'All my videos'], ['other', 'Other projects']] as const).map(([id, label]) => (
                   <button key={id} role="radio" aria-checked={source === id} onClick={() => setSource(id)} className={`rounded-lg px-2.5 py-1.5 ${source === id ? 'bg-white/10 text-white' : 'text-[#9aa3ad] hover:text-white'}`}>{label}</button>
                 ))}
               </div>
             </div>
 
             {error ? (
-              <p role="alert" className="text-sm text-amber-200">{error}</p>
+              <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300/30 bg-amber-300/[0.06] p-4">
+                <p className="text-sm text-amber-100">{error}</p>
+                <button onClick={retry} className="rounded-xl border border-amber-200/40 px-3 py-1.5 text-sm text-amber-50 hover:bg-amber-200/10">Retry</button>
+              </div>
             ) : !clips ? (
-              <div className="grid place-items-center py-10 text-[#9aa3ad]"><Loader2 className="animate-spin" /></div>
+              <div className="grid place-items-center py-10 text-[#9aa3ad]" aria-live="polite"><Loader2 className="animate-spin" /><span className="sr-only">Loading your clips</span></div>
             ) : shown.length === 0 ? (
-              <p className="py-6 text-center text-sm text-[#9aa3ad]">No finished clips here yet.</p>
+              <div className="py-6 text-center text-sm text-[#9aa3ad]">
+                <p>{clips.length === 0 ? 'No finished videos yet.' : source === 'this' ? 'No finished videos in this project yet.' : 'No finished videos in your other projects yet.'}</p>
+                {clips.length > 0 && source !== 'all' && <button onClick={() => setSource('all')} className="mt-2 text-gold-200 underline decoration-gold-400/40 underline-offset-4">Show all my videos</button>}
+                <p className="mt-2 text-[12px] text-[#7f8792]">A video that is only on your computer? Add it with From my phone or computer above.</p>
+              </div>
             ) : (
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {shown.map((clip) => {
