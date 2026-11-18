@@ -74,7 +74,7 @@ export function FilmAudioDialog({ productionId, view, initialTab, onChanged, onC
 }
 
 /** The summary row on a Long Form shot card, below Editing notes. */
-export function LockedMediaRow({ scene, shot, videos, status, audio, onEdit, disabled }: {
+export function LockedMediaRow({ scene, shot, videos, status, audio, onEdit, onKeep, disabled }: {
   scene: LockBinding[]
   shot: LockBinding[]
   /** Video references that apply to this shot: the scene's and its own. */
@@ -83,8 +83,11 @@ export function LockedMediaRow({ scene, shot, videos, status, audio, onEdit, dis
   /** Audio placements that apply to this shot (its own plus the scene's) and whether any needs attention. */
   audio?: { count: number; needsAttention: boolean }
   onEdit: () => void
+  /** Keeps this shot's locks after a re-plan, which clears the re-plan note. */
+  onKeep?: () => Promise<void>
   disabled?: boolean
 }) {
+  const [keeping, setKeeping] = useState(false)
   const all = [...scene, ...shot]
   const required = status?.requiredImageCount ?? new Set(all.map(b => `${b.assetUrl}#${b.sha256}`)).size
   const audioCount = audio?.count ?? 0
@@ -102,6 +105,16 @@ export function LockedMediaRow({ scene, shot, videos, status, audio, onEdit, dis
           {counts ? "Edit" : "Add"}
         </button>
       </div>
+      {counts && status?.notes?.length ? (
+        <div className="mt-1.5 flex items-start gap-2 pl-5 text-[11px] text-white/60" role="note">
+          <span className="min-w-0 flex-1">{status.notes[0]}</span>
+          {onKeep && (
+            <button type="button" disabled={disabled || keeping} onClick={async () => { setKeeping(true); try { await onKeep() } finally { setKeeping(false) } }} className="shrink-0 rounded-full border border-gold-300/40 px-2.5 py-0.5 text-[11px] text-gold-100 transition-colors hover:bg-gold-400/10 disabled:opacity-40">
+              {keeping ? "Keeping…" : "Keep"}
+            </button>
+          )}
+        </div>
+      ) : null}
       {counts ? (
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-5">
           {required || videoRefs ? (
@@ -143,7 +156,9 @@ const modelName = (model: string) => model.includes("seedance") ? "Seedance 2.5"
 function StatusChip({ status }: { status?: ShotLockStatus }) {
   if (!status || status.status === "none") return <span className="truncate text-white/45">Not checked</span>
   if (status.status === "mapped") return <span className="truncate text-[#8fd1b9]" title="Mapped: included in the outgoing request. It doesn't guarantee how closely the result follows it.">{status.requiredImageCount + status.videoCount} mapped · {modelName(status.model)}</span>
-  return <span className="truncate text-amber-200" title={status.issues.join(" ")}>Can&apos;t generate on {modelName(status.model)}</span>
+  // Say why in plain words (for example "face.png is over 10 MB, the Kling 3.0 Pro limit"), not just that it can't.
+  const reason = status.issues[0] ?? `${modelName(status.model)} can't take these inputs.`
+  return <span className="min-w-0 basis-full text-amber-200" title={status.issues.join(" ")}>Can&apos;t generate yet: {reason}{status.issues.length > 1 ? ` (+${status.issues.length - 1} more)` : ""}</span>
 }
 
 /** The editor for one shot's locks, with the scene's locks alongside. */

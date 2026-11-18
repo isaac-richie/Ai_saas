@@ -92,8 +92,8 @@ export function DevLocks() {
     save: async (input) => { log('save-videos', input); return { data: { revision: 5 } }; },
   };
   const statuses: Record<number, ShotLockStatus> = {
-    1: { shotNumber: 1, requiredImageCount: 4, bindingCount: 4, videoCount: 1, status: 'mapped', issues: [], model: 'bytedance/seedance-2-5', lockKeys: [] },
-    2: { shotNumber: 2, requiredImageCount: 7, bindingCount: 8, videoCount: 1, status: 'blocked', issues: ["This model does not support the selected video-reference inputs. Choose a compatible model or remove the incompatible references. Kling 3.0 Pro can't take reference videos; Seedance 2.5 can.", '5 locked subjects need 5 reference elements; Kling 3.0 Pro accepts 3. Remove subjects or switch to Seedance 2.5.'], model: 'kling-3.0/video', lockKeys: [] },
+    1: { shotNumber: 1, requiredImageCount: 4, bindingCount: 4, videoCount: 1, status: 'mapped', issues: [], notes: ['Shot 1 was re-planned (it was "Sam\'s Morning"). Its locked media stayed on it.'], model: 'bytedance/seedance-2-5', lockKeys: [] },
+    2: { shotNumber: 2, requiredImageCount: 7, bindingCount: 8, videoCount: 1, status: 'blocked', issues: ["This model does not support the selected video-reference inputs. Choose a compatible model or remove the incompatible references. Kling 3.0 Pro can't take reference videos; Seedance 2.5 can.", '5 locked subjects need 5 reference elements; Kling 3.0 Pro accepts 3. Remove subjects or switch to Seedance 2.5.'], notes: [], model: 'kling-3.0/video', lockKeys: [] },
   };
 
   const bump = () => { setRevision((r) => r + 1); return { data: { revision: revision + 1 } }; };
@@ -148,7 +148,7 @@ export function DevLocks() {
             <p className="mt-2 text-xs text-white/50">{shot === 2 ? 'kling' : 'seedance'} / {seconds[shot - 1]}s requested / 16:9</p>
             <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2">Prompt…</p></details>
             <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary><p className="mt-2">Notes…</p></details>
-            <LockedMediaRow scene={view.scene} shot={view.shots[shot] ?? []} videos={{ scene: view.video.scene, shot: view.video.shots[shot] ?? [] }} status={statuses[shot]} audio={shotAudioSummary(view, shot)} onEdit={() => { setScope('shot'); setOpen(shot); }} />
+            <LockedMediaRow scene={view.scene} shot={view.shots[shot] ?? []} videos={{ scene: view.video.scene, shot: view.video.shots[shot] ?? [] }} status={statuses[shot]} audio={shotAudioSummary(view, shot)} onEdit={() => { setScope('shot'); setOpen(shot); }} onKeep={async () => { log('keep-locks', { shotNumber: shot }); }} />
           </section>
         ))}
       </div>

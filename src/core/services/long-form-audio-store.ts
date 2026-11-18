@@ -26,7 +26,7 @@ type BindingRow = {
   id: string; scope_type: "scene" | "shot"; shot_number: number | null; audio_asset_id: string; asset_sha256: string
   purpose: AudioPurpose; source_in_ms: number; source_out_ms: number | null; timeline_offset_ms: number
   playback: AudioBinding["playback"]; gain: number | string; fade_in_ms: number; fade_out_ms: number; loop: boolean
-  overflow: AudioBinding["overflow"]; native_audio: AudioBinding["nativeAudio"]; dialogue_display: AudioBinding["dialogueDisplay"]; anchor_title: string
+  overflow: AudioBinding["overflow"]; native_audio: AudioBinding["nativeAudio"]; dialogue_display: AudioBinding["dialogueDisplay"]; anchor_title: string; shot_id?: string | null
 }
 
 export const toAudioAsset = (r: AssetRow): AudioAsset => ({
@@ -39,6 +39,7 @@ export const toAudioBinding = (r: BindingRow): AudioBinding => ({
   purpose: r.purpose, sourceInMs: r.source_in_ms, sourceOutMs: r.source_out_ms, offsetMs: r.timeline_offset_ms,
   playback: r.playback, gain: Number(r.gain), fadeInMs: r.fade_in_ms, fadeOutMs: r.fade_out_ms, loop: r.loop,
   overflow: r.overflow, nativeAudio: r.native_audio, dialogueDisplay: r.dialogue_display, anchorTitle: r.anchor_title,
+  shotId: r.shot_id ?? null,
 })
 
 export type FilmAudio = { available: boolean; assets: AudioAsset[]; bindings: AudioBinding[] }

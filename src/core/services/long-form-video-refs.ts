@@ -41,6 +41,8 @@ export type VideoRefBinding = {
   purpose: VideoPurpose
   guidanceText: string
   anchorTitle?: string
+  /** The permanent shot this reference belongs to, once the film's shots exist. */
+  shotId?: string | null
 }
 
 /** Identical reference = same source video + same selected range. Sent once, whatever its scopes. */

@@ -253,9 +253,14 @@ describe('Export gate inputs (spec §10; acceptance 21, 22)', () => {
     assert.deepEqual(kinds(plan), ['conflict']);
     assert.equal(plan.cues.length, 0);
   });
-  it('a shot whose title changed (plan reordered) waits for confirmation', () => {
+  it('a re-planned shot keeps its audio, whatever it is renamed (Keep Progress L2)', () => {
     const fx = asset('fx', 'sound_effect', 1000);
-    const plan = planFilmAudio([place(fx, 'shot', 2, { anchorTitle: 'Kitchen group' })], map(fx), spans, { currentTitles: new Map([[2, 'Street exit']]) });
+    const plan = planFilmAudio([place(fx, 'shot', 2, { anchorTitle: 'Kitchen group', shotId: 'shot-2' })], map(fx), spans, { currentTitles: new Map([[2, 'Street exit']]), currentShotIds: new Map([[2, 'shot-2']]) });
+    assert.deepEqual(kinds(plan), []);
+  });
+  it('audio set on a different shot than the one now in its place waits for confirmation', () => {
+    const fx = asset('fx', 'sound_effect', 1000);
+    const plan = planFilmAudio([place(fx, 'shot', 2, { shotId: 'old-shot' })], map(fx), spans, { currentShotIds: new Map([[2, 'shot-2']]) });
     assert.deepEqual(kinds(plan), ['moved']);
   });
   it('the render manifest records exact versions, times and mutes', () => {
@@ -274,12 +279,18 @@ describe('Export gate inputs (spec §10; acceptance 21, 22)', () => {
   });
 });
 
-describe('Shot moves for image locks (spec §11)', () => {
-  it('locks saved for another shot title block until confirmed', () => {
-    assert.equal(locks.movedLockIssues([{ anchorTitle: 'Kitchen group' }], 2, 'Kitchen group').length, 0);
-    assert.equal(locks.movedLockIssues([{ anchorTitle: 'Kitchen group' }], 2, 'Street exit').length, 1);
-    assert.equal(locks.movedLockIssues([{ anchorTitle: '' }], 2, 'Street exit').length, 0, 'locks saved before anchors existed are not blocked');
-    assert.equal(locks.movedLockIssues([{ anchorTitle: 'Kitchen group' }], 2, undefined).length, 0);
+describe('Shot moves for image locks (spec §11, Keep Progress L2)', () => {
+  it('locks follow the permanent shot: a new title never blocks them', () => {
+    assert.equal(locks.movedLockIssues([{ shotId: 'shot-2' }], 2, 'shot-2').length, 0);
+    assert.equal(locks.movedLockIssues([{ shotId: 'old-shot' }], 2, 'shot-2').length, 1, 'a lock from a different shot waits');
+    assert.equal(locks.movedLockIssues([{ shotId: null }], 2, 'shot-2').length, 0, 'locks saved before the shots existed are not blocked');
+    assert.equal(locks.movedLockIssues([{ shotId: 'shot-2' }], 2, undefined).length, 0, 'before the workspace exists nothing is blocked');
+  });
+  it('a renamed shot gets a note, not a block', () => {
+    assert.equal(locks.replannedLockNotes([{ anchorTitle: 'Kitchen group' }], 2, 'Kitchen group').length, 0);
+    assert.match(locks.replannedLockNotes([{ anchorTitle: 'Kitchen group' }], 2, 'Street exit')[0], /Shot 2 was re-planned \(it was "Kitchen group"\)\. Its locked media stayed on it\./);
+    assert.equal(locks.replannedLockNotes([{ anchorTitle: '' }], 2, 'Street exit').length, 0);
+    assert.equal(locks.replannedLockNotes([{ anchorTitle: 'Kitchen group' }], 2, undefined).length, 0);
   });
 });
 

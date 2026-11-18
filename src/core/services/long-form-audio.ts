@@ -56,6 +56,8 @@ export type AudioBinding = {
   nativeAudio: "keep" | "mute" | null
   dialogueDisplay: "voice_over" | "match_speech"
   anchorTitle: string
+  /** The permanent shot this placement belongs to, once the film's shots exist. */
+  shotId?: string | null
 }
 
 /** Defaults the spec sets for a new placement of a recording with this purpose and scope. */
@@ -232,7 +234,7 @@ export function segmentLength(binding: AudioBinding, asset: Pick<AudioAsset, "du
  */
 export function planFilmAudio(
   bindings: AudioBinding[], assets: Map<string, AudioAsset>, spans: ShotSpan[],
-  options: { foreign?: { startMs: number; endMs: number }[]; currentTitles?: Map<number, string> } = {},
+  options: { foreign?: { startMs: number; endMs: number }[]; currentTitles?: Map<number, string>; currentShotIds?: Map<number, string> } = {},
 ): AudioPlan {
   const cues: AudioCue[] = []
   const muted = new Set<number>()
@@ -249,10 +251,12 @@ export function planFilmAudio(
       issues.push({ bindingId: b.id, kind: "missing", message: `${where(b)}: the locked recording is missing or has changed. Re-lock a recording.` })
       continue
     }
-    if (b.scopeType === "shot" && options.currentTitles) {
-      const now = options.currentTitles.get(b.shotNumber!)
-      if (b.anchorTitle && now !== undefined && now !== b.anchorTitle) {
-        issues.push({ bindingId: b.id, kind: "moved", message: `Shot ${b.shotNumber} is now "${now}", but this audio was locked to "${b.anchorTitle}". Open Locked on that shot and confirm or move it.` })
+    // Re-planning keeps a shot (and its audio) in place, whatever it is renamed to. Only audio that
+    // belongs to a different shot than the one now at its place waits for the creator.
+    if (b.scopeType === "shot" && b.shotId && options.currentShotIds) {
+      const now = options.currentShotIds.get(b.shotNumber!)
+      if (now && now !== b.shotId) {
+        issues.push({ bindingId: b.id, kind: "moved", message: `${where(b)}: this audio was set on a different shot that has since moved. Open Locked on shot ${b.shotNumber} and confirm or move it.` })
         continue
       }
     }

@@ -18,6 +18,7 @@ import { ProductionShotSettings, ReviseProductionSettings, emptyShotSettings, ty
 import { latestFilms } from "@/core/utils/production/latest-films"
 import { ProductionPicker } from "./ProductionPicker"
 import { FilmAudioDialog, LockedMediaEditor, LockedMediaRow, shotAudioSummary, useFilmLocks } from "./LockedMedia"
+import { keepShotLocks } from "@/core/actions/long-form-locks"
 import { MentionTextarea, type MentionReference } from "./MentionTextarea"
 import { MAX_FILM_SHOTS, MIN_FILM_SHOTS } from "@/core/config/film"
 
@@ -54,6 +55,8 @@ export function ProductionDesk() {
   const [lockScope, setLockScope] = useState<"shot" | "scene">("shot")
   const [audioLibrary, setAudioLibrary] = useState<null | "library" | "upload" | "ai">(null)
   const films = latestFilms(jobs)
+  /** An earlier version of this film already has shots: approving a new plan updates them in place. */
+  const hasShotWorkspace = (job: Production) => jobs.some(other => (other.parent_job_id || other.id) === (job.parent_job_id || job.id) && Boolean(other.project_id))
   const selectedRevision = jobs.find(job => job.id === selectedId)
   const selected = films.find(job => (job.parent_job_id || job.id) === (selectedRevision?.parent_job_id || selectedRevision?.id))
   // Long Form image locks for the open film (plan cards and editor).
@@ -268,7 +271,7 @@ export function ProductionDesk() {
               {shot.continuityStartState && <div className="mt-3 rounded-lg border border-line bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
               <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2 whitespace-pre-wrap">{shot.masterPrompt}</p></details>
               {!!shot.productionNotes?.length && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
-              {filmLocks.view?.enabled && <LockedMediaRow scene={filmLocks.view.scene} shot={filmLocks.view.shots[index + 1] ?? []} videos={filmLocks.view.video.enabled ? { scene: filmLocks.view.video.scene, shot: filmLocks.view.video.shots[index + 1] ?? [] } : undefined} status={filmLocks.statuses[index + 1]} audio={shotAudioSummary(filmLocks.view, index + 1)} disabled={busy || !filmLocks.view.available} onEdit={() => { setLockScope("shot"); setLockEditor(index + 1) }} />}
+              {filmLocks.view?.enabled && <LockedMediaRow scene={filmLocks.view.scene} shot={filmLocks.view.shots[index + 1] ?? []} videos={filmLocks.view.video.enabled ? { scene: filmLocks.view.video.scene, shot: filmLocks.view.video.shots[index + 1] ?? [] } : undefined} status={filmLocks.statuses[index + 1]} audio={shotAudioSummary(filmLocks.view, index + 1)} disabled={busy || !filmLocks.view.available} onEdit={() => { setLockScope("shot"); setLockEditor(index + 1) }} onKeep={async () => { const kept = await keepShotLocks({ productionId: job.id, shotNumber: index + 1 }); if (kept.error) toast.error(kept.error); else await filmLocks.reload() }} />}
             </section>)}</div>
             {filmLocks.view && !filmLocks.view.available && <p className="mt-3 text-xs text-white/45">Locked references need a database update before they can be saved.</p>}
             {filmLocks.view && lockEditor !== null && <LockedMediaEditor
@@ -336,13 +339,13 @@ export function ProductionDesk() {
             keep(repaired)
             await developWithCrew(repaired.id)
           })}>Repair plan with crew</button>}
-          {view === "direction" && job.status === "approved" && <p className="mt-4 text-sm text-gold-300">Direction approved. {job.project_id ? "Continue to Takes & review to direct your production." : "Create the workspace to begin generating your shots."}</p>}
+          {view === "direction" && job.status === "approved" && <p className="mt-4 text-sm text-gold-300">Direction approved. {job.project_id ? "Continue to Takes & review to direct your production." : hasShotWorkspace(job) ? "Apply it to your shots: each shot gets its new direction, and its Takes, approved take and locked images stay." : "Create the workspace to begin generating your shots."}</p>}
           {view === "direction" && job.project_id && <button className="mt-4 rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-5 py-2.5 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)]" onClick={() => setView("takes")}>Continue to takes</button>}
           {job.status === "approved" && !job.project_id && <button disabled={busy} className="mt-4 rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-4 py-2 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)] disabled:opacity-40" onClick={() => void run(async () => {
             const result = await materializeProduction(job.id)
             if (result.error || !result.data) throw new Error(result.error || "Could not create workspace.")
             keep({ ...job, project_id: result.data.projectId, scene_id: result.data.sceneId, sequence_id: result.data.sequenceId })
-          })}>Create production workspace</button>}
+          })}>{hasShotWorkspace(job) ? "Apply to my shots" : "Create production workspace"}</button>}
           {job.project_id && job.scene_id && <div className="mt-4 flex flex-wrap gap-3">
             <Link className="rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-4 py-2 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)]" href={`/dashboard/projects/${job.project_id}/scenes/${job.scene_id}`}>Open shot workspace</Link>
             {job.sequence_id && <Link className="rounded-full border border-gold-400/25 px-4 py-2 text-sm text-white" href={`/dashboard/sequences/${job.sequence_id}`}>Open first cut</Link>}

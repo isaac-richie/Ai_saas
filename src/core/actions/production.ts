@@ -14,6 +14,7 @@ import { labelProductionAssets, productionAssetsSchema, ownsAssetUrl, resolveRef
 import { buildRevisionContext, revisionSaveError } from "@/core/utils/production/revision-context"
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 import { movedLockIssues, planLockedRequest, resolveLocks } from "@/core/services/long-form-locks"
+import { isRetiredShot, livePlanShots } from "@/core/services/production-shots"
 import { loadFilmLocks, requestFingerprint, verifyPinnedImages } from "@/core/services/long-form-lock-store"
 import { mediaCountLabel, resolveVideoRefs } from "@/core/services/long-form-video-refs"
 import { loadFilmVideoRefs, verifyPinnedClips } from "@/core/services/long-form-video-store"
@@ -343,8 +344,11 @@ export async function materializeProduction(jobId: string) {
   const parsedPlan = plan.success ? plan.data : null
   const ledger = parsedPlan?.crew?.bible.continuityLedger
   if (ledger && parsedPlan) {
-    const { data: shots, error: shotsError } = await db.from("shots").select("id,sequence_order,generation_settings").eq("scene_id", workspace.sceneId).order("sequence_order")
-    if (shotsError || !shots) return { error: "The workspace was created, but its continuity locks could not be loaded. Retry to finish setup." }
+    const { data: sceneShots, error: shotsError } = await db.from("shots").select("id,sequence_order,generation_settings").eq("scene_id", workspace.sceneId).order("sequence_order")
+    if (shotsError || !sceneShots) return { error: "The workspace was created, but its continuity locks could not be loaded. Retry to finish setup." }
+    // Only the film's live shots, in plan order: hand-made Scene Studio shots and shots a later plan
+    // left out are not part of this plan.
+    const shots = livePlanShots(sceneShots, parsedPlan.deliverables.length)
     for (const [index, shot] of shots.entries()) {
       const deliverable = parsedPlan.deliverables[index]
       const previousShot = index > 0 ? shots[index - 1] : null
@@ -391,7 +395,8 @@ async function getOwnedProductionShot(db: Awaited<ReturnType<typeof createClient
   const { data: production } = await db.from("production_jobs").select("*").eq("id", productionId).eq("user_id", userId).eq("status", "approved").maybeSingle()
   if (!production?.scene_id) return null
   const { data: shot } = await db.from("shots").select("id,name,prompt_text,description,model,duration_target,aspect_ratio,generation_settings,approved_take_id,previous_shot_id,sequence_order").eq("id", shotId).eq("scene_id", production.scene_id).maybeSingle()
-  return shot ? { production, shot } : null
+  // A shot a later plan left out keeps its Takes but is no longer generated for this film.
+  return shot && !isRetiredShot(shot.generation_settings) ? { production, shot } : null
 }
 
 export async function listProductionShots(productionId: string) {
@@ -402,7 +407,7 @@ export async function listProductionShots(productionId: string) {
   if (!user) return { error: "Please sign in." }
   const { data: production } = await db.from("production_jobs").select("scene_id").eq("id", id.data).eq("user_id", user.id).maybeSingle()
   if (!production?.scene_id) return { error: "Create the production workspace first." }
-  const { data: shots, error } = await db.from("shots").select("id,name,prompt_text,model,duration_target,aspect_ratio,approved_take_id,previous_shot_id,shot_generations!shot_generations_shot_id_fkey(id,take_number,status,output_url,model_version_used,parameters,review_status,review_notes,media_inspection,first_frame_url,last_frame_url,created_at),generation_jobs(id,status,progress,error_message,provider_task_id,take_id,created_at)").eq("scene_id", production.scene_id).order("sequence_order")
+  const { data: shots, error } = await db.from("shots").select("id,name,prompt_text,model,duration_target,aspect_ratio,approved_take_id,previous_shot_id,shot_generations!shot_generations_shot_id_fkey(id,take_number,status,output_url,model_version_used,parameters,review_status,review_notes,media_inspection,first_frame_url,last_frame_url,created_at),generation_jobs(id,status,progress,error_message,provider_task_id,take_id,created_at)").eq("scene_id", production.scene_id).is("generation_settings->>retired_at", null).order("sequence_order")
   if (error) return { error: "Could not load production shots." }
   return { data: shots || [] }
 }
@@ -497,10 +502,10 @@ export async function queueProductionShot(input: unknown) {
       error: `Cannot generate with this configuration. Required: ${mediaCountLabel(resolvedLocks.requiredImageCount, videoRefs.length)}. ${issues.join(" ")} Your locked references are saved. No video job has been submitted.`,
       blocked: issues,
     })
-    const currentPlan = productionPlanSchema.safeParse(production.plan)
-    const currentTitle = currentPlan.success && shot.sequence_order ? currentPlan.data.deliverables[shot.sequence_order - 1]?.title : undefined
-    const moved = movedLockIssues(shot.sequence_order ? filmLocks.shots[shot.sequence_order] ?? [] : [], shot.sequence_order ?? 0, currentTitle)
-    const movedVideos = movedLockIssues(shotVideoRefs, shot.sequence_order ?? 0, currentTitle, "video references")
+    // Locks belong to the permanent shot: a re-plan that renamed it never blocks them. Only a lock
+    // saved on a different shot than this one waits for the creator.
+    const moved = movedLockIssues(shot.sequence_order ? filmLocks.shots[shot.sequence_order] ?? [] : [], shot.sequence_order ?? 0, shot.id)
+    const movedVideos = movedLockIssues(shotVideoRefs, shot.sequence_order ?? 0, shot.id, "video references")
     if (moved.length || movedVideos.length) return blocked([...moved, ...movedVideos])
     const lockPlan = planLockedRequest(resolvedLocks, model, { continuityStartUrl: shot.previous_shot_id ? continuityReferenceUrl : null, videos: videoRefs })
     if (!lockPlan.ok) return blocked(lockPlan.issues)
