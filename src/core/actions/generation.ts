@@ -345,7 +345,7 @@ export async function generateShot(shotId: string) {
 
     const quota = await reserveUsageQuota(supabase, user.id, "studio");
     if (!quota.allowed) {
-        return { error: quota.message || "Studio limit reached for your current plan." };
+        return { error: quota.message || "Scene Studio limit reached for your current plan." };
     }
     let quotaSettled = false;
     let providerAccepted = false;
@@ -573,7 +573,7 @@ export async function generateVideoShot(
 
     const quota = await reserveUsageQuota(supabase, user.id, "studio");
     if (!quota.allowed) {
-        return { error: quota.message || "Studio limit reached for your current plan." };
+        return { error: quota.message || "Scene Studio limit reached for your current plan." };
     }
 
     let submissionStarted = false;

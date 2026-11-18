@@ -147,7 +147,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
       inspectionMethod = "server_sampled_stills"
     }
-    stage = "checking the inspection allowance"
+    stage = "checking the review limit"
     // Reserve an AI review only after valid stills are available.
     const quota = await db.rpc("consume_reference_analysis")
     if (quota.error) return NextResponse.json({ error: "Apply migration 0028 to enable shared inspection limits." }, { status: 503 })

@@ -809,7 +809,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                                     <span
                                                         className="ml-auto grid size-7 place-items-center rounded-full text-white/35 hover:text-white/70"
                                                         title={[isMounted ? new Date(opt.created_at).toLocaleString() : "", providerLabel, opt.model_version, outputType].filter(Boolean).join(" · ")}
-                                                        aria-label="Take details"
+                                                        aria-label="Details"
                                                     >
                                                         <Info className="h-3.5 w-3.5" />
                                                     </span>
@@ -847,7 +847,7 @@ export function ShotList({ shots, projectId, sceneId, sequences }: ShotListProps
                                 {hasUnapprovedRenderableImage && (
                                     <div className="mt-3 flex justify-end">
                                         <Button variant="studioSecondary" size="sm" disabled className="h-8 gap-1 rounded-xl text-xs">
-                                            <Video className="mr-1.5 h-3.5 w-3.5" /> Approve a take to animate
+                                            <Video className="mr-1.5 h-3.5 w-3.5" /> Choose an image to animate
                                         </Button>
                                     </div>
                                 )}

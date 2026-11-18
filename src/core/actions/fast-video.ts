@@ -438,7 +438,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
   const locked = payload.prompt_inputs.locked_inputs ?? null
   if (locked) {
     if (payload.prompt_inputs.media_references?.length || payload.prompt_inputs.campaign_references || payload.prompt_inputs.shot_frames || payload.settings.lip_sync) {
-      return { error: "Locked media can't be combined with other reference features. Nothing was charged." }
+      return { error: "Locked references can't be combined with other reference features. Nothing was charged." }
     }
     const requiredUrls = new Set(locked.required.map(r => r.url))
     if ([...requiredUrls].some(url => !ownsAssetUrl(url, user.id))) return { error: "A locked image doesn't belong to your account. Nothing was charged." }
@@ -446,7 +446,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     const extras = (locked.reference_image_urls ?? []).filter(url => !requiredUrls.has(url))
     if (extras.length > 1 || extras.some(url => !ownsAssetUrl(url, user.id) && !ownsInspectionFrameUrl(url, user.id))) return { error: "A locked image doesn't belong to your account. Nothing was charged." }
     // Every reference video is a required input; nothing else may ride in that field.
-    if ((locked.reference_video_urls ?? []).some(url => !requiredUrls.has(url))) return { error: "A video reference doesn't belong to this shot's locked media. Nothing was charged." }
+    if ((locked.reference_video_urls ?? []).some(url => !requiredUrls.has(url))) return { error: "A video reference isn't locked to this shot. Nothing was charged." }
   }
 
   // Reject unsupported inputs before consuming quota or calling the provider.
@@ -723,7 +723,7 @@ export async function generateFastVideo(input: unknown, previewOnly = false) {
     const quota = await reserveUsageQuota(supabase, user.id, "fast_video", undefined, fastTrackUnitsForDuration(safeDuration))
     if (!quota.allowed) {
       debug.push("quota.denied", { feature: "fast_video", message: quota.message || null })
-      return { error: quota.message || "Fast Track limit reached for your current plan." }
+      return { error: quota.message || "You've used all your Quick video generations on this plan." }
     }
     reservationIdForAttempt = quota.reservationId
     debug.push("provider.generate.start")
@@ -977,7 +977,7 @@ export async function routeFastVideoToScene(input: {
   try { mediaReferences = validateOwnedReferences(input.mediaReferences, user.id) }
   catch { return { error: "Invalid media references." } }
 
-  const shotName = input.name?.trim() || `Fast Video: ${input.subject.slice(0, 36)}`
+  const shotName = input.name?.trim() || `Quick video: ${input.subject.slice(0, 36)}`
   const settings = {
     aspect_ratio: input.aspectRatio,
     duration_seconds: input.durationSeconds,
@@ -1051,7 +1051,7 @@ export async function routeFastVideoToScene(input: {
       .update({
         name: input.name?.trim() || shot.name,
         description: input.subject,
-        shot_type: "Fast Track Video",
+        shot_type: "Quick video",
         camera_movement: cameraMovement,
         estimated_duration: input.durationSeconds,
         generation_settings: settings,
@@ -1105,7 +1105,7 @@ export async function routeFastVideoToScene(input: {
       .insert({
         project_id: input.projectId,
         name: sceneName,
-        description: `Created from Fast Track for ${input.subject.slice(0, 120)}`,
+        description: `Created from Quick video for ${input.subject.slice(0, 120)}`,
         sequence_order: (latestScene?.sequence_order ?? 0) + 1,
       })
       .select("id, project_id")
@@ -1147,7 +1147,7 @@ export async function routeFastVideoToScene(input: {
       scene_id: resolvedSceneId,
       name: shotName,
       description: input.subject,
-      shot_type: "Fast Track Video",
+      shot_type: "Quick video",
       camera_movement: cameraMovement,
       estimated_duration: input.durationSeconds,
       generation_settings: settings,
@@ -1243,14 +1243,15 @@ export async function saveFastVideoClipToGallery(input: {
   })
   if (!durableUrl) return { error: "The clip could not be stored yet. Retry saving this clip without regenerating it." }
 
-  // If no project, create a default "My Videos" project
+  // If no project, use the creator's "My videos" project (older accounts have "My Videos")
   let projectId = input.projectId
   if (!projectId) {
     const { data: projects } = await supabase
       .from("projects")
       .select("id")
       .eq("user_id", user.id)
-      .eq("name", "My Videos")
+      .in("name", ["My videos", "My Videos"])
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle()
 
@@ -1261,8 +1262,8 @@ export async function saveFastVideoClipToGallery(input: {
         .from("projects")
         .insert({
           user_id: user.id,
-          name: "My Videos",
-          description: "Auto-generated videos from FastVideo",
+          name: "My videos",
+          description: "Videos saved from Quick video",
         })
         .select("id")
         .single()
@@ -1290,8 +1291,8 @@ export async function saveFastVideoClipToGallery(input: {
       .from("scenes")
       .insert({
         project_id: projectId,
-        name: "Generated Videos",
-        description: "FastVideo clips",
+        name: "Quick videos",
+        description: "Clips saved from Quick video",
         sequence_order: 1,
       })
       .select("id")

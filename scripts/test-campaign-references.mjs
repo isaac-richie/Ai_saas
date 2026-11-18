@@ -234,7 +234,7 @@ test("references, plan fields and review flags persist; a missing migration degr
 // ─── UI is additive ──────────────────────────────────────────────────────
 test("Campaign References sits between the brief and the asset controls; actions keep references", () => {
   const studio = read("../src/interface/components/fast-video/FastVideoStudio.tsx")
-  const brief = studio.indexOf('placeholder="Create 3 UGC videos for..."')
+  const brief = studio.indexOf('placeholder="Create 3 ads for..."')
   const panel = studio.indexOf("<CampaignReferencesPanel")
   const assets = studio.indexOf("[2, 3, 4, 5].map((count)")
   assert.ok(brief > 0 && brief < panel && panel < assets)
@@ -242,7 +242,7 @@ test("Campaign References sits between the brief and the asset controls; actions
   assert.match(studio, /\.\.\.\(activeReferences \? \{ references: activeReferences \} : \{\}\)/, "Plan sends the references")
   assert.match(studio, /references: activeReferences,\n\s+\}\)/, "the saved campaign records the references")
   assert.match(studio, /setCampaignReferences\(campaignRowReferences\(campaign\)\)/, "reopening restores references")
-  assert.match(studio, /Prompt and campaign settings copied/)
+  assert.match(studio, /Prompt and ad settings copied/)
   assert.match(studio, /Review likeness, product details and any claims before publishing/)
   const panelSource = read("../src/interface/components/fast-video/CampaignReferencesPanel.tsx")
   assert.match(panelSource, /Product lock is off: product shape and label consistency are no longer guaranteed/)

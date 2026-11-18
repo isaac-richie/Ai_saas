@@ -192,8 +192,8 @@ export function StudioAdPanel({
         | null;
 
       if (!response.ok || !payload || !('ok' in payload) || !payload.ok) {
-        const message = payload && 'error' in payload ? payload.error : 'Studio AD failed.';
-        setError(message || 'Studio AD failed.');
+        const message = payload && 'error' in payload ? payload.error : 'The Assistant Director could not finish.';
+        setError(message || 'The Assistant Director could not finish.');
         return;
       }
 
@@ -201,7 +201,7 @@ export function StudioAdPanel({
       setEngineModel(payload.engine?.model || null);
       void loadHistory();
     } catch {
-      setError('Unable to reach Studio AD. Please try again.');
+      setError('Unable to reach the Assistant Director. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -251,7 +251,7 @@ export function StudioAdPanel({
             )}
           </div>
         </div>
-        <span className="text-[10px] uppercase tracking-[0.16em] text-gold-300/75">Studio AD</span>
+        <span className="text-[10px] uppercase tracking-[0.16em] text-gold-300/75">Assistant Director</span>
       </div>
 
       <div className="space-y-2.5">

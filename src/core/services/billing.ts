@@ -27,8 +27,8 @@ export type BillingSnapshot = {
 }
 
 const FEATURE_NAME: Record<BillingFeature, string> = {
-  studio: "Studio",
-  fast_video: "Fast Track",
+  studio: "Scene Studio",
+  fast_video: "Quick video",
 }
 
 export async function ensureUserBillingState(supabase: SupabaseLike, userId: string) {
@@ -71,8 +71,8 @@ export async function consumeUsageQuota(
       maxCount,
       remaining,
       message: maxCount == null
-        ? `Unable to verify the ${FEATURE_NAME[feature]} allowance right now. Please try again.`
-        : `${FEATURE_NAME[feature]} limit reached (${usedCount}/${maxCount}).`,
+        ? `Unable to check your ${FEATURE_NAME[feature]} generations right now. Please try again.`
+        : `You've used all your ${FEATURE_NAME[feature]} generations (${usedCount}/${maxCount}).`,
     }
   }
 
@@ -97,7 +97,7 @@ export async function reserveUsageQuota(
 ): Promise<UsageQuotaResult> {
   if (!hasSupabaseAdminEnv()) return {
     allowed: false, usedCount: 0, maxCount: null, remaining: null,
-    message: "Generation allowance settlement is not configured. Please contact the studio owner.",
+    message: "Generations aren't set up on this server yet. Please contact the studio owner.",
   }
   // Private beta: generation is only for admins and approved Inner Circle members.
   const { data: { user: viewer } } = await supabase.auth.getUser()
@@ -123,7 +123,7 @@ export async function reserveUsageQuota(
   }
   if (error) return {
     allowed: false, usedCount: 0, maxCount: null, remaining: null,
-    message: "Unable to reserve your generation allowance right now. Please try again.",
+    message: "Unable to reserve your Generations right now. Please try again.",
   }
   const row = Array.isArray(data) ? data[0] : data
   const usedCount = Number(row?.used_count ?? 0)
@@ -132,10 +132,10 @@ export async function reserveUsageQuota(
   if (row?.allowed !== true || !row?.reservation_id) return {
     allowed: false, usedCount, maxCount, remaining,
     message: maxCount == null
-      ? `Unable to reserve the ${FEATURE_NAME[feature]} allowance right now. Please try again.`
+      ? `Unable to reserve your ${FEATURE_NAME[feature]} generations right now. Please try again.`
       : remaining != null && remaining > 0 && remaining < wholeUnits
         ? `This clip uses ${wholeUnits} ${FEATURE_NAME[feature]} generations and you have ${remaining} left. Choose a shorter length.`
-        : `${FEATURE_NAME[feature]} limit reached (${usedCount}/${maxCount}).`,
+        : `You've used all your ${FEATURE_NAME[feature]} generations (${usedCount}/${maxCount}).`,
   }
   return { allowed: true, usedCount, maxCount, remaining, reservationId: String(row.reservation_id) }
 }

@@ -228,7 +228,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Too many Studio AD requests. Please wait a moment and try again.',
+          error: 'Too many Assistant Director requests. Please wait a moment and try again.',
         },
         {
           status: 429,
@@ -293,14 +293,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Invalid Studio AD request payload.',
+          error: 'Invalid Assistant Director request.',
           issues: error.flatten(),
         },
         { status: 400 }
       );
     }
 
-    const message = error instanceof Error ? error.message : 'Studio AD failed.';
+    const message = error instanceof Error ? error.message : 'The Assistant Director could not finish.';
     return NextResponse.json(
       {
         ok: false,
@@ -355,7 +355,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ ok: true, data: data ?? [] });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Studio AD history failed.';
+    const message = error instanceof Error ? error.message : 'Could not load Assistant Director history.';
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

@@ -60,7 +60,7 @@ export default async function ProjectPage(props: ProjectPageProps) {
         <div className="workspace-page">
             <WorkspaceHeading
                 label="PROJECT"
-                crumbs={[{ label: "Studio", href: "/dashboard/studio" }]}
+                crumbs={[{ label: "Scene Studio", href: "/dashboard/studio" }]}
                 title={project.name}
                 description={project.description || "Your film, scene by scene. Open a scene to build its shots, or add the next one."}
                 actions={
@@ -77,7 +77,7 @@ export default async function ProjectPage(props: ProjectPageProps) {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <TabsList className="h-10 rounded-full border border-line bg-white/[0.02] p-1">
                         <TabsTrigger value="scenes" className={tabTrigger}>Scenes</TabsTrigger>
-                        <TabsTrigger value="assets" className={tabTrigger}>References & media</TabsTrigger>
+                        <TabsTrigger value="assets" className={tabTrigger}>References</TabsTrigger>
                     </TabsList>
                     <p className="text-[13px] text-[#9aa1ab]">
                         {sceneCount} scene{sceneCount === 1 ? "" : "s"} · {shotCount} shot{shotCount === 1 ? "" : "s"} · Updated {updated}

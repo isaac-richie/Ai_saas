@@ -976,7 +976,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       }
       setCampaignHistory(res.data || [])
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Failed to load campaigns")
+      toast.error(error instanceof Error ? error.message : "Couldn't load your ad sets")
     } finally {
       setIsCampaignHistoryLoading(false)
     }
@@ -1000,13 +1000,13 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         : aspectRatio
     )
     setDurationSeconds(campaign.duration_seconds)
-    toast.success("Campaign loaded")
+    toast.success("Ad set loaded")
   }
 
   const handlePlanCampaign = async () => {
     const brief = campaignBrief.trim() || subject.trim()
     if (brief.length < 8) {
-      toast.error("Add a short campaign brief first")
+      toast.error("Add a short brief first")
       return
     }
 
@@ -1048,8 +1048,8 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         | null
 
       if (!response.ok || !payload || !("ok" in payload) || !payload.ok) {
-        const message = payload && "error" in payload ? payload.error : "Campaign planning failed"
-        toast.error(message || "Campaign planning failed")
+        const message = payload && "error" in payload ? payload.error : "Ad set planning failed"
+        toast.error(message || "Ad set planning failed")
         return
       }
 
@@ -1079,16 +1079,16 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
       if (saved.error || !saved.data) {
         setCampaignId(null)
-        toast.error(saved.error || "Campaign planned but not saved")
+        toast.error(saved.error || "Ad set planned but not saved")
         return
       }
 
       setCampaignId(saved.data.id)
       setCampaignItems(mapCampaignRowToItems(saved.data))
       await loadCampaignHistory()
-      toast.success("Campaign plan saved")
+      toast.success("Ad set saved")
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Campaign planning failed")
+      toast.error(error instanceof Error ? error.message : "Ad set planning failed")
     } finally {
       setIsPlanningCampaign(false)
     }
@@ -1116,7 +1116,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     setDurationSeconds(item.durationSeconds)
     setAspectRatio(safeAspectRatio)
     if (campaignMode(campaignReferences) === "generic") setModelFamilyId(item.modelFamilyId)
-    toast.success("Campaign prompt loaded into Shot Builder", {
+    toast.success("Ad prompt loaded into Shot Builder", {
       description: "Review likeness, product details and any claims before publishing an ad.",
     })
   }
@@ -1220,7 +1220,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
   const handleGenerateCampaign = async () => {
     const planned = campaignItems.filter((item) => item.status === "planned" || item.status === "failed")
     if (planned.length === 0) {
-      toast.message("No planned campaign videos to generate")
+      toast.message("No planned ads to generate")
       return
     }
 
@@ -1229,9 +1229,9 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       for (const item of planned) {
         await startCampaignItemGeneration(item)
       }
-      toast.success("Campaign generation started")
+      toast.success("Generating your ads")
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Campaign generation failed")
+      toast.error(error instanceof Error ? error.message : "Couldn't generate the ads")
     } finally {
       setIsGeneratingCampaign(false)
     }
@@ -1262,7 +1262,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         } : {}),
       }
       await navigator.clipboard.writeText(`${item.masterPrompt}\n\n${JSON.stringify(settings, null, 2)}`)
-      toast.success("Prompt and campaign settings copied")
+      toast.success("Prompt and ad settings copied")
     } catch {
       toast.error("Failed to copy prompt")
     }
@@ -1293,7 +1293,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
 
   const handleAddCampaignItemToStoryboard = (item: CampaignBatchItem) => {
     if (!item.url) {
-      toast.error("Generate this campaign video first")
+      toast.error("Generate this ad first")
       return
     }
     if (needsBrandSafetyReview(item)) {
@@ -1316,7 +1316,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
     const completed = finished.filter((item) => !needsBrandSafetyReview(item))
     const awaitingReview = finished.length - completed.length
     if (completed.length === 0) {
-      toast.error(awaitingReview ? "Review brand safety first" : "No completed campaign videos to add", awaitingReview ? { description: `${awaitingReview} asset${awaitingReview === 1 ? " needs" : "s need"} a brand-safety review before adding.` } : undefined)
+      toast.error(awaitingReview ? "Review brand safety first" : "No finished ads to add", awaitingReview ? { description: `${awaitingReview} asset${awaitingReview === 1 ? " needs" : "s need"} a brand-safety review before adding.` } : undefined)
       return
     }
     if (awaitingReview) toast.message(`${awaitingReview} asset${awaitingReview === 1 ? " was" : "s were"} skipped until reviewed for brand safety.`)
@@ -1341,10 +1341,10 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       setStoryboardItems(nextItems)
       setActiveTab("storyboard")
       await persistStoryboardItems(nextItems, {
-        successMessage: hasStoryboardDestination ? "Campaign added to storyboard and synced" : "Campaign added to storyboard",
+        successMessage: hasStoryboardDestination ? "Ads added to storyboard and synced" : "Ads added to storyboard",
       })
       if (!hasStoryboardDestination) {
-        toast.success("Campaign added to storyboard")
+        toast.success("Ads added to storyboard")
       }
     } finally {
       setIsAddingCampaignToStoryboard(false)
@@ -1363,7 +1363,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
       setCampaignItems([])
     }
     await loadCampaignHistory()
-    toast.success("Campaign deleted")
+    toast.success("Ad set deleted")
   }
 
   useEffect(() => {
@@ -1894,7 +1894,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
         motionPresetId: motionPresetId || null,
         lightingPresetId: lightingPresetId || null,
         variationSetting: payload.variationSetting,
-        name: `Fast Track - ${payload.subject.slice(0, 30)}`,
+        name: `Quick video: ${payload.subject.slice(0, 30)}`,
         mediaReferences: savedClips.find((clip) => clip.url === payload.outputUrl)?.mediaReferences
           || (payload.outputUrl === videoUrl ? generationSnapshotRef.current?.mediaReferences : undefined),
       })
@@ -2511,7 +2511,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                 <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><WandSparkles className="size-4" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13.5px] font-medium text-[#ece6d6]">Help me write it</span>
-                  <span className="block text-[12.5px] text-[#9aa1ab]">Say it your way. The AI director turns it into a pro prompt.</span>
+                  <span className="block text-[12.5px] text-[#9aa1ab]">Say it your way. The Assistant Director turns it into a pro prompt.</span>
                 </span>
                 <ChevronDown className="size-4 shrink-0 text-[#9aa1ab] transition-transform duration-300 group-open/helper:rotate-180" />
               </summary>
@@ -2719,7 +2719,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
               <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.05] text-gold-300"><ListChecks className="size-4" /></span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[13.5px] font-medium text-[#ece6d6]">Make a set of ads</span>
-                <span className="block text-[12.5px] text-[#9aa1ab]">Describe your product, get 2–5 social ads at once.</span>
+                <span className="block text-[12.5px] text-[#9aa1ab]">UGC · Describe your product, get 2–5 social ads at once.</span>
               </span>
               <ChevronDown className="size-4 shrink-0 text-[#9aa1ab] transition-transform duration-300 group-open/campaign:rotate-180" />
             </summary>
@@ -2774,7 +2774,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
             <Textarea
               value={campaignBrief}
               onChange={(event) => setCampaignBrief(event.target.value)}
-              placeholder="Create 3 UGC videos for..."
+              placeholder="Create 3 ads for..."
               className="studio-field min-h-20 resize-none rounded-xl text-white placeholder:text-white/35"
             />
             <CampaignReferencesPanel
@@ -2990,7 +2990,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
                     className="h-10 rounded-xl border border-gold-300/35 bg-gold-500/12 text-xs text-gold-100 hover:bg-gold-500/20 truncate"
                   >
                     {isGeneratingCampaign ? <Loader2 className="mr-2 h-4 w-4 shrink-0 animate-spin" /> : <Send className="mr-2 h-4 w-4 shrink-0" />}
-                    <span className="truncate">Generate Campaign</span>
+                    <span className="truncate">Generate ads</span>
                   </Button>
                   <Button
                     type="button"

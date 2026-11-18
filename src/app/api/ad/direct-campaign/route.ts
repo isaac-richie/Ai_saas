@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Too many Studio AD campaign requests. Please wait a moment and try again.',
+          error: 'Too many ad set requests. Please wait a moment and try again.',
         },
         {
           status: 429,
@@ -93,14 +93,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Invalid Studio AD campaign payload.',
+          error: 'Invalid ad set request.',
           issues: error.flatten(),
         },
         { status: 400 }
       );
     }
 
-    const message = error instanceof Error ? error.message : 'Studio AD campaign planning failed.';
+    const message = error instanceof Error ? error.message : 'Ad set planning failed.';
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }

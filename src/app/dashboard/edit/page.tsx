@@ -51,8 +51,8 @@ export default async function EditHubPage() {
           </Link>
         </div>
       ) : (
-        <section aria-label="Your work" className="space-y-3">
-          <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-[#9aa3ad]">Your work</h2>
+        <section aria-label="My edits" className="space-y-3">
+          <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-[#9aa3ad]">My edits</h2>
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {work.map((item) => <WorkCard key={item.projectId} item={item} />)}
           </ul>

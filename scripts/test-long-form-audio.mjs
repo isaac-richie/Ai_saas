@@ -420,16 +420,16 @@ describe('Wiring (acceptance 1, 10, 14, 15, 21, 24, 26, 28)', () => {
   it('locked recordings and locked images can’t be removed from under their locks', () => {
     assert.match(migration, /audio_asset_id uuid not null references public\.long_form_audio_assets\(id\),/);
     assert.match(migration, /A saved recording cannot be changed/);
-    assert.match(production, /is a locked image\. Remove it from Locked media first/);
+    assert.match(production, /is a locked image\. Unlock it from its shot first/);
   });
   it('generation blocks shots whose locks moved, before anything is submitted', () => {
     assert.ok(production.indexOf('movedLockIssues(') < production.indexOf('planLockedRequest(resolvedLocks'));
   });
-  it('the UI says Locked media under Editing notes and shows separate image and audio counts', () => {
+  it('the UI says Locked under Editing notes and shows separate image and audio counts', () => {
     const desk = src('../src/interface/components/fast-video/ProductionDesk.tsx');
     const row = src('../src/interface/components/fast-video/LockedMedia.tsx');
     assert.ok(desk.indexOf('Editing notes') < desk.indexOf('<LockedMediaRow'));
-    assert.match(row, /Locked media <span/);
+    assert.match(row, /Locked <span/);
     assert.match(row, /`\$\{audioCount\} audio`/);
   });
   it('Quick Shot is unchanged: no locked-media code reaches it', () => {

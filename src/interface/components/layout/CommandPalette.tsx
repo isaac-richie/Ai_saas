@@ -43,7 +43,7 @@ export function CommandPalette() {
       { id: "create", label: "Create a video", hint: "Quick video", keywords: "create fast video generate new make clip", run: () => router.push("/dashboard/fast-video") },
       { id: "film", label: "Plan a longer film", hint: "Several shots", keywords: "film story shots plan storyboard", run: () => router.push("/dashboard/fast-video?mode=film") },
       { id: "dashboard", label: "Go home", hint: "Home", keywords: "dashboard overview home", run: () => router.push("/dashboard") },
-      { id: "studio", label: "Open Studio", hint: "Scenes and shots", keywords: "studio scene shots", run: () => router.push("/dashboard/studio") },
+      { id: "studio", label: "Open Scene Studio", hint: "Scenes and shots", keywords: "studio scene shots", run: () => router.push("/dashboard/studio") },
       { id: "gallery", label: "Open my videos", hint: "Everything you've made", keywords: "gallery assets images videos my", run: () => router.push("/dashboard/gallery") },
       { id: "exports", label: "Open downloads", hint: "Exports", keywords: "exports downloads queue", run: () => router.push("/dashboard/exports") },
       { id: "projects", label: "Open projects", hint: "All projects", keywords: "projects list", run: () => router.push("/dashboard/projects") },
@@ -136,8 +136,8 @@ export function CommandPalette() {
             </div>
             <div className="flex flex-wrap items-center gap-2 border-t border-line bg-black/20 px-4 py-3 text-[11px] text-[#8f9086]">
               <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><FolderKanban className="h-3 w-3" /> Projects</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><Film className="h-3 w-3" /> Studio</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><GalleryHorizontalEnd className="h-3 w-3" /> Gallery</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><Film className="h-3 w-3" /> Scene Studio</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><GalleryHorizontalEnd className="h-3 w-3" /> My videos</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><Video className="h-3 w-3" /> Create</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><Wand2 className="h-3 w-3" /> Generate</span>
               <span className="inline-flex items-center gap-1 rounded-full border border-line bg-gold-400/[0.03] px-2 py-1"><Sparkles className="h-3 w-3" /> Tour</span>

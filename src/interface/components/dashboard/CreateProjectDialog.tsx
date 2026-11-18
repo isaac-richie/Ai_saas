@@ -42,13 +42,13 @@ export function CreateProjectDialog() {
             <DialogTrigger asChild>
                 <Button data-tour="create-project" className="min-h-11 rounded-xl border border-gold-300/40 bg-gold-400/[0.1] text-gold-50 hover:bg-gold-400/[0.18]">
                     <Plus className="mr-2 h-4 w-4" />
-                    New film project
+                    New project
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px] border-line bg-obsidian-800 text-white">
                 <form action={onSubmit} autoComplete="off">
                     <DialogHeader>
-                        <DialogTitle>New film project</DialogTitle>
+                        <DialogTitle>New project</DialogTitle>
                         <DialogDescription className="text-[#B0B8C4]">
                             A project holds the scenes and shots of one film. You can rename it later.
                         </DialogDescription>

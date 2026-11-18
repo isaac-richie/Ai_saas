@@ -18,7 +18,7 @@ import {
 import { LONG_FORM_LOCKS_ENABLED, LONG_FORM_VIDEO_REFS_ENABLED } from "@/core/config/feature-flags"
 
 const MIGRATION = "Video references need a database update (migration 0054). Nothing was saved."
-const STALE = "This shot's locked media changed in another window. Reload to see the latest, then try again."
+const STALE = "This shot's locked references changed in another window. Reload to see the latest, then try again."
 
 type Session = Awaited<ReturnType<typeof createClient>>
 

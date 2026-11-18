@@ -78,7 +78,7 @@ export function GenerationJobsPanel() {
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="text-[11px] uppercase tracking-[0.12em] text-white/35 font-medium">
-            Generation Jobs
+            Takes
           </p>
           {activeCount > 0 && (
             <span className="rounded-full border border-gold-400/25 bg-gold-500/10 px-1.5 py-0.5 text-[9px] text-gold-300">

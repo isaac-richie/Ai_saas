@@ -164,7 +164,7 @@ export function ShotFlowPanel({ shot, shotNumber, projectId, sceneId, sequences,
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <p className="text-[12px] text-white/55">This shot hasn&apos;t been generated yet. Your prompt and references are saved.</p>
           <Button type="button" variant="studio" size="sm" onClick={() => void run("regenerate", () => generateShot(shot.id), "Generating your images")} disabled={Boolean(busy)} className="h-8">
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" />Generate image
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />Generate images
           </Button>
         </div>
       ) : null}

@@ -27,7 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
     // The phone tab bar has four slots beside Create, so Mimic is reached there from the Edit page.
     { name: "Mimic", badge: "Beta", href: "/dashboard/mimic", icon: MaskHappy, tour: "nav-mimic", disabled: !MIMIC_ENABLED, desktopOnly: true, isActive: (pathname) => pathname.startsWith("/dashboard/mimic") },
     { name: "Edit", href: "/dashboard/edit", icon: Scissors, tour: "nav-edit", isActive: (pathname) => pathname.startsWith("/dashboard/edit") },
-    { name: "Studio", href: "/dashboard/studio", icon: FilmSlate, tour: "nav-studio", disabled: !STUDIO_ENABLED, desktopOnly: true, isActive: (pathname) => pathname.startsWith("/dashboard/studio") || pathname.startsWith("/dashboard/projects") || pathname.startsWith("/dashboard/sequences") },
+    { name: "Scene Studio", href: "/dashboard/studio", icon: FilmSlate, tour: "nav-studio", disabled: !STUDIO_ENABLED, desktopOnly: true, isActive: (pathname) => pathname.startsWith("/dashboard/studio") || pathname.startsWith("/dashboard/projects") || pathname.startsWith("/dashboard/sequences") },
     { name: "My videos", href: "/dashboard/gallery", icon: FilmReel, tour: "nav-videos", isActive: (pathname) => pathname.startsWith("/dashboard/gallery") || pathname.startsWith("/dashboard/exports") },
     { name: "Settings", href: "/dashboard/settings", icon: GearSix, tour: "nav-settings", isActive: (pathname) => pathname.startsWith("/dashboard/settings") || pathname.startsWith("/settings") },
 ]

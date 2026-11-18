@@ -88,7 +88,7 @@ describe('Wiring (spec 2.1, 2.6, 2.7)', () => {
   it('re-running replaces only automatic captions, never typed titles', () => {
     assert.match(route, /\.eq\('metadata->>source', 'auto'\)/);
   });
-  it('Music is Audio, Make video is Export video, and the AI Director makes no claim to see every shot', () => {
+  it('Music is Audio, Make video is Export video, and the AI Editor makes no claim to see every shot', () => {
     assert.match(src('../src/interface/components/editor/ToolRail.tsx'), /label: 'Audio', title: 'Audio'/);
     const editor = ['EditorWorkspace.tsx', 'ExportSheet.tsx', 'FormatPanel.tsx', 'AgentPanel.tsx'].map((f) => src(`../src/interface/components/editor/${f}`)).join('\n');
     assert.doesNotMatch(editor, /Make video|I can see every shot/);

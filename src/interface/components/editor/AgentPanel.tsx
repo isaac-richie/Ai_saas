@@ -291,7 +291,7 @@ export function AgentPanel({ onSend, onAutoEdit, onNewTake, onRestoreVersion, ha
                       <p className="mt-1.5 text-xs text-[#b0b8c4]">Making it now. It drops in when ready; the old take is kept.</p>
                     ) : (
                       <>
-                        <p className="mt-1 text-xs text-[#b0b8c4]">Uses one generation from your allowance. Nothing starts until you tap.</p>
+                        <p className="mt-1 text-xs text-[#b0b8c4]">Uses one of your Generations. Nothing starts until you tap.</p>
                         <button
                           onClick={() => {
                             onNewTake(n.clip_id!, n.what);

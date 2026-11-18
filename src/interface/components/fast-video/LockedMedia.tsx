@@ -96,7 +96,7 @@ export function LockedMediaRow({ scene, shot, videos, status, audio, onEdit, dis
       <div className="flex items-center gap-2">
         <Lock className="size-3.5 shrink-0 text-gold-300/80" aria-hidden />
         <span className="min-w-0 flex-1 truncate text-white/80">
-          Locked media <span className={counts ? "tabular-nums text-white" : "text-white/45"}>· {counts || "None"}</span>
+          Locked <span className={counts ? "tabular-nums text-white" : "text-white/45"}>· {counts || "None"}</span>
         </span>
         <button type="button" disabled={disabled} onClick={onEdit} className="shrink-0 rounded-full border border-white/15 px-2.5 py-0.5 text-[11px] text-white/80 transition-colors hover:border-gold-300/50 hover:text-gold-50 disabled:opacity-40">
           {counts ? "Edit" : "Add"}
@@ -238,10 +238,10 @@ export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTit
   if (!client) return null
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:p-6" onClick={onClose}>
-      <div role="dialog" aria-label={`Locked media for shot ${shotNumber}`} onClick={e => e.stopPropagation()} className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-obsidian-900 text-white sm:rounded-3xl">
+      <div role="dialog" aria-label={`Locked for shot ${shotNumber}`} onClick={e => e.stopPropagation()} className="relative flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-obsidian-900 text-white sm:rounded-3xl">
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
           <div className="min-w-0">
-            <h2 className="text-[17px] font-medium">Locked media · Shot {shotNumber}</h2>
+            <h2 className="text-[17px] font-medium">Locked · Shot {shotNumber}</h2>
             <p className="truncate text-xs text-white/50">{shotTitle}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-full text-white/60 hover:bg-white/5"><X size={18} /></button>
@@ -331,7 +331,7 @@ export function LockedMediaEditor({ productionId, shotNumber, shotCount, shotTit
               <div className="mt-2 rounded-lg border border-amber-300/30 bg-amber-300/[0.06] p-3 text-amber-100">
                 <p className="font-medium">Cannot generate with this configuration.</p>
                 <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-amber-100/90">{status.issues.map((issue, i) => <li key={i}>{issue}</li>)}</ul>
-                <p className="mt-2 text-xs text-amber-100/70">Your locked media is saved. No video job has been submitted. Change this shot&apos;s model in Sequence settings, or edit the references.</p>
+                <p className="mt-2 text-xs text-amber-100/70">Your locked references are saved. No video job has been submitted. Change this shot&apos;s model in Sequence settings, or edit the references.</p>
               </div>
             ) : status?.status === "mapped" ? (
               <p className="mt-1 text-xs text-[#8fd1b9]">{mediaCountLabel(status.requiredImageCount, status.videoCount)} required · all mapped to the request. Mapped means included in the outgoing request; it doesn&apos;t guarantee how closely the result follows them. Files are checked again when you generate.</p>

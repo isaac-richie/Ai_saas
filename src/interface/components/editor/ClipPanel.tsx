@@ -297,7 +297,7 @@ function TakesSection({ clip, locked, status, onRegenerate }: {
           <p className="text-xs leading-relaxed text-[#9aa3ad]">
             Same prompt, references and starting frame as the original, so it still fits the shots around it.
             Seedance shots can run up to {MAX_FAST_TRACK_SECONDS}s; Kling shots stop at 15s.
-            Uses {fastTrackUnitsForDuration(seconds)} {fastTrackUnitsForDuration(seconds) === 1 ? 'generation' : 'generations'} from your allowance.
+            Uses {fastTrackUnitsForDuration(seconds)} {fastTrackUnitsForDuration(seconds) === 1 ? 'generation' : 'generations'}.
           </p>
           <div className="flex gap-2">
             <button onClick={() => setConfirming(false)} className="flex-1 rounded-xl border border-line py-2.5 text-sm text-[#d6d0c0] hover:bg-white/5">Cancel</button>

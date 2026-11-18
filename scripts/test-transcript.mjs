@@ -200,7 +200,7 @@ describe('Wiring', () => {
   it('Delete inside the transcript cuts words and never removes the selected shot', () => {
     assert.match(src('../src/interface/components/editor/TranscriptPanel.tsx'), /e\.key === 'Backspace'\) && live\.length\) \{ e\.preventDefault\(\); e\.stopPropagation\(\)/);
   });
-  it('the Transcript tool sits next to the AI Director', () => {
+  it('the Transcript tool sits next to the AI Editor', () => {
     assert.match(src('../src/interface/components/editor/ToolRail.tsx'), /id: 'ai'[^\n]*\n\s*\{ id: 'transcript'/);
   });
 });

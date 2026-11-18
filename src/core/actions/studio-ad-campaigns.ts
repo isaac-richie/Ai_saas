@@ -57,7 +57,7 @@ function asJson(value: unknown): Json {
 
 function makeCampaignName(brief: string): string {
   const cleaned = brief.replace(/\s+/g, " ").trim()
-  if (!cleaned) return "Fast Track Campaign"
+  if (!cleaned) return "Ad set"
   return cleaned.length > 64 ? `${cleaned.slice(0, 61)}...` : cleaned
 }
 

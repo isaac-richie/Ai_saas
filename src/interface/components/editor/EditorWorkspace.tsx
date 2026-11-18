@@ -462,7 +462,7 @@ export function EditorWorkspace(props: EditorWorkspaceProps) {
                         <AnimatePresence mode="wait" initial={false}>
                           <motion.div key={tab} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.18 }}>
                             <h2 className="text-[17px] font-medium tracking-tight text-white">
-                              {tab === 'ai' ? <>AI <span className="lux-serif text-gold-200">Director</span></> : activeTab.title}
+                              {tab === 'ai' ? <>AI <span className="lux-serif text-gold-200">Editor</span></> : activeTab.title}
                             </h2>
                             <p className="mt-0.5 text-xs text-[#8f97a1]">{activeTab.blurb}</p>
                           </motion.div>

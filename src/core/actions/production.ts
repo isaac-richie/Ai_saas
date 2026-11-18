@@ -119,11 +119,11 @@ export async function replaceProductionReferences(input: unknown) {
     const locks = await loadFilmLocks(db, (job.parent_job_id as string | null) || (job.id as string))
     const keptIds = new Set(parsed.data.assets.map(asset => asset.id))
     const required = [...locks.scene, ...Object.values(locks.shots).flat()].filter(binding => !keptIds.has(binding.assetId))
-    if (required.length) return { error: `"${required[0].assetName}" is a locked image. Remove it from Locked media first, then remove it here.` }
+    if (required.length) return { error: `"${required[0].assetName}" is a locked image. Unlock it from its shot first, then remove it here.` }
     // The same holds for a video a shot or scene uses as a reference.
     const videoRefs = await loadFilmVideoRefs(db, (job.parent_job_id as string | null) || (job.id as string))
     const usedVideo = [...videoRefs.scene, ...Object.values(videoRefs.shots).flat()].find(binding => !keptIds.has(binding.assetId))
-    if (usedVideo) return { error: `"${usedVideo.assetName}" is a video reference. Remove it from Locked media first, then remove it here.` }
+    if (usedVideo) return { error: `"${usedVideo.assetName}" is a video reference. Unlock it from its shot first, then remove it here.` }
   } catch {
     return { error: "Could not check locked images. Your references are unchanged." }
   }
@@ -494,7 +494,7 @@ export async function queueProductionShot(input: unknown) {
   let lockNote = ""
   if (resolvedLocks.bindingCount || videoRefs.length) {
     const blocked = (issues: string[]) => ({
-      error: `Cannot generate with this configuration. Required: ${mediaCountLabel(resolvedLocks.requiredImageCount, videoRefs.length)}. ${issues.join(" ")} Your locked media is saved. No video job has been submitted.`,
+      error: `Cannot generate with this configuration. Required: ${mediaCountLabel(resolvedLocks.requiredImageCount, videoRefs.length)}. ${issues.join(" ")} Your locked references are saved. No video job has been submitted.`,
       blocked: issues,
     })
     const currentPlan = productionPlanSchema.safeParse(production.plan)
