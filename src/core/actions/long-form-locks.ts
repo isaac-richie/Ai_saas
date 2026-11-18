@@ -5,7 +5,8 @@ import { createClient } from "@/infrastructure/supabase/server"
 import { labelProductionAssets, ownsAssetUrl, productionAssetsSchema, type ProductionAsset } from "@/core/validation/production-assets"
 import { productionPlanSchema } from "@/core/validation/production-crew"
 import { resolveKieVideoModelByFamily } from "@/core/config/kie-video-models"
-import { LOCK_ROLES, movedLockIssues, planLockedRequest, resolveLocks, type LockBinding } from "@/core/services/long-form-locks"
+import { LOCK_ROLES, movedLockIssues, planLockedRequest, replannedLockNotes, resolveLocks, type LockBinding } from "@/core/services/long-form-locks"
+import { livePlanShots } from "@/core/services/production-shots"
 import { DIALOGUE_VOICES, planFilmAudio, plannedSpans, type AudioAsset, type AudioBinding, type AudioIssue } from "@/core/services/long-form-audio"
 import { loadFilmAudio } from "@/core/services/long-form-audio-store"
 import { MAX_BINDINGS_PER_SCOPE, fetchImage, isMissingLocksTable, loadFilmLocks, type FilmLocks } from "@/core/services/long-form-lock-store"
@@ -42,7 +43,19 @@ async function ownedFilm(db: Session, userId: string, productionId: string) {
   const videoLibrary = assets.filter(asset => asset.mediaType === "video")
   const plan = productionPlanSchema.safeParse(job.plan)
   const shots = plan.success ? plan.data.deliverables.map(d => ({ title: d.title, durationSec: d.durationSeconds })) : []
-  return { job, rootId, library, videoLibrary, shots }
+  return { job, rootId, library, videoLibrary, shots, shotIds: await filmShotIds(db, rootId) }
+}
+
+/**
+ * The film's permanent shots by their place (1, 2, ...), from its shot workspace. Empty before the
+ * first plan is approved, or if they can't be read: the "belongs to another shot" check then waits.
+ */
+async function filmShotIds(db: Session, rootId: string): Promise<Map<number, string>> {
+  const { data: jobs } = await db.from("production_jobs").select("scene_id,revision_number").or(`id.eq.${rootId},parent_job_id.eq.${rootId}`).not("scene_id", "is", null).order("revision_number", { ascending: false }).limit(1)
+  const sceneId = jobs?.[0]?.scene_id as string | undefined
+  if (!sceneId) return new Map()
+  const { data: shots } = await db.from("shots").select("id,sequence_order,generation_settings").eq("scene_id", sceneId)
+  return new Map(livePlanShots(shots ?? [], 24).map(shot => [shot.sequence_order ?? 0, shot.id]))
 }
 
 export type FilmLockView = {
@@ -97,7 +110,7 @@ export async function getFilmLocks(productionId: string): Promise<{ data?: FilmL
     const [locks, audio, video] = await Promise.all([loadFilmLocks(db, film.rootId), loadFilmAudio(db, film.rootId), loadFilmVideoRefs(db, film.rootId)])
     const titles = new Map(film.shots.map((shot, i) => [i + 1, shot.title]))
     const issues = audio.bindings.length
-      ? planFilmAudio(audio.bindings, new Map(audio.assets.map(a => [a.id, a])), plannedSpans(film.shots), { currentTitles: titles }).issues
+      ? planFilmAudio(audio.bindings, new Map(audio.assets.map(a => [a.id, a])), plannedSpans(film.shots), { currentTitles: titles, currentShotIds: film.shotIds }).issues
       : []
     return {
       data: {
@@ -188,7 +201,10 @@ export type ShotLockStatus = {
   videoCount: number
   /** "mapped" means every input has a place in the outgoing request, not that the result will match it. */
   status: "none" | "mapped" | "blocked"
+  /** Why it can't generate, in plain words. Empty unless blocked. */
   issues: string[]
+  /** Worth knowing but never blocking, such as "this shot was re-planned and its locks stayed on it". */
+  notes: string[]
   model: string
   /** The image and video keys a take generated now would carry; a take whose snapshot differs is outdated. */
   lockKeys: string[]
@@ -213,20 +229,48 @@ export async function preflightFilmLocks(productionId: string): Promise<{ data?:
     data: plan.data.deliverables.map((shot, index) => {
       const shotNumber = index + 1
       const model = resolveKieVideoModelByFamily({ familyId: shot.modelFamilyId, useImageToVideo: true })
-      return shotLockStatus(locks.scene, locks.shots[shotNumber] ?? [], shotNumber, model, shot.title, videos.scene, videos.shots[shotNumber] ?? [])
+      return shotLockStatus(locks.scene, locks.shots[shotNumber] ?? [], shotNumber, model, shot.title, videos.scene, videos.shots[shotNumber] ?? [], film.shotIds.get(shotNumber))
     }),
   }
 }
 
-function shotLockStatus(scene: LockBinding[], shot: LockBinding[], shotNumber: number, model: string, title: string, videoScene: VideoRefBinding[] = [], videoShot: VideoRefBinding[] = []): ShotLockStatus {
+function shotLockStatus(scene: LockBinding[], shot: LockBinding[], shotNumber: number, model: string, title: string, videoScene: VideoRefBinding[] = [], videoShot: VideoRefBinding[] = [], shotId?: string): ShotLockStatus {
   const resolved = resolveLocks(scene, shot)
   const videos = resolveVideoRefs(videoScene, videoShot)
   const counts = { shotNumber, requiredImageCount: resolved.requiredImageCount, bindingCount: resolved.bindingCount, videoCount: videos.length, model }
-  if (!resolved.bindingCount && !videos.length) return { ...counts, status: "none", issues: [], lockKeys: [] }
+  if (!resolved.bindingCount && !videos.length) return { ...counts, status: "none", issues: [], notes: [], lockKeys: [] }
   const lockKeys = [...resolved.bindings.map(b => b.key), ...videos.map(v => `video:${v.key}`)].sort()
-  const moved = [...movedLockIssues(shot, shotNumber, title), ...movedLockIssues(videoShot, shotNumber, title, "video references")]
-  if (moved.length) return { ...counts, status: "blocked", issues: moved, lockKeys }
+  // A re-plan renames shots but keeps them; their locks stay valid. Note it, never block on it.
+  const notes = replannedLockNotes([...shot, ...videoShot], shotNumber, title)
+  const moved = [...movedLockIssues(shot, shotNumber, shotId), ...movedLockIssues(videoShot, shotNumber, shotId, "video references")]
+  if (moved.length) return { ...counts, status: "blocked", issues: moved, notes, lockKeys }
   // In a Long Form film every shot after the first continues from the previous shot's last frame.
   const planned = planLockedRequest(resolved, model, { continuityStartUrl: shotNumber > 1 ? "continuity://previous-shot" : null, videos })
-  return { ...counts, status: planned.ok ? "mapped" : "blocked", issues: planned.ok ? [] : planned.issues, lockKeys }
+  return { ...counts, status: planned.ok ? "mapped" : "blocked", issues: planned.ok ? [] : planned.issues, notes, lockKeys }
+}
+
+const keepSchema = z.object({ productionId: z.string().uuid(), shotNumber: z.number().int().min(1).max(24) })
+
+/**
+ * "Keep" after a re-plan: the shot's locked images, video references and audio stay exactly as they
+ * are and are recorded against the shot's new title (and its permanent shot), so the note goes away.
+ * Nothing is removed, re-uploaded or checked again.
+ */
+export async function keepShotLocks(input: unknown): Promise<{ data?: { kept: true }; error?: string }> {
+  const parsed = keepSchema.safeParse(input)
+  if (!parsed.success) return { error: "Choose a shot." }
+  const db = await createClient()
+  const { data: { user } } = await db.auth.getUser()
+  if (!user) return { error: "Please sign in." }
+  const film = await ownedFilm(db, user.id, parsed.data.productionId)
+  if (!film) return { error: "Production not found." }
+  const title = film.shots[parsed.data.shotNumber - 1]?.title
+  if (title === undefined) return { error: "That shot is not in the current plan." }
+  const patch = { anchor_title: title.slice(0, 200), ...(film.shotIds.get(parsed.data.shotNumber) ? { shot_id: film.shotIds.get(parsed.data.shotNumber) } : {}) }
+  const tables = ["long_form_reference_bindings", "long_form_video_bindings", "long_form_audio_bindings"] as const
+  const results = await Promise.all(tables.map(table => db.from(table).update(patch).eq("production_root_id", film.rootId).eq("scope_type", "shot").eq("shot_number", parsed.data.shotNumber)))
+  // A table that doesn't exist yet (feature migration not applied) has nothing to keep.
+  const failed = results.find(r => r.error && !isMissingLocksTable(r.error) && !/long_form_(video|audio)_bindings/.test(r.error.message ?? ""))
+  if (failed) return { error: "Couldn't keep these locks. Try again." }
+  return { data: { kept: true } }
 }

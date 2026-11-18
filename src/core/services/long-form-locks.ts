@@ -34,8 +34,10 @@ export type LockBinding = {
   role: LockRole
   entityLabel: string
   viewLabel: string
-  /** Shot scope: the shot's title when the lock was saved, so a reordered or rewritten plan is caught. */
+  /** Shot scope: the shot's title when the lock was saved. A later re-plan may rename the shot; that is noted, never blocked. */
   anchorTitle?: string
+  /** Shot scope: the permanent shot this lock belongs to, once the film's shots exist (migration 0058). */
+  shotId?: string | null
 }
 
 /** A required binding after scene + shot are combined; `scopes` says where it came from. */
@@ -77,15 +79,24 @@ export function resolveLocks(sceneBindings: LockBinding[], shotBindings: LockBin
 }
 
 /**
- * Shot locks were saved against a shot by its number. If the plan has since changed which shot sits at
- * that number, generating with them could put one shot's images on another, so generation waits until
- * the creator confirms (re-saves) them.
+ * Locks belong to a permanent shot. Re-planning updates that shot in place, so its locks stay valid
+ * whatever the crew renames it to. Generation waits only when a lock really belongs to another shot:
+ * it carries a shot id and the shot now at this place is a different one.
  */
-export function movedLockIssues(shotBindings: Pick<LockBinding, "anchorTitle">[], shotNumber: number, currentTitle: string | undefined, what = "images"): string[] {
+export function movedLockIssues(shotBindings: Pick<LockBinding, "shotId">[], shotNumber: number, currentShotId: string | null | undefined, what = "images"): string[] {
+  if (!currentShotId) return []
+  const elsewhere = shotBindings.some(b => b.shotId && b.shotId !== currentShotId)
+  return elsewhere ? [`Some locked ${what} on shot ${shotNumber} were set on a different shot that has since moved. Open Locked on shot ${shotNumber} to check them, then save.`] : []
+}
+
+/**
+ * Not a problem, just worth knowing: the shot was re-planned since these locks were saved, and they
+ * stayed on it. Shown beside the shot's locks until the creator keeps them (which updates the title).
+ */
+export function replannedLockNotes(shotBindings: Pick<LockBinding, "anchorTitle">[], shotNumber: number, currentTitle: string | undefined): string[] {
   if (currentTitle === undefined) return []
-  const anchors = [...new Set(shotBindings.map(b => b.anchorTitle ?? "").filter(Boolean))]
-  const stale = anchors.find(title => title !== currentTitle)
-  return stale ? [`Shot ${shotNumber} is now "${currentTitle}", but its locked ${what} were set for "${stale}". Open Locked on that shot and save to confirm them.`] : []
+  const earlier = [...new Set(shotBindings.map(b => b.anchorTitle ?? "").filter(Boolean))].find(title => title !== currentTitle)
+  return earlier ? [`Shot ${shotNumber} was re-planned (it was "${earlier}"). Its locked media stayed on it.`] : []
 }
 
 // ── Capability registry ──────────────────────────────────────────────────────────────────────────

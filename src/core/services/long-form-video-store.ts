@@ -22,14 +22,14 @@ export const VIDEO_CLIP_PATH = /^[0-9a-f-]{36}\/video-refs\/[0-9a-f-]{36}\.mp4$/
 type Row = {
   id: string; scope_type: "scene" | "shot"; shot_number: number | null; asset_id: string; source_url: string; asset_name: string
   source_duration_ms: number; trim_start_ms: number; trim_end_ms: number; clip_url: string; clip_sha256: string; clip_bytes: number
-  clip_duration_ms: number; width: number; height: number; guidance_purpose: VideoPurpose; guidance_text: string; anchor_title?: string | null
+  clip_duration_ms: number; width: number; height: number; guidance_purpose: VideoPurpose; guidance_text: string; anchor_title?: string | null; shot_id?: string | null
 }
 
 export const toVideoBinding = (row: Row): VideoRefBinding => ({
   id: row.id, scopeType: row.scope_type, shotNumber: row.shot_number, assetId: row.asset_id, sourceUrl: row.source_url, assetName: row.asset_name,
   sourceDurationMs: row.source_duration_ms, trimStartMs: row.trim_start_ms, trimEndMs: row.trim_end_ms, clipUrl: row.clip_url, sha256: row.clip_sha256,
   byteSize: row.clip_bytes, clipDurationMs: row.clip_duration_ms, width: row.width, height: row.height, purpose: row.guidance_purpose,
-  guidanceText: row.guidance_text, anchorTitle: row.anchor_title ?? "",
+  guidanceText: row.guidance_text, anchorTitle: row.anchor_title ?? "", shotId: row.shot_id ?? null,
 })
 
 export type FilmVideoRefs = { available: boolean; scene: VideoRefBinding[]; shots: Record<number, VideoRefBinding[]> }
