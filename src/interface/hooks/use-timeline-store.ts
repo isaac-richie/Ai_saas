@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { TimelineProject, TimelineTrack, TimelineClip, TransitionType } from '@/core/types/timeline';
-import { reorderClip, removeAndRipple, setClipSpeed, splitClip } from '@/core/services/timeline-ops';
+import { duplicateClip, reorderClip, removeAndRipple, setClipSpeed, splitClip } from '@/core/services/timeline-ops';
 import { emptyHistory, record, undo, redo, type History } from '@/interface/lib/history';
 import { DEFAULT_FRAME_FIT } from '@/core/services/video-format';
 import { isClipLocked } from '@/core/services/edit-agent';
@@ -37,6 +37,8 @@ interface TimelineStore {
   removeClip: (id: string) => void;
   reorder: (id: string, toIndex: number) => void;
   split: (id: string, atMs: number) => void;
+  /** Copies a clip right after itself on the same track and selects the copy; later clips on that track move along. */
+  duplicate: (id: string) => 'ok' | 'missing' | 'track-locked' | 'clip-locked';
   setTransition: (clipId: string, type: TransitionType, duration_ms: number) => void;
   setGrade: (gradeId: string) => void;
   /** Slow motion or fast motion for one shot; the shots after it move to fit. */
@@ -156,6 +158,17 @@ export const useTimelineStore = create<TimelineStore>((set, get) => ({
     if (!clip || isLocked(s, clip.track_id) || isClipLocked(clip)) return;
     const next = splitClip(s.clips, id, atMs, crypto.randomUUID());
     if (next !== s.clips) edit(get, set, `split:${id}:${Date.now()}`, { clips: next });
+  },
+
+  duplicate: (id) => {
+    const s = get();
+    const clip = s.clips.find((c) => c.id === id);
+    if (!clip) return 'missing';
+    if (isLocked(s, clip.track_id)) return 'track-locked';
+    const result = duplicateClip(s.clips, id, crypto.randomUUID());
+    if (!result.ok) return result.reason === 'locked' ? 'clip-locked' : 'missing';
+    edit(get, set, `duplicate:${id}:${Date.now()}`, { clips: result.clips, selected_clip_id: result.copyId });
+    return 'ok';
   },
 
   setTransition: (clipId, type, duration_ms) =>

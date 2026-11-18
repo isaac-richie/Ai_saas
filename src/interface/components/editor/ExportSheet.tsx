@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Clapperboard, Download, Loader2, MessageSquare, RotateCcw, Share2, Smartphone, Square, X } from '@/interface/components/ui/icons';
 import type { OwnerShare } from '@/core/actions/video-review';
+import { getExportDownloadLink } from '@/core/actions/timeline';
 import { ShareLinkRow } from './ReviewsSheet';
 import type { RenderState } from './EditorWorkspace';
 import { formatClock } from './labels';
@@ -22,7 +23,7 @@ const STEPS = [
 ];
 
 /** Export video: renders the timeline as it is into a file. It never generates new shots. */
-export function ExportSheet({ open, onClose, render, summary, reframes, reframing, onRender, onReframe, review, onShareForReview, onOpenReviews }: {
+export function ExportSheet({ open, onClose, render, summary, reframes, reframing, onRender, onReframe, review, onShareForReview, onOpenReviews, downloadTitle }: {
   open: boolean;
   onClose: () => void;
   render: RenderState;
@@ -35,6 +36,8 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
   review?: OwnerShare | null;
   onShareForReview?: () => Promise<string | null>;
   onOpenReviews?: () => void;
+  /** The edit's name, used for the saved file's name. */
+  downloadTitle?: string;
 }) {
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -90,9 +93,7 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
         {render.status === 'completed' && render.url && (
           <div className="space-y-4">
             <video src={render.url} controls playsInline className="aspect-video w-full rounded-2xl bg-black" />
-            <a href={render.url} target="_blank" rel="noopener noreferrer" download className="ed-gold flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold">
-              <Download size={17} /> Download video
-            </a>
+            <DownloadButton url={render.url} title={downloadTitle} variant="primary" label="Download video" icon={<Download size={17} />} />
             {summary.wide && (
             <div className="rounded-2xl border border-line bg-white/[0.02] p-4">
               <p className="text-sm font-medium text-white">For phones</p>
@@ -105,10 +106,14 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
                   </button>
                 ) : (
                   reframes.map((f) => (
-                    <a key={f.aspect} href={f.url} target="_blank" rel="noopener noreferrer" download className="flex items-center gap-2 rounded-xl border border-gold-400/40 px-3.5 py-2.5 text-sm text-gold-100 hover:bg-gold-500/10">
-                      {f.aspect === '9:16' ? <Smartphone size={15} /> : <Square size={15} />}
-                      {f.aspect === '9:16' ? 'Vertical' : f.aspect === '1:1' ? 'Square' : f.aspect}
-                    </a>
+                    <DownloadButton
+                      key={f.aspect}
+                      url={f.url}
+                      title={downloadTitle}
+                      variant="chip"
+                      label={f.aspect === '9:16' ? 'Vertical' : f.aspect === '1:1' ? 'Square' : f.aspect}
+                      icon={f.aspect === '9:16' ? <Smartphone size={15} /> : <Square size={15} />}
+                    />
                   ))
                 )}
               </div>
@@ -276,5 +281,56 @@ function StripFrame({ clip }: { clip: TimelineClip }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {frame ? <img src={frame} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
     </span>
+  );
+}
+
+/**
+ * Saves a finished export as a file. Each click asks for a fresh download link that serves the file
+ * as an attachment, so the browser downloads it (where it saves depends on the browser's settings)
+ * instead of opening it in a tab. It never renders again or uses generations.
+ */
+function DownloadButton({ url, title, label, icon, variant }: { url: string; title?: string; label: string; icon: React.ReactNode; variant: 'primary' | 'chip' }) {
+  const [state, setState] = useState<'idle' | 'starting' | 'started' | 'error'>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const start = async () => {
+    setState('starting');
+    setError(null);
+    try {
+      const res = await getExportDownloadLink(url, title);
+      if (!res.url) {
+        setError(res.error || "Couldn't start the download.");
+        setState('error');
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = res.url;
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setState('started');
+    } catch {
+      setError("Couldn't reach Visiowave. Check your connection and try again.");
+      setState('error');
+    }
+  };
+  const starting = state === 'starting';
+  const button =
+    variant === 'primary'
+      ? 'ed-gold flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-semibold disabled:opacity-60'
+      : 'flex items-center gap-2 rounded-xl border border-gold-400/40 px-3.5 py-2.5 text-sm text-gold-100 hover:bg-gold-500/10 disabled:opacity-60';
+  return (
+    <div className={variant === 'primary' ? 'space-y-2' : 'contents'}>
+      <button type="button" onClick={() => void start()} disabled={starting} className={button}>
+        {starting ? <Loader2 size={variant === 'primary' ? 17 : 15} className="animate-spin" /> : icon}
+        {starting ? 'Starting download…' : state === 'error' ? `Retry ${label.toLowerCase()}` : label}
+      </button>
+      {variant === 'primary' && state === 'started' && (
+        <p role="status" className="text-center text-[13px] text-[#b0b8c4]">Download started. Check your browser&apos;s downloads.</p>
+      )}
+      {state === 'error' && error && (
+        <p role="alert" className={`text-[13px] text-amber-200 ${variant === 'primary' ? 'text-center' : 'basis-full'}`}>{error}</p>
+      )}
+    </div>
   );
 }

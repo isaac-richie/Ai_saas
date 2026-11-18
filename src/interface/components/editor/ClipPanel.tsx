@@ -1,6 +1,7 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, AudioWaveform, Loader2, Lock, RefreshCw, Scissors, Trash2, Unlock } from '@/interface/components/ui/icons';
+import { ArrowLeft, ArrowRight, AudioWaveform, CopyPlus, Loader2, Lock, RefreshCw, Scissors, Trash2, Unlock } from '@/interface/components/ui/icons';
+import { duplicateClipWithFeedback } from './duplicate-clip';
 import { useTimelineStore } from '@/interface/hooks/use-timeline-store';
 import { TRANSITION_REGISTRY } from '@/core/services/transitions';
 import { CAPTION_STYLES, type CaptionStyle } from '@/core/services/captions';
@@ -158,6 +159,9 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
           <Slider label="Fade in" value={meta.fade_in_sec ?? 0.5} min={0} max={5} step={0.1} format={(v) => `${v.toFixed(1)}s`} onChange={(v) => updateClip(clip.id, { metadata: { ...clip.metadata, fade_in_sec: v } }, `fade-in:${clip.id}`)} />
           <Slider label="Fade out" value={meta.fade_out_sec ?? 1.5} min={0} max={5} step={0.1} format={(v) => `${v.toFixed(1)}s`} onChange={(v) => updateClip(clip.id, { metadata: { ...clip.metadata, fade_out_sec: v } }, `fade-out:${clip.id}`)} />
         </Section>
+        <button onClick={() => duplicateClipWithFeedback(clip.id)} disabled={track.locked} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 py-2.5 text-sm text-[#ece6d6] hover:border-gold-300/45 hover:text-gold-50 disabled:opacity-40">
+          <CopyPlus size={15} /> Duplicate
+        </button>
         <button onClick={() => removeClip(clip.id)} disabled={locked} className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-400/30 py-2.5 text-sm text-red-200 hover:bg-red-500/10 disabled:opacity-40">
           <Trash2 size={15} /> Remove music
         </button>
@@ -177,10 +181,11 @@ export function ClipPanel({ onSyncToBeat, onRegenerate, takeStatus }: {
       <ReviewFlags clip={clip} locked={locked} />
       {pro && <ExactLength clip={clip} locked={locked} />}
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         <button onClick={() => reorder(clip.id, position - 1)} disabled={locked || position === 0} aria-label="Move earlier" className={`${pill(false)} grid place-items-center disabled:opacity-35`}><ArrowLeft size={16} /></button>
         <button onClick={() => reorder(clip.id, position + 1)} disabled={locked || isLast} aria-label="Move later" className={`${pill(false)} grid place-items-center disabled:opacity-35`}><ArrowRight size={16} /></button>
         <button onClick={() => split(clip.id, playhead_ms)} disabled={locked || !canSplit} aria-label="Split at playhead" title="Split at playhead" className={`${pill(false)} grid place-items-center disabled:opacity-35`}><Scissors size={16} /></button>
+        <button onClick={() => duplicateClipWithFeedback(clip.id)} disabled={track.locked} aria-label="Duplicate shot" title="Duplicate" className={`${pill(false)} grid place-items-center disabled:opacity-35`}><CopyPlus size={16} /></button>
         <button onClick={() => removeClip(clip.id)} disabled={locked} aria-label="Delete shot" className="grid place-items-center rounded-xl border border-red-400/30 text-red-200 hover:bg-red-500/10 disabled:opacity-35"><Trash2 size={16} /></button>
       </div>
 
