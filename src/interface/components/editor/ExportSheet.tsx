@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Clapperboard, Download, Loader2, MessageSquare, RotateCcw, Share2, Smartphone, Square, X } from '@/interface/components/ui/icons';
 import type { OwnerShare } from '@/core/actions/video-review';
 import { getExportDownloadLink } from '@/core/actions/timeline';
+import { PreparePost } from './PreparePost';
 import { ShareLinkRow } from './ReviewsSheet';
 import type { RenderState } from './EditorWorkspace';
 import { formatClock } from './labels';
@@ -94,6 +95,7 @@ export function ExportSheet({ open, onClose, render, summary, reframes, reframin
           <div className="space-y-4">
             <video src={render.url} controls playsInline className="aspect-video w-full rounded-2xl bg-black" />
             <DownloadButton url={render.url} title={downloadTitle} variant="primary" label="Download video" icon={<Download size={17} />} />
+            <PreparePost key={render.url} url={render.url} />
             {summary.wide && (
             <div className="rounded-2xl border border-line bg-white/[0.02] p-4">
               <p className="text-sm font-medium text-white">For phones</p>

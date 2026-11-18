@@ -25,6 +25,7 @@ const BALANCED_ROLES = new Set([
   "continuity-reviewer",
   "take-correction",
   "timeline-editor",
+  "post-writer",
 ])
 
 export function productionModelTier(role: string): ProductionModelTier {
