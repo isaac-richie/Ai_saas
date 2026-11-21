@@ -29,3 +29,7 @@ export const MIMIC_ENABLED = toBool(process.env.NEXT_PUBLIC_MIMIC, true)
 // Changing several people or objects in one take (up to 6 changes, 4 of them with reference images).
 // On by default; set NEXT_PUBLIC_MIMIC_MULTI_SUBJECT=false to go back to one change per take.
 export const MIMIC_MULTI_SUBJECT_ENABLED = toBool(process.env.NEXT_PUBLIC_MIMIC_MULTI_SUBJECT, true)
+
+// Motion Ad Director (Phase 1): plan, approve and render animated ads from images and a voice file.
+// Off by default until the render worker (motion-ads/worker.mjs) is deployed; set NEXT_PUBLIC_MOTION_ADS=true.
+export const MOTION_AD_ENABLED = toBool(process.env.NEXT_PUBLIC_MOTION_ADS, false)

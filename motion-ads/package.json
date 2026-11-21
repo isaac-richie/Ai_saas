@@ -7,11 +7,16 @@
   "scripts": {
     "studio": "remotion studio src/index.ts",
     "test": "node --test scripts/test-*.mjs",
-    "spike": "node scripts/spike.mjs"
+    "spike": "node scripts/spike.mjs",
+    "test:worker": "node --test scripts/test-worker.mjs",
+    "worker": "node worker.mjs"
   },
   "dependencies": {
+    "@remotion/bundler": "^4.0.533",
     "@remotion/cli": "4.0.533",
     "@remotion/google-fonts": "4.0.533",
+    "@remotion/renderer": "^4.0.533",
+    "@supabase/supabase-js": "^2.98.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "remotion": "4.0.533",
