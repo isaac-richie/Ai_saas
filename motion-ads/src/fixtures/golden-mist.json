@@ -1,0 +1,23 @@
+{
+  "ad_id": "ma_001",
+  "total_s": 12.0,
+  "shots": [
+    { "idx": 1, "name": "Overhead", "start_s": 0.0, "end_s": 2.0, "on_screen": "Meet Golden Mist.", "motion": "Slow overhead drift across black slate", "move": "drift", "transition": "zoom_through", "turns_into": 2, "image_tag": "@image1" },
+    { "idx": 2, "name": "Macro", "start_s": 2.0, "end_s": 4.0, "on_screen": "A note of intrigue.", "motion": "Push toward the nozzle through golden haze", "move": "push", "transition": "light_sweep", "turns_into": 3, "image_tag": "@image2" },
+    { "idx": 3, "name": "Hero", "start_s": 4.0, "end_s": 6.0, "on_screen": "Made to linger.", "motion": "Low-angle rise with a warm light sweep", "move": "rise", "transition": "whip", "turns_into": 4, "image_tag": "@image3" },
+    { "idx": 4, "name": "Detail", "start_s": 6.0, "end_s": 8.0, "on_screen": "Every detail, golden.", "motion": "Slide past amber glass and fine droplets", "move": "slide", "transition": "match_cut", "turns_into": 5, "image_tag": "@image4" },
+    { "idx": 5, "name": "Reveal", "start_s": 8.0, "end_s": 10.0, "on_screen": "Your signature scent.", "motion": "Gentle orbit as mist catches the light", "move": "orbit", "transition": "zoom_through", "turns_into": 6, "image_tag": "@image5" },
+    { "idx": 6, "name": "End frame", "start_s": 10.0, "end_s": 12.0, "on_screen": "GOLDEN MIST", "motion": "Settle into a still, luminous frame, then the web address", "move": "settle", "transition": null, "turns_into": null, "image_tag": "@image6" }
+  ],
+  "images_needed": [
+    { "shot": 1, "prompt": "Top-down flat lay of an amber glass perfume bottle with a blank label on raw black slate, fine water droplets, soft golden rim light, photoreal studio, no text" },
+    { "shot": 2, "prompt": "Macro close-up of a gold perfume spray nozzle and the amber glass shoulder, drifting golden haze, shallow depth of field, no text" },
+    { "shot": 3, "prompt": "Low-angle shot of the amber perfume bottle on black stone, a warm sweep of golden light from the left, dark background, blank label, no text" },
+    { "shot": 4, "prompt": "Close detail of amber glass with fine water droplets and a blank label, warm side light, no text" },
+    { "shot": 5, "prompt": "The perfume bottle centred on black stone, surrounded by drifting golden mist, blank label, no text" },
+    { "shot": 6, "prompt": "Wide, clean frame of the bottle centred on dark slate with a large empty dark area for text, blank label, no text" }
+  ],
+  "voiceover": { "script": "Meet Golden Mist. A note of intrigue. Made to linger. Every detail, golden. Your signature scent. Golden Mist. Eau de parfum.", "words": 21, "delivery": "calm, one beat per line, a pause before the brand name" },
+  "end_card": { "brand": "GOLDEN MIST", "line": "Eau de parfum", "url": "goldenmist.example" },
+  "warnings": []
+}
