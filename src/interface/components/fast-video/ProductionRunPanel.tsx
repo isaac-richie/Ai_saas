@@ -148,7 +148,7 @@ function findContinuityGate(shots: Shot[]): ContinuityGate | null {
   return null
 }
 
-export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceId, references = [] }: { productionId: string; projectId: string; sceneId: string; sequenceId?: string | null; references?: MentionReference[] }) {
+export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceId, references = [], onFocusShot }: { productionId: string; projectId: string; sceneId: string; sequenceId?: string | null; references?: MentionReference[]; onFocusShot?: (shotNumber: number) => void }) {
   const [shots, setShots] = useState<Shot[]>([])
   const [busy, setBusy] = useState(false)
   // A batch held back because some shots' locked images can't be sent: nothing is submitted until the creator chooses.
@@ -161,6 +161,9 @@ export function ProductionRunPanel({ productionId, projectId, sceneId, sequenceI
   const [evaluationSaved, setEvaluationSaved] = useState(false)
   const [inspectingTake, setInspectingTake] = useState<string | null>(null)
   const [focusedShot, setFocusedShot] = useState<string | null>(null)
+  // Tell the desk which shot is open, so "Adjust production direction" applies to it by default.
+  const focusedIndex = shots.findIndex(shot => shot.id === (focusedShot || shots[0]?.id))
+  useEffect(() => { if (focusedIndex >= 0) onFocusShot?.(focusedIndex + 1) }, [focusedIndex, onFocusShot])
   const [focusedTakes, setFocusedTakes] = useState<Record<string, string>>({})
   const activeJobKey = shots
     .flatMap(shot => shot.generation_jobs.filter(job => active.has(job.status) && job.provider_task_id).map(job => job.id))
