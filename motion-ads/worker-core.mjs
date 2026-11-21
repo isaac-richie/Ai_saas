@@ -61,7 +61,7 @@ export function makeWorker({ db, publicUrl, log = () => {}, concurrency }) {
       const id = version.aspect === "9:16" ? "MotionAdVertical" : "MotionAd"
       const composition = await selectComposition({ serveUrl: url, id, inputProps: props })
       const out = (name) => path.join(work, name)
-      const common = { composition, serveUrl: url, codec: "h264", inputProps: props, concurrency: concurrency ?? Math.max(1, Math.min(4, os.cpus().length - 1)) }
+      const common = { composition, serveUrl: url, codec: "h264", inputProps: props, concurrency: Math.min(os.cpus().length, concurrency ?? Math.max(1, Math.min(4, os.cpus().length - 1))) }
       const paths = {}
       if (job.type === "preview") {
         await renderMedia({ ...common, outputLocation: out("preview.mp4"), crf: 23, scale: 1 })

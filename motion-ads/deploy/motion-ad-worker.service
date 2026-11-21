@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 User=motionads
-WorkingDirectory=/opt/motion-ads
+WorkingDirectory=/opt/visiowave/motion-ads
 EnvironmentFile=/etc/motion-ad-worker.env
 ExecStart=/usr/bin/node worker.mjs
 Restart=always

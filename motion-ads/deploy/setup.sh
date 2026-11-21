@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Sets up the Motion Ad render worker on a fresh Ubuntu 22.04/24.04 server and keeps it running.
-# Run as root from the copied motion-ads folder:   sudo bash deploy/setup.sh
+# Copy the repo's motion-ads folder AND src/core/services/motion-ad (the shared storyboard rules the
+# worker imports) to the server in the same layout as the repo, then run as root:
+#   sudo bash motion-ads/deploy/setup.sh
 # Safe to run again after copying a newer version of the folder: it reinstalls and restarts.
 set -euo pipefail
 
-APP_DIR=/opt/motion-ads
+BASE=/opt/visiowave
+APP_DIR=$BASE/motion-ads
+SHARED=src/core/services/motion-ad
 ENV_FILE=/etc/motion-ad-worker.env
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -32,10 +36,16 @@ fi
 echo "== A user with no login for the worker to run as"
 id motionads >/dev/null 2>&1 || useradd --system --create-home --shell /usr/sbin/nologin motionads
 
-echo "== Copying the worker to $APP_DIR"
-mkdir -p "$APP_DIR"
+echo "== Copying the worker to $APP_DIR (and the shared rules it imports)"
+if [ ! -f "$SRC_DIR/../$SHARED/contract.ts" ]; then
+  echo "Missing $SHARED next to motion-ads. Copy it to the server too (see the top of this file)."; exit 1
+fi
+mkdir -p "$APP_DIR" "$BASE/$SHARED"
 rsync -a --delete --exclude node_modules --exclude out --exclude .env.local "$SRC_DIR"/ "$APP_DIR"/
-chown -R motionads:motionads "$APP_DIR"
+rsync -a --delete "$SRC_DIR/../$SHARED"/ "$BASE/$SHARED"/
+# The shared files import zod: let them find the worker's packages.
+ln -sfn "$APP_DIR/node_modules" "$BASE/node_modules"
+chown -R motionads:motionads "$BASE"
 sudo -u motionads bash -c "cd $APP_DIR && npm ci --no-audit --no-fund"
 # Download Remotion's own headless Chrome now, not during the first render.
 sudo -u motionads bash -c "cd $APP_DIR && npx --no-install remotion browser ensure" || true
