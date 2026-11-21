@@ -3,7 +3,8 @@
 import { toast } from "sonner"
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { applyMechanicalPlanRepair, createProductionRevision, listProductions, materializeProduction, replaceProductionReferences, updateProduction } from "@/core/actions/production"
+import { applyMechanicalPlanRepair, createProductionRevision, listProductions, materializeProduction, replaceProductionReferences, restoreProductionVersion, updateProduction } from "@/core/actions/production"
+import { AdjustDirection } from "./AdjustDirection"
 import { blockingFindings, canApproveProduction, findingsRepairUsed, type ProductionPlan } from "@/core/validation/production-crew"
 import { ProductionRunPanel } from "./ProductionRunPanel"
 import { ArrowUpRight, Clapperboard, RefreshCw, Wand2 } from "@/interface/components/ui/icons"
@@ -31,7 +32,7 @@ export function productionMentions(assets: ProductionAsset[]): MentionReference[
   }) as MentionReference)
 }
 
-type Production = { planning_context?: { shotSettings?: ShotSettingDraft[]; findingsRepairUsed?: boolean }; parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; reference_assets?: unknown; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number; created_at?: string | null }
+type Production = { planning_context?: { shotSettings?: ShotSettingDraft[]; findingsRepairUsed?: boolean; revisionScope?: { shots: number[] } }; parent_job_id?: string | null; id: string; brief: string; status: "brief" | "awaiting_approval" | "approved"; plan: ProductionPlan | null; reference_assets?: unknown; project_id?: string | null; scene_id?: string | null; sequence_id?: string | null; planning_stage?: "brief" | "story" | "departments" | "shots" | "complete"; planning_error?: string | null; revision_number?: number; created_at?: string | null }
 type ProductionView = "brief" | "direction" | "takes"
 
 const PRODUCTION_DESK_STORAGE_KEY = "aisas.production-desk.v1"
@@ -46,7 +47,9 @@ export function ProductionDesk() {
   const [error, setError] = useState("")
   const [ready, setReady] = useState(false)
   const [crewStatus, setCrewStatus] = useState("")
-  const [revisionNotes, setRevisionNotes] = useState<Record<string, string>>({})
+  // The shot the creator is looking at in Takes & review, and a shot card's "Re-plan this shot".
+  const [focusShot, setFocusShot] = useState<number | null>(null)
+  const [adjustAt, setAdjustAt] = useState<{ shot: number; nonce: number } | null>(null)
   const [confirmingApproval, setConfirmingApproval] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [view, setView] = useState<ProductionView>("brief")
@@ -57,6 +60,17 @@ export function ProductionDesk() {
   const films = latestFilms(jobs)
   /** An earlier version of this film already has shots: approving a new plan updates them in place. */
   const hasShotWorkspace = (job: Production) => jobs.some(other => (other.parent_job_id || other.id) === (job.parent_job_id || job.id) && Boolean(other.project_id))
+  /**
+   * The version whose shots, Takes and sequence the film is using now: the newest one with a shot
+   * workspace. While a new plan is being made, the film's Takes stay here and stay visible.
+   */
+  const workspaceOf = (job: Production | undefined | null) => job ? jobs
+    .filter(other => (other.parent_job_id || other.id) === (job.parent_job_id || job.id) && other.project_id && other.scene_id)
+    .sort((a, b) => (b.revision_number || 1) - (a.revision_number || 1))[0] : undefined
+  /** Every saved version of this film with a finished plan, newest first, except the one shown. */
+  const earlierVersions = (job: Production) => jobs
+    .filter(other => other.id !== job.id && (other.parent_job_id || other.id) === (job.parent_job_id || job.id) && other.plan && other.status !== "brief")
+    .sort((a, b) => (b.revision_number || 1) - (a.revision_number || 1))
   const selectedRevision = jobs.find(job => job.id === selectedId)
   const selected = films.find(job => (job.parent_job_id || job.id) === (selectedRevision?.parent_job_id || selectedRevision?.id))
   // Long Form image locks for the open film (plan cards and editor).
@@ -97,7 +111,8 @@ export function ProductionDesk() {
         const restored = productions.find(job => job.id === savedId) || productions[0] || null
         setJobs(productions)
         setSelectedId(restored?.id || null)
-        setView(restored ? (!hasSavedSession ? "direction" : savedView === "takes" && !restored.project_id ? "direction" : savedView) : "brief")
+        const restoredHasShots = restored ? productions.some(other => (other.parent_job_id || other.id) === (restored.parent_job_id || restored.id) && other.project_id) : false
+        setView(restored ? (!hasSavedSession ? "direction" : savedView === "takes" && !restoredHasShots ? "direction" : savedView) : "brief")
         setReady(true)
         setSessionRestored(true)
       }
@@ -168,15 +183,15 @@ export function ProductionDesk() {
           films={films.map(job => ({ id: job.id, title: job.plan?.crew?.bible.title || job.brief.replace(/\s+/g, " ").slice(0, 80), status: job.status, createdAt: job.created_at }))}
           selectedId={selected?.id ?? null}
           disabled={busy}
-          onSelect={id => { const job = jobs.find(item => item.id === id); setSelectedId(job?.id || null); setView(job ? (job.project_id ? "takes" : "direction") : "brief") }}
+          onSelect={id => { const job = jobs.find(item => item.id === id); setSelectedId(job?.id || null); setFocusShot(null); setView(job ? (workspaceOf(job) ? "takes" : "direction") : "brief") }}
           onDeleted={ids => { setJobs(current => current.filter(job => !ids.includes(job.id))); if (selected && ids.includes(selected.id)) { setSelectedId(null); setView("brief") } }}
         />
         <button type="button" disabled={busy} onClick={() => void run(refresh)} aria-label="Refresh productions"><RefreshCw size={16} /></button>
       </div>
       <nav className={styles.steps} aria-label="Production stages">
-        {(["brief", "direction", "takes"] as const).map((stage, index) => <button key={stage} type="button" aria-current={view === stage ? "step" : undefined} disabled={busy || (stage === "direction" && !selected) || (stage === "takes" && !selected?.project_id)} onClick={() => setView(stage)}><span>0{index + 1}</span>{stage === "brief" ? "The brief" : stage === "direction" ? "Creative direction" : "Takes & review"}</button>)}
-        {selected?.sequence_id ? <Link href={`/dashboard/sequences/${selected.sequence_id}`}><span>04</span>Edit & deliver <ArrowUpRight size={14} /></Link> : <span className={styles.locked}><span>04</span>Edit & deliver</span>}
-        {selected?.project_id && <Link href={`/dashboard/editor?project=${selected.project_id}`} title="Open your finished takes in the AI editor"><Wand2 size={14} aria-hidden /> Edit with AI</Link>}
+        {(["brief", "direction", "takes"] as const).map((stage, index) => <button key={stage} type="button" aria-current={view === stage ? "step" : undefined} disabled={busy || (stage === "direction" && !selected) || (stage === "takes" && !workspaceOf(selected))} onClick={() => setView(stage)}><span>0{index + 1}</span>{stage === "brief" ? "The brief" : stage === "direction" ? "Creative direction" : "Takes & review"}</button>)}
+        {workspaceOf(selected)?.sequence_id ? <Link href={`/dashboard/sequences/${workspaceOf(selected)!.sequence_id}`}><span>04</span>Edit & deliver <ArrowUpRight size={14} /></Link> : <span className={styles.locked}><span>04</span>Edit & deliver</span>}
+        {workspaceOf(selected)?.project_id && <Link href={`/dashboard/editor?project=${workspaceOf(selected)!.project_id}`} title="Open your finished takes in the AI editor"><Wand2 size={14} aria-hidden /> Edit with AI</Link>}
       </nav>
       <div className={styles.body}>
       {view === "brief" && <div className={styles.briefGrid}><div><h3>Every film starts with a feeling.</h3><p>Tell us who we follow, where we are, and what changes. Your crew will develop connected shots with your chosen models and timing.</p><span className={styles.format}>{MIN_FILM_SHOTS}–{MAX_FILM_SHOTS} shots · your model and timing · 16:9</span></div>
@@ -270,6 +285,8 @@ export function ProductionDesk() {
               <p className="mt-3 text-sm text-white/70">{shot.creatorDirection}</p>
               {shot.continuityStartState && <div className="mt-3 rounded-lg border border-line bg-black/20 p-3 text-xs text-white/55"><p><strong className="text-white/80">Starts</strong> {shot.continuityStartState}</p><p className="mt-1"><strong className="text-white/80">Ends</strong> {shot.continuityEndState}</p><p className="mt-1"><strong className="text-white/80">Allowed changes</strong> {shot.intentionalChanges?.join(", ") || "None"}</p></div>}
               <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Shot prompt</summary><p className="mt-2 whitespace-pre-wrap">{shot.masterPrompt}</p></details>
+              {job.status !== "brief" && job.plan && job.plan.deliverables.length >= 2 && <button type="button" disabled={busy} onClick={() => setAdjustAt({ shot: index + 1, nonce: Date.now() })} className="mt-3 rounded-full border border-white/15 px-3 py-1 text-[11px] text-white/70 hover:border-gold-300/50 hover:text-gold-50 disabled:opacity-40">Re-plan this shot</button>}
+              {job.planning_context?.revisionScope && job.status !== "approved" && !job.planning_context.revisionScope.shots.includes(index + 1) && <p className="mt-2 text-[11px] text-white/45">Unchanged in this re-plan.</p>}
               {!!shot.productionNotes?.length && <details className="mt-3 text-xs text-white/60"><summary className="cursor-pointer">Editing notes</summary>{shot.productionNotes.map((note, noteIndex) => <p key={noteIndex} className="mt-2 whitespace-pre-wrap">{note}</p>)}</details>}
               {filmLocks.view?.enabled && <LockedMediaRow scene={filmLocks.view.scene} shot={filmLocks.view.shots[index + 1] ?? []} videos={filmLocks.view.video.enabled ? { scene: filmLocks.view.video.scene, shot: filmLocks.view.video.shots[index + 1] ?? [] } : undefined} status={filmLocks.statuses[index + 1]} audio={shotAudioSummary(filmLocks.view, index + 1)} disabled={busy || !filmLocks.view.available} onEdit={() => { setLockScope("shot"); setLockEditor(index + 1) }} onKeep={async () => { const kept = await keepShotLocks({ productionId: job.id, shotNumber: index + 1 }); if (kept.error) toast.error(kept.error); else await filmLocks.reload() }} />}
             </section>)}</div>
@@ -291,7 +308,7 @@ export function ProductionDesk() {
           </div>}
           {job.status === "brief" && <button disabled={busy} className="mt-4 rounded-full border border-gold-400/25 px-4 py-2 text-sm text-white transition-all duration-300 hover:border-gold-300/60 hover:bg-gold-400/10 hover:text-gold-50 disabled:pointer-events-none disabled:opacity-40" onClick={() => void run(async () => {
             await developWithCrew(job.id)
-          })}>{job.planning_stage && job.planning_stage !== "brief" ? "Resume crew" : "Develop with crew"}</button>}
+          })}>{job.planning_stage && job.planning_stage !== "brief" ? "Resume crew" : job.parent_job_id ? "Update plan" : "Develop with crew"}</button>}
           {job.status === "awaiting_approval" && blockingFindings(job.plan).length === 0 && <button disabled={busy || !canApproveProduction(job.plan)} className="mt-4 rounded-full border border-gold-400/25 px-4 py-2 text-sm text-white transition-all duration-300 hover:border-gold-300/60 hover:bg-gold-400/10 hover:text-gold-50 disabled:pointer-events-none disabled:opacity-40" onClick={() => void run(async () => {
             const result = await updateProduction({ action: "approve", id: job.id })
             if (result.error) throw new Error(result.error)
@@ -350,8 +367,38 @@ export function ProductionDesk() {
             <Link className="rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-4 py-2 text-sm font-medium text-black shadow-[0_10px_24px_-14px_rgba(217,192,138,0.9)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_30px_-12px_rgba(217,192,138,0.95)]" href={`/dashboard/projects/${job.project_id}/scenes/${job.scene_id}`}>Open shot workspace</Link>
             {job.sequence_id && <Link className="rounded-full border border-gold-400/25 px-4 py-2 text-sm text-white" href={`/dashboard/sequences/${job.sequence_id}`}>Open first cut</Link>}
           </div>}
-          {view === "takes" && job.project_id && job.scene_id && <ProductionRunPanel productionId={job.id} projectId={job.project_id} sceneId={job.scene_id} sequenceId={job.sequence_id} references={productionMentions(productionAssetsSchema.safeParse(job.reference_assets).data ?? [])} />}
-          {job.status !== "brief" && <details className="mt-4 rounded-xl border border-line p-3"><summary className="cursor-pointer text-xs text-white/55">Adjust production direction</summary><textarea value={revisionNotes[job.id] || ""} onChange={event => setRevisionNotes(current => ({ ...current, [job.id]: event.target.value }))} maxLength={2000} placeholder="Keep the approved history and describe only what should change..." className="mt-3 min-h-20 w-full rounded-lg border border-line bg-black/30 p-3 text-sm text-white placeholder:text-white/30" /><button disabled={busy || (revisionNotes[job.id] || "").trim().length < 8} className="mt-3 rounded-full border border-gold-400/20 px-4 py-2 text-xs text-white disabled:opacity-40" onClick={() => void run(async () => { const result = await createProductionRevision({ productionId: job.id, direction: revisionNotes[job.id] || "" }); if (result.error || !result.data) throw new Error(result.error || "Could not create revision."); keep(result.data as Production); setRevisionNotes(current => ({ ...current, [job.id]: "" })) })}>Update direction</button></details>}
+          {view === "takes" && workspaceOf(job) && workspaceOf(job)!.id !== job.id && job.status !== "approved" && <p role="status" className="mt-4 rounded-lg border border-gold-300/20 bg-gold-300/[0.04] p-3 text-xs text-white/70">A new plan is in progress in Creative direction. These are your current shots and Takes; they stay as they are until you apply the new plan.</p>}
+          {view === "takes" && workspaceOf(job) && <ProductionRunPanel key={workspaceOf(job)!.id} productionId={workspaceOf(job)!.id} projectId={workspaceOf(job)!.project_id!} sceneId={workspaceOf(job)!.scene_id!} sequenceId={workspaceOf(job)!.sequence_id} references={productionMentions(productionAssetsSchema.safeParse(workspaceOf(job)!.reference_assets).data ?? [])} onFocusShot={setFocusShot} />}
+          {job.status !== "brief" && job.plan && <AdjustDirection
+            key={job.id}
+            shots={job.plan.deliverables.map(shot => shot.title)}
+            focusShot={focusShot}
+            openAt={adjustAt}
+            hasWork={hasShotWorkspace(job)}
+            disabled={busy}
+            onSubmit={request => run(async () => {
+              const result = await createProductionRevision({ productionId: job.id, ...request })
+              if (result.error || !result.data) throw new Error(result.error || "Could not start the re-plan.")
+              keep(result.data as Production)
+              setView("direction")
+              // Run the crew straight away: a one-shot re-plan writes only that shot, then the review.
+              await developWithCrew(result.data.id)
+            })}
+          />}
+          {earlierVersions(job).length > 0 && <details className="mt-3 rounded-xl border border-line p-3 text-xs text-white/60" data-testid="earlier-versions">
+            <summary className="cursor-pointer text-white/55">Earlier versions ({earlierVersions(job).length})</summary>
+            <p className="mt-2 text-white/45">Every re-plan is saved. Restoring a version makes it the plan to approve; applying it keeps your shots and Takes.</p>
+            <ul className="mt-2 space-y-1.5">{earlierVersions(job).map(version => <li key={version.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-3 py-2">
+              <span className="min-w-0">Version {version.revision_number || 1}{version.planning_context?.revisionScope ? ` · re-planned shot ${version.planning_context.revisionScope.shots.join(", ")}` : ""}{version.created_at ? ` · ${new Date(version.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : ""}</span>
+              <button type="button" disabled={busy} onClick={() => void run(async () => {
+                const result = await restoreProductionVersion({ productionId: job.id, versionId: version.id })
+                if (result.error || !result.data) throw new Error(result.error || "Could not restore that version.")
+                keep(result.data as Production)
+                setView("direction")
+                toast.success(`Version ${version.revision_number || 1} restored`, { description: "Approve it, then apply it to your shots." })
+              })} className="rounded-full border border-gold-400/25 px-3 py-1 text-[11px] text-white hover:border-gold-300/60 disabled:opacity-40">Restore</button>
+            </li>)}</ul>
+          </details>}
         </article>)}
       </div>
       </div>

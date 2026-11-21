@@ -57,6 +57,11 @@ export const crewShotsSchema = z.object({
   })).min(MIN_FILM_SHOTS).max(MAX_FILM_SHOTS),
 })
 
+/** Re-planning chosen shots only (Keep Progress Step 4): one or more rewritten shots, in order. */
+export const crewShotRewriteSchema = z.object({
+  shots: z.array(crewShotsSchema.shape.shots.element).min(1).max(MAX_FILM_SHOTS),
+})
+
 export const crewReviewSchema = z.object({
   summary: note,
   findings: z.array(z.object({

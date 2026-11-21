@@ -2,7 +2,8 @@ import { z } from "zod"
 import { describeCrewFailure, type CrewFailure } from "@/core/utils/crew-failure"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { compileCrewShotsForReview, compileProductionPlan, createCrewRunner, safeCrewError } from "@/core/services/production-crew"
-import { continuityLedgerSchema, crewReviewSchema, crewShotsSchema, departmentDirectionSchema, productionBibleSchema } from "@/core/validation/production-crew"
+import { continuityLedgerSchema, crewReviewSchema, crewShotRewriteSchema, crewShotsSchema, departmentDirectionSchema, productionBibleSchema } from "@/core/validation/production-crew"
+import { normalizeShotScope, replanContext, replanInstruction, spliceReplannedShots } from "@/core/services/production-replan"
 import { enforcePromptCompliance } from "@/core/utils/ai/prompt-compliance"
 import { productionAssetsSchema, ownsAssetUrl } from "@/core/validation/production-assets"
 import { crewShotSettings, productionShotSettingsSchema } from "@/core/validation/production-settings"
@@ -29,6 +30,10 @@ const stageContextSchema = z.object({
   previousEditor: crewShotsSchema.optional(),
   referenceSnapshot: z.string().optional(),
   findingsRepairUsed: z.boolean().optional(),
+  /** Re-plan only these shots (1-based); every other shot is kept exactly (Keep Progress Step 4). */
+  revisionScope: z.object({ shots: z.array(z.number().int().min(1).max(24)).min(1).max(24) }).optional(),
+  /** Whether approving this plan keeps each re-planned shot's approved take (the default) or clears it. */
+  keepWork: z.boolean().optional(),
   stages: z.array(z.object({ role: z.string(), responseId: z.string(), model: z.string().optional() })).default([]),
 })
 
@@ -108,11 +113,12 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
     const references = productionAssetsSchema.parse(job.reference_assets || [])
     if (references.some(asset => !ownsAssetUrl(asset.url, userId))) throw new Error("Invalid reference ownership")
     const referenceSnapshot = JSON.stringify(references)
-    if (context.referenceSnapshot && context.referenceSnapshot !== referenceSnapshot && job.planning_stage !== "brief") {
+    // A scoped re-plan never restarts the whole film: new references simply reach the re-planned shots.
+    if (context.referenceSnapshot && context.referenceSnapshot !== referenceSnapshot && job.planning_stage !== "brief" && !context.revisionScope) {
       // Previously paid department outputs may describe different source images.
       // A new reference set must not be mixed with those saved checkpoints.
       await saveCheckpoint(client, job.id, claimUntil, job.planning_stage, "brief", {
-        model, shotSettings: context.shotSettings, revision: context.revision, findingsRepairUsed: context.findingsRepairUsed, referenceSnapshot, stages: [],
+        model, shotSettings: context.shotSettings, revision: context.revision, findingsRepairUsed: context.findingsRepairUsed, keepWork: context.keepWork, referenceSnapshot, stages: [],
       })
       return { data: { complete: false, stage: "story", message: "References changed; restarting visual direction with the new sources" } }
     }
@@ -151,6 +157,31 @@ export async function advanceProductionCrew(client: SupabaseClient, userId: stri
       const nextStage = complete ? "departments" : "story"
       await saveCheckpoint(client, job.id, claimUntil, job.planning_stage, nextStage, nextContext)
       return { data: { complete: false, stage: nextStage, message: department.role + " saved; completed departments will not be repeated" } }
+    }
+    if (job.planning_stage === "departments" && context.revisionScope && context.story && context.camera && context.lighting && context.productionDesign && context.performance && context.previousEditor) {
+      // Re-plan only the chosen shots. Story and department work is reused as it was saved; the
+      // other shots are kept exactly and shown to the crew as fixed neighbours.
+      failedStage = "shot prompts"
+      const previous = context.previousEditor.shots
+      const chosen = normalizeShotScope(context.revisionScope.shots, previous.length)
+      if (!chosen.length) throw new Error("The shots chosen for re-planning are no longer in this film. Re-plan the whole film instead.")
+      const scopedRunner = createCrewRunner(model, references, chosen.length)
+      const { shotsToReplan, readOnlyNeighbours } = replanContext(previous, chosen)
+      const result = await scopedRunner("shot-editor", replanInstruction(chosen, previous.length), {
+        source: { brief: planningBrief, bible: context.story, camera: context.camera, lighting: context.lighting, productionDesign: context.productionDesign, performance: context.performance, shotsToReplan, readOnlyNeighbours },
+        revision: compactRevisionContext({ revision: context.revision }) ?? null,
+        shotSettings: crewShotSettings(context.shotSettings ? chosen.map(n => context.shotSettings![n - 1]) : null),
+      }, crewShotRewriteSchema)
+      if (result.value.shots.some(shot => !shot.continuity)) throw new Error("The shot crew did not produce complete state handoffs.")
+      const rewritten = result.value.shots.map(shot => {
+        const checked = enforcePromptCompliance({ prompt: shot.prompt, negativePrompt: shot.negativePrompt, outputType: "video" })
+        if (checked.blocked) throw new Error(`A compiled shot is blocked by safety policy: ${checked.reason || "rewrite the shot and retry."}`)
+        return { ...shot, prompt: checked.prompt, negativePrompt: checked.negativePrompt }
+      })
+      const editor = { shots: spliceReplannedShots(previous, chosen, rewritten) }
+      const stages = [...context.stages.filter(stage => stage.role !== "shot-editor"), { role: "shot-editor", responseId: result.responseId, model: result.model }]
+      await saveCheckpoint(client, job.id, claimUntil, "departments", "shots", { ...context, previousEditor: undefined, editorParts: undefined, editor, stages })
+      return { data: { complete: false, stage: "shots", message: chosen.length === 1 ? `Shot ${chosen[0]} re-planned; the other shots are unchanged` : `Shots ${chosen.join(", ")} re-planned; the other shots are unchanged` } }
     }
     if (job.planning_stage === "departments" && context.story && context.camera && context.lighting && context.productionDesign && context.performance) {
       failedStage = "shot prompts"
