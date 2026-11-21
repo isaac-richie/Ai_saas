@@ -1,0 +1,20 @@
+[Unit]
+Description=Visiowave Motion Ad render worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=motionads
+WorkingDirectory=/opt/visiowave/motion-ads
+EnvironmentFile=/etc/motion-ad-worker.env
+ExecStart=/usr/bin/node worker.mjs
+Restart=always
+RestartSec=10
+# Renders use headless Chrome: give it room, but stop a runaway render from taking the whole server.
+MemoryMax=2400M
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
