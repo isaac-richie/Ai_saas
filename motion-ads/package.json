@@ -1,0 +1,25 @@
+{
+  "name": "visiowave-motion-ads",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Motion Ad Director spike: storyboard JSON in, animated ad out (Remotion templates, no generated code).",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "test": "node --test scripts/test-*.mjs",
+    "spike": "node scripts/spike.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.533",
+    "@remotion/google-fonts": "4.0.533",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.533",
+    "zod": "4.3.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "jiti": "2.6.1",
+    "typescript": "^5"
+  }
+}
