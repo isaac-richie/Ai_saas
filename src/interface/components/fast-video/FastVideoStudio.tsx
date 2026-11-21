@@ -90,6 +90,8 @@ import { TemplateGallery } from "./StudioPickers"
 import { ShotLookSection } from "./ShotLookSection"
 import { PROMPT_TEMPLATES, type PromptTemplate } from "@/core/config/fast-video-templates"
 import { ShotFramesPanel } from "./ShotFramesPanel"
+import { MotionAdCard } from "./MotionAdCard"
+import { MOTION_AD_ENABLED } from "@/core/config/feature-flags"
 import { CampaignReferencesPanel, type CampaignOutputSettings } from "./CampaignReferencesPanel"
 import { CampaignAssetMeta } from "./CampaignAssetMeta"
 import { FAST_TRACK_HANDOFF_KEY } from "@/core/config/handoff"
@@ -3007,6 +3009,7 @@ export function FastVideoStudio({ projects }: FastVideoStudioProps) {
           </div>
             </div>
           </details>
+          {MOTION_AD_ENABLED && <MotionAdCard />}
 
           <button type="button" disabled={isGenerating} onClick={() => void handleGenerate(true)} className="flex items-center gap-1.5 text-[12.5px] text-[#B0B8C4] underline decoration-gold-400/40 underline-offset-4 transition hover:text-gold-100">See exactly what will be sent (free preview)</button>
           {requestPreview && <details open className="rounded-lg border border-white/20 p-3 text-sm"><summary>Request preview · {requestPreview.model}</summary><p className="whitespace-pre-wrap">{requestPreview.prompt}</p><ul>{requestPreview.referenceDelivery.map((item, index) => <li key={index}>{item.label}: {item.as}</li>)}</ul><p className="text-xs text-white/60">Preview reflects settings when requested. Refresh after editing.</p></details>}
