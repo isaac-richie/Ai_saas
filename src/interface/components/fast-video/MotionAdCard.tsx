@@ -55,6 +55,7 @@ export function MotionAdCard({ actions = DEFAULT_ACTIONS, isFree = true }: { act
   const [rights, setRights] = useState(false)
   const [rightsBanner, setRightsBanner] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmFinal, setConfirmFinal] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
@@ -178,7 +179,9 @@ export function MotionAdCard({ actions = DEFAULT_ACTIONS, isFree = true }: { act
           </div>
           {ad?.voice && <p className="text-[12px] text-[#9aa1ab]">Length follows your voice file: {ad.voice.durationS.toFixed(1)} s.</p>}
           <button type="button" onClick={() => void plan()} disabled={Boolean(busy) || !editable || brief.trim().length < 8}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[13.5px] font-semibold text-[#1a160e] disabled:opacity-45">
+            className={planReady
+              ? "flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/15 text-[13px] font-medium text-[#ece6d6] hover:border-gold-300/50 disabled:opacity-45"
+              : "flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[13.5px] font-semibold text-[#1a160e] disabled:opacity-45"}>
             {busy === "plan" || ad?.state === "planning" ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
             {busy === "plan" || ad?.state === "planning" ? "Planning your storyboard…" : planReady ? "Plan the storyboard again" : "Plan storyboard"}
           </button>
@@ -202,7 +205,7 @@ export function MotionAdCard({ actions = DEFAULT_ACTIONS, isFree = true }: { act
                   <li key={shot.idx} className="rounded-xl border border-line bg-white/[0.02] p-2.5">
                     <div className="flex gap-3">
                       <button type="button" disabled={Boolean(busy) || !editable} onClick={() => pick("image", tag)} aria-label={image ? `Replace image for shot ${shot.idx}` : `Add image for shot ${shot.idx}`}
-                        className={`relative grid aspect-video w-28 shrink-0 self-start place-items-center overflow-hidden rounded-lg border ${image ? "border-line" : "border-dashed border-white/20"} bg-black/30 text-[#9aa1ab] hover:border-gold-300/50`}>
+                        className={`relative grid aspect-video w-28 shrink-0 self-start place-items-center overflow-hidden rounded-lg border ${image ? "border-line" : "border-dashed border-white/20"} bg-black/30 text-[#9aa1ab] enabled:hover:border-gold-300/50 disabled:cursor-default`}>
                         {image
                           // eslint-disable-next-line @next/next/no-img-element
                           ? <img src={image.url} alt="" className="size-full object-cover" />
@@ -241,13 +244,13 @@ export function MotionAdCard({ actions = DEFAULT_ACTIONS, isFree = true }: { act
                   <p className="mt-1 text-[#9aa1ab]">Delivery: {ad.plan.voiceover.delivery}. Make it in ElevenLabs, then add the file. Its length sets the ad&apos;s length.</p>
                   <button type="button" onClick={() => void copy(ad.plan!.voiceover.script, "script")} className="mt-1.5 inline-flex items-center gap-1 text-gold-200">{copied === "script" ? <Check className="size-3" /> : <Copy className="size-3" />}{copied === "script" ? "Copied" : "Copy script"}</button>
                 </div>
-                <button type="button" disabled={Boolean(busy) || !editable} onClick={() => pick("voice")} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1.5 text-[#ece6d6] hover:border-gold-300/50">
+                <button type="button" disabled={Boolean(busy) || !editable} onClick={() => pick("voice")} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1.5 text-[#ece6d6] enabled:hover:border-gold-300/50 disabled:opacity-40">
                   {busy === "upload-voice" ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}{ad.voice ? `Voice · ${ad.voice.durationS.toFixed(1)} s` : "Add voice file"}
                 </button>
               </div>
               <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] pt-2">
                 <p className="text-white">Logo <span className="text-[#9aa1ab]">· the real file, shown on the end card</span></p>
-                <button type="button" disabled={Boolean(busy) || !editable} onClick={() => pick("logo")} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1.5 text-[#ece6d6] hover:border-gold-300/50">
+                <button type="button" disabled={Boolean(busy) || !editable} onClick={() => pick("logo")} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 px-2.5 py-1.5 text-[#ece6d6] enabled:hover:border-gold-300/50 disabled:opacity-40">
                   {busy === "upload-logo" ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}{ad.logo ? "Replace logo" : "Add logo"}
                 </button>
               </div>
@@ -260,12 +263,12 @@ export function MotionAdCard({ actions = DEFAULT_ACTIONS, isFree = true }: { act
                   <input type="checkbox" checked={rights} onChange={(e) => { setRights(e.target.checked); if (e.target.checked) setRightsBanner(false) }} className="mt-0.5" />
                   I have the right to use these assets.
                 </label>
-                {rightsBanner && <p role="alert" className="rounded-lg border border-gold-300/40 bg-gold-300/[0.08] p-2 text-[12px] text-gold-100">Confirm you have the right to use these assets.</p>}
+                {rightsBanner && <p role="alert" className="rounded-lg border border-amber-300/50 bg-amber-300/[0.1] p-2 text-[12px] text-amber-100">Confirm you have the right to use these assets.</p>}
                 <button type="button" onClick={approve} disabled={Boolean(busy) || ad.state !== "awaiting_approval"}
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[linear-gradient(135deg,#f3e5c0,#d9c08a_55%,#b8975a)] text-[13.5px] font-semibold text-[#1a160e] disabled:opacity-45">
                   {busy === "approve" ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}Approve storyboard
                 </button>
-                {ad.state === "awaiting_assets" && <p className="text-[12px] text-[#9aa1ab]">Add an image for every shot to approve.</p>}
+                {ad.state === "awaiting_assets" && <p className="text-[12px] text-[#9aa1ab]">{ad.plan.shots.filter((x) => !ad.images.some((i) => i.tag === `@image${x.idx}`)).length} of {ad.plan.shots.length} shots still need an image before you can approve.</p>}
               </div>
             )}
           </section>
@@ -281,7 +284,7 @@ export function MotionAdCard({ actions = DEFAULT_ACTIONS, isFree = true }: { act
         )}
         {latest?.previewUrl && (ad?.state === "preview_ready" || ad?.state === "final_rendering" || ad?.state === "done") && (
           <section aria-label="Preview" className="space-y-2">
-            <p className="text-[10.5px] font-medium uppercase tracking-[0.2em] text-gold-300/80">Preview · version {latest.n}</p>
+            <p className="text-[10.5px] font-medium uppercase tracking-[0.2em] text-gold-300/80">{ad.state === "done" && latest.finalUrl ? "Final" : "Preview"} · version {latest.n}</p>
             <video src={ad.state === "done" && latest.finalUrl ? latest.finalUrl : latest.previewUrl} controls playsInline className="w-full rounded-xl bg-black" />
             <p className="text-[11.5px] text-[#7f8792]">Watch and listen at full speed before you publish: checks can&apos;t hear a mix.</p>
             {ad.state === "preview_ready" && (
@@ -319,8 +322,16 @@ export function MotionAdCard({ actions = DEFAULT_ACTIONS, isFree = true }: { act
 
         {ad && (
           <div className="flex justify-between border-t border-white/[0.06] pt-2 text-[12px]">
-            <button type="button" disabled={Boolean(busy) || WORKING.has(ad.state)} onClick={() => { setAd(null); setBrief(""); setRights(false); try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ } }} className="text-gold-200">Start a new motion ad</button>
-            <button type="button" disabled={Boolean(busy) || WORKING.has(ad.state)} onClick={() => void run("delete", async () => { const r = await actions.remove({ id: ad.id }); if (r.data) { setAd(null); setBrief(""); try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ } } return { error: r.error } })} className="inline-flex items-center gap-1 text-[#9aa1ab] hover:text-rose-200"><Trash2 className="size-3.5" /> Delete</button>
+            {!confirmDelete && <button type="button" disabled={Boolean(busy) || WORKING.has(ad.state)} onClick={() => { setConfirmDelete(false); setAd(null); setBrief(""); setRights(false); try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ } }} className="text-gold-200">Start a new motion ad</button>}
+            {confirmDelete ? (
+              <span className="ml-auto inline-flex flex-wrap items-center justify-end gap-2" role="group" aria-label="Confirm delete">
+                <span className="text-rose-100">Delete this ad and its renders? This can&apos;t be undone.</span>
+                <button type="button" autoFocus disabled={Boolean(busy)} onClick={() => void run("delete", async () => { setConfirmDelete(false); const r = await actions.remove({ id: ad.id }); if (r.data) { setAd(null); setBrief(""); setRights(false); setConfirmFinal(false); try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ } } return { error: r.error } })} className="rounded-md bg-rose-300/90 px-2 py-0.5 font-semibold text-[#1a0e0e]">Delete</button>
+                <button type="button" onClick={() => setConfirmDelete(false)} className="text-white/60">Keep</button>
+              </span>
+            ) : (
+              <button type="button" disabled={Boolean(busy) || WORKING.has(ad.state)} onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1 text-[#9aa1ab] enabled:hover:text-rose-200 disabled:opacity-40"><Trash2 className="size-3.5" /> Delete</button>
+            )}
           </div>
         )}
       </div>

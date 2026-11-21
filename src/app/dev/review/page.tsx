@@ -7,7 +7,7 @@ export const metadata = { title: 'Review preview' };
 const sample: GuestShare = {
   id: 'dev',
   title: 'Golden Hour — teaser',
-  video_url: '/__dev/shot2.mp4',
+  video_url: '/landing-720.mp4',
   duration_ms: 4000,
   status: 'in_review',
   allow_comments: true,

@@ -177,7 +177,9 @@ export function PreparePost({ url, actions = DEFAULT_ACTIONS }: { url: string; a
             </div>
           </details>
 
-          <button type="button" onClick={() => void write()} disabled={!goal || writing} className="ed-gold flex h-11 w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-semibold disabled:opacity-50">
+          <button type="button" onClick={() => void write()} disabled={!goal || writing} className={draft
+            ? 'flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-white/15 text-[13.5px] font-medium text-[#ece6d6] hover:border-gold-300/50 disabled:opacity-50'
+            : 'ed-gold flex h-11 w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-semibold disabled:opacity-50'}>
             {writing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
             {writing ? 'Writing your post…' : draft ? 'Write it again' : 'Write my post'}
           </button>
@@ -219,7 +221,7 @@ export function PreparePost({ url, actions = DEFAULT_ACTIONS }: { url: string; a
                 />
                 <div className="mt-1 flex flex-wrap justify-between gap-2 text-[12px]">
                   <span className={issues.length ? 'text-amber-200' : 'text-[#9aa3ad]'}>{issues[0] ?? 'Ready to paste.'}</span>
-                  <span className="tabular-nums text-[#9aa3ad]">{[...current].length} / {PLATFORM_RULES[platform].maxChars}</span>
+                  <span className={`tabular-nums ${[...current].length > PLATFORM_RULES[platform].maxChars ? 'text-amber-200' : 'text-[#9aa3ad]'}`}>{[...current].length} / {PLATFORM_RULES[platform].maxChars}</span>
                 </div>
               </div>
 
@@ -243,6 +245,7 @@ export function PreparePost({ url, actions = DEFAULT_ACTIONS }: { url: string; a
                     {postedAt ? 'Marked as posted · undo' : 'I posted it'}
                   </button>
                 </div>
+                {!rights && <p className="text-[12px] text-[#9aa3ad]">Tick the box above to copy the caption or mark it as posted.</p>}
                 <p className="text-[12px] text-[#9aa3ad]">
                   {postedAt
                     ? `You marked this as posted on ${PLATFORM_RULES[platform].label.replace(' version', '')} (${new Date(postedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}). Visiowave can't see the platform, so this is your note, not a confirmation.`

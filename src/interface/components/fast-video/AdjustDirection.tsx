@@ -89,7 +89,7 @@ export function AdjustDirection({ shots, focusShot, hasWork, disabled, onSubmit,
       {asking ? (
         <div role="alertdialog" aria-labelledby={`${id}-keep`} className="mt-3 rounded-lg border border-gold-300/30 bg-gold-300/[0.05] p-3 text-xs text-white/75">
           <p id={`${id}-keep`} className="text-sm font-medium text-white">Keep everything I have made?</p>
-          <p className="mt-1">Keep: {wholeFilm ? "every shot" : `shot ${shot}`} keeps its Takes and its approved take after the re-plan. Don&apos;t keep: {wholeFilm ? "re-planned shots lose" : "this shot loses"} its approved take so you can choose again. Takes are never deleted either way.</p>
+          <p className="mt-1">Keep: {wholeFilm ? "every shot" : `shot ${shot}`} keeps its Takes and its approved take after the re-plan. Don&apos;t keep: {wholeFilm ? "re-planned shots lose their approved takes" : "this shot loses its approved take"} so you can choose again. Takes are never deleted either way.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" autoFocus disabled={disabled} onClick={() => void send(true)} className="rounded-full bg-gradient-to-br from-gold-100 via-gold-300 to-gold-500 px-4 py-1.5 text-xs font-medium text-black disabled:opacity-40">Keep</button>
             <button type="button" disabled={disabled} onClick={() => void send(false)} className="rounded-full border border-amber-300/40 px-4 py-1.5 text-xs text-amber-100 disabled:opacity-40">Don&apos;t keep approvals</button>

@@ -19,6 +19,7 @@ const gold =
 export function ReviewClient({ token, initial }: { token: string; initial: GuestShare }) {
   const [share, setShare] = useState(initial);
   const [now, setNow] = useState(0);
+  const [videoFailed, setVideoFailed] = useState(false);
   const [duration, setDuration] = useState(initial.duration_ms / 1000);
   const [name, setName] = useState('');
   const [body, setBody] = useState('');
@@ -29,6 +30,8 @@ export function ReviewClient({ token, initial }: { token: string; initial: Guest
   const [error, setError] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
+  // The video can fail before hydration attaches onError, so check once on mount too.
+  useEffect(() => { if (video.current?.error) setVideoFailed(true); }, []);
   const trap = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -117,7 +120,7 @@ export function ReviewClient({ token, initial }: { token: string; initial: Guest
 
         <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
           <section className="space-y-3">
-            <div className="overflow-hidden rounded-2xl border border-line bg-black shadow-[0_40px_80px_-40px_rgba(0,0,0,1)]">
+            <div className="relative overflow-hidden rounded-2xl border border-line bg-black shadow-[0_40px_80px_-40px_rgba(0,0,0,1)]">
               <video
                 ref={video}
                 src={share.video_url}
@@ -127,8 +130,18 @@ export function ReviewClient({ token, initial }: { token: string; initial: Guest
                 // Any shape: widescreen fills the width, vertical keeps to a comfortable height.
                 className="mx-auto max-h-[72vh] w-full bg-black object-contain"
                 onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
-                onLoadedMetadata={(e) => Number.isFinite(e.currentTarget.duration) && setDuration(e.currentTarget.duration)}
+                onLoadedMetadata={(e) => { setVideoFailed(false); if (Number.isFinite(e.currentTarget.duration)) setDuration(e.currentTarget.duration); }}
+                onError={() => setVideoFailed(true)}
               />
+              {videoFailed && (
+                <div role="alert" className="absolute inset-0 grid place-items-center bg-black/80 p-6 text-center">
+                  <div>
+                    <p className="text-sm text-white">This video couldn&apos;t load.</p>
+                    <p className="mt-1 text-[13px] text-[#9aa3ad]">Check your connection and reload the page. If it keeps happening, ask whoever sent the link to share it again.</p>
+                    <button type="button" onClick={() => { setVideoFailed(false); video.current?.load(); }} className="mt-3 rounded-lg border border-white/20 px-3 py-1.5 text-[13px] text-white hover:border-gold-300/50">Try again</button>
+                  </div>
+                </div>
+              )}
             </div>
             {pinned.length > 0 && duration > 0 && (
               <div className="relative h-6" aria-label="Notes along the video">
