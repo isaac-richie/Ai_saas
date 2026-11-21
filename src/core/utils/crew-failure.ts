@@ -1,5 +1,5 @@
 export type CrewFailureReason =
-  | "ai_key" | "ai_credits" | "ai_busy" | "ai_outage" | "timeout" | "network" | "safety" | "too_long" | "unknown"
+  | "ai_key" | "ai_credits" | "ai_busy" | "ai_outage" | "timeout" | "network" | "safety" | "too_long" | "replan_scope" | "unknown"
 
 export type CrewFailure = { reason: CrewFailureReason; title: string; description: string }
 
@@ -29,6 +29,10 @@ export function describeCrewFailure(message: string, stage = "this step"): CrewF
   }
   if (/\b5\d\d\b|overloaded|server_error|service unavailable|bad gateway/i.test(message)) {
     return { reason: "ai_outage", title: "AI service hiccup", description: `The AI provider had a temporary problem. ${saved} Resume in a moment.` }
+  }
+  // Resuming can't fix this one: the shot chosen for a one-shot re-plan is gone from the film.
+  if (/no longer in this film/i.test(message)) {
+    return { reason: "replan_scope", title: "That shot is no longer in the film", description: "Re-plan the whole film instead, or restore an earlier version. Nothing was changed." }
   }
   // Only real length overruns are "too much"; other format problems fall through to a plain retry message.
   if (/field limit|too_big/i.test(message)) {

@@ -10,7 +10,7 @@ import { promisify } from "node:util"
 import type { ProductionAsset } from "../validation/production-assets"
 import { enforcePromptCompliance } from "../utils/ai/prompt-compliance"
 import {
-  productionBibleSchema, departmentDirectionSchema, crewShotsSchema, crewReviewSchema,
+  productionBibleSchema, departmentDirectionSchema, crewShotsSchema, crewShotRewriteSchema, crewReviewSchema,
   productionPlanSchema, continuityLedgerSchema, type ProductionPlan,
 } from "../validation/production-crew"
 
@@ -318,7 +318,9 @@ export function createCrewRunner(_legacyModel: string, references: ProductionAss
           ? departmentDirectionSchema.extend({ shotDirections: departmentDirectionSchema.shape.shotDirections.length(shotCount) })
           : Object.is(schema, crewShotsSchema)
             ? crewShotsSchema.extend({ shots: crewShotsSchema.shape.shots.length(shotCount) })
-            : schema
+            : Object.is(schema, crewShotRewriteSchema)
+              ? crewShotRewriteSchema.extend({ shots: crewShotRewriteSchema.shape.shots.length(shotCount) })
+              : schema
       let result
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const remaining = deadline - Date.now()

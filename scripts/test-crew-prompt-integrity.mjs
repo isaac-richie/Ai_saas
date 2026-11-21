@@ -4,6 +4,13 @@ import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { z as settingsZod } from 'zod'
+// The pure one-shot re-plan helpers the crew runner imports (Keep Progress Step 4).
+function loadReplan() {
+  const loaded = { exports: {} }
+  vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/services/production-replan.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: loaded, exports: loaded.exports })
+  return loaded.exports
+}
+
 // Pure config with no imports; the real model ranges, never a stub.
 const kieModelsModule = { exports: {} }
 vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/core/config/kie-video-models.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: kieModelsModule, exports: kieModelsModule.exports })
@@ -290,6 +297,7 @@ for (const failedRole of [null, 'cinematographer', 'lighting-director', 'product
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
       if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
       if (name.endsWith('/config/production-model-routing')) return { resolveProductionModel: () => ({ model: 'mock-balanced', tier: 'balanced' }) }
+      if (name.endsWith('/services/production-replan')) return loadReplan()
       throw new Error(`Unexpected import ${name}`)
     },
   })
@@ -370,6 +378,7 @@ test('repair checkpoint runs only shot editor and continuity reviewer', async ()
       if (name.endsWith('/validation/production-assets')) return { productionAssetsSchema: z.array(z.any()), ownsAssetUrl: () => true }
       if (name.endsWith('/utils/production/revision-context')) return { compactRevisionContext: value => value.revision }
       if (name.endsWith('/config/production-model-routing')) return { resolveProductionModel: () => ({ model: 'mock-balanced', tier: 'balanced' }) }
+      if (name.endsWith('/services/production-replan')) return loadReplan()
       throw new Error(`Unexpected import ${name}`)
     },
   })

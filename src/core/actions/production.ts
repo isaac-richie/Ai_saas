@@ -15,6 +15,7 @@ import { buildRevisionContext, revisionSaveError } from "@/core/utils/production
 import { productionShotSettingsSchema } from "@/core/validation/production-settings"
 import { movedLockIssues, planLockedRequest, resolveLocks } from "@/core/services/long-form-locks"
 import { isRetiredShot, livePlanShots } from "@/core/services/production-shots"
+import { isWholeFilm, normalizeShotScope } from "@/core/services/production-replan"
 import { loadFilmLocks, requestFingerprint, verifyPinnedImages } from "@/core/services/long-form-lock-store"
 import { mediaCountLabel, resolveVideoRefs } from "@/core/services/long-form-video-refs"
 import { loadFilmVideoRefs, verifyPinnedClips } from "@/core/services/long-form-video-store"
@@ -87,6 +88,10 @@ const productionRevisionSchema = z.object({
   direction: z.string().trim().min(8).max(50000),
   repair: z.boolean().optional(),
   shotSettings: productionShotSettingsSchema.optional(),
+  /** Re-plan only these shots (1-based). Left out, or every shot, means the whole film. */
+  shotNumbers: z.array(z.number().int().min(1).max(24)).min(1).max(24).optional(),
+  /** Approving the new plan keeps each re-planned shot's approved take (default) or clears it. Takes are never deleted. */
+  keepWork: z.boolean().default(true),
 })
 
 const replaceProductionReferencesSchema = z.object({
@@ -301,7 +306,50 @@ export async function createProductionRevision(input: unknown) {
     && sourcePlan.data.deliverables.every((shot, index) => shot.masterPrompt === savedContext.data.editor.shots[index].prompt)
     && departmentStages.length === departmentRoles.length)
   const extractorStage = savedContext.success ? savedContext.data.stages.find(stage => stage.role === "continuity-extractor") : undefined
+  // Re-plan chosen shots only: reuse the saved story and department work and the exact shots the
+  // crew wrote, so every other shot stays as it is.
+  const total = parsed.data.shotNumbers && sourcePlan.success ? sourcePlan.data.deliverables.length : 0
+  const scope = parsed.data.shotNumbers ? normalizeShotScope(parsed.data.shotNumbers, total) : []
+  if (parsed.data.shotNumbers && !scope.length) return { error: "Choose shots that are in this film." }
+  const scoped = !parsed.data.repair && scope.length > 0 && !isWholeFilm(scope, total)
+  if (scoped) {
+    if (source.status === "brief") return { error: "The crew is still planning this film. Let it finish, then re-plan a shot." }
+    if (parsed.data.shotSettings) return { error: "Change shot models and timing for the whole film, not one shot at a time." }
+    // The saved crew work must be complete (all four departments recorded), so the finished plan is valid.
+    const editorMatches = savedContext.success && sourcePlan.success && sourcePlan.data.crew?.version === 2
+      && departmentStages.length === departmentRoles.length
+      && sourcePlan.data.deliverables.length === savedContext.data.editor.shots.length
+      && sourcePlan.data.deliverables.every((shot, index) => shot.masterPrompt === savedContext.data.editor.shots[index].prompt)
+    if (!editorMatches || !savedContext.success || !sourcePlan.success) return { error: "This plan can't be re-planned one shot at a time (an older crew made it, or it was changed since). Choose Whole film instead." }
+    const { data, error } = await db.from("production_jobs").insert({
+      user_id: user.id, brief: source.brief, planning_stage: "departments", parent_job_id: lineageRoot, revision_number: nextRevision,
+      planning_context: {
+        ...revisionContext,
+        ...(repairUsed ? { findingsRepairUsed: true } : {}),
+        shotSettings: savedContext.data.shotSettings,
+        model: sourcePlan.data.crew?.model,
+        // The scoped run never restarts the film when references change; it records the current set.
+        ...(referenceSnapshot ? { referenceSnapshot } : {}),
+        story: savedContext.data.story,
+        camera: savedContext.data.camera,
+        lighting: savedContext.data.lighting,
+        productionDesign: savedContext.data.productionDesign,
+        performance: savedContext.data.performance,
+        previousEditor: savedContext.data.editor,
+        stages: [...(extractorStage ? [extractorStage] : []), ...departmentStages],
+        revisionScope: { shots: scope },
+        keepWork: parsed.data.keepWork,
+      },
+      ...(source.reference_assets ? { reference_assets: source.reference_assets } : {}),
+    }).select("*").single()
+    if (error) {
+      console.error("Production revision save failed", { productionId: source.id, code: error.code })
+      return { error: revisionSaveError(error.code) }
+    }
+    return { data }
+  }
   const planningContext = {
+    keepWork: parsed.data.keepWork,
     ...revisionContext,
     ...(repairUsed ? { findingsRepairUsed: true } : {}),
     ...(shotSettings ? { shotSettings } : {}),
@@ -329,17 +377,58 @@ export async function createProductionRevision(input: unknown) {
   return { data }
 }
 
+const restoreSchema = z.object({ productionId: z.string().uuid(), versionId: z.string().uuid() })
+
+/**
+ * Brings back an earlier version of a film's plan (Keep Progress Step 5). Every re-plan is saved as
+ * its own version, so nothing is lost: restoring copies that version's plan into a new version ready
+ * to approve, and approving it applies it to the same shots (Takes stay).
+ */
+export async function restoreProductionVersion(input: unknown) {
+  const parsed = restoreSchema.safeParse(input)
+  if (!parsed.success) return { error: "Choose a version to restore." }
+  const db = await createClient()
+  const { data: { user } } = await db.auth.getUser()
+  if (!user) return { error: "Please sign in." }
+  const { data: current } = await db.from("production_jobs").select("id,parent_job_id,revision_number").eq("id", parsed.data.productionId).eq("user_id", user.id).maybeSingle()
+  if (!current) return { error: "Production not found." }
+  const root = current.parent_job_id || current.id
+  const { data: version } = await db.from("production_jobs").select("*").eq("id", parsed.data.versionId).eq("user_id", user.id).maybeSingle()
+  if (!version || (version.parent_job_id || version.id) !== root) return { error: "That version belongs to another film." }
+  const plan = productionPlanSchema.safeParse(version.plan)
+  if (!plan.success || version.status === "brief") return { error: "That version has no finished plan to restore." }
+  const { data: latest, error: latestError } = await db.from("production_jobs").select("revision_number").eq("user_id", user.id).or(`id.eq.${root},parent_job_id.eq.${root}`).order("revision_number", { ascending: false }).limit(1).maybeSingle()
+  if (latestError) return { error: "Could not load the current film. Please retry." }
+  const context = isJsonObject(version.planning_context ?? null) ? { ...(version.planning_context as Record<string, unknown>) } : {}
+  // A restored plan is applied as a whole and keeps everything made since.
+  delete context.revisionScope
+  context.keepWork = true
+  const { data: created, error } = await db.from("production_jobs").insert({
+    user_id: user.id, brief: version.brief, planning_stage: "brief", parent_job_id: root, revision_number: (latest?.revision_number || 1) + 1,
+    ...(version.reference_assets ? { reference_assets: version.reference_assets } : {}),
+  }).select("id").single()
+  if (error || !created) return { error: revisionSaveError(error?.code) }
+  const { data: restored, error: fillError } = await db.from("production_jobs").update({
+    status: "awaiting_approval", plan: plan.data, planning_stage: "complete", planning_context: context as Json, planning_updated_at: new Date().toISOString(),
+  }).eq("id", created.id).eq("user_id", user.id).select("*").single()
+  if (fillError || !restored) {
+    await db.from("production_jobs").delete().eq("id", created.id).eq("user_id", user.id)
+    return { error: "Could not restore that version. Your film is unchanged." }
+  }
+  return { data: restored }
+}
+
 export async function materializeProduction(jobId: string) {
   const id = z.string().uuid().safeParse(jobId)
   if (!id.success) return { error: "Choose a valid production." }
   const db = await createClient()
   const { data: { user } } = await db.auth.getUser()
   if (!user) return { error: "Please sign in." }
-  const { data: sourceJob } = await db.from("production_jobs").select("plan").eq("id", id.data).eq("user_id", user.id).maybeSingle()
+  const { data: sourceJob } = await db.from("production_jobs").select("plan,planning_context").eq("id", id.data).eq("user_id", user.id).maybeSingle()
   const { data, error } = await db.rpc("materialize_production_job", { target_job: id.data })
   if (error?.message.includes("Production requires three shots")) return { error: "Apply migration 0029 to create workspaces for longer films. Your approved plan is saved." }
   if (error) return { error: error.message.includes("Could not find") ? "Apply migration 0022 to create production workspaces." : "Could not create the production workspace." }
-  const workspace = data as { projectId: string; sceneId: string; sequenceId: string; existing: boolean }
+  const workspace = data as { projectId: string; sceneId: string; sequenceId: string; existing: boolean; updatedInPlace?: boolean }
   const plan = productionPlanSchema.safeParse(sourceJob?.plan)
   const parsedPlan = plan.success ? plan.data : null
   const ledger = parsedPlan?.crew?.bible.continuityLedger
@@ -379,6 +468,22 @@ export async function materializeProduction(jobId: string) {
         generation_settings: { ...existingSettings, continuity_ledger: ledger, continuity_state: continuityState } as Json,
       }).eq("id", shot.id)
       if (lockError || settingsError) return { error: "The workspace was created, but its continuity contract was not fully saved. Retry to finish setup." }
+    }
+  }
+  // "Don't keep" was chosen for this re-plan: the re-planned shots lose their approved take so they
+  // can be chosen again. Their Takes are never deleted, and other shots are untouched.
+  if (workspace.updatedInPlace && parsedPlan) {
+    const context = isJsonObject(sourceJob?.planning_context ?? null) ? sourceJob!.planning_context as Record<string, unknown> : {}
+    if (context.keepWork === false) {
+      const scope = normalizeShotScope((context.revisionScope as { shots?: number[] } | undefined)?.shots, parsedPlan.deliverables.length)
+      const numbers = scope.length ? scope : parsedPlan.deliverables.map((_, index) => index + 1)
+      const { data: sceneShots } = await db.from("shots").select("id,sequence_order,generation_settings").eq("scene_id", workspace.sceneId)
+      const live = livePlanShots(sceneShots ?? [], parsedPlan.deliverables.length)
+      const ids = numbers.map(n => live[n - 1]?.id).filter((shotId): shotId is string => Boolean(shotId))
+      if (ids.length) {
+        const { error: clearError } = await db.from("shots").update({ approved_take_id: null }).in("id", ids)
+        if (clearError) return { error: "Your shots were updated, but their approved takes could not be cleared. Choose new takes in Takes & review." }
+      }
     }
   }
   return { data: workspace }
